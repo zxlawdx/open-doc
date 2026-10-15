@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8,<10
+WebTest>=3,<4
+black>=24,<27
