@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="writer-token" content="{{token}}">
+  <title>Vela Writer</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <script defer src="/static/js/app.js"></script>
+</head>
+<body>
+<!-- ============ APP SHELL ============ -->
+<div class="writer-shell" data-app data-collapsed="false">
+  % include("sidebar")
+  <main class="workspace flex flex-col">
+    <header class="topbar flex items-center">
+      <span class="breadcrumb">Espaço pessoal <span>/</span> Início</span>
+      <span class="phase-badge">Prévia · Fase 1</span>
+    </header>
+    % include("editor")
+    <section class="library" data-library hidden aria-labelledby="library-title">
+      <div class="panel-heading">
+        <p class="eyebrow">SEU ACERVO</p><h1 id="library-title">Documentos</h1>
+        <p>Importe uma cópia. Seus arquivos originais são preservados.</p>
+      </div>
+      <ul data-files aria-label="Arquivos importados"></ul>
+    </section>
+    <!-- ============ STATUS BAR ============ -->
+    <footer class="statusbar flex items-center">
+      <span data-status role="status" aria-live="polite">Pronto</span>
+      <span data-count>0 palavras</span>
+      <span>Local · Privado · Seu</span>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
