@@ -1,25 +1,41 @@
-<!-- ============ EDITOR SCAFFOLD ============ -->
-<section class="editor-panel" data-home aria-labelledby="welcome-title">
-  <div class="editor-sheet">
-    <p class="eyebrow">UM ESPAÇO PARA PENSAR</p>
-    <h1 id="welcome-title">Dê espaço às<br><span>suas ideias.</span></h1>
-    <p class="intro">Da primeira anotação à próxima descoberta.<br>
-      Tudo começa com uma página em branco.</p>
-    <div class="draft-heading">
-      <label for="scratchpad">Rascunho temporário</label>
-      <span>Somente nesta janela</span>
-    </div>
-    <textarea id="scratchpad" data-draft spellcheck="true"
-      placeholder="O que você está pensando hoje?"
-      aria-describedby="draft-help"></textarea>
-    <p id="draft-help" class="draft-help">
-      Este rascunho ainda não é salvo. Editor e salvamento chegam na Fase 2.
-    </p>
-    <div class="welcome-card">
-      <span class="card-symbol" aria-hidden="true">↗</span>
-      <div><h2>Sua biblioteca começa aqui</h2>
-        <p>Traga seus PDFs, documentos, apresentações e notas.</p></div>
-      <button type="button" data-import>Importar arquivo <span aria-hidden="true">→</span></button>
+<!-- ============ PERSISTENT EDITOR ============ -->
+<section class="editor-panel" data-home aria-labelledby="document-title">
+  <div class="writing-header">
+    <label class="sr-only" for="document-title">Título do documento</label>
+    <input id="document-title" data-title maxlength="180"
+      placeholder="Sem título" autocomplete="off" disabled>
+    <div class="editor-actions">
+      <button type="button" data-save disabled>Salvar <kbd>Ctrl S</kbd></button>
+      <button type="button" data-save-copy hidden>Salvar uma cópia</button>
+      <button type="button" data-export="pdf" disabled>PDF ↗</button>
+      <button type="button" data-export="docx" disabled>DOCX ↗</button>
     </div>
   </div>
+  <div class="editor-toolbar" role="toolbar" aria-label="Formatação">
+    <button type="button" data-mode="markdown" aria-pressed="true">Markdown</button>
+    <button type="button" data-mode="rich" aria-pressed="false">Texto rico</button>
+    <span class="toolbar-separator" aria-hidden="true"></span>
+    <button type="button" data-format="bold" title="Negrito (Ctrl B)"><strong>B</strong></button>
+    <button type="button" data-format="italic" title="Itálico (Ctrl I)"><em>I</em></button>
+    <button type="button" data-format="heading" title="Título de seção">H2</button>
+    <button type="button" data-format="list" title="Lista">≡</button>
+    <button type="button" data-format="quote" title="Citação">❝</button>
+    <button type="button" data-format="code" title="Código">〈〉</button>
+    <label class="preview-toggle"><input type="checkbox" data-preview-toggle checked>
+      Preview</label>
+  </div>
+  <div class="recovery" data-recovery hidden role="alert">
+    <span>Encontramos alterações locais que ainda não foram salvas.</span>
+    <button type="button" data-recover>Recuperar como cópia</button>
+    <button type="button" data-discard-recovery>Descartar recuperação</button>
+  </div>
+  <div class="writing-surface" data-surface data-preview="true" data-editor-mode="markdown">
+    <label class="sr-only" for="markdown-source">Conteúdo Markdown</label>
+    <textarea id="markdown-source" data-source spellcheck="true"
+      placeholder="Comece sua próxima ideia…" disabled></textarea>
+    <div data-rich contenteditable="false" role="textbox" aria-multiline="true"
+      aria-label="Editor de texto rico" hidden></div>
+    <article class="markdown-preview" data-preview aria-label="Preview Markdown"></article>
+  </div>
+  <p class="export-result" data-export-result role="status"></p>
 </section>
