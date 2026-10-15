@@ -42,9 +42,7 @@ def create_routes(config: Config) -> Bottle:
     @application.get("/")
     def workspace() -> str:
         """Renderiza a janela principal com templates locais."""
-        return template(
-            "base", template_lookup=[str(TEMPLATE_ROOT)], token=token
-        )
+        return template("base", template_lookup=[str(TEMPLATE_ROOT)], token=token)
 
     @application.get("/static/<filepath:path>")
     def assets(filepath: str) -> Any:
