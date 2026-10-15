@@ -17,7 +17,7 @@ AUTOMATIC_PORT = 0
 
 
 def main() -> None:
-    """Inicia o runtime Vela e encerra o servidor ao fechar a janela."""
+    """Inicia o runtime Vela; a thread daemon acompanha o processo desktop."""
     os.environ.setdefault("PYWEBVIEW_GUI", "qt")
     os.environ.setdefault("QT_API", "pyqt5")
     import webview
@@ -44,11 +44,9 @@ def main() -> None:
         height=WINDOW_HEIGHT,
         background_color="#0d0f14",
     )
-    try:
-        webview.start(gui="qt", debug=False)
-    finally:
-        server.stop()
+    webview.start(gui="qt", debug=False)
 
 
 if __name__ == "__main__":
     main()
+
