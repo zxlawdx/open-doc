@@ -40,6 +40,9 @@ class Editor:
                 "revision INTEGER NOT NULL, updated_at TEXT NOT NULL);"
                 "CREATE TABLE IF NOT EXISTS session ("
                 "key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+                "CREATE TABLE IF NOT EXISTS recovery ("
+                "id TEXT PRIMARY KEY, title TEXT NOT NULL, markdown TEXT NOT NULL,"
+                "revision INTEGER NOT NULL);"
             )
         if not self.list_documents():
             self.create("Sem título", "")
@@ -100,7 +103,42 @@ class Editor:
             ).fetchone()
         if row is None:
             raise ValueError("Documento não encontrado.")
-        return dict(row)
+        document = dict(row)
+        with self._connect() as connection:
+            recovery = connection.execute(
+                "SELECT * FROM recovery WHERE id = ?", (identifier,)
+            ).fetchone()
+        document["recovery"] = dict(recovery) if recovery else None
+        return document
+
+    def stash_recovery(
+        self, identifier: str, title: str, markdown: str, revision: int
+    ) -> dict[str, bool]:
+        """Mantém uma recuperação persistente independente da origem HTTP."""
+        identifier = self._identifier(identifier)
+        title, markdown = self._validate(title, markdown)
+        with self._lock, self._connect() as connection:
+            current = connection.execute(
+                "SELECT revision, title, markdown FROM documents WHERE id = ?",
+                (identifier,),
+            ).fetchone()
+            if current is None or current["revision"] != revision:
+                return {"stored": False}
+            if current["title"] == title and current["markdown"] == markdown:
+                connection.execute("DELETE FROM recovery WHERE id = ?", (identifier,))
+            else:
+                connection.execute(
+                    "INSERT OR REPLACE INTO recovery VALUES (?, ?, ?, ?)",
+                    (identifier, title, markdown, revision),
+                )
+        return {"stored": True}
+
+    def discard_recovery(self, identifier: str) -> dict[str, bool]:
+        """Descarta uma recuperação somente por ação explícita ou salvamento."""
+        identifier = self._identifier(identifier)
+        with self._lock, self._connect() as connection:
+            connection.execute("DELETE FROM recovery WHERE id = ?", (identifier,))
+        return {"ok": True}
 
     def current(self) -> dict[str, Any]:
         """Restaura o último documento ativo da sessão."""
@@ -147,6 +185,7 @@ class Editor:
                 raise RevisionConflict(
                     "Existe uma revisão mais recente. Salve uma cópia."
                 )
+            connection.execute("DELETE FROM recovery WHERE id = ?", (identifier,))
             row = connection.execute(
                 "SELECT * FROM documents WHERE id = ?", (identifier,)
             ).fetchone()
@@ -159,3 +198,4 @@ class Editor:
         if source.stat().st_size > MAX_DOCUMENT_BYTES:
             raise ValueError("O documento ultrapassa 5 MB.")
         return self.create(source.stem, source.read_text(encoding="utf-8"))
+
