@@ -20,6 +20,12 @@ def main() -> None:
     target = ROOT / "ui" / "static" / "css" / "main.css"
     custom_css = target.read_text(encoding="utf-8").split(MARKER)[0].rstrip()
     output = ROOT / ".vela-build"
+    output.mkdir(parents=True, exist_ok=True)
+    import shutil
+    import vela.core.api_server
+
+    shell = Path(vela.core.api_server.__file__).parent / "shell.html"
+    shutil.copy2(shell, output / "framework-shell.html")
     if not run_tailwind_pipeline(str(ROOT), str(output), minify=True):
         raise RuntimeError("Falha ao compilar Tailwind com Vela.")
     compiled = (output / "css" / "vela.bundle.css").read_text(encoding="utf-8")
