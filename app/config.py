@@ -19,8 +19,13 @@ WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 800
 DEFAULT_SETTINGS = {"sidebar_collapsed": False}
 DATA_DIRECTORIES = (
-    "documents/docx", "documents/pptx", "documents/pdf",
-    "notes", "drawings", "exports", ".veladata",
+    "documents/docx",
+    "documents/pptx",
+    "documents/pdf",
+    "notes",
+    "drawings",
+    "exports",
+    ".veladata",
 )
 
 
