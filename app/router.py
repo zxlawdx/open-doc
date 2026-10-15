@@ -1,110 +1,189 @@
 """
 Módulo: router.py.
-Responsabilidade: registrar rotas Bottle e a ponte de importação nativa.
+Responsabilidade: registrar telas e endpoints no roteamento nativo do Vela.
 Autor: Vela Writer Contributors
 Criado em: 2026
 """
 
 from __future__ import annotations
 
+import logging
 import secrets
+import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from uuid import uuid4
 
-from bottle import Bottle, HTTPError, request, response, static_file, template
+from bottle import response
+from vela.api import api
+from vela.core.router import Router
+from vela.template_engine.engine import render_template
 
-from app.config import Config, PROJECT_ROOT
-from app.file_organizer import FileOrganizer
+from app.config import PROJECT_ROOT
+from app.editor import AUTOSAVE_SECONDS, RevisionConflict
+from app.runtime import services
 
-TEMPLATE_ROOT = PROJECT_ROOT / "ui" / "templates"
-STATIC_ROOT = PROJECT_ROOT / "ui" / "static"
+BAD_REQUEST = 400
+FORBIDDEN = 403
+CONFLICT = 409
+SERVER_ERROR = 500
+LOGGER = logging.getLogger(__name__)
 
 
-def create_routes(config: Config) -> Bottle:
-    """Cria rotas isoladas para o servidor Bottle do Vela."""
-    application = Bottle()
-    organizer = FileOrganizer(config)
-    token = secrets.token_urlsafe()
+def workspace_view(params: dict[str, Any]) -> str:
+    """Renderiza a composição usando exclusivamente o template engine Vela."""
+    router = params["router"]
+    context = {
+        "sidebar": render_template(
+            str(PROJECT_ROOT / "ui/templates/sidebar.html"), router=router
+        ),
+        "editor": render_template(
+            str(PROJECT_ROOT / "ui/templates/editor.html"), router=router
+        ),
+    }
+    return render_template(
+        str(PROJECT_ROOT / "ui/templates/base.html"),
+        context=context, router=router,
+    )
 
-    @application.hook("after_request")
-    def security_headers() -> None:
-        """Restringe recursos à origem local e evita cache de dados."""
-        response.set_header("Cache-Control", "no-store")
-        response.set_header("X-Content-Type-Options", "nosniff")
-        response.set_header("X-Frame-Options", "DENY")
-        response.set_header(
-            "Content-Security-Policy",
-            "default-src 'self'; script-src 'self'; style-src 'self'; "
-            "font-src 'self'; img-src 'self' data:; connect-src 'self'; "
-            "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
-        )
 
-    @application.get("/")
-    def workspace() -> str:
-        """Renderiza a janela principal com templates locais."""
-        return template("base", template_lookup=[str(TEMPLATE_ROOT)], token=token)
+def register_routes(router: Router) -> None:
+    """Conecta a tela à navegação e ao lifecycle do shell Vela."""
+    router.add(
+        "/", workspace_view, title="Escrita", name="writer",
+        layout="blank", show_in_sidebar=False,
+    )
 
-    @application.get("/static/<filepath:path>")
-    def assets(filepath: str) -> Any:
-        """Serve estáticos com proteção de caminhos do Bottle."""
-        return static_file(filepath, root=str(STATIC_ROOT))
 
-    @application.get("/writer/files")
-    def files() -> dict[str, Any]:
-        """Lista documentos organizados sem expor caminhos absolutos."""
-        return {"files": organizer.list_files()}
+def _data(context: dict[str, Any] | None) -> dict[str, Any]:
+    context = context or {}
+    data = context.get("json")
+    if not isinstance(data, dict):
+        raise ValueError("Esperado objeto JSON.")
+    supplied = context.get("headers", {}).get("X-Writer-Token", "")
+    if not secrets.compare_digest(str(supplied), services().token):
+        raise PermissionError("Sessão inválida.")
+    return data
 
-    @application.get("/writer/settings")
-    def settings() -> dict[str, bool]:
-        """Consulta as preferências persistentes."""
-        try:
-            return config.load_settings()
-        except (ValueError, OSError) as exc:
-            raise HTTPError(500, "Não foi possível ler as preferências.") from exc
 
-    @application.post("/writer/settings")
-    def save_settings() -> dict[str, bool]:
-        """Atualiza preferências autenticadas pelo token da janela."""
-        supplied = request.get_header("X-Writer-Token", "")
-        if not secrets.compare_digest(supplied, token):
-            raise HTTPError(403, "Token inválido.")
-        data = request.json
-        if not isinstance(data, dict):
-            raise HTTPError(400, "Esperado objeto JSON.")
-        try:
-            config.save_settings(data)
-        except ValueError as exc:
-            raise HTTPError(400, str(exc)) from exc
-        except OSError as exc:
-            raise HTTPError(500, "Não foi possível gravar as preferências.") from exc
+def _handle(operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    try:
+        return operation()
+    except PermissionError as exc:
+        response.status = FORBIDDEN
+        return {"error": str(exc)}
+    except RevisionConflict as exc:
+        response.status = CONFLICT
+        return {"error": str(exc), "conflict": True}
+    except (ValueError, KeyError, TypeError) as exc:
+        response.status = BAD_REQUEST
+        return {"error": str(exc)}
+    except (OSError, sqlite3.Error):
+        LOGGER.exception("Falha de persistência")
+        response.status = SERVER_ERROR
+        return {"error": "Não foi possível gravar os dados. Seu texto foi mantido."}
+
+
+@api.get("/writer/files")
+def files() -> dict[str, Any]:
+    """Lista a biblioteca e os documentos editáveis."""
+    return _handle(lambda: {
+        "files": services().organizer.list_files(),
+        "documents": services().editor.list_documents(),
+    })
+
+
+@api.post("/writer/settings")
+def save_settings(context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Persiste preferências por meio da API Bottle gerenciada pelo Vela."""
+    def save() -> dict[str, Any]:
+        data = _data(context)
+        services().config.save_settings(data["settings"])
         return {"ok": True}
+    return _handle(save)
 
-    return application
 
-
-class DesktopBridge:
-    """Expõe apenas a importação por seletor nativo ao JavaScript."""
-
-    def __init__(self, config: Config) -> None:
-        """Prepara o organizador; a janela é associada pelo launcher."""
-        self._organizer = FileOrganizer(config)
-        self._window: Any = None
-
-    def import_document(self) -> dict[str, Any]:
-        """Importa uma cópia do arquivo escolhido pelo usuário."""
-        import webview
-
-        if self._window is None:
-            return {"error": "Janela indisponível."}
-        paths = self._window.create_file_dialog(
-            webview.FileDialog.OPEN,
-            allow_multiple=False,
-            file_types=("Documentos (*.pdf;*.docx;*.pptx;*.md;*.txt)",),
+@api.post("/writer/document/new")
+def new_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Cria um documento persistente."""
+    def create() -> dict[str, Any]:
+        data = _data(context)
+        return services().editor.create(
+            data.get("title", "Sem título"), data.get("markdown", "")
         )
-        if not paths:
-            return {"cancelled": True}
+    return _handle(create)
+
+
+@api.post("/writer/document/open")
+def open_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Seleciona uma nota existente ou uma cópia de Markdown importado."""
+    def select() -> dict[str, Any]:
+        data = _data(context)
+        if "id" in data:
+            return services().editor.select(data["id"])
+        relative = data.get("path")
+        if not isinstance(relative, str):
+            raise ValueError("Documento inválido.")
+        root = services().config.root
+        source = root / relative
+        resolved = source.resolve()
+        if (
+            not resolved.is_relative_to(root / "notes")
+            or source.is_symlink()
+            or not source.is_file()
+        ):
+            raise ValueError("Nota inválida.")
+        return services().editor.import_note(resolved)
+    return _handle(select)
+
+
+@api.post("/writer/document/save")
+def save_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Salva um snapshot com verificação de revisão."""
+    def save() -> dict[str, Any]:
+        data = _data(context)
+        return services().editor.save(
+            data["id"], data["title"], data["markdown"], data["revision"]
+        )
+    return _handle(save)
+
+
+@api.post("/writer/document/export")
+def export_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Exporta um documento salvo, sem aceitar caminhos enviados pelo cliente."""
+    def export() -> dict[str, Any]:
+        from app.exporters.docx_exporter import export_docx
+        from app.exporters.pdf_exporter import export_pdf
+
+        data = _data(context)
+        document = services().editor.get(data["id"])
+        if document["revision"] != data["revision"]:
+            raise RevisionConflict("Salve a versão atual antes de exportar.")
+        extension = data["format"]
+        exporters = {"pdf": export_pdf, "docx": export_docx}
+        if extension not in exporters:
+            raise ValueError("Formato de exportação inválido.")
+        filename = document["id"] + "-" + uuid4().hex + "." + extension
+        target = services().config.root / "exports" / filename
+        temporary = target.with_suffix(".tmp")
         try:
-            target = self._organizer.organize(Path(paths[0]))
-            return {"name": target.name}
-        except (ValueError, OSError, UnicodeError):
-            return {"error": "Não foi possível importar. Confira o formato e acesso."}
+            exporters[extension](document["markdown"], temporary, document["title"])
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return {
+            "name": target.name,
+            "path": str(target),
+            "revision": document["revision"],
+        }
+    return _handle(export)
+
+
+def bootstrap() -> dict[str, Any]:
+    """Entrega dados iniciais somente à bridge nativa da janela."""
+    return {
+        "token": services().token,
+        "settings": services().config.load_settings(),
+        "document": services().editor.current(),
+        "autosave_seconds": AUTOSAVE_SECONDS,
+    }
