@@ -19,7 +19,7 @@ from webtest import TestApp
 
 from app.config import DATA_DIRECTORIES, Config
 from app.file_organizer import FileOrganizer
-from app.router import create_routes
+from config.wsgi import create_app
 
 HTTP_OK = 200
 HTTP_BAD_REQUEST = 400
@@ -93,46 +93,78 @@ def test_symlink_rejected(tmp_path: Path) -> None:
         FileOrganizer(Config(tmp_path / "workspace")).organize(link)
 
 
-def test_http_routes_and_csrf(tmp_path: Path) -> None:
-    """Verifica templates, assets, persistência e rejeição de POST sem token."""
-    application = TestApp(create_routes(Config(tmp_path)))
-    page = application.get("/")
-    assert "Dê espaço às" in page.text
-    assert "{{" not in page.text
-    assert "default-src 'self'" in page.headers["Content-Security-Policy"]
-    application.get("/static/css/main.css", status=HTTP_OK)
-    application.get("/static/fonts/Inter.woff2", status=HTTP_OK)
-    application.get("/static/../../app/config.py", status=HTTP_FORBIDDEN)
-    application.post_json(
-        "/writer/settings", {"sidebar_collapsed": True}, status=HTTP_FORBIDDEN
+def test_vela_application_lifecycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Executa VelaApp.run com janela substituída e servidor HTTP real."""
+    from vela.core.app import VelaApp
+    from vela.core.bridge import BaseBridge
+    import vela.core.app as runtime
+    from app.runtime import services
+
+    captured = {}
+
+    class Window:
+        """Captura parâmetros entregues à janela pelo VelaApp."""
+
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def run(self) -> None:
+            """Substitui apenas a janela gráfica no teste."""
+            captured["ran"] = True
+
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    monkeypatch.setattr(runtime, "DesktopWindow", Window)
+    application = create_app(Config(tmp_path))
+    assert isinstance(application, VelaApp)
+    assert isinstance(application.bridge, BaseBridge)
+    application.run()
+    assert captured["ran"] is True
+    assert captured["shell_mode"] == "http"
+    assert captured["entry_route"] == "/"
+    result = application.bridge.navigate("/")
+    assert result["layout"] == "blank"
+    assert "data-source" in result["html"]
+    assert "{{" not in result["html"]
+    assert "/__vela__/static/writer/js/app.js" in result["html"]
+
+    base = f"http://127.0.0.1:{application.api_server.port}"
+    with urlopen(base + "/__vela__/shell", timeout=5) as response:
+        shell = response.read().decode()
+        assert "cdn.tailwindcss.com" not in shell
+        assert "fonts.googleapis.com" not in shell
+    with urlopen(base + "/__vela__/static/writer/js/editor.js", timeout=5) as response:
+        assert response.status == HTTP_OK
+
+    client = TestApp(application.api_server.app)
+    client.post_json(
+        "/api/writer/document/new", {"title": "Negado"}, status=HTTP_FORBIDDEN
     )
-    token = re.search('name="writer-token" content="([^"]+)"', page.text).group(1)
-    headers = {"X-Writer-Token": token}
-    application.post_json(
-        "/writer/settings", {"sidebar_collapsed": True}, headers=headers
+    headers = {"X-Writer-Token": services().token}
+    note = client.post_json(
+        "/api/writer/document/new", {"title": "Minha nota"}, headers=headers
+    ).json
+    note["markdown"] = "# Olá\n\nTexto **forte**."
+    saved = client.post_json(
+        "/api/writer/document/save", note, headers=headers
+    ).json
+    assert saved["revision"] == note["revision"] + 1
+    client.post_json(
+        "/api/writer/document/save", note, headers=headers, status=409
     )
-    assert application.get("/writer/settings").json["sidebar_collapsed"] is True
-    application.post_json(
-        "/writer/settings",
-        {"unknown": True},
+    client.post_json(
+        "/api/writer/document/open", {"path": "../outside.md"},
+        headers=headers, status=HTTP_BAD_REQUEST,
+    )
+    client.post_json(
+        "/api/writer/settings", {"settings": {"sidebar_collapsed": True}},
         headers=headers,
-        status=HTTP_BAD_REQUEST,
     )
-    assert application.get("/writer/files").json == {"files": []}
-
-
-def test_vela_server_mount() -> None:
-    """Serve a interface pelo servidor real do Vela, sem abrir janela."""
-    from vela.core.api_router import ApiRouter
-    from vela.core.api_server import ApiServer
-
-    with TemporaryDirectory() as directory:
-        server = ApiServer(ApiRouter(), host="127.0.0.1", port=0, docs_enabled=False)
-        server.app.mount("/", create_routes(Config(Path(directory))))
-        server.start()
-        server.wait_until_ready()
-        base = f"http://127.0.0.1:{server.port}"
-        with urlopen(base + "/", timeout=5) as response:
-            assert "Vela Writer" in response.read().decode()
-        with urlopen(base + "/writer/files", timeout=5) as response:
-            assert json.load(response) == {"files": []}
+    assert services().config.load_settings()["sidebar_collapsed"] is True
+    for extension in ("pdf", "docx"):
+        exported = client.post_json(
+            "/api/writer/document/export",
+            {"id": saved["id"], "revision": saved["revision"], "format": extension},
+            headers=headers,
+        ).json
+        assert Path(exported["path"]).is_relative_to(tmp_path / "exports")
+        assert Path(exported["path"]).stat().st_size > 0
