@@ -1,0 +1,26 @@
+# ============ PYTHON ============
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.coverage
+htmlcov/
+# ============ BUILD / VELA ============
+dist/
+build/
+*.spec
+*.egg-info/
+node_modules/
+staticfiles/
+.vela-build/
+logs/
+# Git não expande ~; protege workspaces criados dentro do repo.
+VelaWriter/
+# ============ EDITORES ============
+.idea/
+.vscode/
+.DS_Store
