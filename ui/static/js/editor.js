@@ -144,19 +144,20 @@
     function flush() {
       return enqueue(async () => {
         if (isClean()) return documentState;
+        let result;
+        while (!isClean()) {
         const snapshot = buffer();
         cache();
         status("Salvando…");
         root.dataset.saving = "true";
         try {
-          const result = await request("document/save", snapshot);
+          result = await request("document/save", snapshot);
           documentState.revision = result.revision;
           saved = signature(snapshot);
           cache();
           render();
           if (!isClean()) scheduleRecovery();
           status(isClean() ? "Salvo · revisão " + result.revision : "Novas alterações pendentes");
-          return result;
         } catch (error) {
           root.querySelector("[data-save-copy]").hidden = !error.conflict;
           status(error.message);
@@ -164,12 +165,15 @@
         } finally {
           root.dataset.saving = "false";
         }
+        }
+        return result;
       });
     }
 
     async function copyDocument(snapshot = buffer(), discardRecovery = false) {
       if (copying) return;
       copying = true;
+      setLocked(true);
       try {
         const note = await request("document/new", {
           title: snapshot.title + " (cópia)", markdown: snapshot.markdown
@@ -181,7 +185,7 @@
         load(note);
         status("Cópia salva.");
       } catch (error) { status(error.message); }
-      finally { copying = false; }
+      finally { copying = false; setLocked(false); }
     }
 
     function setMode(next) {
@@ -222,6 +226,15 @@
       source.setRangeText(before + selected + after, start, end, "select");
       source.focus();
       changed();
+    }
+
+    function setLocked(locked) {
+      source.disabled = locked;
+      title.disabled = locked;
+      rich.contentEditable = String(!locked);
+      root.querySelectorAll("[data-format], [data-mode]").forEach(button => {
+        button.disabled = locked;
+      });
     }
 
     function destroy() {
@@ -313,7 +326,7 @@
     const timer = setInterval(() => {
       if (!isClean()) flush().catch(() => {});
     }, autosaveSeconds * AUTOSAVE_MS);
-    const instance = {load, flush, destroy, isClean};
+    const instance = {load, flush, destroy, isClean, setLocked};
     active = instance;
     load(options.document);
     return instance;
@@ -324,3 +337,4 @@
     isClean: () => active ? active.isClean() : true
   };
 })();
+
