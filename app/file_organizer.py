@@ -97,9 +97,11 @@ class FileOrganizer:
                     and not path.is_symlink()
                     and path.suffix.lower() in TYPE_FOLDERS
                 ):
-                    files.append({
-                        "name": path.name,
-                        "type": path.suffix.lower().lstrip("."),
-                        "path": path.relative_to(self.config.root).as_posix(),
-                    })
+                    files.append(
+                        {
+                            "name": path.name,
+                            "type": path.suffix.lower().lstrip("."),
+                            "path": path.relative_to(self.config.root).as_posix(),
+                        }
+                    )
         return sorted(files, key=lambda item: item["name"].casefold())
