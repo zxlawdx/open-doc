@@ -187,3 +187,17 @@ def bootstrap() -> dict[str, Any]:
         "document": services().editor.current(),
         "autosave_seconds": AUTOSAVE_SECONDS,
     }
+
+# ============ RECUPERAÇÃO DE ALTERAÇÕES ============
+
+@api.post("/writer/document/recovery")
+def recovery_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Armazena recuperação ou descarta somente a nota indicada."""
+    def recovery() -> dict[str, Any]:
+        data = _data(context)
+        if data.get("discard"):
+            return services().editor.discard_recovery(data["id"])
+        return services().editor.stash_recovery(
+            data["id"], data["title"], data["markdown"], data["revision"]
+        )
+    return _handle(recovery)
