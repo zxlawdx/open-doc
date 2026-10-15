@@ -1,0 +1,1 @@
+"""Aplicativos registrados no Vela."""
