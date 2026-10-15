@@ -87,8 +87,9 @@
   async function operate(operation) {
     if (busy || !editor) return;
     busy = true;
+    editor.setLocked(true);
     try { await operation(); } catch (error) { status(error.message); }
-    finally { busy = false; }
+    finally { busy = false; editor.setLocked(false); }
   }
 
   async function loadScript(name) {
