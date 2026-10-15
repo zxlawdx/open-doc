@@ -11,4 +11,6 @@ python-pptx>=1.0,<2
 fpdf2>=2.8,<3
 pdf2image>=1.17,<2
 pypdf>=5,<7
-\nmarkdown-it-py>=3,<5\n
+
+markdown-it-py>=3,<5
+
