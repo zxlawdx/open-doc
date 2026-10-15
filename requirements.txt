@@ -1,0 +1,13 @@
+# Runtime Vela fixado no commit inspecionado.
+vela-framework @ git+https://github.com/zxlawdx/Vela-framework.git@175d54f8b8997c70ea34bb302acce038944c2d56
+bottle==0.13.4
+pywebview==6.2.1
+PyQt5>=5.15.11,<6
+PyQtWebEngine>=5.15.7,<6
+qtpy>=2.4,<3
+# Conversão: dependências preparadas para as fases seguintes.
+python-docx>=1.1,<2
+python-pptx>=1.0,<2
+fpdf2>=2.8,<3
+pdf2image>=1.17,<2
+pypdf>=5,<7
