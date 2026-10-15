@@ -24,4 +24,7 @@ VelaWriter/
 .idea/
 .vscode/
 .DS_Store
-\n# Assets preparados pelo sync_frontend para collectstatic\napps/writer/static/\n
+
+# Assets preparados pelo sync_frontend para collectstatic
+apps/writer/static/
+
