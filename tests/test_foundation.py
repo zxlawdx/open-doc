@@ -102,7 +102,7 @@ def test_http_routes_and_csrf(tmp_path: Path) -> None:
     assert "default-src 'self'" in page.headers["Content-Security-Policy"]
     application.get("/static/css/main.css", status=HTTP_OK)
     application.get("/static/fonts/Inter.woff2", status=HTTP_OK)
-    application.get("/static/../../app/config.py", status=HTTP_NOT_FOUND)
+    application.get("/static/../../app/config.py", status=HTTP_FORBIDDEN)
     application.post_json(
         "/writer/settings", {"sidebar_collapsed": True}, status=HTTP_FORBIDDEN
     )
@@ -113,8 +113,10 @@ def test_http_routes_and_csrf(tmp_path: Path) -> None:
     )
     assert application.get("/writer/settings").json["sidebar_collapsed"] is True
     application.post_json(
-        "/writer/settings", {"unknown": True},
-        headers=headers, status=HTTP_BAD_REQUEST,
+        "/writer/settings",
+        {"unknown": True},
+        headers=headers,
+        status=HTTP_BAD_REQUEST,
     )
     assert application.get("/writer/files").json == {"files": []}
 
@@ -125,9 +127,7 @@ def test_vela_server_mount() -> None:
     from vela.core.api_server import ApiServer
 
     with TemporaryDirectory() as directory:
-        server = ApiServer(
-            ApiRouter(), host="127.0.0.1", port=0, docs_enabled=False
-        )
+        server = ApiServer(ApiRouter(), host="127.0.0.1", port=0, docs_enabled=False)
         server.app.mount("/", create_routes(Config(Path(directory))))
         server.start()
         server.wait_until_ready()
