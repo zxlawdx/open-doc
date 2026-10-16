@@ -1,0 +1,115 @@
+/* These defaults deliberately preserve existing rich-document metrics. */
+.open-doc .paper p {
+    margin: 0 0 14px;
+}
+.open-doc .paper h1 {
+    font-size: 30px;
+    line-height: 1.25;
+    margin: 0 0 24px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    color: var(--color-paper-heading);
+}
+.open-doc .paper h2 {
+    font-size: 22px;
+    line-height: 1.35;
+    margin: 28px 0 14px;
+    font-weight: 600;
+    color: var(--color-paper-heading);
+}
+.open-doc .paper h3 {
+    font-size: 18px;
+    margin: 22px 0 12px;
+    font-weight: 600;
+}
+.open-doc .paper h4,
+.open-doc .paper h5,
+.open-doc .paper h6 {
+    font-size: 16px;
+    margin: 18px 0 10px;
+}
+.open-doc .paper a {
+    color: var(--color-paper-link);
+    text-decoration: underline;
+}
+.open-doc .paper ul,
+.open-doc .paper ol {
+    padding-left: 26px;
+    margin: 0 0 16px;
+}
+.open-doc .paper li {
+    margin: 4px 0;
+}
+.open-doc .paper blockquote {
+    margin: 20px 0;
+    padding: 6px 0 6px 18px;
+    border-left: 3px solid var(--color-paper-border);
+    color: var(--color-opaque-ink);
+}
+.open-doc .paper pre {
+    white-space: pre-wrap;
+    background: var(--color-paper-code);
+    border: 1px solid var(--color-paper-border);
+    padding: 12px;
+    font: 12px/1.7 var(--font-mono);
+    margin: 18px 0;
+}
+.open-doc .paper code {
+    font-family: var(--font-mono);
+    font-size: .85em;
+}
+.open-doc .paper table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    table-layout: fixed;
+}
+.open-doc .paper th,
+.open-doc .paper td {
+    padding: 7px 10px;
+    border: 1px solid var(--color-paper-border);
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+.open-doc .paper th {
+    background: var(--color-paper-code);
+    font-weight: 600;
+}
+.open-doc .paper img {
+    object-fit: contain;
+}
+.open-doc .paper ::selection {
+    background: var(--color-paper-selection);
+    color: var(--color-paper-heading);
+}
+.open-doc [data-rich] h1,
+.open-doc [data-rich] h2,
+.open-doc [data-rich] h3 {
+    scroll-margin: 30px;
+}
+.open-doc .rich-opaque {
+    display: inline-block;
+    background: var(--color-opaque);
+    color: var(--color-opaque-ink);
+    font: var(--font-size-sm) var(--font-ui);
+    padding: 2px 4px;
+    border: 1px dashed var(--color-paper-border);
+    white-space: normal;
+}
+.open-doc .rich-page-break {
+    display: block;
+    border-top: 1px dashed var(--color-paper-border);
+    margin: 18px 0;
+    color: var(--color-paper-muted);
+    font: var(--font-size-sm) var(--font-ui);
+    text-align: center;
+}
+.open-doc .find-highlight {
+    background: var(--color-find);
+    color: var(--color-paper-ink);
+}
+.open-doc .paper [data-rich]:empty::before {
+    content: 'Comece a escrever…';
+    color: var(--color-paper-placeholder);
+    pointer-events: none;
+}
