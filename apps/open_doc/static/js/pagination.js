@@ -19,7 +19,7 @@
   function logical(surface){const container=document.createElement('div');contents(surface,true).forEach(n=>container.appendChild(n));return container;}
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
-    let mode='pages',timer=null,frame=null,destroyed=false,dirtyPage=0,last=null,signature='';
+    let mode='pages',timer=null,frame=null,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
@@ -62,14 +62,14 @@
         const value=blockMap.get(node.dataset.nodeId);
         if(value?.section_end_id){sectionIndex++;section={...defaults,...documentModel.sections[sectionIndex]};next();}
       }
-      host.style.width=Math.max(...Array.from(surface.querySelectorAll('[data-page-index]')).map(p=>parseFloat(p.style.width)*4/3))+'px';last=page;dirtyPage=Math.max(0,index-1);status();if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent("open-doc:layout"));
+      host.style.width=Math.max(...Array.from(surface.querySelectorAll('[data-page-index]')).map(p=>parseFloat(p.style.width)*4/3))+'px';last=page;dirtyPage=Math.max(0,index-1);status();if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));if(preservedScroll){const canvas=root.querySelector('[data-canvas]');canvas.scrollTop=preservedScroll.top;canvas.scrollLeft=preservedScroll.left;preservedScroll=null;}
     }
-    function invalidate(blockId){const node=blockId && Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId),page=node?.closest('[data-page-index]');dirtyPage=Math.min(dirtyPage,Number(page?.dataset.pageIndex || 0));clearTimeout(timer);timer=setTimeout(()=>{frame=(window.requestAnimationFrame || window.setTimeout)(paginate);},100);}
+    function invalidate(blockId,options={}){if(options.preserveScroll){const canvas=root.querySelector('[data-canvas]');preservedScroll={top:canvas.scrollTop,left:canvas.scrollLeft};}const node=blockId && Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId),page=node?.closest('[data-page-index]');dirtyPage=Math.min(dirtyPage,Number(page?.dataset.pageIndex || 0));clearTimeout(timer);timer=setTimeout(()=>{frame=(window.requestAnimationFrame || window.setTimeout)(paginate);},100);}
     function setMode(value){mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;paginate();}
     const change=()=>{const n=getSelection()?.anchorNode,e=n?.nodeType===1?n:n?.parentElement;invalidate(e?.closest('[data-node-id]')?.dataset.nodeId);};
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
-    surface.addEventListener('input',change);document.addEventListener('selectionchange',status);root.addEventListener('open-doc:content',change);
-    function destroy(){destroyed=true;clearTimeout(timer);(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('input',change);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:content',change);}
+    surface.addEventListener('input',change);document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
+    function destroy(){destroyed=true;clearTimeout(timer);(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('input',change);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
     return {paginate,invalidate,destroy,setMode,active,metrics,logical:()=>logical(surface)};
   }
   window.OpenDocPagination={create,logical,defaults};

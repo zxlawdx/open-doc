@@ -57,7 +57,7 @@
         }else pending.push(e);
       }flush();return out;
     }
-    if(surface.querySelector?.("[data-page-index]")) return serialize(window.OpenDocPagination.logical(surface),base);
+    if(surface.querySelector?.("[data-page-index]")){const logical=window.OpenDocPagination.logical(surface),id=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId;return serialize(logical,base,id?Array.from(logical.children).find(n=>n.dataset.nodeId===id):null);}
     if(fast){const replacement=blocks({childNodes:[dirty]});return {...base,blocks:base.blocks.map(b=>b.id===oldBlock.id?replacement[0]:b)};}
     return {...base,blocks:blocks(surface)};
   }

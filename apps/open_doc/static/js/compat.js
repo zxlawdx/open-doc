@@ -41,7 +41,12 @@
     });
     return false;
   }
+  // Deliberately limited to the JSON model; not a generic structured-clone polyfill.
+  function cloneJson(value) {
+    if(value===undefined)return undefined;
+    return JSON.parse(JSON.stringify(value));
+  }
   const nativeDOMSupport = installDOM();
   const nativeSupport = install();
-  window.OpenDocCompat = {install, installDOM, nativeSupport, nativeDOMSupport};
+  window.OpenDocCompat = {install, installDOM, nativeSupport, nativeDOMSupport, cloneJson};
 })();

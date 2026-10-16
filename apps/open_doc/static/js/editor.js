@@ -143,9 +143,15 @@
 
     function changed(kind = nextKind, origin = rich, inputEvent=null) {
       if (mode === 'rich' && origin === rich){
-        let dirty=null;if(kind==='typing' && inputEvent?.isTrusted && model){dirty=getSelection().anchorNode;if(dirty?.nodeType===3)dirty=dirty.parentElement;while(dirty && dirty.parentNode!==rich)dirty=dirty.parentElement;}
+        let dirty=null;
+        if(model){let node=getSelection()?.anchorNode;node=node?.nodeType===3?node.parentElement:node;
+          while(node && node!==rich){if(node.dataset?.nodeId && node.parentElement?.matches('[data-page-content],[data-rich]')){dirty=node;break;}node=node.parentElement;}
+          const focus=getSelection()?.focusNode,focusElement=focus?.nodeType===3?focus.parentElement:focus;
+          if(dirty && focusElement && !dirty.contains(focusElement))dirty=null;
+        }
         updateModel(dirty);source.value=model?window.OpenDocModel.markdown(model):converter.turndown(rich.innerHTML);
       }
+      if(origin===rich)root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed'));
       history.record(buffer(), kind);
       updateHistoryControls();
       cache();
@@ -262,11 +268,19 @@
       if (!snapshot) return;
       title.value = snapshot.title;
       source.value = snapshot.markdown;
-      model=snapshot.content?window.OpenDocModel.clone(snapshot.content):null;source.readOnly=Boolean(model);renderRich();
+      const before=model,after=snapshot.content?window.OpenDocModel.clone(snapshot.content):null,canvas=root.querySelector('[data-canvas]'),top=canvas?.scrollTop || 0,left=canvas?.scrollLeft || 0;
+      const sameStructure=before && after && JSON.stringify(before.sections || [])===JSON.stringify(after.sections || []) && JSON.stringify(before.blocks.map(b=>b.id))===JSON.stringify(after.blocks.map(b=>b.id));
+      const changed=sameStructure?after.blocks.filter((b,i)=>JSON.stringify(b)!==JSON.stringify(before.blocks[i])).map(b=>b.id):null;
+      model=after;source.readOnly=Boolean(model);
+      if(changed && !changed.length){root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));}
+      else if(changed && changed.length<=16 && changed.every(id=>after.blocks.find(b=>b.id===id)?.type==='paragraph' && JSON.stringify(after.blocks.find(b=>b.id===id)?.list_info || null)===JSON.stringify(before.blocks.find(b=>b.id===id)?.list_info || null))){
+        window.OpenDocRichRenderer.patch(model,rich,changed,mediaUrl);pagination?.invalidate(changed[0],{preserveScroll:true});
+      }else renderRich();
       cache(); scheduleRecovery(); render();
       status(isClean() ? "Salvo no dispositivo" : "Alterações não salvas");
       if (mode === "rich") commands.restoreBookmark(snapshot.selection);
       else { source.focus(); source.setSelectionRange(snapshot.selection?.start || 0, (snapshot.selection?.start || 0) + (snapshot.selection?.length || 0)); }
+      if(canvas){canvas.scrollTop=top;canvas.scrollLeft=left;}
     }
 
     function format(kind, value) {
@@ -323,7 +337,7 @@
       if(patch.font_size_pt!==undefined && (!Number.isFinite(patch.font_size_pt) || patch.font_size_pt<1 || patch.font_size_pt>512)){status('Tamanho válido: 1 a 512 pt.');return;}
       if(mode!=='rich')setMode('rich');history.checkpoint(buffer());commands.restore();const selection=getSelection(),range=selection.rangeCount?selection.getRangeAt(0):null;
       const applied=scope==='inline'?window.OpenDocFormatting.apply(rich,range,patch):window.OpenDocFormatting.paragraph(rich,range,patch);
-      if(applied){commands.capture();const bookmark=commands.bookmark(),affected=Array.from(rich.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre')).filter(p=>range && range.intersectsNode(p));updateModel();const map=window.OpenDocModel.index(model);
+      if(applied){commands.capture();const bookmark=commands.bookmark(),affected=Array.from(rich.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre')).filter(p=>range && range.intersectsNode(p));updateModel(affected.length===1?affected[0]:null);const map=window.OpenDocModel.index(model);
         for(const block of affected){const value=map.get(block.dataset.nodeId);if(!value)continue;const temp=document.createElement('div');window.OpenDocRichRenderer.render({...model,blocks:[value]},temp,mediaUrl);block.parentNode.replaceChild(temp.firstChild,block);}
         commands.restoreBookmark(bookmark);changed('format');root.dispatchEvent(new CustomEvent('open-doc:content'));
       }else status('Selecione o texto a formatar.');
@@ -459,7 +473,7 @@
       if(key === "enter" && mode === "rich" && rich.contains(getSelection()?.anchorNode)){event.preventDefault();insertPage("break");return;}
       if (key === "s") { event.preventDefault(); flush().catch(() => {}); }
       if (key === "z" || key === "y") {
-        if ([source, rich].some(element => element === document.activeElement || element.contains(document.activeElement))) {
+        if ([source, rich].some(element => element === document.activeElement || element.contains(document.activeElement)) || (root.dataset.inkMode && root.dataset.inkMode!=='cursor' && !document.activeElement.closest('input,textarea'))) {
           event.preventDefault(); format(key === "y" || event.shiftKey ? "redo" : "undo");
         }
       }
@@ -479,7 +493,14 @@
       if (!copying && !isClean()) flush().catch(() => {});
     }, autosaveSeconds * AUTOSAVE_MS);
     function inkLayers(){return model?.ink_layers || [];}
-    function setInkLayers(layers){const next=ensureModel();next.ink_layers=layers;commitModel(next,'ink');root.dispatchEvent(new CustomEvent('open-doc:content'));}
+    function setInkLayers(layers){
+      if(lockedState)return;
+      history.checkpoint(buffer());const next=ensureModel();next.ink_layers=window.OpenDocCompat.cloneJson(layers);model=next;
+      source.value=window.OpenDocModel.markdown(model);source.readOnly=true;
+      history.record(buffer(),'ink');cache();scheduleRecovery();updateHistoryControls();
+      root.dataset.dirty=String(!isClean());window.pywebview?.api?.set_dirty?.(!isClean())?.catch?.(()=>{});
+      status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
+    }
     function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}
     const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;

@@ -25,7 +25,7 @@
   root.querySelector('.toolbar')?.after(bar);
   function setMode(value){mode=value;root.dataset.inkMode=mode;bar.querySelectorAll('[data-ink-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.inkMode===mode)));refresh();}
   function layers(){return editor.inkLayers?.() || [];}
-  function commit(layer){const next=structuredClone(layers()),at=next.findIndex(l=>l.surface_index===layer.surface_index);if(at<0)next.push(layer);else next[at]=layer;editor.setInkLayers(next);refresh();}
+  function commit(layer){const next=window.OpenDocCompat.cloneJson(layers()),at=next.findIndex(l=>l.surface_index===layer.surface_index);if(at<0)next.push(layer);else next[at]=layer;editor.setInkLayers(next);refresh();}
   function refresh(){scheduled=false;if(signal.aborted)return;const values=layers();for(const surface of root.querySelectorAll('.document-page, .fixed-surface')){
    if(!surface.querySelector('[data-page-content]') && !surface.classList.contains('fixed-surface'))continue;
    if(root.dataset.documentKind==='fixed' && !surface.classList.contains('fixed-surface'))continue;
@@ -37,7 +37,8 @@
   }}
   function queue(){if(!scheduled){scheduled=true;requestAnimationFrame(refresh);}}
   function sample(event,rect){return {x:clamp((event.clientX-rect.left)/rect.width),y:clamp((event.clientY-rect.top)/rect.height),pressure:event.pressure>0?event.pressure:.5,tilt_x:event.tiltX || 0,tilt_y:event.tiltY || 0,timestamp_ms:Math.max(0,event.timeStamp)};}
-  function down(e,surface){if(root.querySelector('[data-title]')?.disabled || root.dataset.homeView==='true' || mode==='cursor' || active || e.pointerType==='touch' || (e.button!==0 && e.button!==5))return;e.preventDefault();const svg=e.currentTarget,rect=svg.getBoundingClientRect(),index=Number(surface.dataset.pageIndex),layer=structuredClone(layers().find(l=>l.surface_index===index) || {surface_index:index,width_pt:Number(surface.dataset.widthPt)||rect.width*.75,height_pt:Number(surface.dataset.heightPt)||rect.height*.75,strokes:[],text_overlays:[],anchor_block_id:surface.querySelector('[data-node-id]')?.dataset.nodeId});
+  function down(e,surface){if(root.dataset.readerState==='error' && root.dataset.documentKind==='fixed')return;
+   if(root.querySelector('[data-title]')?.disabled || root.dataset.homeView==='true' || mode==='cursor' || active || e.pointerType==='touch' || (e.button!==0 && e.button!==5))return;e.preventDefault();const svg=e.currentTarget,rect=svg.getBoundingClientRect(),index=Number(surface.dataset.pageIndex),layer=window.OpenDocCompat.cloneJson(layers().find(l=>l.surface_index===index) || {surface_index:index,width_pt:Number(surface.dataset.widthPt)||rect.width*.75,height_pt:Number(surface.dataset.heightPt)||rect.height*.75,strokes:[],text_overlays:[],anchor_block_id:surface.querySelector('[data-node-id]')?.dataset.nodeId});
    if(rect.width<=0 || rect.height<=0)return;
    active={svg,rect,layer,id:e.pointerId,erase:mode==='eraser' || e.button===5 || !!(e.buttons&32),points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};svg.setPointerCapture(e.pointerId);active.preview=document.createElementNS(NS,'path');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
   function draw(){if(!active || active.erase)return;const a=active,w=a.layer.width_pt,h=a.layer.height_pt;a.stroke.outline=window.OpenDocFreehand.getStroke(a.points.map(p=>[p.x*w,p.y*h,p.pressure]),{size:a.stroke.size,simulatePressure:false,thinning:.5}).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);a.preview.setAttribute('d',path(a.stroke));}
@@ -49,6 +50,7 @@
     for(const [label,insert] of [['Manter tinta',false],['Cancelar',false],['Inserir texto',true]]){const b=document.createElement('button');b.textContent=label;b.onclick=()=>{if(insert && text.value.trim() && editor.snapshot().id===note.id){const style={font_family:family.value||'Arial',font_size_pt:Math.max(1,Math.min(512,Number(fontSize.value)||12)),color:root.querySelector('[data-text-color]')?.value||color};editor.insertRecognized(text.value,style,layer.surface_index,strokes.map(s=>s.id));}backdrop.remove();refresh();};box.append(b);}backdrop.append(box);root.append(backdrop);text.focus();
    }catch(e){status(e.message);}finally{conversion=false;}}
   root.addEventListener('open-doc:ink-mode',event=>setMode(event.detail),{signal});
+  root.addEventListener('open-doc:ink-changed',queue,{signal});
   root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});root.addEventListener('open-doc:changed',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
  window.OpenDocInk={create,simplify,path};
