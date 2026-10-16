@@ -1,0 +1,88 @@
+/* Page boxes never shrink with the window. Zoom/scroll are viewport operations. */
+.open-doc .paper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--page-default-width);
+    min-height: var(--page-default-height);
+    background: var(--color-paper);
+    color: var(--color-paper-ink);
+    box-shadow: var(--shadow-paper);
+    transform-origin: top left;
+    color-scheme: light;
+}
+.open-doc .paper [data-rich],
+.open-doc .paper [data-preview-pane],
+.open-doc .paper [data-source] {
+    display: block;
+    width: 100%;
+    min-height: var(--page-default-height);
+    padding: var(--page-default-padding);
+    border: 0;
+    background: var(--color-paper);
+    color: var(--color-paper-ink);
+    font: var(--font-size-xl)/1.7 var(--font-document-default);
+    user-select: text;
+    -webkit-user-select: text;
+    overflow-wrap: anywhere;
+}
+.open-doc .paper [data-source] {
+    resize: none;
+    font: var(--font-size-md)/1.8 var(--font-mono);
+    overflow: hidden;
+}
+.open-doc[data-page-mode='pages'] .paper {
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+}
+.open-doc[data-page-mode='pages'] [data-rich] {
+    padding: 0;
+    min-height: 0;
+    background: transparent;
+    counter-reset: sheet;
+}
+.open-doc .document-page {
+    background: var(--color-paper);
+    color: var(--color-paper-ink);
+    box-shadow: var(--shadow-paper);
+    margin: 0 auto var(--page-gap);
+    position: relative;
+    flex: none;
+    counter-increment: sheet;
+}
+.open-doc .document-page::after {
+    content: counter(sheet);
+    position: absolute;
+    bottom: var(--space-2);
+    right: var(--space-4);
+    font: var(--font-size-xs) var(--font-ui);
+    color: var(--color-paper-muted);
+    pointer-events: none;
+}
+.open-doc .page-content {
+    min-height: 1px;
+    display: flow-root;
+    overflow-wrap: anywhere;
+}
+.open-doc .page-content > p:first-child {
+    margin-top: 0;
+}
+.open-doc .manual-page-break {
+    height: 1px;
+    border-top: 1px dotted var(--color-paper-border);
+    user-select: none;
+}
+.open-doc .paper [data-rich-header],
+.open-doc .paper [data-rich-footer] {
+    padding: var(--space-3) 72pt;
+    color: var(--color-paper-ink);
+    background: var(--color-paper);
+    font: 10pt var(--font-document-default);
+    user-select: text;
+    border-bottom: 1px dashed var(--color-paper-border);
+}
+.open-doc .paper [data-rich-header] p,
+.open-doc .paper [data-rich-footer] p {
+    margin: 0;
+}
