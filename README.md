@@ -116,7 +116,7 @@ CSS e vendors já estão versionados; Node não é necessário para usar o app.
 capturas reais pelo QtWebEngine; requer Node 22+ para CDP local. Nunca exponha
 a porta de debugging no uso normal. O script usa a janela criada pelo VelaApp.
 
-Validação desta entrega: **29 testes Python + 17 testes JS**; smoke real em
+Validação desta entrega: **29 testes Python + 18 testes JS**; smoke real em
 Linux/Qt/PyQt5, seleção + bold/italic, undo/redo, salvar, exportações relidas,
 recentes, novo documento e encerramento. Capturas light/dark em 1366×768,
 1600×900 e 1920×1080, sem overflow global. Windows/hardware físico e o diálogo
