@@ -1,7 +1,7 @@
 """
 Módulo: build_css.py.
 Responsabilidade: compilar utilitários offline usando o pipeline do Vela.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
@@ -12,13 +12,22 @@ from pathlib import Path
 from vela.cli.collectstatic import run_tailwind_pipeline
 
 ROOT = Path(__file__).resolve().parents[1]
-MARKER = "/* ============ COMPILED TAILWIND ============ */"
+STYLE_ORDER = (
+    "tokens.css",
+    "shell.css",
+    "menus.css",
+    "toolbar.css",
+    "document.css",
+    "home.css",
+)
 
 
 def main() -> None:
     """Recompila utilitários e preserva o tema escrito à mão."""
     target = ROOT / "ui" / "static" / "css" / "main.css"
-    custom_css = target.read_text(encoding="utf-8").split(MARKER)[0].rstrip()
+    custom_css = "\n".join(
+        (ROOT / "ui/styles" / name).read_text(encoding="utf-8") for name in STYLE_ORDER
+    )
     output = ROOT / ".vela-build"
     output.mkdir(parents=True, exist_ok=True)
     import shutil
@@ -30,7 +39,7 @@ def main() -> None:
         raise RuntimeError("Falha ao compilar Tailwind com Vela.")
     compiled = (output / "css" / "vela.bundle.css").read_text(encoding="utf-8")
     target.write_text(
-        custom_css + "\n" + MARKER + "\n" + compiled + "\n",
+        compiled + "\n" + custom_css + "\n",
         encoding="utf-8",
     )
 
