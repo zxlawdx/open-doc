@@ -157,6 +157,10 @@ def main():
                     doc.add_page_break()
             doc.add_page_break()
             doc.add_paragraph("fragmento " * 1800)
+            doc.add_page_break()
+            from docx.shared import Pt
+
+            doc.add_paragraph().add_run("Overflow start ").font.size = Pt(48)
             doc.save(source)
             note = services().editor.import_docx(source)
             window.evaluate_js("OpenDocApp.editor().load(" + json.dumps(note) + ")")
@@ -266,7 +270,7 @@ def main():
             pages_before = window.evaluate_js(
                 "document.querySelectorAll('.document-page').length"
             )
-            keyboard.type("OVERFLOW_QA " * 350 + "FINAL_OVERFLOW_QA")
+            keyboard.type("OVERFLOW_QA " * 40 + "FINAL_OVERFLOW_QA", delay=30)
             retained("FINAL_OVERFLOW_QA")
             assert (
                 window.evaluate_js("document.querySelectorAll('.document-page').length")
