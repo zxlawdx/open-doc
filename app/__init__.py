@@ -1,8 +1,8 @@
 """
 Módulo: app.
-Responsabilidade: identificar o pacote principal do Vela Writer.
-Autor: Vela Writer Contributors
+Responsabilidade: identificar o pacote principal do Open Doc.
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
