@@ -100,7 +100,7 @@ Testes cobrem cópia, coexistência, WAL, falha, defaults e persistência do tem
 
 ## Validação executada
 
-- 29 testes Python, 17 testes JavaScript aprovados.
+- 29 testes Python, 18 testes JavaScript aprovados.
 - Black 88 colunas, compileall e sintaxe JS verificados.
 - build_css e collectstatic --no-tailwind executados.
 - Runtime real VelaApp/BaseBridge, servidor e janela Qt/PyQt5.
@@ -131,3 +131,12 @@ janela de 600 ms. PDFs usam fonte latina; CJK/emoji completos não são garantid
 Busca é literal e oferece até 30 destinos. O engine legado continua exigindo
 regressões no WebView. Validação nativa foi em Linux/Qt offscreen; não houve
 Windows, caneta/mesa digitalizadora ou teste físico do seletor de importação.
+
+
+### Compatibilidade de lifecycle no Qt 5.15
+
+O renderer real ignorava EventListenerOptions.signal, mesmo que o teste DOM
+moderno aceitasse a opção. compat.js detecta esse comportamento e instala
+remoção explícita no abort do controller somente quando necessário.
+O QA navega novamente pela rota Vela e aplica formatação depois do remount,
+validando teardown no Chromium real. Há teste JS do caminho de compatibilidade.
