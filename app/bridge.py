@@ -1,7 +1,7 @@
 """
 Módulo: bridge.py.
 Responsabilidade: estender a bridge Vela com bootstrap e seletor nativo.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
@@ -16,7 +16,7 @@ from app.router import bootstrap
 from app.runtime import services
 
 
-class WriterBridge(BaseBridge):
+class OpenDocBridge(BaseBridge):
     """Preserva navegação, eventos e lifecycle do BaseBridge do Vela."""
 
     def __init__(
