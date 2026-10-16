@@ -4,6 +4,7 @@
   const AUTOSAVE_MS = 1000;
   const RECOVERY_DELAY = 600;
   let active = null;
+  window.OpenDocDebug=window.OpenDocDebug || {input:false};
 
   function create(options) {
     const {root, request, status, autosaveSeconds} = options;
@@ -56,7 +57,7 @@
     let copying = false;
     let lockedState = false;
     let renderTimer = null;
-    let nextKind = "typing";
+    let nextKind = "typing",beforeInputBlockId=null;
     const history = window.OpenDocHistory.create();
     const commands = window.OpenDocCommands.create(rich, kind => changed(kind), controller.signal);
 
@@ -72,8 +73,8 @@
       if(!mediaCache.has(mid))mediaCache.set(mid,request('document/media',{id:documentState.id,media_id:mid}).then(r=>r.url));
       return mediaCache.get(mid);
     }
-    function renderRich(){if(model && window.OpenDocRichRenderer)window.OpenDocRichRenderer.render(model,rich,mediaUrl);else {rich.innerHTML=cleanHtml(source.value);for(const node of Array.from(rich.childNodes))if(node.nodeType===3 && !node.textContent.trim())node.remove();}pagination?.invalidate();}
-    function updateModel(dirty=null){if(window.OpenDocRichSerializer)model=window.OpenDocRichSerializer.serialize(rich,model,dirty);}
+    function renderRich(){if(model && window.OpenDocRichRenderer)window.OpenDocRichRenderer.render(model,rich,mediaUrl);else {rich.innerHTML=cleanHtml(source.value) || '<p><br></p>';for(const node of Array.from(rich.childNodes))if(node.nodeType===3 && !node.textContent.trim())node.remove();}pagination?.invalidate();}
+    function updateModel(dirty=null,affected=null){if(window.OpenDocRichSerializer)model=window.OpenDocRichSerializer.serialize(rich,model,dirty,affected);}
     function buffer() {
       return {
         id: documentState.id,
@@ -142,17 +143,36 @@
     }
 
     function changed(kind = nextKind, origin = rich, inputEvent=null) {
+      if(inputEvent?.isComposing)return;
+      let dirty=null,structural=false;
+      const beforeDom=window.OpenDocDebug.input?rich.textContent:null;
       if (mode === 'rich' && origin === rich){
-        let dirty=null;
+        commands.capture();const bookmark=commands.bookmark();
+        let normalized=false;for(const box of rich.querySelectorAll('[data-page-content]'))normalized=window.OpenDocPagination.normalize(box) || normalized;
+        if(normalized && bookmark)commands.restoreBookmark(bookmark);
         if(model){let node=getSelection()?.anchorNode;node=node?.nodeType===3?node.parentElement:node;
-          while(node && node!==rich){if(node.dataset?.nodeId && node.parentElement?.matches('[data-page-content],[data-rich]')){dirty=node;break;}node=node.parentElement;}
+          while(node && node!==rich){if(node.tagName==='LI' || node.parentElement?.matches('[data-page-content],[data-rich]')){dirty=node;break;}node=node.parentElement;}
           const focus=getSelection()?.focusNode,focusElement=focus?.nodeType===3?focus.parentElement:focus;
           if(dirty && focusElement && !dirty.contains(focusElement))dirty=null;
         }
-        updateModel(dirty);source.value=model?window.OpenDocModel.markdown(model):converter.turndown(rich.innerHTML);
+        const inputStructural=/^(insertParagraph|insertLineBreak|deleteContentBackward|deleteContentForward|deleteByCut|insertFromPaste)$/.test(inputEvent?.inputType || '');
+        if(inputEvent?.inputType==='insertParagraph' && dirty){
+          const oldId=dirty.dataset.fragmentOf || dirty.dataset.nodeId;
+          const siblings=Array.from(rich.querySelectorAll('[data-page-content] > *,[data-page-content] li'));
+          if(siblings.some(n=>n!==dirty && n.dataset.nodeId===oldId)){
+            dirty.dataset.nodeId=window.OpenDocModel.id();delete dirty.dataset.fragmentOf;
+            for(const n of siblings.slice(siblings.indexOf(dirty)+1))if(n.dataset.fragmentOf===oldId){n.dataset.fragmentOf=dirty.dataset.nodeId;n.dataset.nodeId=dirty.dataset.nodeId;}
+          }
+        }
+        if(dirty && !dirty.dataset.nodeId){dirty.dataset.nodeId=window.OpenDocModel.id();structural=true;}
+        if(kind==='typing' && inputEvent && !inputEvent.inputType && dirty && model){const old=model.blocks.find(b=>b.id===(dirty.dataset.fragmentOf || dirty.dataset.nodeId));const text=v=>!v || typeof v!=='object'?'':typeof v.text==='string'?v.text:Object.values(v).map(text).join('');if(old && dirty.textContent===text(old))dirty=null;}
+        const ids=model?.blocks.map(b=>b.id).join('|');
+        updateModel(dirty,inputStructural?[beforeInputBlockId,dirty?.dataset.fragmentOf || dirty?.dataset.nodeId].filter(Boolean):null);structural=structural || ids!==model?.blocks.map(b=>b.id).join('|');source.value=model?window.OpenDocModel.markdown(model):converter.turndown(rich.innerHTML);
       }
-      if(origin===rich)root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed'));
-      history.record(buffer(), kind);
+      const blockId=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId || null;
+      if(window.OpenDocDebug.input)console.debug('[OpenDoc input]',{beforeDom:beforeDom?.slice(-240),afterDom:rich.textContent.slice(-240),modelText:source.value.slice(-240),blockId,pageIndex:dirty?.closest('[data-page-index]')?.dataset.pageIndex,selection:commands.bookmark()});
+      if(origin===rich)root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',{detail:{blockId,reason:kind,structural}}));
+      history.record(buffer(), kind,{blockIds:blockId?[blockId]:[],structural});
       updateHistoryControls();
       cache();
       clearTimeout(renderTimer);
@@ -269,12 +289,18 @@
       title.value = snapshot.title;
       source.value = snapshot.markdown;
       const before=model,after=snapshot.content?window.OpenDocModel.clone(snapshot.content):null,canvas=root.querySelector('[data-canvas]'),top=canvas?.scrollTop || 0,left=canvas?.scrollLeft || 0;
-      const sameStructure=before && after && JSON.stringify(before.sections || [])===JSON.stringify(after.sections || []) && JSON.stringify(before.blocks.map(b=>b.id))===JSON.stringify(after.blocks.map(b=>b.id));
-      const changed=sameStructure?after.blocks.filter((b,i)=>JSON.stringify(b)!==JSON.stringify(before.blocks[i])).map(b=>b.id):null;
+      if(!window.OpenDocModel){model=after;renderRich();cache();scheduleRecovery();render();commands.restoreBookmark(snapshot.selection);return;}
+      let target=after;
+      if(!target){const temp=document.createElement('div');temp.innerHTML=cleanHtml(snapshot.markdown) || '<p><br></p>';target=window.OpenDocRichSerializer.serialize(temp,window.OpenDocModel.empty());}
+      const previous=before || window.OpenDocModel.empty();
+      const changed=target.blocks.filter(b=>JSON.stringify(b)!==JSON.stringify(previous.blocks.find(v=>v.id===b.id))).map(b=>b.id);
+      const removed=previous.blocks.filter(b=>!target.blocks.some(v=>v.id===b.id)).map(b=>b.id),affected=[...changed,...removed];
+      const firstNode=Array.from(rich.querySelectorAll('[data-node-id]')).find(n=>affected.includes(n.dataset.nodeId));
+      const pageIndex=Number(firstNode?.closest('[data-page-index]')?.dataset.pageIndex || 0);
       model=after;source.readOnly=Boolean(model);
-      if(changed && !changed.length){root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));}
-      else if(changed && changed.length<=16 && changed.every(id=>after.blocks.find(b=>b.id===id)?.type==='paragraph' && JSON.stringify(after.blocks.find(b=>b.id===id)?.list_info || null)===JSON.stringify(before.blocks.find(b=>b.id===id)?.list_info || null))){
-        window.OpenDocRichRenderer.patch(model,rich,changed,mediaUrl);pagination?.invalidate(changed[0],{preserveScroll:true});
+      if(!affected.length){root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));}
+      else if(JSON.stringify(previous.sections || [])===JSON.stringify(target.sections || []) && window.OpenDocRichRenderer.reconcile(previous,target,rich,mediaUrl)){
+        if(JSON.stringify(previous.blocks.map(b=>b.id))!==JSON.stringify(target.blocks.map(b=>b.id)) || changed.some(id=>!pagination?.fits(id)))pagination?.invalidate(changed[0],{preserveScroll:true,pageIndex});
       }else renderRich();
       cache(); scheduleRecovery(); render();
       status(isClean() ? "Salvo no dispositivo" : "Alterações não salvas");
@@ -435,9 +461,10 @@
     }
 
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
-    rich.addEventListener("beforeinput", () => { commands.capture(); history.checkpoint(buffer()); }, listeners);
+    rich.addEventListener("beforeinput", () => { commands.capture();history.checkpoint(buffer());let n=getSelection()?.anchorNode;n=n?.nodeType===3?n.parentElement:n;while(n && n!==rich && n.tagName!=='LI' && !n.parentElement?.matches('[data-page-content],[data-rich]'))n=n.parentElement;beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;}, listeners);
     source.addEventListener("input", () => changed("typing", source), listeners);
     rich.addEventListener("input", event => changed(nextKind,rich,event), listeners);
+    rich.addEventListener('compositionend',()=>changed('typing',rich,{inputType:'insertCompositionText'}),listeners);
     title.addEventListener("input", () => {if(root.dataset.documentKind!=='fixed')changed("typing", title);}, listeners);
     window.OpenDocTables?.bind(rich,controller.signal,action=>{try{tableOperation(action);}catch(error){status(error.message);}});
     rich.addEventListener('click',event=>{const marker=event.target.closest('[data-note-id]');if(marker && model){const notes=model[marker.dataset.noteKind]?.[marker.dataset.noteId];if(notes)status('Nota '+marker.dataset.noteId+': '+notes.map(p=>(p.children || []).map(r=>r.text || '').join('')).join(' '));}},listeners);
@@ -497,7 +524,7 @@
       if(lockedState)return;
       history.checkpoint(buffer());const next=ensureModel();next.ink_layers=window.OpenDocCompat.cloneJson(layers);model=next;
       source.value=window.OpenDocModel.markdown(model);source.readOnly=true;
-      history.record(buffer(),'ink');cache();scheduleRecovery();updateHistoryControls();
+      history.record(buffer(),'ink',{inkSurfaces:layers.map(l=>l.surface_index),structural:false});cache();scheduleRecovery();updateHistoryControls();
       root.dataset.dirty=String(!isClean());window.pywebview?.api?.set_dirty?.(!isClean())?.catch?.(()=>{});
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }

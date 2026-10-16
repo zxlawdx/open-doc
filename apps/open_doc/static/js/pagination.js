@@ -2,10 +2,24 @@
 "use strict";
 (() => {
   const defaults={page_width_pt:595.28,page_height_pt:841.89,margin_top_pt:56.7,margin_bottom_pt:56.7,margin_left_pt:56.7,margin_right_pt:56.7};
+  function normalize(container){
+    let paragraph=null,changed=false;
+    for(const node of Array.from(container.childNodes)){
+      if(node.nodeType===3 || (node.nodeType===1 && /^(SPAN|A|B|I|STRONG|EM|BR)$/.test(node.tagName) && !node.dataset.nodeType)){
+        if(!paragraph){changed=true;paragraph=document.createElement('p');container.insertBefore(paragraph,node);}
+        paragraph.appendChild(node);
+      }else paragraph=null;
+    }
+    for(const node of [...container.children,...container.querySelectorAll('li')])if(!node.dataset.nodeId && window.OpenDocModel)node.dataset.nodeId=window.OpenDocModel.id();
+    if(!container.childNodes.length){changed=true;const p=document.createElement('p');p.appendChild(document.createElement('br'));container.appendChild(p);}
+    return changed;
+  }
   function contents(surface,clone=false){
     const out=[];
     for(const child of Array.from(surface.children)){
-      const values=child.matches('[data-page-index]')?Array.from(child.querySelector('[data-page-content]').children):[child];
+      const container=child.matches('[data-page-index]')?child.querySelector('[data-page-content]'):null;
+      if(container)normalize(container);
+      const values=container?Array.from(container.children):[child];
       for(const node of values){const item=clone?node.cloneNode(true):node,previous=out[out.length-1];
         if(item.dataset.fragmentOf && previous?.dataset.nodeId===item.dataset.fragmentOf){
           if(item.tagName==='TABLE'){const body=previous.tBodies[0] || previous;Array.from(item.rows).forEach(row=>body.appendChild(row));}
@@ -19,12 +33,12 @@
   function logical(surface){const container=document.createElement('div');contents(surface,true).forEach(n=>container.appendChild(n));return container;}
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
-    let mode='pages',timer=null,frame=null,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null;
+    let mode='pages',timer=null,frame=null,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
     function paginate(){
-      if(destroyed || root.dataset.documentKind==='fixed')return;const m=metrics(),key=JSON.stringify(m)+mode;
+      if(destroyed || root.dataset.documentKind==='fixed')return;if(composing){pendingComposition=true;return;}const m=metrics(),key=JSON.stringify(m)+mode;
       if(signature!==key)dirtyPage=0;signature=key;
       const selected=surface.contains(getSelection()?.anchorNode),saved=selected && capture?capture():null;
       // Preserve the unchanged prefix; reflow starts at the first edited page.
@@ -64,13 +78,34 @@
       }
       host.style.width=Math.max(...Array.from(surface.querySelectorAll('[data-page-index]')).map(p=>parseFloat(p.style.width)*4/3))+'px';last=page;dirtyPage=Math.max(0,index-1);status();if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));if(preservedScroll){const canvas=root.querySelector('[data-canvas]');canvas.scrollTop=preservedScroll.top;canvas.scrollLeft=preservedScroll.left;preservedScroll=null;}
     }
-    function invalidate(blockId,options={}){if(options.preserveScroll){const canvas=root.querySelector('[data-canvas]');preservedScroll={top:canvas.scrollTop,left:canvas.scrollLeft};}const node=blockId && Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId),page=node?.closest('[data-page-index]');dirtyPage=Math.min(dirtyPage,Number(page?.dataset.pageIndex || 0));clearTimeout(timer);timer=setTimeout(()=>{frame=(window.requestAnimationFrame || window.setTimeout)(paginate);},100);}
+    function invalidate(blockId,options={}){
+      if(options.preserveScroll){const canvas=root.querySelector('[data-canvas]');preservedScroll={top:canvas.scrollTop,left:canvas.scrollLeft};}
+      const node=blockId && Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId || n.dataset.fragmentOf===blockId);
+      const selected=getSelection()?.anchorNode,element=selected?.nodeType===1?selected:selected?.parentElement;
+      const page=node?.closest('[data-page-index]') || element?.closest('[data-page-index]') || surface.querySelector('[data-page-index="'+active()+'"]');
+      const index=options.full?0:Number.isInteger(options.pageIndex)?options.pageIndex:page?Number(page.dataset.pageIndex):dirtyPage;
+      dirtyPage=Math.min(dirtyPage,index);
+      clearTimeout(timer);
+      if(composing){pendingComposition=true;return;}
+      timer=setTimeout(()=>{frame=(window.requestAnimationFrame || window.setTimeout)(paginate);},options.reason==='typing'?450:100);
+    }
+    function fits(blockId){
+      const node=Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId || n.dataset.fragmentOf===blockId),page=node?.closest('[data-page-index]'),box=page?.querySelector('[data-page-content]');
+      if(!box)return false;
+      const style=getComputedStyle(page),capacity=page.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom);
+      const height=Math.max(box.scrollHeight,box.getBoundingClientRect().height);
+      // Existing fragments may need rebalancing even after deleting text.
+      return capacity>0 && height<=capacity+1 && !surface.querySelector('[data-fragment-of="'+blockId+'"]');
+    }
     function setMode(value){mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;paginate();}
-    const change=()=>{const n=getSelection()?.anchorNode,e=n?.nodeType===1?n:n?.parentElement;invalidate(e?.closest('[data-node-id]')?.dataset.nodeId);};
+    const change=event=>{const {blockId,reason,structural}=event.detail || {};if(reason==='typing' && !structural && blockId && fits(blockId))return;invalidate(blockId,{reason,preserveScroll:true});};
+    const startComposition=()=>{composing=true;clearTimeout(timer);};
+    const endComposition=()=>{composing=false;if(pendingComposition){pendingComposition=false;change({detail:{reason:'typing'}});}};
+    surface.addEventListener('compositionstart',startComposition);surface.addEventListener('compositionend',endComposition);
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
-    surface.addEventListener('input',change);document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
-    function destroy(){destroyed=true;clearTimeout(timer);(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('input',change);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
-    return {paginate,invalidate,destroy,setMode,active,metrics,logical:()=>logical(surface)};
+    document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
+    function destroy(){destroyed=true;clearTimeout(timer);(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
+    return {paginate,invalidate,fits,destroy,setMode,active,metrics,logical:()=>logical(surface)};
   }
-  window.OpenDocPagination={create,logical,defaults};
+  window.OpenDocPagination={create,logical,contents,normalize,defaults};
 })();

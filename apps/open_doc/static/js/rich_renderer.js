@@ -50,5 +50,21 @@
       nodes[0].replaceWith(temporary.firstChild);nodes.slice(1).forEach(n=>n.remove());
     }
   }
-  window.OpenDocRichRenderer={render,patch,textStyle,paragraphStyle,color};
+  function reconcile(before,after,surface,mediaRequest){
+    const oldIds=(before?.blocks || []).map(b=>b.id),newIds=after.blocks.map(b=>b.id),shared=oldIds.filter(id=>newIds.includes(id));
+    if(JSON.stringify(shared)!==JSON.stringify(newIds.filter(id=>oldIds.includes(id))))return false;
+    const removed=oldIds.filter(id=>!newIds.includes(id));
+    for(const node of surface.querySelectorAll('[data-node-id]'))if(removed.includes(node.dataset.nodeId) || removed.includes(node.dataset.fragmentOf))node.remove();
+    const changed=after.blocks.filter(b=>oldIds.includes(b.id) && JSON.stringify(b)!==JSON.stringify(before.blocks.find(v=>v.id===b.id))).map(b=>b.id);
+    patch(after,surface,changed,mediaRequest);
+    for(let i=0;i<after.blocks.length;i++){const block=after.blocks[i];if(oldIds.includes(block.id))continue;
+      const temp=document.createElement('div');renderNodes({...after,blocks:[block]},temp,mediaRequest);
+      const next=after.blocks.slice(i+1).map(b=>Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===b.id)).find(Boolean);
+      const container=next?.parentNode || Array.from(surface.querySelectorAll('[data-page-content]')).pop() || surface;
+      if(!container.matches('[data-page-content],[data-rich],ul,ol'))return false;
+      container.insertBefore(temp.firstChild,next || null);
+    }
+    return true;
+  }
+  window.OpenDocRichRenderer={render,patch,reconcile,textStyle,paragraphStyle,color};
 })();

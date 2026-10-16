@@ -16,7 +16,7 @@
     if(e.dataset.stylePatch){try{Object.assign(style,JSON.parse(e.dataset.stylePatch));}catch{}}
     return style;
   }
-  function serialize(surface,original,dirty=null){const M=window.OpenDocModel,base=original || M.empty();
+  function serialize(surface,original,dirty=null,affected=null){const M=window.OpenDocModel,base=original || M.empty();
     const fast=dirty && original && dirty.parentNode===surface && surface.children.length===base.blocks.length && Array.from(surface.children).every((e,i)=>e.dataset.nodeId===base.blocks[i].id);
     const oldBlock=fast?base.blocks.find(b=>b.id===dirty.dataset.nodeId):null,map=M.index(fast?{blocks:[oldBlock]}:base),used=new Set();
     const previous=e=>map.get(e.dataset && e.dataset.nodeId) || {};
@@ -57,9 +57,28 @@
         }else pending.push(e);
       }flush();return out;
     }
-    if(surface.querySelector?.("[data-page-index]")){const logical=window.OpenDocPagination.logical(surface),id=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId;return serialize(logical,base,id?Array.from(logical.children).find(n=>n.dataset.nodeId===id):null);}
+    if(surface.querySelector?.("[data-page-index]")){
+      const id=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId;
+      if(!affected && id && base.blocks.some(b=>b.id===id))return serializeLogicalBlock(surface,id,base);
+      const logical=window.OpenDocPagination.logical(surface),value=serialize(logical,base);
+      if(affected){const touched=new Set(affected);value.blocks=value.blocks.map(b=>!touched.has(b.id)?base.blocks.find(old=>old.id===b.id) || b:b);}
+      return value;
+    }
     if(fast){const replacement=blocks({childNodes:[dirty]});return {...base,blocks:base.blocks.map(b=>b.id===oldBlock.id?replacement[0]:b)};}
     return {...base,blocks:blocks(surface)};
   }
-  window.OpenDocRichSerializer={serialize,readStyle};
+  function serializeLogicalBlock(surface,blockId,original){
+    const block=original.blocks.find(b=>b.id===blockId);if(!block)return serialize(surface,original);
+    const matches=Array.from(surface.querySelectorAll('[data-node-id]')).filter(n=>n.dataset.nodeId===blockId || n.dataset.fragmentOf===blockId);
+    const holder=document.createElement('div');
+    for(const node of matches){const copy=node.cloneNode(true),first=holder.firstElementChild;if(copy.tagName==='LI' && block.list_info)copy.dataset.listInfo=JSON.stringify(block.list_info);
+      if(!first)holder.appendChild(copy);
+      else if(first.tagName==='TABLE'){const body=first.tBodies[0] || first;Array.from(copy.rows).forEach(row=>body.appendChild(row));}
+      else while(copy.firstChild)first.appendChild(copy.firstChild);
+    }
+    if(!holder.firstChild)return original;
+    const value=serialize(holder,{...original,blocks:[block]},holder.firstElementChild).blocks[0];
+    return {...original,blocks:original.blocks.map(b=>b.id===blockId?value:b)};
+  }
+  window.OpenDocRichSerializer={serialize,serializeLogicalBlock,readStyle};
 })();
