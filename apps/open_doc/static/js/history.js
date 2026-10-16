@@ -6,6 +6,10 @@
   const GROUP_MS = 500;
   function create() {
     let entries = [], index = -1, lastTime = 0, lastKind = "";
+    // Rich snapshots are immutable, as required by the model fingerprint cache.
+    // Budget each content object once instead of encoding every old snapshot per key.
+    const sizes=new WeakMap();
+    function bytesOf(item){if(!item.content)return (item.markdown || '').length*2;if(!sizes.has(item.content))sizes.set(item.content,JSON.stringify(item.content).length*2);return sizes.get(item.content);}
     const equal = (a, b) => a?.title === b?.title && (a?.content?window.OpenDocModel.fingerprint(a.content):a?.markdown) === (b?.content?window.OpenDocModel.fingerprint(b.content):b?.markdown);
     function reset(snapshot) { entries = [{...snapshot}]; index = 0; lastKind = ""; }
     function record(snapshot, kind = "typing", affected={}) {
@@ -16,9 +20,9 @@
         const previous=entries[index].affected || {};
         entries[index] = {...snapshot,kind,affected:{blockIds:[...new Set([...(previous.blockIds || []),...(affected.blockIds || [])])],inkSurfaces:[...new Set([...(previous.inkSurfaces || []),...(affected.inkSurfaces || [])])],structural:Boolean(previous.structural || affected.structural)}};
       } else { entries.push({...snapshot,kind,affected}); index++; }
-      let bytes = entries.reduce((sum, item) => sum + JSON.stringify(item.content || item.markdown).length * 2, 0);
+      let bytes = entries.reduce((sum, item) => sum + bytesOf(item), 0);
       while (entries.length > 2 && (entries.length > MAX_ENTRIES || bytes > MAX_BYTES)) {
-        bytes -= JSON.stringify(entries[0].content || entries[0].markdown).length * 2; entries.shift(); index--;
+        bytes -= bytesOf(entries[0]); entries.shift(); index--;
       }
       lastKind = kind; lastTime = now;
     }
