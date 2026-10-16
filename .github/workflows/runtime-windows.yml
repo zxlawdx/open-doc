@@ -1,7 +1,7 @@
 name: Vela Qt Windows stabilization
 on:
   push:
-    branches: [fix/stabilization, fix/input-stability]
+    branches: [fix/stabilization, fix/input-stability, fix/stylus-handwriting-stability]
     paths-ignore: ["docs/**", "README.md", "THIRD_PARTY_NOTICES.md"]
   workflow_dispatch:
 jobs:
