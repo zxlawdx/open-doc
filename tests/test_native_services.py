@@ -208,3 +208,25 @@ def test_page_break_setup_docx_roundtrip(runtime, tmp_path):
     reopened = runtime.editor.import_docx(target)
     assert reopened["content"]["sections"][0]["orientation"] == "landscape"
     assert "Fonte preservada" in str(reopened["content"])
+
+
+@pytest.mark.parametrize("suffix", [".md", ".txt"])
+def test_bridge_import_text_opens_editable_document(runtime, tmp_path, suffix):
+    content = "Olá, ação e acentuação 🐧\n" * 6000
+    source = tmp_path / ("Minha nota" + suffix)
+    source.write_text(content, encoding="utf-8")
+    bridge = OpenDocBridge()
+    bridge._window = Mock()
+    bridge._window.create_file_dialog.return_value = (str(source),)
+    result = bridge.import_document()
+    assert result.get("opened") is True and result.get("document"), result
+    assert (
+        result["document"]["title"] == "Minha nota"
+        and result["document"]["markdown"] == content
+    )
+    assert (
+        runtime.fixed_documents.active_kind() == "rich"
+        and source.read_text(encoding="utf-8") == content
+    )
+    imported = runtime.organizer.list_files()
+    assert imported and imported[0]["capabilities"]["open"]

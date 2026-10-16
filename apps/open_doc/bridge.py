@@ -75,8 +75,15 @@ class OpenDocBridge(BaseBridge):
                         "pdf" if target.suffix.lower() == ".pdf" else "presentation"
                     ),
                 }
-            services().fixed_documents.activate("rich")
-            return {"name": target.name}
+            if target.suffix.lower() in {".md", ".txt"}:
+                services().fixed_documents.activate("rich")
+                return {
+                    "name": target.name,
+                    "document": services().editor.import_note(target),
+                    "opened": True,
+                    "view": "rich",
+                }
+            raise ValueError("Formato não suportado.")
         except (ValueError, OSError, UnicodeError):
             return {
                 "error": "Não foi possível abrir/importar este documento. O arquivo original foi preservado."
@@ -111,7 +118,7 @@ class OpenDocBridge(BaseBridge):
             if fixed:
                 note = services().fixed_documents.get(document_id)
                 if file_format not in (
-                    ["pdf"] if note["source_kind"] == "pdf" else ["pdf", "pptx"]
+                    ["pdf"] if note["source_kind"] == "pdf" else ["pptx"]
                 ):
                     return {
                         "error": "Exporte este documento como PDF ou PPTX compatível."
