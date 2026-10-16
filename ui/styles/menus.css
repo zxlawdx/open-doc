@@ -1,0 +1,17 @@
+/* ============ MENUS AND DIALOGS ============ */
+.menubar{height:28px;min-height:28px;display:flex;align-items:stretch;padding:0 12px;gap:2px;position:relative;z-index:30;background:var(--app-chrome)}
+.menu-group{position:relative;display:flex;align-items:stretch}
+.menubar [data-menu]{padding:3px 10px;font-size:12px;border-radius:3px}
+.menubar [aria-expanded=true]{background:var(--primary-soft);color:var(--primary)}
+.dropdown{position:absolute;top:100%;left:0;min-width:254px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--menu-shadow);border-radius:6px;padding:5px;z-index:40;color:var(--text-primary)}
+.dropdown button{display:flex;align-items:center;justify-content:space-between;gap:24px;width:100%;padding:7px 9px;text-align:left;font-size:12px;min-height:29px}
+.dropdown kbd{font:10px Inter,sans-serif;color:var(--text-secondary);white-space:nowrap}
+.dropdown hr{border:0;border-top:1px solid var(--border-soft);margin:4px 3px}
+.menu-section{font-size:9px;letter-spacing:.08em;color:var(--text-secondary);padding:5px 9px;margin:0}
+.dropdown [aria-checked=true]{color:var(--primary);background:var(--primary-soft)}
+.modal-backdrop{position:absolute;inset:0;display:grid;place-items:center;background:#0004;z-index:100}
+.dialog{background:var(--panel);border:1px solid var(--border);border-radius:8px;box-shadow:var(--menu-shadow);padding:24px;width:min(440px,90vw);color:var(--text-primary)}
+.dialog h2{font-size:16px;margin:0 0 16px}.dialog p{line-height:1.7;font-size:12px;color:var(--text-secondary)}
+.dialog input,.dialog select{width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--app-chrome);margin-top:8px}
+.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+.dialog-actions button{border:1px solid var(--border);padding:7px 16px}[data-dialog-confirm]{background:var(--primary)!important;color:var(--on-primary)!important}
