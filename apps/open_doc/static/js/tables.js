@@ -1,0 +1,25 @@
+/* Cell paragraphs stay editable; Tab moves between existing cells. */
+"use strict";
+(() => {
+  function bind(surface,signal,onOperation){
+    const menu=document.createElement('div');menu.className='page-menu';menu.dataset.tableMenu='';menu.hidden=true;menu.setAttribute('role','menu');surface.closest('[data-app]')?.appendChild(menu);let selected;
+    for(const [action,label] of [['row-above','Inserir linha acima'],['row-below','Inserir linha abaixo'],['column-left','Inserir coluna à esquerda'],['column-right','Inserir coluna à direita'],['delete-row','Excluir linha'],['delete-column','Excluir coluna'],['merge','Mesclar com célula à direita'],['split','Dividir célula'],['delete-table','Excluir tabela']]){const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');button.addEventListener('click',()=>{menu.hidden=true;if(selected?.isConnected){const range=document.createRange();range.selectNodeContents(selected);range.collapse(true);surface.focus();getSelection().removeAllRanges();getSelection().addRange(range);onOperation?.(action);}},{signal});menu.appendChild(button);}
+    surface.addEventListener('contextmenu',event=>{const cell=event.target.closest('td,th');if(!cell)return;event.preventDefault();selected=cell;menu.style.left=Math.min(event.clientX,innerWidth-240)+'px';menu.style.top=Math.min(event.clientY,innerHeight-360)+'px';menu.hidden=false;menu.querySelector('button').focus();},{signal});
+    document.addEventListener('click',event=>{if(!menu.contains(event.target))menu.hidden=true;},{signal});document.addEventListener('keydown',event=>{if(event.key==='Escape')menu.hidden=true;},{signal});signal.addEventListener('abort',()=>menu.remove(),{once:true});
+    surface.addEventListener('keydown',event=>{const n=getSelection().anchorNode,element=n && (n.nodeType===1?n:n.parentElement);const cell=event.target.closest('td,th') || element?.closest('td,th');if(!cell || !surface.contains(cell) || event.key!=='Tab')return;event.preventDefault();const cells=Array.from(surface.querySelectorAll('td,th')),next=cells[cells.indexOf(cell)+(event.shiftKey?-1:1)];if(next){const r=document.createRange();r.selectNodeContents(next);r.collapse(!event.shiftKey);surface.focus();getSelection().removeAllRanges();getSelection().addRange(r);}},{signal});}
+  function insert(surface,range,rows=2,cols=2){if(!range || !surface.contains(range.commonAncestorContainer))return false;const table=document.createElement('table'),body=document.createElement('tbody');for(let r=0;r<rows;r++){const tr=document.createElement('tr');for(let c=0;c<cols;c++){const td=document.createElement('td'),p=document.createElement('p');p.appendChild(document.createElement('br'));td.appendChild(p);tr.appendChild(td);}body.appendChild(tr);}table.appendChild(body);let block=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;block=block.closest('p,h1,h2,h3,blockquote,pre,li');if(block && surface.contains(block))block.parentNode.insertBefore(table,block.nextSibling);else surface.appendChild(table);const after=document.createElement('p');after.appendChild(document.createElement('br'));table.parentNode.insertBefore(after,table.nextSibling);return true;}
+  function operate(table,cell,action){
+    const row=cell.parentElement,index=cell.cellIndex,rows=Array.from(table.rows);
+    const blank=()=>{const td=document.createElement('td');td.innerHTML='<p><br></p>';return td;};
+    if(action==='delete-table'){table.remove();return;}
+    if(action==='split'){if(cell.colSpan<=1 && cell.rowSpan<=1)throw Error('Selecione uma célula mesclada.');if(cell.rowSpan>1)throw Error('Divisão vertical de células ainda não é suportada.');const count=cell.colSpan;cell.colSpan=1;for(let i=1;i<count;i++)row.insertBefore(blank(),cell.nextSibling);return;}
+    if(action==='merge'){const next=cell.nextElementSibling;if(!next || cell.rowSpan!==next.rowSpan)throw Error('Selecione uma célula com vizinha à direita e mesma altura.');cell.colSpan+=next.colSpan;while(next.firstChild)cell.appendChild(next.firstChild);next.remove();return;}
+    if(rows.some(r=>Array.from(r.cells).some(c=>c.rowSpan>1 || c.colSpan>1)))throw Error('Divida as células mescladas antes de alterar linhas ou colunas.');
+    if(action==='row-above' || action==='row-below'){const added=document.createElement('tr');for(let i=0;i<row.cells.length;i++)added.appendChild(blank());row.parentElement.insertBefore(added,action==='row-above'?row:row.nextSibling);}
+    if(action==='column-left' || action==='column-right')for(const r of rows)r.insertBefore(blank(),r.cells[index+(action==='column-right'?1:0)] || null);
+    if(action==='delete-row')row.remove();
+    if(action==='delete-column')for(const r of rows)r.cells[index]?.remove();
+    if(!table.rows.length || !table.rows[0].cells.length)table.remove();
+  }
+  window.OpenDocTables={bind,insert,operate};
+})();
