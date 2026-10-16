@@ -1,7 +1,7 @@
 """
 Módulo: pdf_exporter.py.
 Responsabilidade: exportar Markdown para PDF Unicode com fpdf2.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
@@ -32,9 +32,9 @@ def export_pdf(markdown: str, target: Path, title: str) -> None:
         ("BI", "-BoldItalic"),
     ):
         path = FONT_PATH.with_name("Inter" + suffix + ".ttf")
-        pdf.add_font("Writer", style=style, fname=str(path))
+        pdf.add_font("OpenDoc", style=style, fname=str(path))
     pdf.add_page()
-    pdf.set_font("Writer", size=FONT_SIZE)
+    pdf.set_font("OpenDoc", size=FONT_SIZE)
     pdf.set_title(title)
-    pdf.write_html(safe_html(markdown), font_family="Writer")
+    pdf.write_html(safe_html(markdown), font_family="OpenDoc")
     pdf.output(str(target))
