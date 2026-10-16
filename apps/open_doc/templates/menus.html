@@ -1,0 +1,70 @@
+<!-- ============ KEYBOARD-ACCESSIBLE MENUBAR ============ -->
+<nav class="menubar" role="menubar" aria-label="Menu principal">
+  <div class="menu-group">
+    <button role="menuitem" aria-haspopup="true" aria-expanded="false" data-menu="file">Arquivo</button>
+    <div class="dropdown" role="menu" data-menu-panel="file" hidden>
+      <button role="menuitem" data-action="new">Novo documento <kbd>Ctrl+N</kbd></button>
+      <button role="menuitem" data-action="import">Abrir / importar… <kbd>Ctrl+O</kbd></button>
+      <button role="menuitem" data-action="home">Abrir recente</button><hr>
+      <button role="menuitem" data-action="save" data-save>Salvar <kbd>Ctrl+S</kbd></button>
+      <button role="menuitem" data-action="copy">Salvar uma cópia</button><hr>
+      <button role="menuitem" data-action="page-setup">Configuração da página…</button><p class="menu-section">EXPORTAR</p>
+      <button role="menuitem" data-export="pdf">Documento PDF</button>
+      <button role="menuitem" data-export="docx">Documento Word (.docx)</button>
+      <button role="menuitem" data-export="html">Página HTML</button>
+      <button role="menuitem" data-export="md">Markdown (.md)</button>
+    </div>
+  </div>
+  <div class="menu-group"><button role="menuitem" aria-haspopup="true" aria-expanded="false" data-menu="edit">Editar</button>
+    <div class="dropdown" role="menu" data-menu-panel="edit" hidden>
+      <button role="menuitem" data-command="undo">Desfazer <kbd>Ctrl+Z</kbd></button>
+      <button role="menuitem" data-command="redo">Refazer <kbd>Ctrl+Y</kbd></button><hr>
+      <button role="menuitem" data-command="selectAll">Selecionar tudo <kbd>Ctrl+A</kbd></button>
+      <button role="menuitem" data-action="replace">Substituir <kbd>Ctrl+H</kbd></button>
+      <button role="menuitem" data-action="find">Localizar <kbd>Ctrl+F</kbd></button>
+    </div>
+  </div>
+  <div class="menu-group"><button role="menuitem" aria-haspopup="true" aria-expanded="false" data-menu="view">Exibir</button>
+    <div class="dropdown" role="menu" data-menu-panel="view" hidden>
+      <button role="menuitemradio" data-mode="rich" aria-checked="true">Editor visual</button>
+      <button role="menuitemradio" data-mode="markdown" aria-checked="false">Código-fonte Markdown</button>
+      <button role="menuitemradio" data-mode="preview" aria-checked="false">Visualização Markdown</button><hr>
+      <button role="menuitem" data-action="pages">Com páginas</button><button role="menuitem" data-action="continuous">Fluxo contínuo</button>
+      <button role="menuitem" data-action="navigator">Alternar navegador</button>
+      <button role="menuitem" data-action="zoom-reset">Zoom 100%</button>
+    </div>
+  </div>
+  <div class="menu-group"><button role="menuitem" aria-haspopup="true" aria-expanded="false" data-menu="insert">Inserir</button>
+    <div class="dropdown" role="menu" data-menu-panel="insert" hidden>
+      <button role="menuitem" data-action="blank-page">Página em branco</button><button role="menuitem" data-action="page-break">Quebra de página <kbd>Ctrl+Enter</kbd></button><button role="menuitem" data-action="table-insert">Tabela…</button>
+      <button role="menuitem" data-action="link">Link…</button>
+      <button role="menuitem" data-command="list">Lista com marcadores</button>
+      <button role="menuitem" data-command="ordered">Lista numerada</button>
+      <button role="menuitem" data-command="quote">Citação</button>
+      <button role="menuitem" data-command="code">Bloco de código</button>
+    </div>
+  </div>
+  <div class="menu-group"><button role="menuitem" aria-haspopup="true" aria-expanded="false" data-menu="format">Formatar</button>
+    <div class="dropdown" role="menu" data-menu-panel="format" hidden>
+      <button role="menuitem" data-command="bold">Negrito <kbd>Ctrl+B</kbd></button>
+      <button role="menuitem" data-command="italic">Itálico <kbd>Ctrl+I</kbd></button>
+      <button role="menuitem" data-command="paragraph">Texto normal</button>
+      <button role="menuitem" data-command="h1">Título 1</button>
+      <button role="menuitem" data-command="heading">Título 2</button>
+<button role="menuitem" data-table-op="row-above">Inserir linha acima</button><button role="menuitem" data-table-op="row-below">Inserir linha abaixo</button><button role="menuitem" data-table-op="column-left">Inserir coluna à esquerda</button><button role="menuitem" data-table-op="column-right">Inserir coluna à direita</button><button role="menuitem" data-table-op="delete-row">Excluir linha</button><button role="menuitem" data-table-op="delete-column">Excluir coluna</button><button role="menuitem" data-table-op="delete-table">Excluir tabela</button><button role="menuitem" data-table-op="merge">Mesclar com célula à direita</button><button role="menuitem" data-table-op="split">Dividir célula</button>      <button role="menuitem" data-command="h3">Título 3</button>
+    </div>
+  </div>
+  <div class="menu-group"><button role="menuitem" aria-haspopup="true" aria-expanded="false" data-menu="tools">Ferramentas</button>
+    <div class="dropdown" role="menu" data-menu-panel="tools" hidden>
+      <button role="menuitem" data-action="find">Pesquisar no documento</button>
+      <button role="menuitem" data-action="font-import">Importar fonte…</button><button role="menuitem" data-action="font-manage">Gerenciar fontes…</button><button role="menuitem" data-action="font-refresh">Atualizar catálogo de fontes</button>
+      <button role="menuitem" data-action="theme">Aparência…</button>
+    </div>
+  </div>
+  <div class="menu-group"><button role="menuitem" aria-haspopup="true" aria-expanded="false" data-menu="help">Ajuda</button>
+    <div class="dropdown" role="menu" data-menu-panel="help" hidden>
+      <button role="menuitem" data-action="shortcuts">Atalhos de teclado</button>
+      <button role="menuitem" data-action="about">Sobre o Open Doc</button>
+    </div>
+  </div>
+</nav>
