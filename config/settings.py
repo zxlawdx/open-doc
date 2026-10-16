@@ -13,6 +13,9 @@ DEBUG = False
 SHELL_MODE = "http"
 STATIC_ROOT = "staticfiles"
 API = {
-    "host": "127.0.0.1", "port": 0, "auto_port": True,
-    "server": "waitress", "docs_enabled": False,
+    "host": "127.0.0.1",
+    "port": 0,
+    "auto_port": True,
+    "server": "waitress",
+    "docs_enabled": False,
 }
