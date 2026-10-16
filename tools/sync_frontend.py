@@ -21,8 +21,10 @@ def sync_frontend() -> None:
     staged.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, staged, dirs_exist_ok=True)
     result = collect_static(
-        apps_dir="apps", output_dir="staticfiles",
-        skip_tailwind=True, verbose=False,
+        apps_dir="apps",
+        output_dir="staticfiles",
+        skip_tailwind=True,
+        verbose=False,
     )
     if result["errors"]:
         raise RuntimeError("Falha no collectstatic do Vela.")
