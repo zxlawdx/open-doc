@@ -1,7 +1,7 @@
 """
 Módulo: file_organizer.py.
 Responsabilidade: validar e organizar documentos importados.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
