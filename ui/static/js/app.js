@@ -180,7 +180,7 @@
 
   async function mount() {
     for (const [global, file] of [
-      ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
+      ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
       ['OpenDocEditor', 'editor.js'], ['OpenDocMenus', 'menus.js'],
