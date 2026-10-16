@@ -33,7 +33,7 @@
       if (!savedRange || !rich.contains(savedRange.startContainer)) return null;
       const before = document.createRange(); before.selectNodeContents(rich);
       before.setEnd(savedRange.startContainer, savedRange.startOffset);
-      return {start: before.cloneContents().textContent.length, length: savedRange.cloneContents().textContent.length};
+      return {start: before.toString().length, length: savedRange.toString().length};
     }
     function restoreBookmark(value) {
       rich.focus();
