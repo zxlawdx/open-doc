@@ -1,0 +1,122 @@
+/* Desktop policy: one scrollable toolbar strip; never compress paper geometry. */
+@media (max-width: 1439px) {
+    .open-doc {
+        --control-paragraph-width: 132px;
+        --control-font-width: 140px;
+        --control-select-width: 94px;
+    }
+    .open-doc .toolbar {
+        gap: var(--space-1);
+        padding-inline: var(--space-2);
+    }
+    .open-doc .toolbar-group + .toolbar-group {
+        padding-left: var(--space-1);
+    }
+}
+@media (max-width: 1199px) {
+    .open-doc {
+        --navigator-width: 200px;
+    }
+    .open-doc .save-status {
+        width: 180px;
+        flex-basis: 180px;
+    }
+}
+@media (max-width: 959px) {
+    .open-doc {
+        --control-font-width: 128px;
+        --control-paragraph-width: 124px;
+        --control-select-width: 88px;
+        --navigator-width: 180px;
+    }
+    .open-doc .save-status {
+        width: 140px;
+        flex-basis: 140px;
+    }
+    .open-doc .status-language,
+    .open-doc .status-mode {
+        display: none;
+    }
+    .open-doc .home-inner {
+        padding-block: var(--space-8);
+    }
+}
+@media (max-width: 719px) {
+    .open-doc .status-divider {
+        display: none;
+    }
+    .open-doc .status-left,
+    .open-doc .status-right {
+        gap: var(--space-1);
+    }
+    .open-doc .app-header {
+        gap: var(--space-1);
+        padding-inline: var(--space-1);
+    }
+    .open-doc .save-status {
+        width: 96px;
+        flex-basis: 96px;
+    }
+    .open-doc .menubar {
+        padding-inline: var(--space-1);
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+    .open-doc .menubar [data-menu] {
+        padding-inline: var(--space-1);
+    }
+    .open-doc .library-file-kind,
+    .open-doc .recent-heading span,
+    .open-doc .status-words {
+        display: none;
+    }
+    .open-doc .library-row {
+        grid-template-columns: 32px minmax(0,1fr) 32px;
+        gap: var(--space-2);
+    }
+    .open-doc .home-inner {
+        width: calc(100% - 32px);
+    }
+    .open-doc .home h1 {
+        font-size: var(--font-size-2xl);
+    }
+    .open-doc .statusbar {
+        gap: var(--space-1);
+        padding-inline: var(--space-1);
+    }
+    .open-doc [data-zoom] {
+        width: 64px;
+    }
+}
+@media (max-height: 640px) {
+    .open-doc .home-inner {
+        padding-block: var(--space-6);
+    }
+    .open-doc .home-actions {
+        margin-bottom: var(--space-6);
+    }
+    .open-doc .navigator-content {
+        padding-top: var(--space-3);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .open-doc button,
+    .open-doc summary,
+    .open-doc input,
+    .open-doc select {
+        transition: none;
+    }
+}
+@media (max-width: 479px) {
+    .open-doc .product span,
+    .open-doc .header-divider {
+        display: none;
+    }
+    .open-doc .save-status {
+        width: 64px;
+        flex-basis: 64px;
+    }
+    .open-doc input[data-title] {
+        min-width: 80px;
+    }
+}
