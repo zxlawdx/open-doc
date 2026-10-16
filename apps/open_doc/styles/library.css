@@ -1,0 +1,82 @@
+/* Icon / flexible title / secondary metadata / reserved action target. */
+.open-doc .document-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--color-border);
+}
+.open-doc .library-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto 32px;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 64px;
+    padding: var(--space-3) var(--space-1);
+    border-bottom: 1px solid var(--color-border-soft);
+}
+.open-doc .library-file-icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 36px;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xs);
+    font-size: var(--font-size-2xs);
+}
+.open-doc .library-file-main {
+    min-width: 0;
+}
+.open-doc .library-file-title {
+    display: block;
+    width: 100%;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0;
+    font-size: var(--font-size-md);
+}
+.open-doc .library-file-meta {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: var(--space-0-5);
+}
+.open-doc .library-file-kind {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+.open-doc .library-file-actions {
+    position: relative;
+    width: 32px;
+}
+.open-doc .library-file-actions > summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--control-icon-width);
+    height: var(--control-height-md);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    list-style: none;
+    font-size: var(--font-size-2xl);
+}
+.open-doc .library-file-actions > summary::-webkit-details-marker {
+    display: none;
+}
+.open-doc .document-action-menu {
+    min-width: 156px;
+}
+.open-doc .library-empty {
+    color: var(--color-text-secondary);
+    padding: var(--space-6) var(--space-1);
+    font-size: var(--font-size-md);
+}
