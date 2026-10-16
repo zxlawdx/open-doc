@@ -1,7 +1,7 @@
 """
 Módulo: manage.py.
 Responsabilidade: encaminhar comandos ao CLI oficial do Vela.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
