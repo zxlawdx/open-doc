@@ -12,9 +12,7 @@ Atualize as dependências e os recursos locais:
 git pull origin main
 python -m pip install -r requirements.txt
 npm ci
-node tools/build_vendor_js.mjs
-python tools/build_css.py
-python manage.py collectstatic
+npm run build
 python manage.py runapp
 ```
 
@@ -81,14 +79,14 @@ cursiva; revisão humana é parte do fluxo, não existe garantia de acerto.
 
 ## PPTX
 
-python-pptx preserva e exporta a apresentação; não é um renderizador de slides.
-Instale LibreOffice e disponibilize `soffice` no PATH para gerar uma prévia PDF
-em processo headless com perfil e diretório temporários exclusivos. Sem isso, o
-PPTX é importado/preservado e a tela explica a indisponibilidade da prévia. Não há
-miniatura fictícia nem falha no startup. Após instalar, importe novamente.
-O PDF de prévia pode variar do PowerPoint conforme fontes e recursos do slide.
-A exportação PPTX adiciona uma imagem transparente de tinta do tamanho do slide
-mais caixas de texto nativas. PDF usa a prévia como base quando disponível.
+O renderer local MIT `pptx-viewer@0.2.2` abre os slides diretamente, sem
+LibreOffice e sem PDF.js. O pacote original permanece intacto. Texto, formas,
+imagens, tabelas e fundos básicos têm prévia; a interface informa que a fidelidade
+pode variar. Animações, transições e recursos avançados do Office não são garantidos.
+
+python-pptx exporta o PPTX com uma imagem transparente de tinta por slide e caixas
+de texto nativas. O fluxo PPTX não oferece exportação PDF baseada em conversor
+externo. Veja a evidência atual em [Estabilização](OPEN_DOC_STABILIZATION.md).
 
 ## Persistência, segurança e exportação
 
@@ -121,7 +119,7 @@ mais caixas de texto nativas. PDF usa a prévia como base quando disponível.
 
 ## Validação e limites conhecidos
 
-`pytest`: 80 aprovados e 1 integração Windows Ink ignorada no Linux.
+Resultados históricos anteriores à estabilização: `pytest`: 80 aprovados e 1 integração Windows Ink ignorada no Linux.
 `npm test`: 40 aprovados. A integração Windows pode ser habilitada explicitamente
 com `OPEN_DOC_TEST_WINDOWS_INK=1` no ambiente adequado. Incluem pressão/coalescidos, rejeição de palma,
 cancelamento, histórico, reconhecimento simulado, fonte nativa no run, revisões,
@@ -143,7 +141,8 @@ registre pressão, tilt, taxa e borracha. Não foi ativado um fallback QTabletEv
 no produto: a captura Pointer Events funcionou no ambiente testado; falta medir
 o comportamento do driver/mesa no Windows antes de justificar essa adaptação.
 
-PPTX com LibreOffice e reconhecedores reais também exigem validação no ambiente
+Reconhecedores reais também exigem validação no ambiente
 onde esses programas/modelos estiverem instalados. Não foram baixados modelos
-nem afirmados testes físicos ou Windows. Licenças e versões estão em
+nem realizados testes físicos. Resultados atuais de Vela/Qt por plataforma estão em
+[Estabilização](OPEN_DOC_STABILIZATION.md). Licenças e versões estão em
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).

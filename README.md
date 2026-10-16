@@ -17,8 +17,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 npm ci
-python tools/build_css.py
-python manage.py collectstatic
+npm run build
 python manage.py runapp
 ```
 
@@ -40,7 +39,7 @@ bibliotecas gráficas do sistema (Xtst, NSS, X11, xkbcommon, EGL e áudio).
 - Biblioteca com capabilities do backend; PDF local com texto selecionável, busca, marcadores, miniaturas e renderização sob demanda.
 - Tinta vetorial compartilhada em DOCX/PDF/PPTX: caneta, marca-texto, borracha de traço, histórico e recuperação.
 - Reconhecimento local opcional de escrita com revisão antes de inserir texto na fonte escolhida.
-- PPTX anotável com prévia fiel via LibreOffice opcional e exportação de texto nativo.
+- PPTX anotável com renderer local independente de LibreOffice e exportação de tinta e texto nativo.
 - Fontes disponíveis no sistema, tamanho 1–512 pt, sublinhado, tachado, sobrescrito/subscrito, cores, alinhamento, espaçamento e recuo.
 - Tabelas com tamanho configurável, navegação por Tab, inserção/exclusão de linhas e colunas, mescla horizontal e divisão.
 - Exportar PDF, DOCX, HTML e Markdown pelo diálogo nativo **Salvar como**, com gravação atômica.
@@ -57,6 +56,7 @@ usam os atalhos do sistema. Menus têm navegação por setas, Escape e foco vis�
 
 Detalhes de instalação opcional, escrita, PDF/PPTX, licenças e testes em
 [PDF e tinta](docs/OPEN_DOC_PDF_INK.md).
+Estabilização, diagnóstico e evidências em [Estabilização](docs/OPEN_DOC_STABILIZATION.md).
 
 ## Layout e limites
 
@@ -130,13 +130,12 @@ serve para atualizar os assets sem recompilar o shell. Distribuições precisam 
 ```powershell
 python -m pip install -r requirements-dev.txt
 npm ci
+npm run build
 python -m pytest -q
 npm test
 python tools/audit_css.py
 python -m black --check --line-length 88 apps config tools tests main.py manage.py launcher.py
 node --check apps/open_doc/static/js/app.js
-python tools/build_css.py
-python manage.py collectstatic --no-tailwind
 python manage.py runapp
 ```
 
@@ -146,10 +145,12 @@ capturas reais pelo QtWebEngine; requer Node 22+ para CDP local. Nunca exponha
 a porta de debugging no uso normal. O script usa a janela criada pelo VelaApp.
 
 A validação cobre serviços de exportação/fontes, persistência, round-trip DOCX,
-modelo, edição e paginação, além do Vela/Qt real no Linux. O QA substitui somente
+modelo, edição e paginação, além do Vela/Qt real. O QA substitui somente
 a escolha dos seletores nativos, mantendo bridge, SQLite, HTTP e editor reais.
-Windows e a interação física com o popup do Windows exigem validação nessa plataforma.
-Veja [o relatório desta migração](docs/OPEN_DOC_VELA_PHASE2.md).
+Resultados por plataforma estão no [relatório de estabilização](docs/OPEN_DOC_STABILIZATION.md).
+Interação física com os seletores de arquivo e mesa digitalizadora não é comprovada
+pelos testes automáticos. O [relatório da migração](docs/OPEN_DOC_VELA_PHASE2.md)
+registra o estado anterior.
 
 ## Styles
 

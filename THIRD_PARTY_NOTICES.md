@@ -6,8 +6,10 @@ As licenças completas dos bundles estão distribuídas junto dos arquivos locai
 | Projeto | Versão fixada | Licença | Uso |
 | --- | --- | --- | --- |
 | Mozilla PDF.js | 4.10.38 | Apache-2.0 | Leitura, texto selecionável e worker local |
+| pptx-viewer | 0.2.2 | MIT | Slides SVG/HTML locais, sem LibreOffice |
+| fflate | 0.8.3 (lockfile) | MIT | ZIP do renderer PPTX |
 | perfect-freehand | 1.2.2 | MIT | Contorno dos traços com pressão |
-| core-js | 3.41.0 | MIT | Compatibilidade do bundle com Chromium 87 |
+| core-js | 3.41.0 | MIT | Compatibilidade do bundle com Chromium 83+ |
 | esbuild | 0.25.5 | MIT | Build, somente desenvolvimento |
 | python-pptx | >=1.0,<2 | MIT | Leitura de metadados e exportação OOXML |
 | pypdf | >=5,<7 | BSD-3-Clause | Preservação/mesclagem de PDF |
@@ -30,5 +32,8 @@ Referências primárias: [PDF.js](https://github.com/mozilla/pdf.js),
 [pypdf](https://github.com/py-pdf/pypdf).
 
 Vela, Qt/PyQt e as demais dependências existentes continuam com suas licenças
-originais. LibreOffice é um programa externo opcional: é executado em subprocesso
-isolado para gerar a prévia do PPTX, sem copiar seu código para o projeto.
+originais. O fluxo PPTX ativo não executa LibreOffice. O módulo legado
+`readers/pptx/preview.py` não é chamado pelo serviço.
+
+Renderer PPTX: [mdurbar/pptx-viewer](https://github.com/mdurbar/pptx-viewer).
+ZIP: [fflate](https://github.com/101arrowz/fflate).

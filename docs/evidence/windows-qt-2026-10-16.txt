@@ -1,0 +1,57 @@
+Workflow: https://github.com/zxlawdx/open-doc/actions/runs/38941778861
+Validated source HEAD: e2b13aed7c3f013fa0605fe041d776f89600bffd
+Outcome: success
+Commands: pip install -r requirements-dev.txt; pip check; npm ci; npm run build; python tools/check_runtime_assets.py; python -m pytest -q; npm test; python tools/qa_stabilization.py; python tools/qa_ink.py; python tools/qa_pptx.py; python tools/qa_desktop.py
+File-picker choices and recognizer are QA substitutes; Vela, Qt, HTTP, editor, persistence and exports are real. Pen input is synthetic.
+
+Selected original stdout (duplicate runtime records removed):
+No broken requirements found.
+Open Doc vendors OK {"versions":{"esbuild":"0.25.5","core-js":"3.41.0","pdfjs-dist":"4.10.38","perfect-freehand":"1.2.2","pptx-viewer":"0.2.2","fflate":"0.8.3"},"target":"chrome83","build_hash":"cb136e732e664ddc9c7607995fa3f01fd6aec857b180fff199a7debca0143283"}
+v22.23.3
+10.9.9
+84 passed, 2 skipped, 1 warning in 24.20s
+# tests 49
+# pass 49
+# fail 0
+# skipped 0
+OPEN_DOC_QA_RUNTIME {"os": "Windows-2025Server-10.0.26100-SP0", "python": "3.12.10", "pyqt": "5.15.11", "qt": "5.15.2", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.2", "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.2 Chrome/83.0.4103.122 Safari/537.36"}
+QT_DOCX_20_STROKES_WITHOUT_STRUCTUREDCLONE_NO_FULL_RENDER_SAVE_REOPEN_OK
+QT_PAGE8_TYPING_UNDO_REDO_PREFIX_SCROLL_PRESERVED_OK
+QT_QTEST_CTRL_Z_Y_TYPING_AND_INK_INCREMENTAL_OK
+QT_QTEST_TYPING_UNDO_FIRST_MIDDLE_LAST_PAGES_OK
+QT_QTEST_CTRL_O_MD_TXT_PDF_PPTX_DOCX_HOME_NEW_LIFECYCLE_OK
+QT_DOCX_INK_PERSISTENCE_AND_INCREMENTAL_UNDO_OK
+QT_READY_LOCAL_STANDARD_FONTS_AND_NONWHITE_PIXELS
+QT_PDF_300_PAGES_BOUNDED_RENDER_AND_OVERLAY_GEOMETRY_OK
+QT_PDF_TEXT_SELECTION_AND_SEARCH_PAGE_299_OK
+QT_STROKE
+QT_RECOGNIZED
+QT_FLUSHED
+QT_PDF_FAKE_WORKER_LOCAL_BUNDLE_NONWHITE_PIXELS_OK
+QT_TEXT_LAYER_FAILURE_KEEPS_RENDERED_CANVAS_OK
+QT_SYNTHETIC_PEN_HISTORY_REVIEW_NATIVE_TEXT_3_RESOLUTIONS_OK
+QT_PDF_INK_RECOGNITION_EXPORT_OK
+QT_PPTX_NATIVE_TEXT_IMAGE_SHAPES_TABLE_INK_REOPEN_EXPORT_3_RESOLUTIONS_OK
+QT_PPTX_WITHOUT_LIBREOFFICE_INK_SAVE_REOPEN_EXPORT_OK
+NATIVE_VELA_BOOT_OK
+NATIVE_VELA_REMOUNT_AND_LISTENER_CLEANUP_OK
+NATIVE_SELECTION_BOLD_ITALIC_UNDO_REDO_OK
+NATIVE_TOOLBAR_PARAGRAPHS_LINK_MENUS_FIND_SIDEBAR_ZOOM_OK
+NATIVE_RICH_DOCX_IMPORT_FORMAT_TABLE_SAVE_EXPORT_OK
+QT_RICH_CAPTURE_1366_1600_1920_TABLE_OK
+NATIVE_RICH_REOPEN_SEPARATE_PROCESS_OK
+NATIVE_QA_COMPLETE
+QT_EDITABLE_PAGES_CAPTURE_OK
+NATIVE_CTRL_ENTER_UNDO_REDO_FONT_IMPORT_APPLY_DOCX_OK
+NATIVE_PAGES_LONG_PARAGRAPH_TABLE_REFLOW_MENU_CONTINUOUS_SAVE_OK
+NATIVE_SAVE_EXPORT_OK
+NATIVE_CTRL_A_C_X_V_Z_Y_SHIFT_Z_S_OK
+QT_TRUSTED_MOUSE_BOLD_UNDO_REDO_MENU_DIALOG_OK
+QT_API_FEATURES {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.2 Chrome/83.0.4103.122 Safari/537.36","nativeReplaceChildren":"undefined","nativeAbortSignal":false,"append":"function","prepend":"function","replaceWith":"function","toggleAttribute":"function","nativeAt":"undefined","selection":"function","range":"function","execCommand":"function"}
+QT_LAYOUT_OK light 1366 768 {"width":1366,"height":768,"globalOverflow":false,"app":1366,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"light","outline":3}
+QT_LAYOUT_OK light 1600 900 {"width":1600,"height":900,"globalOverflow":false,"app":1600,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"light","outline":3}
+QT_LAYOUT_OK light 1920 1080 {"width":1920,"height":1080,"globalOverflow":false,"app":1920,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"light","outline":3}
+QT_LAYOUT_OK dark 1366 768 {"width":1366,"height":768,"globalOverflow":false,"app":1366,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"dark","outline":3}
+QT_LAYOUT_OK dark 1600 900 {"width":1600,"height":900,"globalOverflow":false,"app":1600,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"dark","outline":3}
+QT_LAYOUT_OK dark 1920 1080 {"width":1920,"height":1080,"globalOverflow":false,"app":1920,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"dark","outline":3}
+NATIVE_RECENT_NEW_AND_CLOSE_OK
