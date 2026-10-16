@@ -89,6 +89,9 @@
       root.querySelector("[data-count]").textContent =
         count + (count === 1 ? " palavra" : " palavras");
       root.dataset.dirty = String(!isClean());
+      if (window.pywebview?.api?.set_dirty) {
+        window.pywebview.api.set_dirty(!isClean()).catch(() => {});
+      }
     }
 
     function enqueue(operation) {
