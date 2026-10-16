@@ -10,7 +10,7 @@
     const source = root.querySelector("[data-source]");
     const rich = root.querySelector("[data-rich]");
     const title = root.querySelector("[data-title]");
-    const preview = root.querySelector("[data-preview]");
+    const preview = root.querySelector("[data-preview-pane]");
     const surface = root.querySelector("[data-surface]");
     const controller = new AbortController();
     const listeners = {signal: controller.signal};
@@ -301,7 +301,7 @@
       }, listeners);
     });
     root.addEventListener("click", event => {
-      const anchor = event.target.closest("[data-preview] a, [data-rich] a");
+      const anchor = event.target.closest("[data-preview-pane] a, [data-rich] a");
       if (anchor) {
         event.preventDefault();
         status("Link: " + anchor.getAttribute("href"));
