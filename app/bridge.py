@@ -29,7 +29,7 @@ class WriterBridge(BaseBridge):
     def _attach_window(self, window: Any) -> None:
         super()._attach_window(window)
         self._window = window
-        window.events.closing += self._confirm_close
+        window.confirm_close = False
 
     def get_bootstrap(self) -> dict[str, Any]:
         """Carrega documento ativo, preferências e credencial da janela."""
@@ -57,21 +57,10 @@ class WriterBridge(BaseBridge):
         except (ValueError, OSError, UnicodeError):
             return {"error": "Não foi possível importar. Confira formato e acesso."}
 
-    def _confirm_close(self) -> bool:
-        if self._window is None:
-            return True
-        try:
-            clean = self._window.evaluate_js(
-                "window.WriterEditor ? window.WriterEditor.isClean() : true"
-            )
-        except Exception:
-            clean = False
-        if clean:
-            return True
-        return bool(
-            self._window.create_confirmation_dialog(
-                "Alterações não salvas",
-                "Ainda há alterações não salvas. Fechar mesmo assim? "
-                "Uma recuperação local será oferecida na próxima abertura.",
-            )
-        )
+    def set_dirty(self, dirty: bool) -> dict[str, bool]:
+        """Ativa confirmação nativa sem executar JavaScript no evento de fechar."""
+        if type(dirty) is not bool:
+            raise ValueError("Estado de edição inválido.")
+        if self._window is not None:
+            self._window.confirm_close = dirty
+        return {"ok": True}
