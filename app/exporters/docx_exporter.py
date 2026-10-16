@@ -91,6 +91,7 @@ def export_docx(markdown: str, target: Path, title: str) -> None:
         elif kind in {"th_open", "td_open"}:
             if len(table.columns) <= column:
                 from docx.shared import Inches
+
                 table.add_column(Inches(1))
             if row is None:
                 row = table.add_row()
