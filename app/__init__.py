@@ -5,4 +5,4 @@ Autor: Vela Writer Contributors
 Criado em: 2026
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
