@@ -1,0 +1,51 @@
+/* Page position and zoom stay visible; secondary metadata yields first. */
+.open-doc .statusbar {
+    height: var(--statusbar-height);
+    min-height: var(--statusbar-height);
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-xs);
+    background: var(--color-app-chrome);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+.open-doc .status-left,
+.open-doc .status-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    flex-shrink: 0;
+}
+.open-doc .statusbar button {
+    min-height: 22px;
+    height: 22px;
+    min-width: 23px;
+    padding: 0 var(--space-1);
+}
+.open-doc .statusbar svg {
+    width: 14px;
+    height: 14px;
+}
+.open-doc .status-divider {
+    height: 11px;
+    border-left: 1px solid var(--color-border);
+}
+.open-doc .status-spacer {
+    flex: 1;
+    min-width: 0;
+}
+.open-doc [data-zoom] {
+    width: 92px;
+    min-width: 54px;
+    height: 14px;
+    accent-color: var(--color-primary);
+}
+.open-doc [data-zoom-value] {
+    width: 36px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
