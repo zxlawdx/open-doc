@@ -33,6 +33,8 @@ def check(root=ROOT):
                 raise ValueError("Bundle inconsistente: " + name)
         if not (root / "apps/open_doc/static/css/main.css").is_file():
             raise ValueError("CSS ausente.")
+        if not (root / "staticfiles/css/vela.bundle.css").is_file():
+            raise ValueError("CSS offline do shell Vela ausente.")
         return manifest
     except (KeyError, ValueError, OSError) as exc:
         raise RuntimeError(

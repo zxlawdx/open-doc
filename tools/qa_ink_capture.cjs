@@ -46,6 +46,12 @@ const destination = path.resolve(__dirname, '../docs/images/ink');
   assert.equal(await evaluate("(() => {const p=document.querySelector('.fixed-surface').getBoundingClientRect(),r=document.querySelector('.fixed-surface .ink-overlay').getBoundingClientRect();return Math.abs(r.width-p.width)<2 && Math.abs(r.height-p.height)<2;})()"),true);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.textLayer span')).color"),'rgba(0, 0, 0, 0)');
   console.log('QT_PDF_300_PAGES_BOUNDED_RENDER_AND_OVERLAY_GEOMETRY_OK');
+  assert.match(await evaluate(`(() => {const layer=document.querySelector('.textLayer'),range=document.createRange();range.selectNodeContents(layer);getSelection().removeAllRanges();getSelection().addRange(range);const text=getSelection().toString();getSelection().removeAllRanges();return text;})()`),/Pagina 1 texto pesquisavel/);
+  await evaluate("document.querySelector('.fixed-controls input[type=search]').value='Pagina 299 texto';Array.from(document.querySelectorAll('.fixed-controls button')).find(b=>b.textContent==='Buscar').click()");
+  for(let i=0;i<80;i++){if(await evaluate("!!document.querySelector('[data-search-result]')"))break;await pause();}
+  assert.match(await evaluate("document.querySelector('[data-search-result]')?.textContent"),/299/);
+  await evaluate("const page=document.querySelector('.fixed-controls input[type=number]');page.value=1;page.dispatchEvent(new Event('change'));document.querySelector('.fixed-controls input[type=search]').value=''");await pause();await pause();
+  console.log('QT_PDF_TEXT_SELECTION_AND_SEARCH_PAGE_299_OK');
   await click('[data-ink-mode=handwriting]');
   await evaluate(`(() => {const svg=document.querySelector('.fixed-surface .ink-overlay'),r=svg.getBoundingClientRect();svg.setPointerCapture=()=>{};for(const [type,x,y,p] of [['pointerdown',.15,.2,.2],['pointermove',.22,.25,.7],['pointermove',.3,.2,.9],['pointerup',.35,.25,.5]])svg.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:77,pointerType:'pen',button:0,buttons:1,pressure:p,tiltX:12,tiltY:-8,clientX:r.left+r.width*x,clientY:r.top+r.height*y}));})()`);
   console.log('QT_STROKE');

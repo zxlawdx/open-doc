@@ -19,7 +19,7 @@ def audit(root: Path = ROOT) -> list[str]:
     }
     declared = {name for file in sources for name in DECLARATION.findall(text[file])}
     return sorted(
-        f"{file.relative_to(root)}: {name}"
+        f"{file.relative_to(root).as_posix()}: {name}"
         for file, value in text.items()
         for name in set(REFERENCE.findall(value)) - declared
     )

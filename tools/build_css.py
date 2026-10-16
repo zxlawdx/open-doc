@@ -61,12 +61,14 @@ def main() -> None:
         (ROOT / "apps/open_doc/styles" / name).read_text(encoding="utf-8")
         for name in STYLE_ORDER
     )
-    output = ROOT / ".vela-build"
+    staging = ROOT / ".vela-build"
+    staging.mkdir(parents=True, exist_ok=True)
+    output = ROOT / "staticfiles"
     output.mkdir(parents=True, exist_ok=True)
     import vela.core.api_server
 
     shell = Path(vela.core.api_server.__file__).parent / "shell.html"
-    shutil.copy2(shell, output / "framework-shell.html")
+    shutil.copy2(shell, staging / "framework-shell.html")
     # Pinned Vela executes the POSIX npm shim directly (WinError 193).
     # Keep its detection/input/output pipeline, replacing only CLI invocation.
     original_compile = vela_static._compile_tailwind
