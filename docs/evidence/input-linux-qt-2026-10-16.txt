@@ -1,0 +1,152 @@
+HEAD funcional: 0a4505eccccb08216b14ed138b29a057a2cdfa91
+Baseline, falhas intermediárias e verificações finais são identificados por arquivo.
+
+input-baseline-qt.log
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.44-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+    assert 'Open Doc teclado 123' in json.dumps(state['model']), 'Serializer lost input: '+json.dumps(state)
+AssertionError: Serializer lost input: {"dom": "Open Doc teclado 123", "model": {"version": "opendoc-rich-v1", "blocks": [], "styles": {}, "numbering": {}, "media": {}, "sections": [], "headers": {}, "footers": {}, "footnotes": {}, "endnotes": {}, "comments": {}, "metadata": {}, "preserved_parts": []}}
+RuntimeError: Serializer lost input: {"dom": "Open Doc teclado 123", "model": {"version": "opendoc-rich-v1", "blocks": [], "styles": {}, "numbering": {}, "media": {}, "sections": [], "headers": {}, "footers": {}, "footnotes": {}, "endnotes": {}, "comments": {}, "metadata": {}, "preserved_parts": []}}
+
+input-id-before-test.log
+✖ native paragraph split IDs cannot collide with untouched blocks on the next input (253.895034ms)
+✖ native paragraph split IDs cannot collide with untouched blocks on the next input (253.895034ms)
+  8 !== 9
+
+input-final-contract-qt.log
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.44-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_NEW_DOCUMENT_RETAINS_TYPED_TEXT_OK
+QT_INPUT_30_SECOND_AUTOSAVE_RETENTION_OK
+QT_INPUT_REOPEN_SEPARATE_PROCESS_OK
+QT_INPUT_ENTER_BACKSPACE_DELETE_SPACE_SHIFT_ACCENTS_BOLD_OK
+QT_INPUT_20_PLUS_PAGES_FIRST_15_LAST_RETAIN_UNDO_REDO_NO_FULL_RENDER_OK
+QT_INPUT_NUMBERED_BULLET_LISTS_LOCAL_UNDO_OK
+QT_INPUT_TABLE_FRAGMENT_SLOW_TYPING_10_UNDOS_IMAGE_STABILITY_OK
+QT_INPUT_OVERFLOW_NEW_PAGE_RETENTION_OK
+    assert not error, "Large document save failed: " + str(error)
+AssertionError: Large document save failed: Identificador de nó inválido/duplicado.
+RuntimeError: Large document save failed: Identificador de nó inválido/duplicado.
+
+input-enter-save-probe.log
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.44-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_NATIVE_DOCX_ENTER_INLINE_IDS_AND_BACKEND_SAVE_OK
+
+input-unique-qt.log
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.44-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_NEW_DOCUMENT_RETAINS_TYPED_TEXT_OK
+QT_INPUT_30_SECOND_AUTOSAVE_RETENTION_OK
+QT_INPUT_REOPEN_SEPARATE_PROCESS_OK
+QT_INPUT_ENTER_BACKSPACE_DELETE_SPACE_SHIFT_ACCENTS_BOLD_OK
+QT_INPUT_20_PLUS_PAGES_FIRST_15_LAST_RETAIN_UNDO_REDO_NO_FULL_RENDER_OK
+QT_INPUT_NUMBERED_BULLET_LISTS_LOCAL_UNDO_OK
+QT_INPUT_TABLE_FRAGMENT_SLOW_TYPING_10_UNDOS_IMAGE_STABILITY_OK
+QT_INPUT_OVERFLOW_NEW_PAGE_RETENTION_OK
+QT_INPUT_LARGE_DOCX_SAVE_REOPEN_ALL_EDITED_BLOCKS_OK
+
+input-js-final.log
+✔ undo e redo restauram documento sem destruir revisão (60.845853ms)
+✔ tema claro escuro sistema persiste sem listener duplicado (60.372525ms)
+✔ literal replacement spans styled runs and supports undo (116.556607ms)
+✔ ink commits and undo do not render text, paginate or replace page nodes (464.609267ms)
+✔ native paragraph split IDs cannot collide with untouched blocks on the next input (85.428334ms)
+ℹ tests 60
+ℹ pass 60
+ℹ fail 0
+
+input-python-final.log
+90 passed, 1 skipped, 1 warning in 2.95s
+
+input-qa_stabilization.log
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.44-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_DOCX_20_STROKES_WITHOUT_STRUCTUREDCLONE_NO_FULL_RENDER_SAVE_REOPEN_OK
+QT_PAGE8_TYPING_UNDO_REDO_PREFIX_SCROLL_PRESERVED_OK
+QT_QTEST_CTRL_Z_Y_TYPING_AND_INK_INCREMENTAL_OK
+QT_QTEST_TYPING_UNDO_FIRST_MIDDLE_LAST_PAGES_OK
+QT_QTEST_CTRL_O_MD_TXT_PDF_PPTX_DOCX_HOME_NEW_LIFECYCLE_OK
+QT_DOCX_INK_PERSISTENCE_AND_INCREMENTAL_UNDO_OK
+
+input-qa_ink.log
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.44-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_READY_LOCAL_STANDARD_FONTS_AND_NONWHITE_PIXELS
+QT_PDF_300_PAGES_BOUNDED_RENDER_AND_OVERLAY_GEOMETRY_OK
+QT_PDF_TEXT_SELECTION_AND_SEARCH_PAGE_299_OK
+QT_STROKE
+QT_RECOGNIZED
+QT_FLUSHED
+QT_PDF_FAKE_WORKER_LOCAL_BUNDLE_NONWHITE_PIXELS_OK
+QT_TEXT_LAYER_FAILURE_KEEPS_RENDERED_CANVAS_OK
+QT_SYNTHETIC_PEN_HISTORY_REVIEW_NATIVE_TEXT_3_RESOLUTIONS_OK
+QT_PDF_INK_RECOGNITION_EXPORT_OK
+
+input-qa_pptx.log
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.44-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_PPTX_NATIVE_TEXT_IMAGE_SHAPES_TABLE_INK_REOPEN_EXPORT_3_RESOLUTIONS_OK
+QT_PPTX_WITHOUT_LIBREOFFICE_INK_SAVE_REOPEN_EXPORT_OK
+
+input-qa_desktop.log
+NATIVE_VELA_BOOT_OK
+NATIVE_VELA_REMOUNT_AND_LISTENER_CLEANUP_OK
+NATIVE_SELECTION_BOLD_ITALIC_UNDO_REDO_OK
+NATIVE_TOOLBAR_PARAGRAPHS_LINK_MENUS_FIND_SIDEBAR_ZOOM_OK
+NATIVE_RICH_DOCX_IMPORT_FORMAT_TABLE_SAVE_EXPORT_OK
+QT_RICH_CAPTURE_1366_1600_1920_TABLE_OK
+NATIVE_RICH_REOPEN_SEPARATE_PROCESS_OK
+NATIVE_QA_COMPLETE
+QT_EDITABLE_PAGES_CAPTURE_OK
+NATIVE_CTRL_ENTER_UNDO_REDO_FONT_IMPORT_APPLY_DOCX_OK
+NATIVE_PAGES_LONG_PARAGRAPH_TABLE_REFLOW_MENU_CONTINUOUS_SAVE_OK
+NATIVE_SAVE_EXPORT_OK
+NATIVE_CTRL_A_C_X_V_Z_Y_SHIFT_Z_S_OK
+QT_TRUSTED_MOUSE_BOLD_UNDO_REDO_MENU_DIALOG_OK
+QT_API_FEATURES {"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36","nativeReplaceChildren":"function","nativeAbortSignal":false,"append":"function","prepend":"function","replaceWith":"function","toggleAttribute":"function","nativeAt":"undefined","selection":"function","range":"function","execCommand":"function"}
+QT_LAYOUT_OK light 1366 768 {"width":1366,"height":768,"globalOverflow":false,"app":1366,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"light","outline":3}
+QT_LAYOUT_OK light 1600 900 {"width":1600,"height":900,"globalOverflow":false,"app":1600,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"light","outline":3}
+QT_LAYOUT_OK light 1920 1080 {"width":1920,"height":1080,"globalOverflow":false,"app":1920,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"light","outline":3}
+QT_LAYOUT_OK dark 1366 768 {"width":1366,"height":768,"globalOverflow":false,"app":1366,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"dark","outline":3}
+QT_LAYOUT_OK dark 1600 900 {"width":1600,"height":900,"globalOverflow":false,"app":1600,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"dark","outline":3}
+QT_LAYOUT_OK dark 1920 1080 {"width":1920,"height":1080,"globalOverflow":false,"app":1920,"page":793.703125,"paper":"rgb(255, 255, 255)","theme":"dark","outline":3}
+NATIVE_RECENT_NEW_AND_CLOSE_OK
+NATIVE_QA_COMPLETE
+
+input-table-before-test.log — adapters do HEAD inicial 592f4c0
+✖ undo_complex_doc_table_incremental preserves unrelated paragraphs and image nodes (248.155228ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 593.727199
+
+✖ failing tests:
+
+test at tests/qa_before_table.cjs:90:1
+✖ undo_complex_doc_table_incremental preserves unrelated paragraphs and image nodes (248.155228ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (/workspace/scratch/42e299d1e0ca/open-doc-input/tests/qa_before_table.cjs:90:701)
+      at runNextTicks (node:internal/process/task_queues:65:5)
+      at process.processTimers (node:internal/timers:568:9)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+input-unique-qt.log — QA completo final
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.44-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_NEW_DOCUMENT_RETAINS_TYPED_TEXT_OK
+QT_INPUT_30_SECOND_AUTOSAVE_RETENTION_OK
+QT_INPUT_REOPEN_SEPARATE_PROCESS_OK
+QT_INPUT_ENTER_BACKSPACE_DELETE_SPACE_SHIFT_ACCENTS_BOLD_OK
+QT_INPUT_20_PLUS_PAGES_FIRST_15_LAST_RETAIN_UNDO_REDO_NO_FULL_RENDER_OK
+QT_INPUT_NUMBERED_BULLET_LISTS_LOCAL_UNDO_OK
+QT_INPUT_TABLE_FRAGMENT_SLOW_TYPING_10_UNDOS_IMAGE_STABILITY_OK
+QT_INPUT_OVERFLOW_NEW_PAGE_RETENTION_OK
+QT_INPUT_LARGE_DOCX_SAVE_REOPEN_ALL_EDITED_BLOCKS_OK

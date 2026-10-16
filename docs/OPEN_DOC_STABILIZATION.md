@@ -35,6 +35,10 @@ tabelas e operações amplas conservam o fallback completo. Histórico por delta
 uma evolução posterior; não é requisito para o caminho local já verificado.
 Autosave, dirty, atualização de botões e commits de tinta não são eventos de layout.
 
+A correção posterior de teclado e undo em listas/tabelas está no
+[relatório de input](OPEN_DOC_INPUT_STABILITY.md); ela amplia o patch local
+e substitui o limite de 16 parágrafos descrito acima.
+
 ## Build e diagnóstico
 
 ```powershell

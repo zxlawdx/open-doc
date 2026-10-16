@@ -177,3 +177,5 @@ as dimensões lógicas. `python tools/qa_styles.py` captura a matriz visual no Q
 Aplicação MIT; Vela MPL-2.0. Inter/JetBrains Mono SIL OFL. marked/Turndown MIT;
 DOMPurify Apache-2.0/MPL-2.0. Licenças preservadas junto aos vendors.
 Nenhum código de ONLYOFFICE/WebODF/engines pesquisados foi incorporado.
+
+Correção de teclado, tinta e undo local: [relatório e evidências](docs/OPEN_DOC_INPUT_STABILITY.md).
