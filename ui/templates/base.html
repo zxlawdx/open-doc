@@ -1,30 +1,61 @@
-<!-- ============ VELA WORKSPACE VIEW ============ -->
-<link rel="stylesheet" href="{{ static('writer/css/main.css') }}">
-<div class="writer-shell" data-app data-collapsed="false">
-  {{ sidebar }}
-  <main class="workspace flex flex-col">
-    <header class="topbar flex items-center">
-      <span class="breadcrumb">Espaço pessoal <span>/</span> Escrita</span>
-      <span class="phase-badge">Vela Writer · Fase 2</span>
-    </header>
-    {{ editor }}
-    <!-- ============ LIBRARY ============ -->
-    <section class="library" data-library hidden aria-labelledby="library-title">
-      <div class="panel-heading">
-        <p class="eyebrow">SEU ACERVO</p><h1 id="library-title">Documentos</h1>
-        <p>Suas notas ficam salvas neste computador.</p>
+<!-- ============ OPEN DOC / VELA VIEW ============ -->
+<link rel="stylesheet" href="{{ static('open_doc/css/main.css') }}">
+<div class="open-doc" data-app data-theme="light" data-collapsed="false">
+  <header class="app-header">
+    <button class="product" data-action="home" aria-label="Open Doc — documentos recentes">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#document"></use></svg>
+      <span>Open Doc</span>
+    </button>
+    <span class="header-divider" aria-hidden="true"></span>
+    <label class="sr-only" for="document-title">Nome do documento</label>
+    <input id="document-title" data-title maxlength="180" placeholder="Documento sem título" disabled>
+    <span class="save-status" data-status role="status" aria-live="polite">Abrindo documento…</span>
+    <button class="icon-button header-search" data-action="find" aria-label="Localizar no documento" title="Localizar (Ctrl+F)">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#search"></use></svg>
+    </button>
+  </header>
+  {{ menus }}
+  {{ toolbar }}
+  <div class="document-body" data-document-body>
+    {{ sidebar }}
+    <main class="document-workspace" data-home>
+      <div class="ruler-band" aria-label="Régua informativa em centímetros. Margens de 2,5 centímetros." data-ruler-band>
+        <div class="ruler" data-ruler></div>
       </div>
-      <h2 class="list-heading">Notas editáveis</h2>
-      <ul data-documents aria-label="Notas editáveis"></ul>
-      <h2 class="list-heading">Arquivos importados</h2>
-      <ul data-files aria-label="Arquivos importados"></ul>
+      <div class="recovery" data-recovery hidden role="alert">
+        <span>Há alterações recuperáveis deste documento.</span>
+        <button data-recover>Recuperar como cópia</button>
+        <button data-discard-recovery>Descartar</button>
+      </div>
+      <div class="conflict-banner" data-conflict hidden role="alert">
+        <span>O documento foi alterado em outra janela. Seu texto foi preservado.</span>
+        <button data-save-copy>Salvar uma cópia</button>
+      </div>
+      {{ editor }}
+      <div class="export-result" data-export-result role="status"></div>
+    </main>
+  </div>
+  {{ home }}
+  <footer class="statusbar">
+    <button data-toggle aria-expanded="true" aria-label="Recolher navegador" title="Navegador">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#sidebar"></use></svg>
+    </button>
+    <span data-position>Fluxo contínuo</span><span class="status-divider"></span>
+    <span data-count>0 palavras</span><span class="status-divider"></span><span lang="pt-BR">Português (Brasil)</span>
+    <span class="status-spacer"></span><span data-mode-label>Editor visual</span>
+    <button data-zoom-step="-10" aria-label="Reduzir zoom" title="Reduzir zoom">−</button>
+    <label class="sr-only" for="zoom">Zoom do documento</label>
+    <input type="range" id="zoom" data-zoom min="50" max="150" value="100" step="10">
+    <button data-zoom-step="10" aria-label="Aumentar zoom" title="Aumentar zoom">+</button>
+    <output data-zoom-value for="zoom">100%</output>
+  </footer>
+  <div class="modal-backdrop" data-dialog hidden>
+    <section role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="dialog">
+      <h2 id="dialog-title" data-dialog-title></h2>
+      <div data-dialog-body></div>
+      <label data-dialog-label hidden>Endereço <input data-dialog-input type="url" placeholder="https://"></label>
+      <div class="dialog-actions"><button data-dialog-cancel>Cancelar</button><button data-dialog-confirm>OK</button></div>
     </section>
-    <!-- ============ STATUS BAR ============ -->
-    <footer class="statusbar flex items-center">
-      <span data-status role="status" aria-live="polite">Carregando documento…</span>
-      <span data-count>0 palavras</span><span>Local · Autosave 30s</span>
-    </footer>
-  </main>
+  </div>
 </div>
-<!-- ============ PAGE LIFECYCLE ============ -->
-<script src="{{ static('writer/js/app.js') }}"></script>
+<script src="{{ static('open_doc/js/app.js') }}"></script>
