@@ -52,7 +52,7 @@ Não há contagem fictícia de páginas nem promessa de equivalência ao Word/PD
 |---|---|
 | Dados/migração | app/workspace.py, app/config.py, app/editor.py |
 | Integração Vela | config/wsgi.py, apps/open_doc, app/bridge.py, app/router.py |
-| Templates | base, menus, toolbar, sidebar, editor e home em ui/templates |
+| Templates | base, menus, toolbar, sidebar, editor e home em apps/open_doc/templates |
 | Lifecycle/arquivos | app.js |
 | Editor/seleção/histórico | editor.js, editor_commands.js, history.js |
 | Recovery | recovery.js |

@@ -15,3 +15,5 @@ markdown-it-py>=3,<5
 # OOXML parsing and safe local raster validation.
 lxml>=5,<7
 Pillow>=10,<13
+
+fonttools>=4.55,<5

@@ -5,9 +5,9 @@ from pathlib import Path
 from zipfile import ZipFile
 from docx import Document
 import pytest
-from app.config import Config
-from app.editor import Editor
-from app.exporters.docx_exporter import export_docx
+from apps.open_doc.services.preferences_service import Config
+from apps.open_doc.services.document_service import Editor
+from apps.open_doc.exporters.docx_exporter import export_docx
 
 
 def test_user_docx_text_fonts_footer_and_geometry(tmp_path):

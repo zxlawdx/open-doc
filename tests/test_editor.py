@@ -14,10 +14,10 @@ import pytest
 from docx import Document
 from pypdf import PdfReader
 
-from app.config import Config
-from app.editor import Editor, RevisionConflict
-from app.exporters.docx_exporter import export_docx
-from app.exporters.pdf_exporter import export_pdf
+from apps.open_doc.services.preferences_service import Config
+from apps.open_doc.services.document_service import Editor, RevisionConflict
+from apps.open_doc.exporters.docx_exporter import export_docx
+from apps.open_doc.exporters.pdf_exporter import export_pdf
 
 MARKDOWN = (
     "# Ciência e ação\n\n"

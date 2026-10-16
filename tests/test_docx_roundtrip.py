@@ -1,9 +1,9 @@
 from zipfile import ZipFile
 from docx import Document
-from app.exporters.docx_exporter import export_docx
-from app.importers.docx.package import DocxPackage
-from app.importers.docx.namespaces import NS
-from app.importers.docx.relationships import relationships
+from apps.open_doc.exporters.docx_exporter import export_docx
+from apps.open_doc.parsers.docx.package import DocxPackage
+from apps.open_doc.parsers.docx.namespaces import NS
+from apps.open_doc.parsers.docx.relationships import relationships
 from test_docx_import import imported
 
 
@@ -65,7 +65,7 @@ def test_reread_structure(imported, tmp_path):
 
 
 def test_safe_html(imported, tmp_path):
-    from app.exporters.html_exporter import export_html
+    from apps.open_doc.exporters.html_exporter import export_html
 
     e, note, _ = imported
     target = tmp_path / "rich.html"

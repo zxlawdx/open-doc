@@ -1,9 +1,9 @@
 from pathlib import Path
 from zipfile import ZipFile
 import pytest
-from app.config import Config
-from app.editor import Editor
-from app.importers.docx.package import DocxPackage
+from apps.open_doc.services.preferences_service import Config
+from apps.open_doc.services.document_service import Editor
+from apps.open_doc.parsers.docx.package import DocxPackage
 from docx_fixtures import fixture_docx
 
 

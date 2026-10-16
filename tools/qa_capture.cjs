@@ -71,12 +71,12 @@ const destination = path.resolve(__dirname, '../docs/images/open-doc');
         width: innerWidth, height: innerHeight, globalOverflow: document.documentElement.scrollWidth > innerWidth,
         app: document.querySelector('[data-app]').getBoundingClientRect().width,
         page: document.querySelector('[data-surface]').getBoundingClientRect().width,
-        paper: getComputedStyle(document.querySelector('[data-rich]')).backgroundColor,
+        paper: getComputedStyle(document.querySelector('.document-page') || document.querySelector('[data-rich]')).backgroundColor,
         theme: document.querySelector('[data-app]').dataset.theme,
         outline: document.querySelectorAll('[data-outline] button').length
       })`));
       assert.equal(geometry.globalOverflow, false);
-      assert.equal(geometry.app, width); assert.equal(geometry.page, 794);
+      assert.equal(geometry.app, width); assert.ok(Math.abs(geometry.page - 794)<1);
       assert.equal(geometry.paper, 'rgb(255, 255, 255)'); assert.equal(geometry.theme, theme);
       assert.ok(geometry.outline >= 3);
       console.log('QT_LAYOUT_OK', theme, width, height, JSON.stringify(geometry));

@@ -4,11 +4,11 @@ Open Doc é um editor de documentos desktop local-first construído com o Vela F
 O editor visual abre numa folha branca, com menus clássicos, estrutura de títulos,
 busca local e ferramentas de formatação. Sem conta, nuvem ou CDN.
 
-![DOCX rico no Vela/Qt](docs/images/open-doc/editor-rich-1366.png)
+![Páginas editáveis no Vela/Qt](docs/images/open-doc/editor-pages-1366.png)
 
 ## Executar
 
-Requer Python 3.10+, Git, dependências Qt e uma sessão gráfica.
+Requer Python 3.10+, Git, dependências Qt e uma sessão gráfica. No primeiro build do código-fonte, Node 22+ compila o CSS offline do shell Vela.
 
 ```powershell
 git clone https://github.com/zxlawdx/open-doc.git
@@ -16,7 +16,9 @@ cd open-doc
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python manage.py collectstatic --no-tailwind
+npm ci
+python tools/build_css.py
+python manage.py collectstatic
 python manage.py runapp
 ```
 
@@ -37,9 +39,12 @@ bibliotecas gráficas do sistema (Xtst, NSS, X11, xkbcommon, EGL e áudio).
 - Importar DOCX abre imediatamente na folha editável, com pacote original preservado.
 - Biblioteca com capabilities do backend; DOCX, Markdown e TXT editáveis; PDF/PPTX arquivados.
 - Fontes disponíveis no sistema, tamanho 1–512 pt, sublinhado, tachado, sobrescrito/subscrito, cores, alinhamento, espaçamento e recuo.
-- Tabelas editáveis, células mescladas, navegação por Tab e inserção de tabela 2 × 2.
-- Exportar PDF, DOCX, HTML e Markdown para `~/OpenDoc/exports/`.
-- Outline de títulos navegável e busca textual local.
+- Tabelas com tamanho configurável, navegação por Tab, inserção/exclusão de linhas e colunas, mescla horizontal e divisão.
+- Exportar PDF, DOCX, HTML e Markdown pelo diálogo nativo **Salvar como**, com gravação atômica.
+- Importar fontes TTF/OTF/TTC locais, aplicar sem reiniciar e gerenciar o catálogo importado.
+- Páginas editáveis, quebra com Ctrl+Enter, página em branco e configuração de tamanho/orientação/margens.
+- Renomear, duplicar e excluir documentos internos na Home, com confirmação de exclusão.
+- Outline de títulos navegável; localizar/substituir com Ctrl+F/Ctrl+H.
 - Zoom real entre 50% e 150%, régua informativa e temas claro/escuro/sistema.
 - Confirmação nativa de fechamento se houver alterações pendentes.
 
@@ -49,10 +54,14 @@ usam os atalhos do sistema. Menus têm navegação por setas, Escape e foco vis�
 
 ## Layout e limites
 
-Documentos nativos começam em largura A4. DOCX usa largura, altura mínima e
-margens da primeira seção. O texto cresce em **fluxo contínuo**: não há paginação
-idêntica à do Word. A régua reflete centímetros e margens, sem handles falsos.
-O dark mode mantém o papel branco.
+Documentos começam no modo **Com páginas**, usando A4 para documentos nativos e
+as dimensões/margens das seções do DOCX. O layout distribui os nós editáveis entre
+folhas, fragmentando parágrafos longos e tabelas entre linhas. Quebras automáticas
+não são gravadas no modelo. Exibir > Fluxo contínuo muda somente a visualização.
+Clique esquerdo na margem ou no intervalo das folhas abre as ações de página.
+O dark mode mantém as folhas brancas. A paginação é aproximada, sem equivalência
+pixel a pixel ao Word. Tabelas com mesclas verticais e objetos maiores que uma folha
+podem exceder a área de conteúdo; o conteúdo permanece acessível.
 
 Documentos ricos usam o modelo canônico `opendoc-rich-v1`, validado em JSON.
 Markdown legado continua abrindo; sua cópia original é mantida na primeira
@@ -100,10 +109,15 @@ VelaApp com `config.settings`, registra `apps.open_doc`, descobre views/API e
 executa o lifecycle oficial. OpenDocBridge estende BaseBridge. Templates usam
 `render_template` do Vela e layout blank, ocupando toda a WebView.
 
-Não há servidor ou janela paralela. `ui/` é a fonte; sync_frontend prepara
-`apps/open_doc/static/` e executa o collectstatic oficial. As cópias e staticfiles
-são geradas/ignoradas. `ui/styles/` separa tokens, shell, menus, toolbar, papel
- e home; `main.css` é somente saída de build, incluindo utilitários do shell Vela.
+Todo runtime do produto está em `apps/open_doc/`: views, API, bridge, services,
+modelo, parsers, exporters, templates e estáticos. As antigas pastas `app/`, `ui/`
+e `tools/sync_frontend.py` foram removidas. Não há servidor ou janela paralela.
+`manage.py` usa diretamente o CommandRunner oficial; `launcher.py` entra no mesmo
+`config.wsgi.run()` de `main.py`. `collectstatic` é o único coletor de assets.
+O CSS do Open Doc está no namespace `open_doc`; o bundle do shell é gerado pelo
+pipeline oficial do framework. Após o primeiro build, `collectstatic --no-tailwind`
+serve para atualizar os assets sem recompilar o shell. Distribuições precisam incluir
+`staticfiles` produzido no build.
 
 ## Desenvolvimento e validação
 
@@ -112,28 +126,27 @@ python -m pip install -r requirements-dev.txt
 npm ci
 python -m pytest -q
 npm test
-python -m black --check --line-length 88 app apps config tools tests main.py manage.py
-node --check ui/static/js/app.js
+python -m black --check --line-length 88 apps config tools tests main.py manage.py launcher.py
+node --check apps/open_doc/static/js/app.js
 python tools/build_css.py
 python manage.py collectstatic --no-tailwind
 python manage.py runapp
 ```
 
-CSS e vendors já estão versionados; Node não é necessário para usar o app.
+CSS e vendors do app estão versionados. O primeiro build do shell Vela exige Node; o runtime de uma distribuição já compilada usa apenas Python/Qt.
 `python tools/qa_desktop.py` executa smoke test com workspace temporário e
 capturas reais pelo QtWebEngine; requer Node 22+ para CDP local. Nunca exponha
 a porta de debugging no uso normal. O script usa a janela criada pelo VelaApp.
 
-Validação desta entrega: **53 testes Python + 27 testes JS**, Black 88, sintaxe,
-build CSS e collectstatic oficiais. QA Vela/Qt real no Linux: importação DOCX,
-fontes/tamanho, formatação, edição de célula por teclado Qt, salvar, exportar,
-reler OOXML e reabrir em uma segunda instância/processo. O exercício
-`Lista_Exercicios_Fixacao_Aula_02_ML.docx` passou pela importação e round-trip.
-Windows e o popup físico do seletor de arquivos não foram testados. O QA substitui
-somente a escolha desse seletor, mantendo bridge, HTTP, SQLite e editor reais.
+A validação cobre serviços de exportação/fontes, persistência, round-trip DOCX,
+modelo, edição e paginação, além do Vela/Qt real no Linux. O QA substitui somente
+a escolha dos seletores nativos, mantendo bridge, SQLite, HTTP e editor reais.
+Windows e a interação física com o popup do Windows exigem validação nessa plataforma.
+Veja [o relatório desta migração](docs/OPEN_DOC_VELA_PHASE2.md).
 
 ## Documentação
 
+- [Integração Vela, fase 2, exportação, fontes e páginas](docs/OPEN_DOC_VELA_PHASE2.md)
 - [DOCX rico: modelo, preservação, testes e limites](docs/OPEN_DOC_RICH_DOCX.md)
 
 - [Auditoria e baseline](docs/OPEN_DOC_AUDIT.md)

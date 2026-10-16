@@ -10,19 +10,16 @@ from __future__ import annotations
 import os
 import sys
 
-from app.config import PROJECT_ROOT
+from apps.open_doc.services.preferences_service import PROJECT_ROOT
 
 
 def main() -> None:
-    """Prepara fontes estáticas e delega comandos ao CommandRunner Vela."""
+    """Delega comandos diretamente ao CommandRunner oficial do Vela."""
     os.chdir(PROJECT_ROOT)
     os.environ.setdefault("PYWEBVIEW_GUI", "qt")
     os.environ.setdefault("QT_API", "pyqt5")
-    from tools.sync_frontend import sync_frontend
     from vela.cli.commands import CommandRunner
 
-    if len(sys.argv) > 1 and sys.argv[1] in {"runapp", "collectstatic"}:
-        sync_frontend()
     CommandRunner().execute(sys.argv[1:])
 
 

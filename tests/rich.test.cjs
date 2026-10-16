@@ -2,16 +2,16 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {JSDOM}=require('jsdom');const base=path.resolve(__dirname,'..');
 async function setup(t){
- const html=fs.readFileSync(path.join(base,'ui/templates/base.html'),'utf8').replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g,(_,n)=>fs.readFileSync(path.join(base,'ui/templates/'+n+'.html'),'utf8'));
+ const html=fs.readFileSync(path.join(base,'apps/open_doc/templates/base.html'),'utf8').replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g,(_,n)=>fs.readFileSync(path.join(base,'apps/open_doc/templates/'+n+'.html'),'utf8'));
  const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('[data-app]');
  const paragraph=(id,rid,text,style={})=>({id,type:'paragraph',style:{},children:[{id:rid,type:'text',text,style}]});
  const content={version:'opendoc-rich-v1',blocks:[paragraph('p1','r1','Texto selecionado',{font_family:'Fonte ausente',font_size_pt:12}),{id:'table',type:'table',rows:[{id:'row',cells:[{id:'cell',col_span:1,row_span:1,blocks:[paragraph('cp','cr','Célula original')]}]}]}],styles:{},media:{},numbering:{},sections:[],headers:{},footers:{},footnotes:{},endnotes:{},metadata:{},preserved_parts:['customXml/item1.xml']};
  const note={id:'test',title:'Rico',markdown:'Texto selecionado',revision:1,content_format:'opendoc-rich-v1',content};let saved;
  w.pywebview={api:{get_bootstrap:async()=>({token:'test',settings:{theme:'light',zoom:100},document:note,autosave_seconds:30}),get_font_catalog:async()=>({fonts:['Arial','DejaVu Serif']}),set_dirty:async()=>{}}};
  w.fetch=async(url,options)=>({ok:true,json:async()=>{const data=options.body?JSON.parse(options.body):{};if(url.endsWith('/document/save'))saved=data;return {...data,revision:2};}});
- for(const f of ['compat.js','vendor/marked.js','vendor/purify.js','vendor/turndown.js','document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js','history.js','recovery.js','editor.js','menus.js','theme.js','paper_layout.js','navigation.js'])w.eval(fs.readFileSync(path.join(base,'ui/static/js',f),'utf8'));
+ for(const f of ['compat.js','vendor/marked.js','vendor/purify.js','vendor/turndown.js','document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js','history.js','recovery.js','pagination.js','page_menu.js','editor.js','menus.js','theme.js','paper_layout.js','navigation.js'])w.eval(fs.readFileSync(path.join(base,'apps/open_doc/static/js',f),'utf8'));
  w.document.execCommand=command=>{const range=w.getSelection().getRangeAt(0),span=w.document.createElement(command==='bold'?'b':'i');range.surroundContents(span);return true;};
- Object.defineProperty(w.document,'currentScript',{value:{src:'http://localhost/static/open_doc/js/app.js'}});w.eval(fs.readFileSync(path.join(base,'ui/static/js/app.js'),'utf8'));
+ Object.defineProperty(w.document,'currentScript',{value:{src:'http://localhost/static/open_doc/js/app.js'}});w.eval(fs.readFileSync(path.join(base,'apps/open_doc/static/js/app.js'),'utf8'));
  for(let i=0;i<50 && root.dataset.ready!=='true';i++)await new Promise(r=>setTimeout(r,5));assert.equal(root.dataset.ready,'true');
  t.after(()=>{w.OpenDocApp.destroy();w.close();});const editor=w.OpenDocApp.editor(),rich=root.querySelector('[data-rich]');
  function select(selector='[data-node-id="p1"]'){rich.focus();const range=w.document.createRange();range.selectNodeContents(rich.querySelector(selector));w.getSelection().removeAllRanges();w.getSelection().addRange(range);editor.capture();w.document.dispatchEvent(new w.Event('selectionchange'));}
@@ -28,3 +28,39 @@ test('cell editing preserves table metadata and stable IDs',async t=>{const s=aw
 test('rich Markdown mode remains read-only without losing typography',async t=>{const s=await setup(t),before=JSON.stringify(s.editor.snapshot().content);s.click('[data-mode=markdown]');assert.equal(s.root.querySelector('[data-source]').readOnly,true);s.w.pywebview.api.import_document=async()=>({name:'fixture.docx',document:s.note,opened:true});s.click('[data-action=import]');for(let i=0;i<20 && s.rich.hidden;i++)await new Promise(r=>setTimeout(r,5));assert.equal(s.rich.hidden,false);assert.equal(s.root.querySelector('[data-surface]').dataset.editorMode,'rich');assert.equal(JSON.stringify(s.editor.snapshot().content),before);});
 test('renderer makes hostile document content inert',async t=>{const s=await setup(t),m=s.w.OpenDocModel.empty();m.blocks=[{id:'x',type:'paragraph',style:{},children:[{id:'t',type:'text',text:'<script>bad()</script>',style:{color:'url(https://evil.test)'}},{id:'o',type:'opaque-ooxml',xml:'<script>alert(1)</script>'}]}];s.w.OpenDocRichRenderer.render(m,s.rich);assert.equal(s.rich.querySelector('script'),null);assert.equal(s.rich.querySelector('img'),null);});
 test('incremental serializer keeps untouched blocks; normalization merges equivalent runs',async t=>{const s=await setup(t),M=s.w.OpenDocModel,m=M.empty();m.blocks=Array.from({length:1200},(_,i)=>({id:'p-'+i,type:'paragraph',style:{},children:[{id:'r-'+i,type:'text',text:'Parágrafo '+i+' com texto de validação.',style:{}}]}));s.w.OpenDocRichRenderer.render(m,s.rich);const last=s.rich.lastElementChild;last.querySelector('span').textContent+=' Edição';const start=performance.now(),updated=s.w.OpenDocRichSerializer.serialize(s.rich,m,last);assert.equal(updated.blocks[0],m.blocks[0]);assert.notEqual(updated.blocks[1199],m.blocks[1199]);assert.ok(performance.now()-start<1500);const merged=M.normalizeRuns(Array.from({length:3000},(_,i)=>({id:'m-'+i,type:'text',text:'a',style:i%2?{bold:true,font_size_pt:12}:{font_size_pt:12,bold:true}})));assert.equal(merged.length,1);assert.equal(merged[0].text.length,3000);});
+
+test('manual page break, blank page, undo/redo and native cancellation',async t=>{
+ const s=await setup(t);s.select();s.editor.insertPage('break');let m=s.editor.snapshot().content;assert.equal(m.blocks.filter(b=>b.type==='page_break').length,1);
+ s.editor.format('undo');assert.equal(s.editor.snapshot().content.blocks.filter(b=>b.type==='page_break').length,0);s.editor.format('redo');assert.equal(s.editor.snapshot().content.blocks.filter(b=>b.type==='page_break').length,1);
+ s.editor.insertPage('below');assert.equal(s.editor.snapshot().content.blocks.filter(b=>b.type==='page_break').length,3);
+ let args;s.w.pywebview.api.export_document=async(...values)=>{args=values;return {cancelled:true};};assert.equal((await s.editor.export('docx')).cancelled,true);assert.equal(args[2],'docx');
+});
+test('page setup and continuous/pages views preserve the model',async t=>{
+ const s=await setup(t);s.editor.pageSetup({page_width_pt:792,page_height_pt:612,orientation:'landscape',margin_left_pt:40});
+ const before=JSON.stringify(s.editor.snapshot().content);assert.equal(s.editor.snapshot().content.sections[0].page_width_pt,792);
+ s.editor.pageView('continuous');assert.equal(s.root.dataset.pageMode,'continuous');s.editor.pageView('pages');assert.ok(s.rich.querySelector('[data-page-index]'));assert.equal(JSON.stringify(s.editor.snapshot().content),before);
+ assert.throws(()=>s.editor.pageSetup({margin_left_pt:10000}));
+});
+test('literal replacement spans styled runs and supports undo',async t=>{
+ const s=await setup(t),m=s.w.OpenDocModel.empty();m.blocks=[{id:'p',type:'paragraph',style:{},children:[{id:'a',type:'text',text:'Ola',style:{bold:true}},{id:'b',type:'text',text:' mundo Ola mundo',style:{italic:true}}]}];s.editor.load({...s.note,content:m});
+ assert.equal(s.editor.replaceText('Ola mundo','Novo',true),2);assert.equal(s.editor.snapshot().content.blocks[0].children.map(r=>r.text).join(''),'Novo Novo');s.editor.format('undo');assert.equal(s.editor.snapshot().content.blocks[0].children.map(r=>r.text).join(''),'Ola mundo Ola mundo');
+});
+test('automatic overflow and table row fragments serialize as logical blocks',async t=>{
+ const s=await setup(t);s.w.HTMLElement.prototype.getBoundingClientRect=function(){const height=this.matches('[data-page-content]')?Array.from(this.children).reduce((sum,n)=>sum+(n.tagName==='TABLE'?n.rows.length*55:60),0):0;return {top:0,bottom:height,height,width:600,left:0,right:600};};
+ const M=s.w.OpenDocModel,m=M.empty();m.sections=[{...s.w.OpenDocPagination.defaults,page_height_pt:220,margin_top_pt:20,margin_bottom_pt:20}];m.blocks=Array.from({length:6},(_,i)=>({id:'p'+i,type:'paragraph',style:{},children:[{id:'r'+i,type:'text',text:'Paragrafo '+i,style:{}}]}));
+ m.blocks.push({id:'table-long',type:'table',rows:Array.from({length:8},(_,i)=>({id:'row'+i,cells:[{id:'cell'+i,col_span:1,row_span:1,blocks:[{id:'cp'+i,type:'paragraph',style:{},children:[{id:'cr'+i,type:'text',text:'Linha '+i,style:{}}]}]}]}))});s.editor.load({...s.note,content:m});s.editor.pagination().paginate();
+ assert.ok(s.rich.querySelectorAll('[data-page-index]').length>=4);const serialized=s.w.OpenDocRichSerializer.serialize(s.rich,m);assert.equal(serialized.blocks.length,7);assert.equal(serialized.blocks[6].rows.length,8);assert.equal(new Set(serialized.blocks.map(b=>b.id)).size,7);
+});
+test('table rows, columns, merge/split, deletion and chosen dimensions',async t=>{
+ const s=await setup(t);function cell(){const td=s.rich.querySelector('td'),r=s.w.document.createRange();r.selectNodeContents(td);r.collapse(true);s.w.getSelection().removeAllRanges();s.w.getSelection().addRange(r);s.editor.capture();}
+ cell();s.editor.tableOperation('row-below');assert.equal(s.editor.snapshot().content.blocks[1].rows.length,2);
+ cell();s.editor.tableOperation('column-right');assert.equal(s.rich.querySelector('tr').cells.length,2);
+ cell();s.editor.tableOperation('merge');assert.equal(s.rich.querySelector('td').colSpan,2);
+ cell();s.editor.tableOperation('split');assert.equal(s.rich.querySelector('tr').cells.length,2);
+ cell();s.editor.tableOperation('delete-column');assert.equal(s.rich.querySelector('tr').cells.length,1);
+ cell();s.editor.tableOperation('delete-row');assert.equal(s.rich.querySelector('table').rows.length,1);
+ cell();s.editor.tableOperation('delete-table');assert.equal(s.editor.snapshot().content.blocks.filter(b=>b.type==='table').length,0);
+ s.select();s.editor.tableOperation('insert',3,4);assert.equal(s.rich.querySelector('table').rows.length,3);assert.equal(s.rich.querySelector('tr').cells.length,4);
+});
+
+test('page position stays numeric after selectionchange',async t=>{const s=await setup(t);s.editor.pagination().paginate();s.w.document.dispatchEvent(new s.w.Event('selectionchange'));assert.match(s.root.querySelector('[data-position]').textContent,/^Página \d+ de \d+$/);});

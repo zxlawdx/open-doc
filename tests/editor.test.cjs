@@ -7,15 +7,15 @@ const {JSDOM} = require("jsdom");
 const rootPath = path.resolve(__dirname, "..");
 
 function setup(t, options = {}) {
-  const template = fs.readFileSync(path.join(rootPath, "ui/templates/base.html"), "utf8")
-    .replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g, (_, name) => fs.readFileSync(path.join(rootPath, "ui/templates/" + name + ".html"), "utf8"));
+  const template = fs.readFileSync(path.join(rootPath, "apps/open_doc/templates/base.html"), "utf8")
+    .replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g, (_, name) => fs.readFileSync(path.join(rootPath, "apps/open_doc/templates/" + name + ".html"), "utf8"));
   const dom = new JSDOM(
     template,
     {url: "http://127.0.0.1:8000", runScripts: "outside-only"}
   );
   const window = dom.window;
   for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "editor_commands.js", "history.js", "recovery.js", "editor.js"]) {
-    window.eval(fs.readFileSync(path.join(rootPath, "ui/static/js", file), "utf8"));
+    window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js", file), "utf8"));
   }
   const intervals = [];
   window.setInterval = (callback, delay) => { intervals.push({callback, delay}); return intervals.length; };
@@ -172,7 +172,7 @@ test("recuperação lê chave antiga e migra para namespace Open Doc", t => {
 
 test("menu Arquivo funciona com teclado, Escape e clique externo", t => {
   const {window, root} = setup(t);
-  window.eval(fs.readFileSync(path.join(rootPath, "ui/static/js/menus.js"), "utf8"));
+  window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js/menus.js"), "utf8"));
   const controller = new window.AbortController();
   window.OpenDocMenus.create(root, () => {}, controller.signal);
   const trigger = root.querySelector('[data-menu="file"]');
@@ -190,7 +190,7 @@ test("menu Arquivo funciona com teclado, Escape e clique externo", t => {
 
 test("tema claro escuro sistema persiste sem listener duplicado", async t => {
   const {window, root} = setup(t);
-  window.eval(fs.readFileSync(path.join(rootPath, "ui/static/js/theme.js"), "utf8"));
+  window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js/theme.js"), "utf8"));
   const controller = new window.AbortController(), calls = [];
   const theme = window.OpenDocTheme.create(root, {theme: "light"}, async data => calls.push(data), controller.signal);
   assert.equal(root.dataset.theme, "light");
@@ -202,7 +202,7 @@ test("tema claro escuro sistema persiste sem listener duplicado", async t => {
 
 test("zoom modifica medidas reais e limites da folha", t => {
   const {window, root} = setup(t);
-  window.eval(fs.readFileSync(path.join(rootPath, "ui/static/js/paper_layout.js"), "utf8"));
+  window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js/paper_layout.js"), "utf8"));
   const controller = new window.AbortController();
   const layout = window.OpenDocPaperLayout.create(root, {zoom: 100}, async () => {}, controller.signal);
   layout.set(120);
@@ -215,7 +215,7 @@ test("zoom modifica medidas reais e limites da folha", t => {
 test("outline real atualiza headings e navega sem inventar páginas", t => {
   const {window, root, editor, input} = setup(t);
   input("# Introdução\n\n## Desenvolvimento\n\nTexto.");
-  window.eval(fs.readFileSync(path.join(rootPath, "ui/static/js/navigation.js"), "utf8"));
+  window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js/navigation.js"), "utf8"));
   const controller = new window.AbortController();
   window.HTMLElement.prototype.scrollIntoView = function () {};
   const navigation = window.OpenDocNavigation.create(root, editor, controller.signal);
@@ -230,7 +230,7 @@ test("documento grande produz outline real em tempo limitado", t => {
   const {window, root, input, editor} = setup(t);
   const text = Array.from({length: 150}, (_, index) => "## Seção " + index + "\n\n" + "Conteúdo de estudo. ".repeat(40)).join("\n\n");
   const started = Date.now(); input(text);
-  window.eval(fs.readFileSync(path.join(rootPath, "ui/static/js/navigation.js"), "utf8"));
+  window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js/navigation.js"), "utf8"));
   const controller = new window.AbortController();
   window.OpenDocNavigation.create(root, editor, controller.signal);
   assert.equal(root.querySelectorAll('[data-outline] button').length, 150);

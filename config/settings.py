@@ -5,7 +5,11 @@ Autor: Open Doc Contributors
 Criado em: 2026
 """
 
-from app.config import APP_TITLE, WINDOW_HEIGHT, WINDOW_WIDTH
+from apps.open_doc.services.preferences_service import (
+    APP_TITLE,
+    WINDOW_HEIGHT,
+    WINDOW_WIDTH,
+)
 
 ENTRY_ROUTE = "/"
 LAYOUT = {"sidebar": False, "topbar": False, "theme": "dark"}

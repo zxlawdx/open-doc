@@ -8,8 +8,8 @@ antes de alterar o engine. Veja comandos completos no README.
 
 - Preserve VelaApp, registro de apps/open_doc, template engine, BaseBridge,
   collectstatic e lifecycle. Nenhuma janela/servidor paralelo.
-- Fontes visuais em ui/templates, ui/static/js e ui/styles. main.css é gerado;
-  edite arquivos de ui/styles e rode python tools/build_css.py.
+- Fontes visuais em apps/open_doc/templates, apps/open_doc/static/js e apps/open_doc/styles. main.css é gerado;
+  edite arquivos de apps/open_doc/styles e rode python tools/build_css.py.
 - Cópias apps/open_doc/static e staticfiles não são fontes/versionadas.
 - Menu/toolbar visível exige handler, serialização preservada e teste.
 - Documentos antigos, revisões, recuperação e backups não podem ser descartados.

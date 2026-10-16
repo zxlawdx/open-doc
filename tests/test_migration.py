@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from app.config import APP_TITLE, Config
-from app.editor import Editor
-from app.workspace import resolve_workspace
+from apps.open_doc.services.preferences_service import APP_TITLE, Config
+from apps.open_doc.services.document_service import Editor
+from apps.open_doc.services.workspace_service import resolve_workspace
 
 
 def test_workspace_copy_preserves_documents_settings_and_original(
@@ -92,7 +92,12 @@ def test_preferences_migrate_and_persist_theme_zoom(tmp_path: Path) -> None:
     assert config.load_settings()["theme"] == "system"
     config.save_settings({"theme": "dark", "zoom": 120})
     restored = Config(tmp_path).load_settings()
-    assert restored == {"sidebar_collapsed": True, "theme": "dark", "zoom": 120}
+    assert restored == {
+        "sidebar_collapsed": True,
+        "theme": "dark",
+        "zoom": 120,
+        "view_mode": "pages",
+    }
     with pytest.raises(ValueError):
         config.save_settings({"theme": "purple"})
     with pytest.raises(ValueError):
@@ -104,7 +109,7 @@ def test_open_doc_branding_and_namespace() -> None:
     assert APP_TITLE == "Open Doc"
     root = Path(__file__).resolve().parents[1]
     templates = "\n".join(
-        path.read_text() for path in (root / "ui/templates").glob("*.html")
+        path.read_text() for path in (root / "apps/open_doc/templates").glob("*.html")
     )
     for old in (
         "Vela Writer",
@@ -115,5 +120,5 @@ def test_open_doc_branding_and_namespace() -> None:
         "NO HORIZONTE",
     ):
         assert old not in templates
-    assert (root / "apps/open_doc/views.py").exists()
+    assert (root / "apps/open_doc/views/__init__.py").exists()
     assert not (root / "apps/writer").exists()

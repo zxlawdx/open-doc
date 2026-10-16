@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-from app.config import PROJECT_ROOT
+from apps.open_doc.services.preferences_service import PROJECT_ROOT
 
 
 def main() -> None:

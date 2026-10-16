@@ -6,16 +6,16 @@ const path = require('node:path');
 const {JSDOM} = require('jsdom');
 const base = path.resolve(__dirname, '..');
 async function mount(t, brokenNavigation = false) {
-  const template = fs.readFileSync(path.join(base, 'ui/templates/base.html'), 'utf8')
-    .replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g, (_, name) => fs.readFileSync(path.join(base, 'ui/templates/' + name + '.html'), 'utf8'));
+  const template = fs.readFileSync(path.join(base, 'apps/open_doc/templates/base.html'), 'utf8')
+    .replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g, (_, name) => fs.readFileSync(path.join(base, 'apps/open_doc/templates/' + name + '.html'), 'utf8'));
   const dom = new JSDOM(template, {url: 'http://localhost', runScripts: 'outside-only'});
   const w = dom.window, root = w.document.querySelector('[data-app]');
   delete w.Element.prototype.replaceChildren;
   const note = {id: 'note', title: 'Documento', markdown: '# Título\n\nTexto selecionado', revision: 1};
   w.pywebview = {api: {get_bootstrap: async () => ({token: 'test', settings: {theme: 'light', zoom: 100}, document: note, autosave_seconds: 30}), set_dirty: async () => {}}};
   w.fetch = async (_, options) => ({ok: true, json: async () => options?.body ? {...JSON.parse(options.body), revision: 2} : {documents: [note], files: []}});
-  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'editor.js', 'menus.js', 'theme.js', 'paper_layout.js', 'navigation.js']) {
-    w.eval(fs.readFileSync(path.join(base, 'ui/static/js', file), 'utf8'));
+  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'pagination.js','page_menu.js','editor.js', 'menus.js', 'theme.js', 'paper_layout.js', 'navigation.js']) {
+    w.eval(fs.readFileSync(path.join(base, 'apps/open_doc/static/js', file), 'utf8'));
   }
   if (brokenNavigation) {
     w.console.error = () => {};
@@ -33,7 +33,7 @@ async function mount(t, brokenNavigation = false) {
     return true;
   };
   Object.defineProperty(w.document, 'currentScript', {value: {src: 'http://localhost/static/open_doc/js/app.js'}});
-  w.eval(fs.readFileSync(path.join(base, 'ui/static/js/app.js'), 'utf8'));
+  w.eval(fs.readFileSync(path.join(base, 'apps/open_doc/static/js/app.js'), 'utf8'));
   for (let i = 0; i < 50 && root.dataset.ready !== 'true'; i++) await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(root.dataset.ready, 'true');
   t.after(() => { w.OpenDocApp.destroy(); w.close(); });

@@ -23,8 +23,8 @@ os.environ.setdefault("QT_API", "pyqt5")
 os.environ.setdefault("QTWEBENGINE_REMOTE_DEBUGGING", "9234")
 
 import webview
-from app.config import Config
-from app.runtime import services
+from apps.open_doc.services.preferences_service import Config
+from apps.open_doc.services.container import services
 from config.wsgi import create_app
 
 FIXTURE = (
@@ -246,7 +246,9 @@ def verify_controls(window: Any) -> None:
     )
     wait_for(window, "document.querySelectorAll('[data-find-results] button').length")
     click("[data-find-results] button")
-    assert js("getSelection().toString()") == "Texto"
+    assert js("getSelection().toString()") == "Texto", js(
+        "JSON.stringify({selected:getSelection().toString(),html:document.querySelector('[data-rich]').innerHTML,mark:window.OpenDocApp.editor().snapshot().selection})"
+    )
     click("[data-outline] button")
     click("[data-menu=view]")
     click("[data-menu-panel=view] [data-action=navigator]")
@@ -309,7 +311,7 @@ def native_type(window: Any, text: str) -> None:
 def verify_rich_document(window: Any, source: Path) -> None:
     """Real app/bridge/API; only replace the file-picker choice in this QA."""
     from docx import Document
-    from app.editor import Editor
+    from apps.open_doc.services.document_service import Editor
 
     def click(selector):
         window.evaluate_js(
@@ -341,12 +343,12 @@ def verify_rich_document(window: Any, source: Path) -> None:
         click("[data-export=docx]")
         wait_for(
             window,
-            "document.querySelector('[data-export-result]').textContent.startsWith('Exportado para: ')",
+            "document.querySelector('[data-export-result]').textContent.startsWith('Salvo em: ')",
         )
         return Path(
             window.evaluate_js(
                 "document.querySelector('[data-export-result]').textContent"
-            ).removeprefix("Exportado para: ")
+            ).removeprefix("Salvo em: ")
         )
 
     import_ui(source)
@@ -445,6 +447,20 @@ def run_qa() -> None:
 
     def qa() -> None:
         window = webview.windows[0]
+        picker = window.create_file_dialog
+
+        def chosen_file(dialog_type, *args, **kwargs):
+            if dialog_type == webview.FileDialog.SAVE:
+                return (
+                    str(
+                        services().config.root
+                        / "exports"
+                        / kwargs.get("save_filename", "qa.docx")
+                    ),
+                )
+            return picker(dialog_type, *args, **kwargs)
+
+        window.create_file_dialog = chosen_file
         try:
             wait_for(
                 window,
@@ -521,6 +537,9 @@ def run_qa() -> None:
             verify_rich_document(
                 window, fixture_docx(services().config.root / "qa-rich.docx")
             )
+            from qa_pages import verify_pages
+
+            verify_pages(window, services, wait_for)
             fresh = services().editor.create("Documento de validação", FIXTURE)
             window.evaluate_js(
                 "window.OpenDocApp.editor().load(" + json.dumps(fresh) + ")"

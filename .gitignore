@@ -27,5 +27,7 @@ OpenDoc/
 .DS_Store
 
 # Assets preparados pelo sync_frontend para collectstatic
-apps/open_doc/static/
 
+
+
+/node_modules

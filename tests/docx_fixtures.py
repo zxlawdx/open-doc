@@ -8,7 +8,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from lxml import etree
 from PIL import Image
-from app.importers.docx.namespaces import W, R, REL, w
+from apps.open_doc.parsers.docx.namespaces import W, R, REL, w
 
 
 def fixture_docx(target):

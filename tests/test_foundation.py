@@ -17,8 +17,8 @@ from urllib.request import urlopen
 import pytest
 from webtest import TestApp
 
-from app.config import DATA_DIRECTORIES, Config
-from app.file_organizer import FileOrganizer
+from apps.open_doc.services.preferences_service import DATA_DIRECTORIES, Config
+from apps.open_doc.services.import_service import FileOrganizer
 from config.wsgi import create_app
 
 HTTP_OK = 200
@@ -100,7 +100,7 @@ def test_vela_application_lifecycle(
     from vela.core.app import VelaApp
     from vela.core.bridge import BaseBridge
     import vela.core.app as runtime
-    from app.runtime import services
+    from apps.open_doc.services.container import services
 
     captured = {}
 
@@ -174,7 +174,7 @@ def test_vela_application_lifecycle(
 
     # Structured OOXML is larger than Bottle's default 100 KiB JSON ceiling.
     from dataclasses import asdict
-    from app.document_model.schema import RichDocument, Paragraph, TextRun
+    from apps.open_doc.document_model.schema import RichDocument, Paragraph, TextRun
 
     model = RichDocument().to_dict()
     text = "Documento extenso " * 12000

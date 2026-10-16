@@ -54,3 +54,12 @@ Formato baseado em Keep a Changelog. Versões da aplicação seguem SemVer.
 ### Adicionado
 
 - Fundação do workspace, importação por tipo, preferências e scaffold da UI.
+
+## Integração Vela / fase 2
+
+- Runtime integralmente em apps/open_doc; removidos app/, ui/ e sync_frontend.
+- Save As nativo e exportação atômica DOCX/PDF/HTML/MD.
+- Fontes locais TTF/OTF/TTC importáveis e gerenciáveis.
+- Páginas editáveis, Ctrl+Enter, configuração, modos páginas/contínuo e menu esquerdo.
+- Localizar/substituir, operações de documentos e tabelas.
+- Regressão DOCX preservada; detalhes e limites em docs/OPEN_DOC_VELA_PHASE2.md.
