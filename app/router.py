@@ -43,15 +43,20 @@ def workspace_view(params: dict[str, Any]) -> str:
     }
     return render_template(
         str(PROJECT_ROOT / "ui/templates/base.html"),
-        context=context, router=router,
+        context=context,
+        router=router,
     )
 
 
 def register_routes(router: Router) -> None:
     """Conecta a tela à navegação e ao lifecycle do shell Vela."""
     router.add(
-        "/", workspace_view, title="Escrita", name="writer",
-        layout="blank", show_in_sidebar=False,
+        "/",
+        workspace_view,
+        title="Escrita",
+        name="writer",
+        layout="blank",
+        show_in_sidebar=False,
     )
 
 
@@ -87,36 +92,43 @@ def _handle(operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
 @api.get("/writer/files")
 def files() -> dict[str, Any]:
     """Lista a biblioteca e os documentos editáveis."""
-    return _handle(lambda: {
-        "files": services().organizer.list_files(),
-        "documents": services().editor.list_documents(),
-    })
+    return _handle(
+        lambda: {
+            "files": services().organizer.list_files(),
+            "documents": services().editor.list_documents(),
+        }
+    )
 
 
 @api.post("/writer/settings")
 def save_settings(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Persiste preferências por meio da API Bottle gerenciada pelo Vela."""
+
     def save() -> dict[str, Any]:
         data = _data(context)
         services().config.save_settings(data["settings"])
         return {"ok": True}
+
     return _handle(save)
 
 
 @api.post("/writer/document/new")
 def new_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Cria um documento persistente."""
+
     def create() -> dict[str, Any]:
         data = _data(context)
         return services().editor.create(
             data.get("title", "Sem título"), data.get("markdown", "")
         )
+
     return _handle(create)
 
 
 @api.post("/writer/document/open")
 def open_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Seleciona uma nota existente ou uma cópia de Markdown importado."""
+
     def select() -> dict[str, Any]:
         data = _data(context)
         if "id" in data:
@@ -134,23 +146,27 @@ def open_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
         ):
             raise ValueError("Nota inválida.")
         return services().editor.import_note(resolved)
+
     return _handle(select)
 
 
 @api.post("/writer/document/save")
 def save_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Salva um snapshot com verificação de revisão."""
+
     def save() -> dict[str, Any]:
         data = _data(context)
         return services().editor.save(
             data["id"], data["title"], data["markdown"], data["revision"]
         )
+
     return _handle(save)
 
 
 @api.post("/writer/document/export")
 def export_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Exporta um documento salvo, sem aceitar caminhos enviados pelo cliente."""
+
     def export() -> dict[str, Any]:
         from app.exporters.docx_exporter import export_docx
         from app.exporters.pdf_exporter import export_pdf
@@ -176,6 +192,7 @@ def export_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
             "path": str(target),
             "revision": document["revision"],
         }
+
     return _handle(export)
 
 
@@ -188,11 +205,14 @@ def bootstrap() -> dict[str, Any]:
         "autosave_seconds": AUTOSAVE_SECONDS,
     }
 
+
 # ============ RECUPERAÇÃO DE ALTERAÇÕES ============
+
 
 @api.post("/writer/document/recovery")
 def recovery_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Armazena recuperação ou descarta somente a nota indicada."""
+
     def recovery() -> dict[str, Any]:
         data = _data(context)
         if data.get("discard"):
@@ -200,4 +220,5 @@ def recovery_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
         return services().editor.stash_recovery(
             data["id"], data["title"], data["markdown"], data["revision"]
         )
+
     return _handle(recovery)
