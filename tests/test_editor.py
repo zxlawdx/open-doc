@@ -114,7 +114,9 @@ def test_exports_preserve_text_and_structure(tmp_path: Path) -> None:
     assert any(run.italic and "itálico" in run.text for run in runs)
 
 
-def test_pdf_multipage_and_no_remote_images(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pdf_multipage_and_no_remote_images(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Pagina texto longo e impede busca de imagens na exportação."""
     import urllib.request
 
@@ -123,7 +125,7 @@ def test_pdf_multipage_and_no_remote_images(tmp_path: Path, monkeypatch: pytest.
 
     monkeypatch.setattr(urllib.request, "urlopen", forbidden)
     target = tmp_path / "long.pdf"
-    text = ("Texto com acentuação e conteúdo de estudo.\n\n" * 180)
+    text = "Texto com acentuação e conteúdo de estudo.\n\n" * 180
     text += "![Exemplo](https://invalid.example/image.png)"
     export_pdf(text, target, "Longo")
     pdf = PdfReader(target)
