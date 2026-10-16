@@ -36,7 +36,9 @@ def configure(config: Config | None = None) -> Services:
     with _lock:
         workspace = config or Config()
         _services = Services(
-            workspace, Editor(workspace), FileOrganizer(workspace),
+            workspace,
+            Editor(workspace),
+            FileOrganizer(workspace),
             secrets.token_urlsafe(),
         )
         return _services
