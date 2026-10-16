@@ -1,7 +1,7 @@
 """
 Módulo: test_editor.py.
 Responsabilidade: verificar persistência, revisões, recuperação e exportações.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
