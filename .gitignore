@@ -31,3 +31,7 @@ OpenDoc/
 
 
 /node_modules
+
+# Incomplete vendor builds block startup but are not release artifacts.
+apps/open_doc/static/js/vendor/.build-*/
+apps/open_doc/static/js/vendor/.build-failed

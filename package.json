@@ -9,11 +9,14 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "build:vendor": "node tools/build_vendor_js.mjs",
+    "build": "npm run build:vendor && python tools/build_css.py && python manage.py collectstatic --no-tailwind"
   },
   "dependencies": {
     "core-js": "3.41.0",
     "pdfjs-dist": "4.10.38",
-    "perfect-freehand": "1.2.2"
+    "perfect-freehand": "1.2.2",
+    "pptx-viewer": "0.2.2"
   }
 }

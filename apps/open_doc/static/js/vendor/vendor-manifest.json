@@ -1,0 +1,20 @@
+{
+  "versions": {
+    "esbuild": "0.25.5",
+    "core-js": "3.41.0",
+    "pdfjs-dist": "4.10.38",
+    "perfect-freehand": "1.2.2",
+    "pptx-viewer": "0.2.2",
+    "fflate": "0.8.3"
+  },
+  "target": "chrome87",
+  "source_hash": "4986d5f5b42774f2cf6452b23017fcdad536719df75599b185eba926d662d625",
+  "files": {
+    "pdf.bundle.js": "6d06e0e578a809baf6e03289720ff69674606c6ad5d1c3c9f138f4c4c5426458",
+    "pdf.worker.bundle.js": "c24850ecb5bc0b830523075527b55ea70ecb06307751c7507e4613e06414d8d7",
+    "freehand.bundle.js": "3e93d52c14f1f9bc74fbc79c38712cf16ce8a6cf56e594ae7beabca90ae8d8b2",
+    "pptx.bundle.js": "ae3939fde0f8288de84c9ac9f84dc93d53693843bb2d6246ce3d04ba9aed8fcf"
+  },
+  "build_hash": "e4d9872d6cbd77dab8e781c51a4bf60854689367507b885b8decf0b6c0c9eb07",
+  "built_at": "2026-10-16T14:22:27.919Z"
+}

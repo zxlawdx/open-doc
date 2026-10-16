@@ -23,7 +23,16 @@ def create_app(workspace: Config | None = None) -> VelaApp:
 
     # Bottle defaults to 100 KiB for JSON; keep a separate bounded transport limit.
     BaseRequest.MEMFILE_MAX = MAX_MODEL_JSON_BYTES * 2 + 65536
-    configure(workspace)
+    from tools.check_runtime_assets import check
+
+    manifest = check()
+    import logging
+
+    logging.getLogger(__name__).info(
+        "Open Doc vendors: %s (%s)", manifest["versions"], manifest["build_hash"]
+    )
+    configured = configure(workspace)
+    configured.assets = manifest
     application = VelaApp(settings_module="config.settings", bridge_class=OpenDocBridge)
     for name in INSTALLED_APPS:
         application.register_app(name)
