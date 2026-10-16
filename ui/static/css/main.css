@@ -16,7 +16,7 @@ button,textarea{font:inherit;color:inherit}button{cursor:pointer}
 button:disabled{opacity:.5;cursor:wait}
 button:focus-visible,textarea:focus-visible{outline:2px solid var(--accent-teal);outline-offset:2px}
 [hidden]{display:none!important}
-.writer-shell{display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);height:100dvh;transition:grid-template-columns var(--sidebar-duration)}
+.writer-shell{display:grid;grid-template-columns:var(--sidebar-width) minmax(0,1fr);height:100vh;height:100dvh;transition:grid-template-columns var(--sidebar-duration)}
 .flex{display:flex}.flex-col{flex-direction:column}.items-center{align-items:center}
 /* ============ SIDEBAR ============ */
 .sidebar{background:var(--bg-sidebar);border-right:1px solid var(--border);padding:var(--space-5) var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);overflow:auto}
