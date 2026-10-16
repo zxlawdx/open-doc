@@ -1,7 +1,7 @@
 """
 Módulo: config.py.
 Responsabilidade: criar diretórios e persistir preferências do usuário.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
@@ -13,11 +13,13 @@ import tempfile
 from pathlib import Path
 from threading import RLock
 
-APP_TITLE = "Vela Writer"
+from app.workspace import resolve_workspace
+
+APP_TITLE = "Open Doc"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 800
-DEFAULT_SETTINGS = {"sidebar_collapsed": False}
+DEFAULT_SETTINGS = {"sidebar_collapsed": False, "theme": "system", "zoom": 100}
 DATA_DIRECTORIES = (
     "documents/docx",
     "documents/pptx",
@@ -38,7 +40,7 @@ class Config:
 
     def __init__(self, root: Path | None = None) -> None:
         """Prepara um workspace isolável nos testes."""
-        self.root = (root or Path.home() / "VelaWriter").resolve()
+        self.root = (root or resolve_workspace(Path.home())).resolve()
         self._lock = RLock()
         for directory in DATA_DIRECTORIES:
             (self.root / directory).mkdir(parents=True, exist_ok=True)
@@ -46,24 +48,22 @@ class Config:
         if not self.settings_path.exists():
             self.save_settings(dict(DEFAULT_SETTINGS))
 
-    def load_settings(self) -> dict[str, bool]:
+    def load_settings(self) -> dict[str, object]:
         """Lê preferências e rejeita arquivos corrompidos sem sobrescrevê-los."""
         with self._lock:
             data = json.loads(self.settings_path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 raise ValueError("As configurações precisam ser um objeto JSON.")
-            collapsed = data.get("sidebar_collapsed", False)
-            if not isinstance(collapsed, bool):
-                raise ValueError("sidebar_collapsed precisa ser booleano.")
-            return {"sidebar_collapsed": collapsed}
+            settings = {**DEFAULT_SETTINGS, **data}
+            self._validate(settings)
+            return settings
 
-    def save_settings(self, settings: dict[str, bool]) -> None:
+    def save_settings(self, settings: dict[str, object]) -> None:
         """Grava JSON atomicamente para evitar arquivos parciais."""
-        if set(settings) != set(DEFAULT_SETTINGS):
-            raise ValueError("Preferências desconhecidas.")
-        if not isinstance(settings["sidebar_collapsed"], bool):
-            raise ValueError("sidebar_collapsed precisa ser booleano.")
         with self._lock:
+            previous = self.load_settings() if self.settings_path.exists() else {}
+            settings = {**DEFAULT_SETTINGS, **previous, **settings}
+            self._validate(settings)
             descriptor, filename = tempfile.mkstemp(
                 dir=self.settings_path.parent, suffix=".tmp"
             )
@@ -75,3 +75,13 @@ class Config:
                 os.replace(filename, self.settings_path)
             finally:
                 Path(filename).unlink(missing_ok=True)
+
+    def _validate(self, settings: dict[str, object]) -> None:
+        if set(settings) != set(DEFAULT_SETTINGS):
+            raise ValueError("Preferências desconhecidas.")
+        if type(settings["sidebar_collapsed"]) is not bool:
+            raise ValueError("sidebar_collapsed precisa ser booleano.")
+        if settings["theme"] not in ("light", "dark", "system"):
+            raise ValueError("Tema inválido.")
+        if type(settings["zoom"]) is not int or not 50 <= settings["zoom"] <= 150:
+            raise ValueError("Zoom deve ser inteiro entre 50 e 150.")
