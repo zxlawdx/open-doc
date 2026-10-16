@@ -1,0 +1,67 @@
+/* Shared state vocabulary. A focus fallback also works without :focus-visible. */
+.open-doc button,
+.open-doc summary,
+.open-doc input,
+.open-doc select {
+    transition: background-color var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
+}
+.open-doc button:hover:not(:disabled),
+.open-doc .library-file-actions > summary:hover {
+    background: var(--color-hover);
+}
+.open-doc button:active:not(:disabled) {
+    background: var(--color-primary-soft);
+}
+.open-doc :focus {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-offset);
+}
+.open-doc :focus:not(:focus-visible) {
+    outline: none;
+}
+.open-doc :focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-offset);
+}
+.open-doc button:disabled,
+.open-doc input:disabled,
+.open-doc select:disabled {
+    color: var(--color-text-disabled);
+    cursor: default;
+    opacity: .55;
+}
+.open-doc .menubar [aria-expanded='true'],
+.open-doc .toolbar [aria-pressed='true'],
+.open-doc .dropdown [aria-checked='true'],
+.open-doc .library-file-actions[open] > summary {
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+.open-doc [data-outline] button[data-active='true'],
+.open-doc [data-outline] button:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+    border-left-color: var(--color-primary);
+}
+.open-doc input[data-title]:hover,
+.open-doc input[data-title]:focus {
+    border-color: var(--color-border);
+    background: var(--color-panel);
+}
+.open-doc[data-saving='true'] .save-status {
+    color: var(--color-primary);
+}
+.open-doc .primary-button:hover:not(:disabled),
+.open-doc [data-dialog-confirm]:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+}
+.open-doc .primary-button:active:not(:disabled),
+.open-doc [data-dialog-confirm]:active:not(:disabled) {
+    background: var(--color-primary-active);
+}
+.open-doc .danger-action:hover:not(:disabled),
+.open-doc .danger-action:focus-visible {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+}
