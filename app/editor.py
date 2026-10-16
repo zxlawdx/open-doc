@@ -88,7 +88,8 @@ class Editor:
         """Lista metadados dos documentos por atualização."""
         with self._connect() as connection:
             return [
-                dict(row) for row in connection.execute(
+                dict(row)
+                for row in connection.execute(
                     "SELECT id, title, revision, updated_at FROM documents "
                     "ORDER BY updated_at DESC, id"
                 )
@@ -146,8 +147,10 @@ class Editor:
             active = connection.execute(
                 "SELECT value FROM session WHERE key = 'active'"
             ).fetchone()
-        return self.get(active["value"]) if active else self.get(
-            self.list_documents()[0]["id"]
+        return (
+            self.get(active["value"])
+            if active
+            else self.get(self.list_documents()[0]["id"])
         )
 
     def select(self, identifier: str) -> dict[str, Any]:
@@ -198,4 +201,3 @@ class Editor:
         if source.stat().st_size > MAX_DOCUMENT_BYTES:
             raise ValueError("O documento ultrapassa 5 MB.")
         return self.create(source.stem, source.read_text(encoding="utf-8"))
-
