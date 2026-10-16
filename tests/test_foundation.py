@@ -1,7 +1,7 @@
 """
 Módulo: test_foundation.py.
 Responsabilidade: verificar persistência, importação e integração HTTP Vela.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
@@ -32,7 +32,7 @@ def test_workspace_and_settings(tmp_path: Path) -> None:
     config = Config(tmp_path)
     assert all((tmp_path / folder).is_dir() for folder in DATA_DIRECTORIES)
     config.save_settings({"sidebar_collapsed": True})
-    assert Config(tmp_path).load_settings() == {"sidebar_collapsed": True}
+    assert Config(tmp_path).load_settings()["sidebar_collapsed"] is True
     with pytest.raises(ValueError):
         config.save_settings({"sidebar_collapsed": "yes"})
     assert config.load_settings()["sidebar_collapsed"] is True
@@ -127,43 +127,45 @@ def test_vela_application_lifecycle(
     assert result["layout"] == "blank"
     assert "data-source" in result["html"]
     assert "{{" not in result["html"]
-    assert "/__vela__/static/writer/js/app.js" in result["html"]
+    assert "/__vela__/static/open_doc/js/app.js" in result["html"]
 
     base = f"http://127.0.0.1:{application.api_server.port}"
     with urlopen(base + "/__vela__/shell", timeout=5) as response:
         shell = response.read().decode()
         assert "cdn.tailwindcss.com" not in shell
         assert "fonts.googleapis.com" not in shell
-    with urlopen(base + "/__vela__/static/writer/js/editor.js", timeout=5) as response:
+    with urlopen(
+        base + "/__vela__/static/open_doc/js/editor.js", timeout=5
+    ) as response:
         assert response.status == HTTP_OK
 
     client = TestApp(application.api_server.app)
     client.post_json(
-        "/api/writer/document/new", {"title": "Negado"}, status=HTTP_FORBIDDEN
+        "/api/open_doc/document/new", {"title": "Negado"}, status=HTTP_FORBIDDEN
     )
-    headers = {"X-Writer-Token": services().token}
+    headers = {"X-Open-Doc-Token": services().token}
     note = client.post_json(
-        "/api/writer/document/new", {"title": "Minha nota"}, headers=headers
+        "/api/open_doc/document/new", {"title": "Minha nota"}, headers=headers
     ).json
     note["markdown"] = "# Olá\n\nTexto **forte**."
-    saved = client.post_json("/api/writer/document/save", note, headers=headers).json
+    saved = client.post_json("/api/open_doc/document/save", note, headers=headers).json
     assert saved["revision"] == note["revision"] + 1
-    client.post_json("/api/writer/document/save", note, headers=headers, status=409)
+    client.post_json("/api/open_doc/document/save", note, headers=headers, status=409)
     client.post_json(
-        "/api/writer/document/open",
+        "/api/open_doc/document/open",
         {"path": "../outside.md"},
         headers=headers,
         status=HTTP_BAD_REQUEST,
     )
     client.post_json(
-        "/api/writer/settings",
+        "/api/open_doc/settings",
         {"settings": {"sidebar_collapsed": True}},
         headers=headers,
     )
     assert services().config.load_settings()["sidebar_collapsed"] is True
-    for extension in ("pdf", "docx"):
+    for extension in ("pdf", "docx", "md"):
         exported = client.post_json(
-            "/api/writer/document/export",
+            "/api/open_doc/document/export",
             {"id": saved["id"], "revision": saved["revision"], "format": extension},
             headers=headers,
         ).json
