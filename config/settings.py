@@ -1,7 +1,7 @@
 """
 Módulo: settings.py.
 Responsabilidade: configurar o runtime e a janela pelo contrato Vela.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
