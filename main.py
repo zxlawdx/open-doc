@@ -1,7 +1,7 @@
 """
 Módulo: main.py.
 Responsabilidade: manter entrada curta para o bootstrap oficial Vela.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
