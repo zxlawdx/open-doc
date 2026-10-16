@@ -45,7 +45,8 @@ class WriterBridge(BaseBridge):
         if self._window is None:
             return {"error": "Janela indisponível."}
         paths = self._window.create_file_dialog(
-            webview.FileDialog.OPEN, allow_multiple=False,
+            webview.FileDialog.OPEN,
+            allow_multiple=False,
             file_types=("Documentos (*.pdf;*.docx;*.pptx;*.md;*.txt)",),
         )
         if not paths:
@@ -67,8 +68,10 @@ class WriterBridge(BaseBridge):
             clean = False
         if clean:
             return True
-        return bool(self._window.create_confirmation_dialog(
-            "Alterações não salvas",
-            "Ainda há alterações não salvas. Fechar mesmo assim? "
-            "Uma recuperação local será oferecida na próxima abertura.",
-        ))
+        return bool(
+            self._window.create_confirmation_dialog(
+                "Alterações não salvas",
+                "Ainda há alterações não salvas. Fechar mesmo assim? "
+                "Uma recuperação local será oferecida na próxima abertura.",
+            )
+        )
