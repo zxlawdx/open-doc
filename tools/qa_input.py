@@ -40,10 +40,19 @@ def main():
             wait(window, "document.querySelector('[data-app]')?.dataset.ready==='true'")
             if not os.environ.get("OPEN_DOC_INPUT_REOPEN"):
                 window.evaluate_js("OpenDocApp.action('new')")
-            wait(
-                window,
-                "document.querySelector('[data-title]').value==='Documento sem título'",
-            )
+            if os.environ.get("OPEN_DOC_INPUT_NOTE_ID"):
+                window.evaluate_js(
+                    "OpenDocApp.editor().load("
+                    + json.dumps(
+                        services().editor.get(os.environ["OPEN_DOC_INPUT_NOTE_ID"])
+                    )
+                    + ")"
+                )
+            else:
+                wait(
+                    window,
+                    "document.querySelector('[data-title]').value==='Documento sem título'",
+                )
             time.sleep(0.3)
             window.evaluate_js(
                 "(() => {const box=document.querySelector('[data-page-content]'),range=document.createRange();range.selectNodeContents(box);range.collapse(false);document.querySelector('[data-rich]').focus();getSelection().removeAllRanges();getSelection().addRange(range);})()"
@@ -85,7 +94,12 @@ def main():
                     assert_text(expected)
 
             if os.environ.get("OPEN_DOC_INPUT_REOPEN"):
-                assert_text("Open Doc teclado 123")
+                for expected in json.loads(
+                    os.environ.get(
+                        "OPEN_DOC_INPUT_EXPECTED", '["Open Doc teclado 123"]'
+                    )
+                ):
+                    assert_text(expected)
                 print("QT_INPUT_REOPEN_SEPARATE_PROCESS_OK", flush=True)
                 return
             keyboard.type("Open Doc teclado 123")
@@ -280,6 +294,38 @@ def main():
                 "__fullRenders===0 && __images.every(i=>i.isConnected)"
             )
             print("QT_INPUT_OVERFLOW_NEW_PAGE_RETENTION_OK", flush=True)
+            window.evaluate_js("OpenDocApp.editor().flush()")
+            saved_id = window.evaluate_js("OpenDocApp.editor().snapshot().id")
+            expected = [
+                "Teste de digitação persistente 123 áéíóú ç. " + str(i)
+                for i in [0, 14, count - 1]
+            ] + [
+                "Célula persistente áéíóú",
+                "LISTA_QA_number",
+                "LISTA_QA_bullet",
+                "FINAL_OVERFLOW_QA",
+            ]
+            deadline = time.monotonic() + 15
+            while (
+                "FINAL_OVERFLOW_QA" not in services().editor.get(saved_id)["markdown"]
+            ):
+                assert time.monotonic() < deadline, "Large document save timeout"
+                time.sleep(0.1)
+            env = {
+                **os.environ,
+                "OPEN_DOC_INPUT_REOPEN": str(services().config.root),
+                "OPEN_DOC_INPUT_NOTE_ID": saved_id,
+                "OPEN_DOC_INPUT_EXPECTED": json.dumps(expected),
+            }
+            reopened = subprocess.run(
+                [sys.executable, __file__],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            assert reopened.returncode == 0, reopened.stdout + reopened.stderr
+            print("QT_INPUT_LARGE_DOCX_SAVE_REOPEN_ALL_EDITED_BLOCKS_OK", flush=True)
         except Exception as error:
             import traceback
 
