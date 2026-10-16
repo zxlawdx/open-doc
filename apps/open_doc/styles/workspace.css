@@ -1,0 +1,96 @@
+/* Document geometry is fixed by Section/JS; only its viewport is responsive. */
+.open-doc .document-workspace {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-workspace);
+    overflow: hidden;
+}
+.open-doc .ruler-band {
+    height: var(--ruler-height);
+    min-height: var(--ruler-height);
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    background: var(--color-workspace);
+    border-bottom: 1px solid var(--color-border);
+    padding: 0 var(--space-6);
+}
+.open-doc .ruler {
+    position: relative;
+    width: var(--page-default-width);
+    height: 20px;
+    flex-shrink: 0;
+    background: var(--color-paper);
+    transform-origin: top center;
+    color: var(--color-paper-muted);
+    border-inline: 1px solid var(--color-paper-border);
+    font-size: var(--font-size-2xs);
+}
+.open-doc .ruler::after {
+    content: '';
+    position: absolute;
+    inset: 12px 0 0;
+    background: repeating-linear-gradient(90deg,transparent 0 18px,var(--color-paper-border) 18px 19px,transparent 19px 37px,var(--color-paper-border) 37px 38px);
+    opacity: .8;
+}
+.open-doc .ruler span {
+    position: absolute;
+    top: 1px;
+    transform: translateX(-50%);
+}
+.open-doc .document-canvas {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+    padding: var(--space-6);
+}
+.open-doc .paper-layout {
+    margin: 0 auto;
+    position: relative;
+    width: var(--page-default-width);
+    min-height: var(--page-default-height);
+}
+.open-doc .recovery,
+.open-doc .conflict-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    font-size: var(--font-size-sm);
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-primary-soft);
+}
+.open-doc .recovery button,
+.open-doc .conflict-banner button {
+    border-color: var(--color-border);
+    background: var(--color-panel);
+}
+.open-doc .export-result:not(:empty) {
+    padding: var(--space-1) var(--space-4);
+    font-size: var(--font-size-xs);
+    overflow-wrap: anywhere;
+    border-top: 1px solid var(--color-border);
+    max-height: 58px;
+    overflow: auto;
+}
+.open-doc .rich-warning {
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    padding: var(--space-1) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    max-height: 130px;
+    overflow: auto;
+}
+.open-doc .rich-warning summary {
+    cursor: pointer;
+}
+.open-doc .rich-warning ul {
+    margin: var(--space-2) 0 var(--space-2) var(--space-5);
+    list-style: disc;
+}
