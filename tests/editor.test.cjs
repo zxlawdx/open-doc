@@ -14,7 +14,7 @@ function setup(t, options = {}) {
     {url: "http://127.0.0.1:8000", runScripts: "outside-only"}
   );
   const window = dom.window;
-  for (const file of ["vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "editor_commands.js", "history.js", "recovery.js", "editor.js"]) {
+  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "editor_commands.js", "history.js", "recovery.js", "editor.js"]) {
     window.eval(fs.readFileSync(path.join(rootPath, "ui/static/js", file), "utf8"));
   }
   const intervals = [];
@@ -236,4 +236,21 @@ test("documento grande produz outline real em tempo limitado", t => {
   assert.equal(root.querySelectorAll('[data-outline] button').length, 150);
   assert.ok(Date.now() - started < 5000);
   controller.abort();
+});
+
+
+test("compatibilidade Qt remove listeners quando o browser ignora signal", t => {
+  const {window} = setup(t);
+  class LegacyTarget {
+    constructor() { this.listeners = new Map(); }
+    addEventListener(type, callback) { this.listeners.set(type, callback); }
+    removeEventListener(type, callback) { if (this.listeners.get(type) === callback) this.listeners.delete(type); }
+    dispatchEvent(event) { this.listeners.get(event.type)?.(event); }
+  }
+  assert.equal(window.OpenDocCompat.install(LegacyTarget.prototype, () => new LegacyTarget()), false);
+  const target = new LegacyTarget(), controller = new window.AbortController();
+  let count = 0;
+  target.addEventListener("test", () => count++, {signal: controller.signal});
+  target.dispatchEvent(new window.Event("test")); assert.equal(count, 1);
+  controller.abort(); target.dispatchEvent(new window.Event("test")); assert.equal(count, 1);
 });
