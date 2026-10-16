@@ -42,10 +42,10 @@ function setup(t, options = {}) {
 test("preview Markdown bloqueia scripts e imagens externas", t => {
   const {root, input} = setup(t);
   input('# Olá\n\n**forte** <script>window.hacked=true</script> ![x](https://evil.test/x)');
-  assert.equal(root.querySelector("[data-preview] h1").textContent, "Olá");
-  assert.equal(root.querySelector("[data-preview] strong").textContent, "forte");
-  assert.equal(root.querySelector("[data-preview] script"), null);
-  assert.equal(root.querySelector("[data-preview] img"), null);
+  assert.equal(root.querySelector("[data-preview-pane] h1").textContent, "Olá");
+  assert.equal(root.querySelector("[data-preview-pane] strong").textContent, "forte");
+  assert.equal(root.querySelector("[data-preview-pane] script"), null);
+  assert.equal(root.querySelector("[data-preview-pane] img"), null);
 });
 
 test("salva e reconhece revisão sem manter estado sujo", async t => {
@@ -147,3 +147,4 @@ test("destruir editor remove atalho de teclado", t => {
   window.dispatchEvent(new window.KeyboardEvent("keydown", {key: "s", ctrlKey: true}));
   assert.equal(calls.length, 0);
 });
+
