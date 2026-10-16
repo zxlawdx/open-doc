@@ -254,3 +254,14 @@ test("compatibilidade Qt remove listeners quando o browser ignora signal", t => 
   target.dispatchEvent(new window.Event("test")); assert.equal(count, 1);
   controller.abort(); target.dispatchEvent(new window.Event("test")); assert.equal(count, 1);
 });
+
+
+test("bloco pre nativo permanece código no Markdown e na reabertura", t => {
+  const {window, root, editor, source} = setup(t);
+  editor.setMode("rich");
+  root.querySelector('[data-rich]').innerHTML = '<pre>linha `simples` e ``` interna\nsegunda linha</pre>';
+  root.querySelector('[data-rich]').dispatchEvent(new window.Event('input', {bubbles: true}));
+  assert.match(source.value, /^````\nlinha/);
+  editor.setMode('markdown'); editor.setMode('rich');
+  assert.equal(root.querySelector('[data-rich] pre code').textContent.trim(), 'linha `simples` e ``` interna\nsegunda linha');
+});
