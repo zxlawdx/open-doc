@@ -49,6 +49,9 @@ def main():
     def qa():
         window = webview.windows[0]
         try:
+            from qa_runtime import report
+
+            report(window)
             wait(window, "document.querySelector('[data-app]')?.dataset.ready==='true'")
             wait(
                 window,
@@ -105,6 +108,7 @@ def main():
                 pdf.add_page()
                 pdf.set_font("Helvetica", size=14)
                 pdf.text(20, 30, "Pagina " + str(index + 1) + " texto pesquisavel")
+                pdf.rect(20, 40, 60, 30, style="F")
             pdf.output(source)
             services().fixed_documents.import_pdf(source)
             services().handwriting.backends = [FakeRecognizer()]
