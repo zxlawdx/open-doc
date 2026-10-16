@@ -104,11 +104,17 @@ def main():
             assert window.evaluate_js("__fullRenders===0")
             print("QT_QTEST_CTRL_Z_Y_TYPING_AND_INK_INCREMENTAL_OK", flush=True)
             for position in [0, 5, -1]:
-                window.evaluate_js("""(() => {document.querySelector('[data-ink-mode=cursor]').click();const pages=document.querySelectorAll('.document-page'),page=pages[%d<0?pages.length-1:%d],p=page.querySelector('p[data-node-id]');p.scrollIntoView();const range=document.createRange();range.selectNodeContents(p);range.collapse(false);document.querySelector('[data-rich]').focus();getSelection().removeAllRanges();getSelection().addRange(range);OpenDocApp.editor().capture();window.__pageText=p.textContent;window.__pageId=p.dataset.nodeId;__fullRenders=0;})()""" % (position,position))
+                window.evaluate_js(
+                    """(() => {document.querySelector('[data-ink-mode=cursor]').click();const pages=document.querySelectorAll('.document-page'),page=pages[%d<0?pages.length-1:%d],p=page.querySelector('p[data-node-id]');p.scrollIntoView();const range=document.createRange();range.selectNodeContents(p);range.collapse(false);document.querySelector('[data-rich]').focus();getSelection().removeAllRanges();getSelection().addRange(range);OpenDocApp.editor().capture();window.__pageText=p.textContent;window.__pageId=p.dataset.nodeId;__fullRenders=0;})()"""
+                    % (position, position)
+                )
                 keyboard.type("x")
                 time.sleep(0.3)
                 keyboard.press("Z")
-                wait(window, "document.querySelector('[data-node-id=\"'+__pageId+'\"]').textContent===__pageText")
+                wait(
+                    window,
+                    "document.querySelector('[data-node-id=\"'+__pageId+'\"]').textContent===__pageText",
+                )
                 assert window.evaluate_js("__fullRenders===0")
             print("QT_QTEST_TYPING_UNDO_FIRST_MIDDLE_LAST_PAGES_OK", flush=True)
             for suffix, title, kind in [

@@ -20,9 +20,13 @@
       restore();
       // All legacy browser commands are contained in this adapter.
       if (typeof document.execCommand !== "function") return false;
-      const result = document.execCommand(command, false, argument);
+      let emitted=false;const observed=()=>{emitted=true;};
+      rich.addEventListener('input',observed);
+      let result;
+      try{result=document.execCommand(command,false,argument);}
+      finally{rich.removeEventListener('input',observed);}
       capture();
-      changed("format");
+      if(!emitted)changed("format");
       return result;
     }
     function bookmark() {

@@ -27,6 +27,9 @@ async function mount(t, brokenNavigation = false) {
     const selection = w.getSelection(), range = selection.getRangeAt(0);
     if (command === 'bold') {
       const strong = w.document.createElement('strong'); range.surroundContents(strong);
+      root.querySelector('[data-rich]').dispatchEvent(new w.Event('input',{bubbles:true}));
+    } else if (command === 'createLink') {
+      const link = w.document.createElement('a');link.href=value;range.surroundContents(link);
     } else if (command === 'formatBlock') {
       const block = root.querySelector('[data-rich] p');
       const heading = w.document.createElement(value.replace(/[<>]/g, '')); heading.textContent = block.textContent; block.replaceWith(heading);
@@ -115,4 +118,13 @@ test('library actions are a menu surface with keyboard dismissal', async t => {
   w.document.activeElement.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
   assert.equal(details.open, false);
   assert.equal(w.document.activeElement.tagName, 'SUMMARY');
+});
+
+test('link dialog preserves selected text while pending pagination moves nodes', async t => {
+  const {w,root,click,select}=await mount(t);
+  select();click('.toolbar [data-action=link]');
+  await new Promise(resolve=>setTimeout(resolve,180));
+  root.querySelector('[data-dialog-input]').value='https://example.com';
+  click('[data-dialog-confirm]');await new Promise(resolve=>setTimeout(resolve,10));
+  assert.match(root.querySelector('[data-source]').value,/\[Texto selecionado\]\(https:\/\/example.com\)/);
 });

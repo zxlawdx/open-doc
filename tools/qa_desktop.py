@@ -184,6 +184,8 @@ def verify_controls(window: Any) -> None:
     click("[data-dialog-confirm]")
     assert "[Texto selecionado](https://example.com)" in js(
         "document.querySelector('[data-source]').value"
+    ), js(
+        "JSON.stringify({source:document.querySelector('[data-source]').value,html:document.querySelector('[data-rich]').innerHTML})"
     )
     select()
     click(".toolbar [data-action=link]")

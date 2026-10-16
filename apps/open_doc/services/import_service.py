@@ -103,7 +103,8 @@ class FileOrganizer:
                             "type": path.suffix.lower().lstrip("."),
                             "path": path.relative_to(self.config.root).as_posix(),
                             "capabilities": {
-                                k: path.suffix.lower() in {".docx", ".md", ".txt", ".pdf", ".pptx"}
+                                k: path.suffix.lower()
+                                in {".docx", ".md", ".txt", ".pdf", ".pptx"}
                                 for k in ("open", "edit", "export")
                             },
                         }

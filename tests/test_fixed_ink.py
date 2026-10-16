@@ -237,6 +237,18 @@ def test_artifact_http_requires_token_and_supports_range(tmp_path, monkeypatch):
     assert client.get(url, headers=headers).body.startswith(b"%PDF")
     response = client.get(url, headers={**headers, "Range": "bytes=0-15"}, status=206)
     assert len(response.body) == 16 and response.headers["Cache-Control"] == "no-store"
+    presentation = Presentation()
+    presentation.slides.add_slide(presentation.slide_layouts[6])
+    source = tmp_path / "mime.pptx"
+    presentation.save(source)
+    pptx_note = services().fixed_documents.import_pptx(source)
+    slide_response = client.get(
+        "/api/open_doc/artifact/content?id=" + pptx_note["id"], headers=headers
+    )
+    assert slide_response.body.startswith(b"PK")
+    assert slide_response.content_type == (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
     client.get(
         "/api/open_doc/artifact/content?id=../../etc/passwd",
         headers=headers,

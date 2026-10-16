@@ -199,10 +199,11 @@
       'zoom-reset': () => layout?.set(100),
       find: async () => { showView(false); if(editor.find?.())return;await toggleNavigator(true); navigation?.focus(); },
       link: async () => {
+        editor.capture();const selection=editor.snapshot().selection;
         const value = await dialog('Inserir link', 'Selecione o texto e informe um endereço. São aceitos HTTPS, HTTP e e-mail.', true);
         if (!value) return;
         if (!/^(https?:\/\/|mailto:)/i.test(value)) { status('Endereço inválido. Use https://, http:// ou mailto:.'); return; }
-        editor.format('link', value);
+        editor.restoreSelection(selection);editor.format('link', value);
       },
       theme: async () => {
         const value = await dialog('Aparência', 'O papel permanece branco nos temas claro e escuro.', false, theme?.preference() || 'system');
