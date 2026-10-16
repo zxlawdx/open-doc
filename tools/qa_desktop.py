@@ -132,6 +132,17 @@ def run_qa() -> None:
                 is True
             )
             print("NATIVE_VELA_BOOT_OK", flush=True)
+            assert window.evaluate_js(
+                "(() => { const t = new EventTarget(); const c = new AbortController(); let n=0; t.addEventListener('x',()=>n++,{signal:c.signal}); c.abort(); t.dispatchEvent(new Event('x')); return n===0; })()"
+            )
+            window.evaluate_js(
+                "window.__previousOpenDoc = window.OpenDocApp; Vela.navigate('/')"
+            )
+            wait_for(
+                window,
+                "Boolean(window.OpenDocApp !== window.__previousOpenDoc && window.OpenDocApp.editor())",
+            )
+            print("NATIVE_VELA_REMOUNT_AND_LISTENER_CLEANUP_OK", flush=True)
             result = window.evaluate_js("""(() => {
               const rich = document.querySelector('[data-rich]');
               const text = rich.querySelector('p').firstChild;
