@@ -300,7 +300,9 @@ def main():
                 "__fullRenders===0 && __images.every(i=>i.isConnected)"
             )
             print("QT_INPUT_OVERFLOW_NEW_PAGE_RETENTION_OK", flush=True)
-            window.evaluate_js("window.__qaSaved=false;window.__qaSaveError=null;OpenDocApp.editor().flush().then(()=>{window.__qaSaved=true}).catch(e=>{window.__qaSaveError=e.message});'requested'")
+            window.evaluate_js(
+                "window.__qaSaved=false;window.__qaSaveError=null;OpenDocApp.editor().flush().then(()=>{window.__qaSaved=true}).catch(e=>{window.__qaSaveError=e.message});'requested'"
+            )
             saved_id = window.evaluate_js("OpenDocApp.editor().snapshot().id")
             expected = [
                 "Teste de digitação persistente 123 áéíóú ç. " + str(i)
@@ -311,6 +313,7 @@ def main():
                 "LISTA_QA_bullet",
                 "FINAL_OVERFLOW_QA",
             ]
+
             def saved_text(value):
                 if isinstance(value, dict):
                     if isinstance(value.get("text"), str):
@@ -321,10 +324,16 @@ def main():
                 return ""
 
             deadline = time.monotonic() + 15
-            while "FINAL_OVERFLOW_QA" not in saved_text(services().editor.get(saved_id).get("content")):
+            while "FINAL_OVERFLOW_QA" not in saved_text(
+                services().editor.get(saved_id).get("content")
+            ):
                 error = window.evaluate_js("window.__qaSaveError")
                 assert not error, "Large document save failed: " + str(error)
-                assert time.monotonic() < deadline, "Large document save timeout; resolved=" + str(window.evaluate_js("window.__qaSaved"))
+                assert (
+                    time.monotonic() < deadline
+                ), "Large document save timeout; resolved=" + str(
+                    window.evaluate_js("window.__qaSaved")
+                )
                 time.sleep(0.1)
             env = {
                 **os.environ,

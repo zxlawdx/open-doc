@@ -62,10 +62,16 @@
       if(!affected && id && base.blocks.some(b=>b.id===id))return serializeLogicalBlock(surface,id,base);
       const logical=window.OpenDocPagination.logical(surface),value=serialize(logical,base);
       if(affected){const touched=new Set(affected);value.blocks=value.blocks.map(b=>!touched.has(b.id)?base.blocks.find(old=>old.id===b.id) || b:b);}
-      return value;
+      return affected?uniqueChanges(value,base):value;
     }
-    if(fast){const replacement=blocks({childNodes:[dirty]});return {...base,blocks:base.blocks.map(b=>b.id===oldBlock.id?replacement[0]:b)};}
+    if(fast){const replacement=blocks({childNodes:[dirty]});return uniqueChanges({...base,blocks:base.blocks.map(b=>b.id===oldBlock.id?replacement[0]:b)},base);}
     return {...base,blocks:blocks(surface)};
+  }
+  function uniqueChanges(next,original){
+    const M=window.OpenDocModel,unchanged=new Set(original.blocks.filter(b=>next.blocks.includes(b))),used=new Set(M.index({blocks:[...unchanged]}).keys());
+    function visit(node){if(!node || typeof node!=='object')return;if(node.id){if(used.has(node.id))node.id=M.id();used.add(node.id);}for(const value of Object.values(node))if(Array.isArray(value))value.forEach(visit);}
+    for(const block of next.blocks)if(!unchanged.has(block))visit(block);
+    return next;
   }
   function serializeLogicalBlock(surface,blockId,original){
     const block=original.blocks.find(b=>b.id===blockId);if(!block)return serialize(surface,original);
@@ -78,7 +84,7 @@
     }
     if(!holder.firstChild)return original;
     const value=serialize(holder,{...original,blocks:[block]},holder.firstElementChild).blocks[0];
-    return {...original,blocks:original.blocks.map(b=>b.id===blockId?value:b)};
+    return uniqueChanges({...original,blocks:original.blocks.map(b=>b.id===blockId?value:b)},original);
   }
   window.OpenDocRichSerializer={serialize,serializeLogicalBlock,readStyle};
 })();
