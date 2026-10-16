@@ -1,7 +1,7 @@
 name: Vela Qt Windows stabilization
 on:
   push:
-    branches: [fix/stabilization]
+    branches: [fix/stabilization, fix/input-stability]
     paths-ignore: ["docs/**", "README.md", "THIRD_PARTY_NOTICES.md"]
   workflow_dispatch:
 jobs:
@@ -50,6 +50,10 @@ jobs:
       - name: Actual Vela PyQt QtWebEngine
         shell: pwsh
         run: |
+          python -u tools/qa_windows_ink.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_input.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_stabilization.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_ink.py

@@ -38,7 +38,8 @@ class Keyboard:
 
         class Driver(QObject):
             requested = pyqtSignal(str)
-            typing = pyqtSignal(str)
+            typing = pyqtSignal(str, int)
+            plain = pyqtSignal(str, bool)
 
             def __init__(self, view):
                 super().__init__()
@@ -46,12 +47,35 @@ class Keyboard:
                 self.done = Event()
                 self.requested.connect(self.perform)
                 self.typing.connect(self.type_text)
+                self.plain.connect(self.type_key)
 
-            @pyqtSlot(str)
-            def type_text(self, text):
+            @pyqtSlot(str, int)
+            def type_text(self, text, delay):
+                from PyQt5.QtGui import QInputMethodEvent
+
                 target = self.view.focusProxy() or self.view
                 target.setFocus()
-                QTest.keyClicks(target, text)
+                for char in text:
+                    if ord(char) < 128:
+                        QTest.keyClicks(target, char)
+                    else:
+                        preedit = QInputMethodEvent(char, [])
+                        QApplication.sendEvent(target, preedit)
+                        commit = QInputMethodEvent()
+                        commit.setCommitString(char)
+                        QApplication.sendEvent(target, commit)
+                    if delay:
+                        QTest.qWait(delay)
+                self.done.set()
+
+            @pyqtSlot(str, bool)
+            def type_key(self, key, shift):
+                target = self.view.focusProxy() or self.view
+                QTest.keyClick(
+                    target,
+                    getattr(Qt, "Key_" + key),
+                    Qt.ShiftModifier if shift else Qt.NoModifier,
+                )
                 self.done.set()
 
             @pyqtSlot(str)
@@ -70,8 +94,14 @@ class Keyboard:
         if not self.driver.done.wait(5):
             raise AssertionError("Qt shortcut timeout: " + key)
 
-    def type(self, text):
+    def type(self, text, delay=0):
         self.driver.done.clear()
-        self.driver.typing.emit(text)
-        if not self.driver.done.wait(5):
+        self.driver.typing.emit(text, delay)
+        if not self.driver.done.wait(max(5, len(text) * delay / 1000 + 5)):
             raise AssertionError("Qt typing timeout")
+
+    def key(self, key, shift=False):
+        self.driver.done.clear()
+        self.driver.plain.emit(key, shift)
+        if not self.driver.done.wait(5):
+            raise AssertionError("Qt key timeout: " + key)
