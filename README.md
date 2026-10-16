@@ -1,10 +1,12 @@
 # Vela Writer
 
-Aplicação desktop open source para escrever, organizar documentos e estudar.
-Construída com **Vela Framework + Bottle + pywebview + PyQt5**.
-Interface em português, tema escuro e recursos locais.
+Aplicação desktop open source para escrever em Markdown ou texto rico,
+organizar documentos e exportar PDF/DOCX.
 
-**Estado: Fase 1 — Fundação.** O editor completo pertence à Fase 2.
+**Estado: Fases 1 e 2 implementadas.** Python 3.10+, Vela Framework,
+Bottle, pywebview e PyQt5. Interface pt-BR e recursos locais.
+
+![Editor no Vela com QtWebEngine](docs/images/editor-1366.png)
 
 ## Instalar e executar
 
@@ -21,7 +23,8 @@ Windows / PowerShell:
 ```powershell
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python main.py
+python manage.py collectstatic --no-tailwind
+python manage.py runapp
 ```
 
 Linux / Mint:
@@ -29,36 +32,76 @@ Linux / Mint:
 ```bash
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-python main.py
+python manage.py collectstatic --no-tailwind
+python manage.py runapp
 ```
 
-O launcher seleciona Qt/PyQt5. No Linux, o QtWebEngine precisa das bibliotecas
-gráficas do sistema, incluindo libXtst, NSS, X11 e EGL; instale os pacotes
-correspondentes da sua distribuição se um import informar biblioteca ausente.
-Não execute a aplicação desktop como root.
+`python main.py` usa o mesmo bootstrap Vela. O runtime seleciona Qt/PyQt5.
+No Linux, o QtWebEngine precisa das bibliotecas gráficas da distribuição,
+incluindo Xtst, NSS, X11, xkbcommon, EGL e áudio. Instale o pacote correspondente
+se um import informar biblioteca ausente. Não execute o desktop como root.
 
-A instalação inicial baixa as dependências. Depois, a interface, as fontes e o
-CSS funcionam offline. Node.js só é necessário para recompilar Tailwind.
-O Vela está fixado em um commit inspecionado para estabilidade da API.
+A instalação inicial baixa dependências; depois, fontes, preview e estilos
+funcionam offline. Node só é necessário para recompilar CSS e testar JavaScript.
 
-## Uso disponível
+## Integração real com Vela
 
-- Sidebar recolhível com preferência persistente.
-- Importação pelo seletor nativo de PDF, DOCX, PPTX, Markdown e TXT UTF-8.
-- Biblioteca de arquivos organizados por formato.
-- Validação básica de assinatura PDF e estrutura ZIP Office.
-- Cópia de importação por padrão: o original é preservado.
-- Nomes exclusivos em caso de colisão, sem substituir arquivos existentes.
-- Rascunho temporário e contagem de palavras.
+O projeto segue o ciclo de vida do framework:
 
-**O rascunho não é salvo.** A interface informa isso e pede confirmação ao
-fechar uma página com conteúdo. Não use o rascunho para trabalho permanente.
-A biblioteca lista arquivos; visualização e conversão chegam na Fase 3.
-A validação básica de formato não garante integridade completa do documento.
+1. `manage.py` delega ao `vela.cli.commands.CommandRunner`.
+2. `config/wsgi.py` constrói `VelaApp` com `config.settings`.
+3. `VelaApp.register_app("apps.writer")` descobre views e API.
+4. `register_routes` registra a tela no router visual.
+5. `vela.template_engine.engine.render_template` renderiza a composição.
+6. `WriterBridge` estende `BaseBridge`, preservando navegação e eventos.
+7. `VelaApp.run()` controla servidor, shell e janela desktop.
 
-## Dados
+Não há instanciação manual de janela ou servidor em `main.py`.
+O layout `blank` permite à aplicação ocupar toda a área útil do shell.
+O bundle offline inclui as classes do próprio shell Vela.
+O framework permanece uma dependência, fixada em uma revisão inspecionada.
 
-Na primeira execução, o app cria:
+Os fontes visuais ficam em `ui/`. `tools/sync_frontend.py` os prepara em
+`apps/writer/static/` e executa o collectstatic oficial do Vela, produzindo
+`staticfiles/writer/`. As cópias geradas não são versionadas.
+
+## Editor — Fase 2
+
+- Criar, renomear, listar e reabrir notas.
+- Restaurar a última nota ao reiniciar.
+- Markdown com preview ao vivo por marked.js local.
+- Texto rico com títulos, negrito, itálico, listas, citações e código.
+- Alternância entre modos; Markdown é o formato canônico.
+- Salvamento manual por botão ou Ctrl+S / Cmd+S.
+- Formatação por Ctrl+B / Cmd+B e Ctrl+I / Cmd+I.
+- Autosave a cada 30 segundos enquanto houver alterações.
+- SQLite transacional com revisões para impedir sobrescrita concorrente.
+- Recuperação de alterações após pausa de digitação de 600 ms.
+- Em conflitos, preservação do buffer e opção de salvar uma cópia.
+- Confirmação nativa de fechamento quando há alterações pendentes.
+- Exportação da revisão salva para PDF e DOCX em `~/VelaWriter/exports/`.
+
+A recuperação usa SQLite e não depende de manter a mesma porta HTTP.
+Um cache adicional do WebView reduz a janela de perda durante a mesma sessão.
+Fechar à força durante a última pausa de 600 ms ainda pode perder as teclas
+mais recentes. Ctrl+S aguarda a persistência do conteúdo atual.
+
+O preview usa DOMPurify. Imagens externas não são carregadas.
+Os exportadores preservam títulos, formatação básica, listas, citações,
+código e tabelas. Referências a imagens viram texto alternativo; HTML bruto
+é tratado como texto. Não há promessa de fidelidade de um processador Word.
+A fonte PDF embutida cobre português e caracteres latinos; scripts como CJK
+e conjuntos completos de emoji exigem fontes adicionais.
+
+## Biblioteca — Fase 1
+
+Importa cópias de PDF, DOCX, PPTX, Markdown e TXT UTF-8 por seletor nativo.
+Os originais são preservados. Colisões recebem nomes exclusivos.
+PDF e Office têm validação básica de assinatura/estrutura.
+Markdown e TXT importados podem ser abertos como novas notas editáveis.
+Leitura visual de PDF/DOCX/PPTX continua na Fase 3.
+
+## Dados locais
 
 ```text
 ~/VelaWriter/
@@ -66,90 +109,91 @@ Na primeira execução, o app cria:
 │   ├── docx/
 │   ├── pptx/
 │   └── pdf/
-├── notes/
+├── notes/                 # Markdown e TXT importados
 ├── drawings/
 ├── exports/
 └── .veladata/
-    └── settings.json
+    ├── settings.json      # preferências, gravadas atomicamente
+    └── writer.sqlite3     # notas, sessão, revisões e recuperação
 ```
 
-Preferências são gravadas atomicamente. JSON corrompido é preservado e o erro é
-mostrado na interface. Configuração e testes podem usar um diretório temporário.
-O servidor escuta apenas em 127.0.0.1, numa porta livre; alterações HTTP de
-preferências exigem o token da janela.
+As notas criadas no editor são persistidas no SQLite. Para backup, feche o
+aplicativo e copie a pasta VelaWriter inteira. A API escuta apenas em
+127.0.0.1 e exige token da bridge para alterações.
 
-## Arquitetura
-
-O entrypoint usa o servidor Bottle do Vela (`ApiServer`) e monta o roteador
-da aplicação. O pywebview abre diretamente a página local na janela Qt.
-Esse fluxo evita uma segunda shell visual e dependências de CDN do shell
-padrão. Não usa Electron nem copia código do framework.
-
-## Arquivos
-
-| Caminho | Responsabilidade |
-| --- | --- |
-| `main.py` | Inicializar servidor Vela e janela Qt. |
-| `app/__init__.py` | Identificar o pacote e a versão. |
-| `app/config.py` | Criar workspace e persistir configurações. |
-| `app/router.py` | Registrar rotas Bottle e importação nativa. |
-| `app/file_organizer.py` | Validar, copiar ou mover arquivos por tipo. |
-| `ui/templates/base.html` | Compor shell, cabeçalho e barra de status. |
-| `ui/templates/sidebar.html` | Navegação recolhível e importação. |
-| `ui/templates/editor.html` | Área inicial e rascunho temporário. |
-| `ui/static/css/main.css` | Tema responsivo e Tailwind compilado. |
-| `ui/static/js/app.js` | Navegação, preferências e importação. |
-| `ui/static/fonts/Inter.woff2` | Fonte local da interface. |
-| `ui/static/fonts/JetBrainsMono.woff2` | Fonte local do rascunho. |
-| `ui/static/fonts/Inter-LICENSE.txt` | Licença OFL de Inter. |
-| `ui/static/fonts/JetBrainsMono-LICENSE.txt` | Licença OFL de JetBrains Mono. |
-| `tailwind.config.js` | Configurar a descoberta de classes. |
-| `tools/build_css.py` | Compilar CSS pelo pipeline oficial do Vela. |
-| `package.json` | Declarar Tailwind para compilação. |
-| `package-lock.json` | Fixar dependências Node. |
-| `requirements.txt` | Definir runtime e dependências das próximas fases. |
-| `requirements-dev.txt` | Definir ferramentas de validação. |
-| `tests/test_foundation.py` | Testar configuração, arquivos e HTTP real. |
-| `docs/CONTRIBUTING.md` | Orientar contribuição e testes. |
-| `.gitignore` | Excluir dados pessoais e artefatos temporários. |
-| `LICENSE` | Licenciar o código da aplicação sob MIT. |
-| `README.md` | Documentar instalação, uso e escopo. |
-
-## Desenvolvimento
+## Desenvolvimento e testes
 
 ```bash
 python -m pip install -r requirements-dev.txt
+npm ci
 python -m pytest -q
-python -m black --check --line-length 88 main.py app tests tools
+node --test tests/editor.test.cjs
+python -m black --check --line-length 88 app apps config tools tests main.py manage.py
 node --check ui/static/js/app.js
+node --check ui/static/js/editor.js
 ```
 
-Recompilar CSS:
+Recompilar Tailwind e sincronizar:
 
 ```bash
-npm ci
 python tools/build_css.py
+python manage.py collectstatic --no-tailwind
 ```
 
-O CSS compilado já está versionado; nenhum build é necessário para executar.
+O CSS compilado já está versionado; não é necessário Node para executar.
 
-## Validação desta fase
+## Validação
 
-14 testes automatizados aprovados, incluindo montagem da aplicação no servidor
-Vela real. Sintaxe JavaScript e formatação Python verificadas.
-A renderização Qt e o seletor nativo ainda precisam ser validados numa sessão
-gráfica Linux/Windows; o ambiente de implementação não disponibilizou todas as
-bibliotecas gráficas. Não há screenshot ou build desktop validado nesta fase.
+- **23 testes Python**: persistência, revisões concorrentes, recuperação,
+  integração VelaApp/BaseBridge, shell offline, API e exportações relidas.
+- **10 testes JavaScript**: preview seguro, modo rico, tabelas, autosave,
+  conflitos, edição durante salvamento e limpeza do lifecycle.
+- **Qt/PyQt5 real no Linux, em modo offscreen**: inicialização pelo VelaApp,
+  preview, salvamento, alternância para texto rico, exportação PDF e
+  encerramento da janela verificados.
+- Layout no QtWebEngine verificado em **1366×768, 1600×900 e 1920×1080**,
+  sem overflow horizontal. Capturas em `docs/images/`.
+- Windows e seletor nativo interativo ainda precisam de teste físico.
+
+A compatibilidade com Chromium do QtWebEngine 5.15 inclui fallback para
+Array.at usado pelo marked.js e altura viewport sem depender de unidades dvh.
+
+## Organização
+
+| Caminho | Responsabilidade |
+| --- | --- |
+| `manage.py`, `main.py` | Entradas para o runtime oficial Vela. |
+| `config/settings.py`, `config/wsgi.py` | Configuração e registro de apps. |
+| `apps/writer/views.py`, `apps/writer/api.py` | Descoberta de telas e endpoints. |
+| `app/bridge.py` | Extensão da bridge e recursos nativos. |
+| `app/router.py` | View Vela e decorators da API. |
+| `app/editor.py` | Documentos, revisões, sessão e recuperação. |
+| `app/runtime.py` | Serviços compartilhados. |
+| `app/config.py` | Workspace e preferências. |
+| `app/file_organizer.py` | Validação e importação por tipo. |
+| `app/exporters/` | Interpretação Markdown e exportação PDF/DOCX. |
+| `ui/templates/` | Composição do editor e navegação. |
+| `ui/static/js/editor.js` | Edição, preview, autosave e recuperação. |
+| `ui/static/js/app.js` | Bootstrap e lifecycle de página Vela. |
+| `ui/static/js/vendor/` | Bibliotecas locais e licenças. |
+| `ui/static/css/main.css` | Tema e Tailwind compilado. |
+| `ui/static/fonts/` | Fontes locais WOFF2/TTF e licenças. |
+| `tools/` | Build CSS e sincronização de estáticos. |
+| `tests/` | Testes Python e JavaScript. |
+| `docs/CONTRIBUTING.md` | Guia de contribuição. |
 
 ## Próximas fases
 
-2. Editor rico/Markdown, persistência, autosave e exportação PDF/DOCX.
-3. Leitura e conversão de documentos.
+3. Leitura e conversão de PDF, DOCX e PPTX.
 4. Canvas com pressão de caneta e PDF multipágina.
 5. Notas conectadas, FTS5 e grafo de conhecimento.
-6. Empacotamento, screenshots e polimento.
+6. Empacotamento e polimento.
 
 ## Licenças
 
-Código original da aplicação: MIT. Vela Framework: MPL-2.0, mantida no pacote
-da dependência. Inter e JetBrains Mono: SIL OFL, com licenças incluídas.
+Código original da aplicação: MIT. Vela Framework: MPL-2.0.
+Inter e JetBrains Mono: SIL OFL, com licenças incluídas.
+marked.js e Turndown: MIT. DOMPurify: licença dual Apache-2.0/MPL-2.0.
+As licenças dos fornecedores são mantidas junto aos arquivos locais.
+
+Veja [CONTRIBUTING](docs/CONTRIBUTING.md).
