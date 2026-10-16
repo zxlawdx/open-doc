@@ -17,6 +17,16 @@
     const converter = new window.TurndownService({
       headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-"
     });
+    // execCommand(formatBlock, pre) creates a bare pre, unlike marked's pre/code.
+    converter.addRule("nativeCodeBlock", {
+      filter: node => node.nodeName === "PRE" && !node.querySelector("code"),
+      replacement(content, node) {
+        const text = node.textContent.replace(/\n$/, "");
+        const runs = text.match(/`+/g) || [];
+        const fence = "`".repeat(Math.max(3, ...runs.map(run => run.length + 1)));
+        return "\n\n" + fence + "\n" + text + "\n" + fence + "\n\n";
+      }
+    });
     // Preserve tables when moving from rich text back to Markdown.
     converter.addRule("tables", {
       filter: "table",
@@ -80,6 +90,11 @@
       else window.OpenDocRecovery.write(buffer());
     }
 
+    function updateHistoryControls() {
+      root.querySelectorAll('[data-command="undo"]').forEach(button => { button.disabled = !history.canUndo(); });
+      root.querySelectorAll('[data-command="redo"]').forEach(button => { button.disabled = !history.canRedo(); });
+    }
+
     function render() {
       preview.innerHTML = cleanHtml(source.value);
       if (mode === "markdown") {
@@ -92,8 +107,7 @@
         count + (count === 1 ? " palavra" : " palavras");
       root.dataset.dirty = String(!isClean());
       root.dispatchEvent(new CustomEvent("open-doc:content", {detail: {mode}}));
-      root.querySelectorAll('[data-command="undo"]').forEach(button => { button.disabled = !history.canUndo(); });
-      root.querySelectorAll('[data-command="redo"]').forEach(button => { button.disabled = !history.canRedo(); });
+      updateHistoryControls();
       if (window.pywebview?.api?.set_dirty) {
         window.pywebview.api.set_dirty(!isClean()).catch(() => {});
       }
@@ -118,6 +132,7 @@
     function changed(kind = nextKind, origin = rich) {
       if (mode === "rich" && origin === rich) source.value = converter.turndown(rich.innerHTML);
       history.record(buffer(), kind);
+      updateHistoryControls();
       cache();
       clearTimeout(renderTimer);
       renderTimer = setTimeout(render, 100);
