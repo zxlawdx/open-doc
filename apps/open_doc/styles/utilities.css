@@ -1,0 +1,19 @@
+/* Visibility is authoritative over flex/grid component display declarations. */
+.open-doc [hidden] {
+    display: none !important;
+}
+.open-doc .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+}
+.open-doc[data-home-view='true'] .toolbar,
+.open-doc[data-home-view='true'] [data-document-body] {
+    display: none;
+}
