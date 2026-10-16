@@ -11,11 +11,11 @@ async function mount(t, brokenNavigation = false) {
   const dom = new JSDOM(template, {url: 'http://localhost', runScripts: 'outside-only'});
   const w = dom.window, root = w.document.querySelector('[data-app]');
   delete w.Element.prototype.replaceChildren;
-  w.OpenDocPdf={};w.OpenDocFreehand={};w.requestAnimationFrame=fn=>setTimeout(fn,0);
+  w.OpenDocPdf={};w.OpenDocPptxVendor={};w.OpenDocFreehand={};w.requestAnimationFrame=fn=>setTimeout(fn,0);
   const note = {id: 'note', title: 'Documento', markdown: '# Título\n\nTexto selecionado', revision: 1};
   w.pywebview = {api: {get_bootstrap: async () => ({token: 'test', settings: {theme: 'light', zoom: 100}, document: note, autosave_seconds: 30}), set_dirty: async () => {}}};
   w.fetch = async (_, options) => ({ok: true, json: async () => options?.body ? {...JSON.parse(options.body), revision: 2} : {documents: [note], files: []}});
-  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','page_menu.js','editor.js','fixed_document.js','document_kinds.js','ink.js', 'menus.js', 'theme.js', 'paper_layout.js', 'navigation.js']) {
+  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','page_menu.js','editor.js','pptx_renderer.js','fixed_document.js','document_kinds.js','ink.js', 'menus.js', 'theme.js', 'paper_layout.js', 'navigation.js']) {
     w.eval(fs.readFileSync(path.join(base, 'apps/open_doc/static/js', file), 'utf8'));
   }
   if (brokenNavigation) {

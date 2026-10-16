@@ -13,7 +13,6 @@ from ..fixed_document.serialization import serialize, load
 from ..readers.pdf.service import PdfService
 from ..readers.pdf.security import validated_pdf
 from ..readers.pptx.service import PresentationService
-from ..readers.pptx.preview import libreoffice_executable, convert_to_pdf
 from .document_service import RevisionConflict
 from .export_service import safe_stem
 
@@ -100,7 +99,7 @@ class FixedDocumentService:
                 "content": load(recovery["content_json"]),
             }
         preview = self.directory(identifier) / "preview.pdf"
-        can_preview = note["source_kind"] == "pdf" or preview.is_file()
+        can_preview = note["source_kind"] in {"pdf", "pptx"}
         handwriting = getattr(self, "handwriting", None)
         note["capabilities"] = {
             "preview": can_preview,
@@ -109,8 +108,10 @@ class FixedDocumentService:
             and handwriting is not None
             and any(b["available"] for b in handwriting.capabilities()),
             "pptx_preview": {
-                "available": preview.is_file(),
-                "backend": "libreoffice" if preview.is_file() else None,
+                "available": note["source_kind"] == "pptx",
+                "backend": (
+                    "pptx-viewer-0.2.2" if note["source_kind"] == "pptx" else None
+                ),
             },
         }
         return note
@@ -147,18 +148,6 @@ class FixedDocumentService:
             shutil.copyfile(path, source)
             digest = hashlib.sha256(source.read_bytes()).hexdigest()
             model = create(kind, digest, metadata["pages"])
-            if kind == "pptx" and libreoffice_executable():
-                try:
-                    temporary, preview = convert_to_pdf(
-                        libreoffice_executable(), source
-                    )
-                    try:
-                        shutil.copyfile(preview, directory / "preview.pdf")
-                    finally:
-                        temporary.cleanup()
-                except Exception:
-                    # Keep original and annotations available if conversion fails.
-                    pass
             with self.documents._connect() as c:
                 c.execute(
                     "INSERT INTO fixed_documents VALUES (?,?,?,?,?,?,?,?)",
@@ -288,7 +277,7 @@ class FixedDocumentService:
         note = self.get(identifier)
         if note["revision"] != revision:
             raise RevisionConflict("Salve antes de exportar.")
-        if fmt not in (["pdf"] if note["source_kind"] == "pdf" else ["pptx", "pdf"]):
+        if fmt not in (["pdf"] if note["source_kind"] == "pdf" else ["pptx"]):
             raise ValueError("Formato incompatível com este documento.")
         destination = Path(destination).with_suffix("." + fmt)
         source = self.source(

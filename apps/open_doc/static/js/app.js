@@ -248,12 +248,13 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
     if (destroyed) return;
     if (bootstrap.error) throw Error(bootstrap.error);
+    if(bootstrap.assets){const response=await fetch(new URL('vendor/vendor-manifest.json',scriptUrl));if(!response.ok)throw Error('Manifesto local ausente. Execute npm run build.');const manifest=await response.json();if(manifest.build_hash!==bootstrap.assets.build_hash || window.OpenDocPdf?.version!==manifest.versions['pdfjs-dist'])throw Error('Recursos locais desatualizados. Execute npm run build.');console.info('Open Doc runtime',{ua:navigator.userAgent,pdfjs:window.OpenDocPdf.version,vendor:manifest.build_hash,structuredClone:typeof window.structuredClone,pointerEvents:typeof window.PointerEvent});}
     token = bootstrap.token; settings = bootstrap.settings;
     collapsed(settings.sidebar_collapsed);
     editor = window.OpenDocDocumentKinds.create({root, request, status, token, signal, asset:name=>new URL(name,scriptUrl).href, document: bootstrap.document, viewMode: settings.view_mode, autosaveSeconds: bootstrap.autosave_seconds});

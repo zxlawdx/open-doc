@@ -195,6 +195,7 @@ def bootstrap() -> dict[str, Any]:
         )
         or services().editor.current(),
         "autosave_seconds": AUTOSAVE_SECONDS,
+        "assets": getattr(services(), "assets", None),
     }
 
 
@@ -318,7 +319,11 @@ def artifact_content(context=None):
         return static_file(
             path.name,
             root=str(path.parent),
-            mimetype="application/pdf",
+            mimetype=(
+                "application/pdf"
+                if path.suffix.lower() == ".pdf"
+                else "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            ),
             headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
         )
     except Exception:

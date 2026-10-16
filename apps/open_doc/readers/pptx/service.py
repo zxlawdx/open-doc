@@ -1,5 +1,4 @@
 from pptx import Presentation
-from ..pdf.service import PdfService
 from ...parsers.docx.package import DocxPackage
 
 
@@ -21,6 +20,7 @@ class PresentationService:
             "pages": [
                 {
                     "index": i,
+                    "preview_kind": "pptx-native",
                     "width_pt": doc.slide_width / 12700,
                     "height_pt": doc.slide_height / 12700,
                     "strokes": [],

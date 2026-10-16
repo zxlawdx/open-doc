@@ -125,10 +125,7 @@ def test_pdf_annotations_rotation_recovery_and_source_preserved(env, tmp_path):
 
 
 def test_pptx_native_text_and_transparent_full_slide_ink(env, tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "apps.open_doc.services.fixed_document_service.libreoffice_executable",
-        lambda: None,
-    )
+    monkeypatch.setattr("shutil.which", lambda name: None)
     source = tmp_path / "slides.pptx"
     presentation = Presentation()
     for _ in range(3):
@@ -137,7 +134,8 @@ def test_pptx_native_text_and_transparent_full_slide_ink(env, tmp_path, monkeypa
     original = source.read_bytes()
     s = env.fixed_documents
     note = s.import_pptx(source)
-    assert not note["capabilities"]["preview"]
+    assert note["capabilities"]["preview"]
+    assert note["capabilities"]["pptx_preview"]["backend"] == "pptx-viewer-0.2.2"
     model = note["content"]
     model["surfaces"][0].update(strokes=[stroke()], text_overlays=[text()])
     note = s.save(note["id"], note["title"], model, 1)

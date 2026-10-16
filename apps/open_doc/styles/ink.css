@@ -15,3 +15,5 @@
 .fixed-sidebar canvas{display:block;margin:0 auto 4px;max-width:100%;height:auto}.fixed-sidebar [data-thumbnail-index]{min-height:90px}
 [data-home-view=true] .ink-toolbar{display:none}
  .fixed-sidebar button{flex-shrink:0}
+.fixed-page-error,.fixed-load-error{position:relative;z-index:10;margin:12px;padding:8px;color:var(--color-danger);background:var(--color-panel);border:1px solid var(--color-border)}
+.pptx-content{position:absolute;inset:0;overflow:hidden;z-index:1}.open-doc .pptx-content>svg{width:100%;height:100%;display:block}.open-doc .pptx-thumbnail>svg{width:110px;height:auto;display:block;margin:auto}.pptx-fidelity-warning{padding:8px;margin:0 0 12px;color:var(--color-text-secondary)}.open-doc[data-source-kind=pptx] [data-export=pdf]{display:none}
