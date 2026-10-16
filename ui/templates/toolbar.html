@@ -1,0 +1,14 @@
+<!-- ============ FORMATTING TOOLBAR ============ -->
+<div class="toolbar" role="toolbar" aria-label="Formatação do documento">
+<button class="icon-button" data-command="undo" aria-label="Desfazer (Ctrl+Z)" title="Desfazer (Ctrl+Z)"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#undo"></use></svg></button><button class="icon-button" data-command="redo" aria-label="Refazer (Ctrl+Y)" title="Refazer (Ctrl+Y)"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#redo"></use></svg></button>
+<span class="toolbar-divider"></span>
+<label class="sr-only" for="paragraph-style">Estilo de parágrafo</label>
+<select id="paragraph-style" data-paragraph><option value="paragraph">Texto normal</option><option value="h1">Título 1</option><option value="heading">Título 2</option><option value="h3">Título 3</option></select>
+<span class="toolbar-divider"></span>
+<button class="icon-button" data-command="bold" aria-label="Negrito (Ctrl+B)" title="Negrito (Ctrl+B)" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#bold"></use></svg></button><button class="icon-button" data-command="italic" aria-label="Itálico (Ctrl+I)" title="Itálico (Ctrl+I)" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#italic"></use></svg></button>
+<span class="toolbar-divider"></span>
+<button class="icon-button" data-command="list" aria-label="Lista com marcadores" title="Lista com marcadores"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#list"></use></svg></button><button class="icon-button" data-command="ordered" aria-label="Lista numerada" title="Lista numerada"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#ordered"></use></svg></button><button class="icon-button" data-command="quote" aria-label="Citação" title="Citação"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#quote"></use></svg></button><button class="icon-button" data-command="code" aria-label="Bloco de código" title="Bloco de código"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg></button>
+<span class="toolbar-divider"></span>
+<button class="icon-button" data-action="link" aria-label="Inserir link" title="Inserir link"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#link"></use></svg></button>
+<span class="toolbar-spacer"></span><span class="toolbar-note">Documento local</span>
+</div>
