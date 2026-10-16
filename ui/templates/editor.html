@@ -1,41 +1,12 @@
-<!-- ============ PERSISTENT EDITOR ============ -->
-<section class="editor-panel" data-home aria-labelledby="document-title">
-  <div class="writing-header">
-    <label class="sr-only" for="document-title">Título do documento</label>
-    <input id="document-title" data-title maxlength="180"
-      placeholder="Sem título" autocomplete="off" disabled>
-    <div class="editor-actions">
-      <button type="button" data-save disabled>Salvar <kbd>Ctrl S</kbd></button>
-      <button type="button" data-save-copy hidden>Salvar uma cópia</button>
-      <button type="button" data-export="pdf" disabled>PDF ↗</button>
-      <button type="button" data-export="docx" disabled>DOCX ↗</button>
+<!-- ============ CONTINUOUS A4-WIDTH DOCUMENT ============ -->
+<div class="document-canvas" data-canvas>
+  <div class="paper-layout" data-paper-layout>
+    <div class="paper" data-surface data-editor-mode="rich">
+      <label class="sr-only" for="markdown-source">Código-fonte Markdown</label>
+      <textarea id="markdown-source" data-source spellcheck="true" hidden disabled></textarea>
+      <article data-rich contenteditable="false" role="textbox" aria-multiline="true"
+        aria-label="Conteúdo do documento" spellcheck="true" lang="pt-BR"></article>
+      <article class="markdown-preview" data-preview-pane hidden aria-label="Visualização Markdown"></article>
     </div>
   </div>
-  <div class="editor-toolbar" role="toolbar" aria-label="Formatação">
-    <button type="button" data-mode="markdown" aria-pressed="true">Markdown</button>
-    <button type="button" data-mode="rich" aria-pressed="false">Texto rico</button>
-    <span class="toolbar-separator" aria-hidden="true"></span>
-    <button type="button" data-format="bold" title="Negrito (Ctrl B)"><strong>B</strong></button>
-    <button type="button" data-format="italic" title="Itálico (Ctrl I)"><em>I</em></button>
-    <button type="button" data-format="heading" title="Título de seção">H2</button>
-    <button type="button" data-format="list" title="Lista">≡</button>
-    <button type="button" data-format="quote" title="Citação">❝</button>
-    <button type="button" data-format="code" title="Código">〈〉</button>
-    <label class="preview-toggle"><input type="checkbox" data-preview-toggle checked>
-      Preview</label>
-  </div>
-  <div class="recovery" data-recovery hidden role="alert">
-    <span>Encontramos alterações locais que ainda não foram salvas.</span>
-    <button type="button" data-recover>Recuperar como cópia</button>
-    <button type="button" data-discard-recovery>Descartar recuperação</button>
-  </div>
-  <div class="writing-surface" data-surface data-preview="true" data-editor-mode="markdown">
-    <label class="sr-only" for="markdown-source">Conteúdo Markdown</label>
-    <textarea id="markdown-source" data-source spellcheck="true"
-      placeholder="Comece sua próxima ideia…" disabled></textarea>
-    <div data-rich contenteditable="false" role="textbox" aria-multiline="true"
-      aria-label="Editor de texto rico" hidden></div>
-    <article class="markdown-preview" data-preview-pane aria-label="Preview Markdown"></article>
-  </div>
-  <p class="export-result" data-export-result role="status"></p>
-</section>
+</div>
