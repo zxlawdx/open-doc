@@ -155,7 +155,8 @@
           const focus=getSelection()?.focusNode,focusElement=focus?.nodeType===3?focus.parentElement:focus;
           if(dirty && focusElement && !dirty.contains(focusElement))dirty=null;
         }
-        const inputStructural=/^(insertParagraph|insertLineBreak|deleteContentBackward|deleteContentForward|deleteByCut|insertFromPaste)$/.test(inputEvent?.inputType || '');
+        const inputType=inputEvent?.inputType || '',dirtyId=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId;
+        const inputStructural=/^(insertParagraph|insertLineBreak|deleteByCut|insertFromPaste)$/.test(inputType) || (/^deleteContent(Backward|Forward)$/.test(inputType) && (!dirtyId || dirtyId!==beforeInputBlockId));
         if(inputEvent?.inputType==='insertParagraph' && dirty){
           const oldId=dirty.dataset.fragmentOf || dirty.dataset.nodeId;
           const siblings=Array.from(rich.querySelectorAll('[data-page-content] > *,[data-page-content] li'));
