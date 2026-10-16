@@ -93,7 +93,9 @@ def test_symlink_rejected(tmp_path: Path) -> None:
         FileOrganizer(Config(tmp_path / "workspace")).organize(link)
 
 
-def test_vela_application_lifecycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_vela_application_lifecycle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Executa VelaApp.run com janela substituída e servidor HTTP real."""
     from vela.core.app import VelaApp
     from vela.core.bridge import BaseBridge
@@ -144,19 +146,18 @@ def test_vela_application_lifecycle(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         "/api/writer/document/new", {"title": "Minha nota"}, headers=headers
     ).json
     note["markdown"] = "# Olá\n\nTexto **forte**."
-    saved = client.post_json(
-        "/api/writer/document/save", note, headers=headers
-    ).json
+    saved = client.post_json("/api/writer/document/save", note, headers=headers).json
     assert saved["revision"] == note["revision"] + 1
+    client.post_json("/api/writer/document/save", note, headers=headers, status=409)
     client.post_json(
-        "/api/writer/document/save", note, headers=headers, status=409
+        "/api/writer/document/open",
+        {"path": "../outside.md"},
+        headers=headers,
+        status=HTTP_BAD_REQUEST,
     )
     client.post_json(
-        "/api/writer/document/open", {"path": "../outside.md"},
-        headers=headers, status=HTTP_BAD_REQUEST,
-    )
-    client.post_json(
-        "/api/writer/settings", {"settings": {"sidebar_collapsed": True}},
+        "/api/writer/settings",
+        {"settings": {"sidebar_collapsed": True}},
         headers=headers,
     )
     assert services().config.load_settings()["sidebar_collapsed"] is True
