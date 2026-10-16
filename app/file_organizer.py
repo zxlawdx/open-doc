@@ -102,6 +102,10 @@ class FileOrganizer:
                             "name": path.name,
                             "type": path.suffix.lower().lstrip("."),
                             "path": path.relative_to(self.config.root).as_posix(),
+                            "capabilities": {
+                                k: path.suffix.lower() in {".docx", ".md", ".txt"}
+                                for k in ("open", "edit", "export")
+                            },
                         }
                     )
         return sorted(files, key=lambda item: item["name"].casefold())

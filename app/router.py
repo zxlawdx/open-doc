@@ -122,6 +122,10 @@ def new_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
 
     def create() -> dict[str, Any]:
         data = _data(context)
+        if data.get("content_format") == "opendoc-rich-v1":
+            return services().editor.create_rich_copy(
+                data["title"], data["content"], data.get("source_id")
+            )
         return services().editor.create(
             data.get("title", "Sem título"), data.get("markdown", "")
         )
@@ -144,12 +148,19 @@ def open_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
         source = root / relative
         resolved = source.resolve()
         if (
-            not resolved.is_relative_to(root / "notes")
+            not (
+                resolved.is_relative_to(root / "notes")
+                or resolved.is_relative_to(root / "documents" / "docx")
+            )
             or source.is_symlink()
             or not source.is_file()
         ):
             raise ValueError("Nota inválida.")
-        return services().editor.import_note(resolved)
+        return (
+            services().editor.import_docx(resolved)
+            if resolved.suffix.lower() == ".docx"
+            else services().editor.import_note(resolved)
+        )
 
     return _handle(select)
 
@@ -161,7 +172,12 @@ def save_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     def save() -> dict[str, Any]:
         data = _data(context)
         return services().editor.save(
-            data["id"], data["title"], data["markdown"], data["revision"]
+            data["id"],
+            data["title"],
+            data.get("markdown", ""),
+            data["revision"],
+            data.get("content"),
+            data.get("content_format", "markdown"),
         )
 
     return _handle(save)
@@ -174,6 +190,7 @@ def export_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     def export() -> dict[str, Any]:
         from app.exporters.docx_exporter import export_docx
         from app.exporters.pdf_exporter import export_pdf
+        from app.exporters.html_exporter import export_html
 
         data = _data(context)
         document = services().editor.get(data["id"])
@@ -184,7 +201,12 @@ def export_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
         def export_markdown(markdown: str, target: Path, title: str) -> None:
             target.write_text(markdown, encoding="utf-8")
 
-        exporters = {"pdf": export_pdf, "docx": export_docx, "md": export_markdown}
+        exporters = {
+            "pdf": export_pdf,
+            "docx": export_docx,
+            "md": export_markdown,
+            "html": export_html,
+        }
         if extension not in exporters:
             raise ValueError("Formato de exportação inválido.")
         import re
@@ -194,11 +216,48 @@ def export_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
         target = services().config.root / "exports" / filename
         temporary = target.with_suffix(".tmp")
         try:
-            exporters[extension](document["markdown"], temporary, document["title"])
+            if extension == "html":
+                if document.get("content"):
+                    export_html(
+                        document["content"],
+                        temporary,
+                        document["title"],
+                        package_directory=services().editor.package_directory(
+                            document["id"]
+                        ),
+                    )
+                else:
+                    from html import escape
+
+                    temporary.write_text(
+                        "<!doctype html><meta charset=utf-8><pre>"
+                        + escape(document["markdown"])
+                        + "</pre>",
+                        encoding="utf-8",
+                    )
+            elif extension == "docx" and document.get("content_json"):
+                export_docx(
+                    document["content"],
+                    temporary,
+                    document["title"],
+                    package_directory=services().editor.package_directory(
+                        document["id"]
+                    ),
+                )
+            else:
+                exporters[extension](document["markdown"], temporary, document["title"])
             temporary.replace(target)
         finally:
             temporary.unlink(missing_ok=True)
         return {
+            "lossy": bool(document.get("content_json") and extension != "docx"),
+            "warnings": (
+                [
+                    "Exportação simplificada: tipografia, imagens e layout podem se perder."
+                ]
+                if document.get("content_json") and extension != "docx"
+                else document.get("content", {}).get("metadata", {}).get("warnings", [])
+            ),
             "name": target.name,
             "path": str(target),
             "revision": document["revision"],
@@ -229,7 +288,41 @@ def recovery_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
         if data.get("discard"):
             return services().editor.discard_recovery(data["id"])
         return services().editor.stash_recovery(
-            data["id"], data["title"], data["markdown"], data["revision"]
+            data["id"],
+            data["title"],
+            data.get("markdown", ""),
+            data["revision"],
+            data.get("content"),
+            data.get("content_format", "markdown"),
         )
 
     return _handle(recovery)
+
+
+@api.post("/open_doc/document/media")
+def document_media(context=None):
+    """Resolve only bounded local raster media referenced by the saved model."""
+
+    def read():
+        import base64, io, re
+        from PIL import Image
+
+        data = _data(context)
+        document = services().editor.get(data["id"])
+        mid = data["media_id"]
+        if (
+            not isinstance(mid, str)
+            or not re.fullmatch("[a-f0-9]{64}", mid)
+            or mid not in document.get("content", {}).get("media", {})
+        ):
+            raise ValueError("Imagem inválida.")
+        blob = (
+            services().editor.package_directory(document["id"]) / "media" / mid
+        ).read_bytes()
+        with Image.open(io.BytesIO(blob)) as image:
+            kind = image.format.lower()
+        return {
+            "url": "data:image/" + kind + ";base64," + base64.b64encode(blob).decode()
+        }
+
+    return _handle(read)

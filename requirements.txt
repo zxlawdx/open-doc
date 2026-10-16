@@ -11,3 +11,7 @@ pypdf>=5,<7
 
 markdown-it-py>=3,<5
 
+
+# OOXML parsing and safe local raster validation.
+lxml>=5,<7
+Pillow>=10,<13

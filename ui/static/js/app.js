@@ -97,7 +97,7 @@
         const row = document.createElement('li');
         const icon = document.createElement('span'); icon.className = 'file-icon'; icon.textContent = notes ? 'DOC' : file.type.toUpperCase();
         const info = document.createElement('div');
-        const editable = notes || ['md', 'txt'].includes(file.type);
+        const editable=notes || Boolean(file.capabilities?.open);
         const name = document.createElement(editable ? 'button' : 'span'); name.textContent = notes ? file.title : file.name;
         if (editable) name.addEventListener('click', () => operate(async () => {
           await editor.flush();
@@ -118,9 +118,11 @@
   }
   async function importDocument() {
     await editor.flush();
+    status("Abrindo documento…");
     const result = await window.pywebview.api.import_document();
     if (result.error) throw Error(result.error);
     if (result.cancelled) return;
+    if(result.document){editor.load(result.document);editor.setMode('rich');showView(false);status('Documento Word importado.');return;}
     showView(true); status('Arquivo importado: ' + result.name);
   }
   function closeDialog(value = null) {
@@ -175,6 +177,11 @@
   function updateToolbar() {
     const state = editor?.commandState() || {};
     for (const name of ['bold', 'italic']) root.querySelectorAll('[data-command="' + name + '"][aria-pressed]').forEach(button => button.setAttribute('aria-pressed', String(Boolean(state[name]))));
+    if(editor?.textState){const state=editor.textState();for(const control of root.querySelectorAll('[data-inline-style]')){
+      if(document.activeElement===control)continue;const value=state[control.dataset.inlineStyle];if(value==null)continue;
+      if(control.hasAttribute('data-font-family') && !Array.from(control.options).some(o=>o.value===value)){const option=document.createElement('option');option.value=value;option.textContent=value+' (não instalada)';control.appendChild(option);}
+      control.value=control.type==='color'?'#'+value:value;
+    }}
     const select = root.querySelector('[data-paragraph]');
     if (select && document.activeElement !== select && state.paragraph) select.value = state.paragraph;
   }
@@ -202,7 +209,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocEditor', 'editor.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocEditor','editor.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
@@ -213,7 +220,7 @@
     editor = window.OpenDocEditor.create({root, request, status, document: bootstrap.document, autosaveSeconds: bootstrap.autosave_seconds});
     // Selection and command bindings are essential, independent of side panels.
     function preserveSelection(event) {
-      if (event.target.closest('[data-menu], [data-command], [data-action="link"], [data-paragraph]')) editor.capture();
+      if (event.target.closest('[data-menu], [data-command], [data-action="link"], .toolbar select, .toolbar input, .toolbar button')) editor.capture();
       if (event.type === 'mousedown' && event.target.closest('.toolbar button')) event.preventDefault();
     }
     root.addEventListener('pointerdown', preserveSelection, {signal});
@@ -228,6 +235,12 @@
       else if (button.hasAttribute('data-import')) action('import');
       else if (button.hasAttribute('data-toggle')) toggleNavigator();
     }, {signal});
+    root.querySelectorAll('[data-inline-style],[data-paragraph-style]').forEach(control=>control.addEventListener('change',()=>{
+      const key=control.dataset.inlineStyle || control.dataset.paragraphStyle;let value=control.value;
+      if(['font_size_pt','line_spacing','left_indent_pt','space_after_pt'].includes(key))value=Number(value);
+      if(['color','highlight'].includes(key))value=value.replace('#','').toUpperCase();
+      editor.style(control.hasAttribute('data-inline-style')?'inline':'paragraph',{[key]:value});
+    },{signal}));
     root.querySelector('[data-paragraph]').addEventListener('change', event => { editor.format(event.target.value); updateToolbar(); }, {signal});
     document.addEventListener('selectionchange', updateToolbar, {signal});
     root.addEventListener('open-doc:content', updateToolbar, {signal});
@@ -251,6 +264,10 @@
       const name = ({n: 'new', o: 'import', f: 'find'})[event.key.toLowerCase()];
       if (name) { event.preventDefault(); action(name); }
     }, {signal});
+    try{
+      const catalog=await window.pywebview.api.get_font_catalog?.(),select=root.querySelector('[data-font-family]');
+      if(catalog && select)for(const family of catalog.fonts){const option=document.createElement('option');option.value=family;option.textContent=family;option.style.fontFamily=JSON.stringify(family);select.appendChild(option);}
+    }catch(error){console.error('Open Doc: fontes',error);}
     menus = await auxiliary('menus', 'OpenDocMenus', 'menus.js', module => module.create(root, editor.capture, signal));
     theme = await auxiliary('aparência', 'OpenDocTheme', 'theme.js', module => module.create(root, settings, persist, signal));
     layout = await auxiliary('zoom', 'OpenDocPaperLayout', 'paper_layout.js', module => module.create(root, settings, persist, signal));

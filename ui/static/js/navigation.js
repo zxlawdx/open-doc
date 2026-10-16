@@ -50,7 +50,7 @@
       const query = input.value.trim().toLocaleLowerCase('pt-BR');
       results.replaceChildren();
       if (!query) return;
-      const haystack = root.querySelector('[data-preview-pane]').textContent.toLocaleLowerCase('pt-BR');
+      const haystack = (root.querySelector('[data-surface]').dataset.editorMode==='rich'?rich:root.querySelector('[data-preview-pane]')).textContent.toLocaleLowerCase('pt-BR');
       let offset = 0, count = 0;
       const found = [];
       while ((offset = haystack.indexOf(query, offset)) !== -1) {

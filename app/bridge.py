@@ -53,9 +53,22 @@ class OpenDocBridge(BaseBridge):
             return {"cancelled": True}
         try:
             target = services().organizer.organize(Path(paths[0]))
+            if target.suffix.lower() == ".docx":
+                return {
+                    "name": target.name,
+                    "document": services().editor.import_docx(target),
+                    "opened": True,
+                }
             return {"name": target.name}
         except (ValueError, OSError, UnicodeError):
-            return {"error": "Não foi possível importar. Confira formato e acesso."}
+            return {
+                "error": "Não foi possível abrir/importar este documento. O arquivo original foi preservado."
+            }
+
+    def get_font_catalog(self):
+        from app.font_catalog import available_font_families
+
+        return {"fonts": available_font_families()}
 
     def set_dirty(self, dirty: bool) -> dict[str, bool]:
         """Ativa confirmação nativa sem executar JavaScript no evento de fechar."""

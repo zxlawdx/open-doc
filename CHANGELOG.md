@@ -2,6 +2,14 @@
 
 Formato baseado em Keep a Changelog. Versões da aplicação seguem SemVer.
 
+## [Não lançado] — DOCX estruturado
+
+- Modelo opendoc-rich-v1 com migration aditiva, backup do Markdown legado,
+  salvamento, histórico e recuperação estruturados.
+- Importação OOXML editável, fontes locais, tipografia, tabelas, listas e seções.
+- Round-trip DOCX sobre o pacote original, preservação de partes opacas e avisos.
+- Exportação HTML e avisos de perda em PDF/Markdown; QA Qt com reabertura em outro processo.
+
 ## [0.3.0] - 2026-10-15
 
 ### Alterado

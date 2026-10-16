@@ -171,3 +171,44 @@ def test_vela_application_lifecycle(
         ).json
         assert Path(exported["path"]).is_relative_to(tmp_path / "exports")
         assert Path(exported["path"]).stat().st_size > 0
+
+    # Structured OOXML is larger than Bottle's default 100 KiB JSON ceiling.
+    from dataclasses import asdict
+    from app.document_model.schema import RichDocument, Paragraph, TextRun
+
+    model = RichDocument().to_dict()
+    text = "Documento extenso " * 12000
+    model["blocks"] = [asdict(Paragraph(children=[asdict(TextRun(text=text))]))]
+    large = client.post_json(
+        "/api/open_doc/document/new", {"title": "Rico"}, headers=headers
+    ).json
+    rich_saved = client.post_json(
+        "/api/open_doc/document/save",
+        {
+            "id": large["id"],
+            "title": "Rico",
+            "revision": large["revision"],
+            "content_format": "opendoc-rich-v1",
+            "content": model,
+        },
+        headers=headers,
+    ).json
+    reopened = client.post_json(
+        "/api/open_doc/document/open", {"id": large["id"]}, headers=headers
+    ).json
+    assert reopened["content"] == model
+    for extension in ("md", "html"):
+        result = client.post_json(
+            "/api/open_doc/document/export",
+            {
+                "id": large["id"],
+                "revision": rich_saved["revision"],
+                "format": extension,
+            },
+            headers=headers,
+        ).json
+        assert (
+            result["lossy"]
+            and result["warnings"]
+            and Path(result["path"]).stat().st_size > 0
+        )

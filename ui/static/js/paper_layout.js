@@ -16,11 +16,16 @@
     }
     function measure() {
       const scale = zoom / 100;
-      const height = Math.max(MIN_HEIGHT, paper.scrollHeight || MIN_HEIGHT);
-      layout.style.width = WIDTH * scale + 'px';
+      const width=Number(paper.dataset.pageWidth) || WIDTH;
+      const minimum=Number(paper.dataset.pageHeight) || MIN_HEIGHT;
+      const height=Math.max(minimum,paper.scrollHeight || minimum);
+      if(ruler.dataset.rulerWidth!==String(width)){ruler.replaceChildren();for(let cm=0;cm<=Math.floor(width/(96/2.54));cm++){const marker=document.createElement('span');marker.textContent=cm;marker.style.left=cm*(96/2.54)+'px';ruler.appendChild(marker);}ruler.dataset.rulerWidth=String(width);}
+      layout.style.width = width * scale + 'px';
       layout.style.height = height * scale + 'px';
       layout.style.minHeight = height * scale + 'px';
       paper.style.transform = 'scale(' + scale + ')';
+      ruler.style.width=width+'px';
+      if(Number(paper.dataset.pageWidth)>0){const style=getComputedStyle(root.querySelector('[data-rich]'));ruler.style.background='linear-gradient(90deg,var(--border-soft) 0 '+style.paddingLeft+',white '+style.paddingLeft+' calc(100% - '+style.paddingRight+'),var(--border-soft) calc(100% - '+style.paddingRight+'))';}else ruler.style.background='';
       ruler.style.transform = 'scale(' + scale + ')';
       const band = root.querySelector('[data-ruler-band]');
       if (band) band.style.paddingRight = 24 + Math.max(0, canvas.offsetWidth - canvas.clientWidth) + 'px';

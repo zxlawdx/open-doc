@@ -19,6 +19,11 @@ INSTALLED_APPS = ("apps.open_doc",)
 
 def create_app(workspace: Config | None = None) -> VelaApp:
     """Constrói o runtime oficial do framework e registra o app Open Doc."""
+    from bottle import BaseRequest
+    from app.document_model.validate import MAX_MODEL_JSON_BYTES
+
+    # Bottle defaults to 100 KiB for JSON; keep a separate bounded transport limit.
+    BaseRequest.MEMFILE_MAX = MAX_MODEL_JSON_BYTES * 2 + 65536
     configure(workspace)
     sync_frontend()
     application = VelaApp(settings_module="config.settings", bridge_class=OpenDocBridge)

@@ -8,6 +8,8 @@ Criado em: 2026
 from __future__ import annotations
 
 import sqlite3
+from contextlib import contextmanager
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
@@ -31,6 +33,7 @@ class Editor:
 
     def __init__(self, config: Config) -> None:
         """Inicializa o banco do workspace e restaura a sessão."""
+        self.config = config
         self.path = config.root / ".veladata" / "writer.sqlite3"
         self._lock = RLock()
         with self._connect() as connection:
@@ -44,22 +47,33 @@ class Editor:
                 "id TEXT PRIMARY KEY, title TEXT NOT NULL, markdown TEXT NOT NULL,"
                 "revision INTEGER NOT NULL);"
             )
+        from app.document_model.migration import migrate_documents
+
+        with self._connect() as connection:
+            migrate_documents(connection)
         if not self.list_documents():
             self.create("Sem título", "")
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
-    def _validate(self, title: Any, markdown: Any) -> tuple[str, str]:
+    def _validate(
+        self, title: Any, markdown: Any, rich: bool = False
+    ) -> tuple[str, str]:
         if not isinstance(title, str) or not title.strip():
             raise ValueError("Informe um título.")
         if len(title) > MAX_TITLE_LENGTH:
             raise ValueError("O título ultrapassa 180 caracteres.")
         if not isinstance(markdown, str):
             raise ValueError("O conteúdo precisa ser texto.")
-        if len(markdown.encode("utf-8")) > MAX_DOCUMENT_BYTES:
+        if not rich and len(markdown.encode("utf-8")) > MAX_DOCUMENT_BYTES:
             raise ValueError("O documento ultrapassa 5 MB.")
         return title.strip(), markdown
 
@@ -75,7 +89,7 @@ class Editor:
         updated = datetime.now(timezone.utc).isoformat()
         with self._lock, self._connect() as connection:
             connection.execute(
-                "INSERT INTO documents VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO documents (id,title,markdown,revision,updated_at) VALUES (?, ?, ?, ?, ?)",
                 (identifier, title, markdown, INITIAL_REVISION, updated),
             )
             connection.execute(
@@ -110,27 +124,47 @@ class Editor:
                 "SELECT * FROM recovery WHERE id = ?", (identifier,)
             ).fetchone()
         document["recovery"] = dict(recovery) if recovery else None
+        from app.document_model.serialization import load_document
+
+        for item in (document, document["recovery"]):
+            if item and item.get("content_json"):
+                item["content"] = load_document(item["content_json"])
         return document
 
     def stash_recovery(
-        self, identifier: str, title: str, markdown: str, revision: int
+        self,
+        identifier: str,
+        title: str,
+        markdown: str,
+        revision: int,
+        content=None,
+        content_format="markdown",
     ) -> dict[str, bool]:
         """Mantém uma recuperação persistente independente da origem HTTP."""
         identifier = self._identifier(identifier)
-        title, markdown = self._validate(title, markdown)
+        encoded = self._rich_payload(content, content_format)
+        if encoded is not None:
+            from app.document_model.serialization import rich_to_markdown
+
+            markdown = rich_to_markdown(content)
+        title, markdown = self._validate(title, markdown, rich=encoded is not None)
         with self._lock, self._connect() as connection:
             current = connection.execute(
-                "SELECT revision, title, markdown FROM documents WHERE id = ?",
+                "SELECT revision, title, markdown, content_json FROM documents WHERE id = ?",
                 (identifier,),
             ).fetchone()
             if current is None or current["revision"] != revision:
                 return {"stored": False}
-            if current["title"] == title and current["markdown"] == markdown:
+            if (
+                current["title"] == title
+                and current["markdown"] == markdown
+                and current["content_json"] == encoded
+            ):
                 connection.execute("DELETE FROM recovery WHERE id = ?", (identifier,))
             else:
                 connection.execute(
-                    "INSERT OR REPLACE INTO recovery VALUES (?, ?, ?, ?)",
-                    (identifier, title, markdown, revision),
+                    "INSERT OR REPLACE INTO recovery (id,title,markdown,revision,content_json,content_format) VALUES (?, ?, ?, ?, ?, ?)",
+                    (identifier, title, markdown, revision, encoded, content_format),
                 )
         return {"stored": True}
 
@@ -164,7 +198,13 @@ class Editor:
         return document
 
     def save(
-        self, identifier: str, title: str, markdown: str, revision: int
+        self,
+        identifier: str,
+        title: str,
+        markdown: str,
+        revision: int,
+        content=None,
+        content_format="markdown",
     ) -> dict[str, Any]:
         """Salva apenas se a revisão lida ainda for a atual.
 
@@ -173,16 +213,43 @@ class Editor:
             ValueError: Quando campos ou identificador são inválidos.
         """
         identifier = self._identifier(identifier)
-        title, markdown = self._validate(title, markdown)
         if type(revision) is not int or revision < INITIAL_REVISION:
             raise ValueError("Revisão inválida.")
+        encoded = self._rich_payload(content, content_format)
+        if encoded is not None:
+            from app.document_model.serialization import rich_to_markdown
+
+            markdown = rich_to_markdown(content)
+        title, markdown = self._validate(title, markdown, rich=encoded is not None)
         updated = datetime.now(timezone.utc).isoformat()
         with self._lock, self._connect() as connection:
+            current = connection.execute(
+                "SELECT * FROM documents WHERE id=?", (identifier,)
+            ).fetchone()
+            if current and current["content_format"] != "markdown" and encoded is None:
+                raise ValueError("Documento rico exige modelo estruturado.")
+            if (
+                current
+                and current["content_format"] == "markdown"
+                and encoded is not None
+            ):
+                connection.execute(
+                    "INSERT OR IGNORE INTO legacy_backups VALUES (?,?)",
+                    (identifier, current["markdown"]),
+                )
             cursor = connection.execute(
                 "UPDATE documents SET title = ?, markdown = ?, "
-                "revision = revision + 1, updated_at = ? "
+                "content_json = ?, content_format = ?, revision = revision + 1, updated_at = ? "
                 "WHERE id = ? AND revision = ?",
-                (title, markdown, updated, identifier, revision),
+                (
+                    title,
+                    markdown,
+                    encoded,
+                    content_format,
+                    updated,
+                    identifier,
+                    revision,
+                ),
             )
             if cursor.rowcount != INITIAL_REVISION:
                 raise RevisionConflict(
@@ -201,3 +268,100 @@ class Editor:
         if source.stat().st_size > MAX_DOCUMENT_BYTES:
             raise ValueError("O documento ultrapassa 5 MB.")
         return self.create(source.stem, source.read_text(encoding="utf-8"))
+
+    def _rich_payload(self, content, content_format):
+        if content_format == "markdown":
+            if content is not None:
+                raise ValueError("Modelo sem formato rico.")
+            return None
+        if content_format != "opendoc-rich-v1" or content is None:
+            raise ValueError("Formato inválido.")
+        from app.document_model.serialization import serialize_document
+
+        return serialize_document(content)
+
+    def package_directory(self, identifier):
+        return (
+            self.config.root / ".veladata" / "packages" / self._identifier(identifier)
+        )
+
+    def import_docx(self, source):
+        import shutil
+        from app.importers.docx.importer import DocxImporter
+        from app.document_model.serialization import (
+            serialize_document,
+            rich_to_markdown,
+        )
+
+        identifier = str(uuid4())
+        directory = self.package_directory(identifier)
+        directory.mkdir(parents=True, exist_ok=False)
+        committed = False
+        try:
+            model = DocxImporter().import_file(
+                source, document_id=identifier, package_directory=directory
+            )
+            with self._lock, self._connect() as c:
+                c.execute(
+                    "INSERT INTO documents (id,title,markdown,revision,updated_at,content_format,content_json,source_kind,source_path,source_sha256) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        identifier,
+                        source.stem[:180],
+                        rich_to_markdown(model),
+                        1,
+                        datetime.now(timezone.utc).isoformat(),
+                        "opendoc-rich-v1",
+                        serialize_document(model),
+                        "docx",
+                        str(source),
+                        model["metadata"]["source_sha256"],
+                    ),
+                )
+                c.execute(
+                    "INSERT OR REPLACE INTO session VALUES ('active',?)", (identifier,)
+                )
+            committed = True
+            return self.get(identifier)
+        except BaseException:
+            if not committed:
+                shutil.rmtree(directory, ignore_errors=True)
+            raise
+
+    def create_rich_copy(self, title, content, source_id=None):
+        import shutil
+        from app.document_model.serialization import rich_to_markdown
+
+        encoded = self._rich_payload(content, "opendoc-rich-v1")
+        title, markdown = self._validate(title, rich_to_markdown(content), rich=True)
+        identifier = str(uuid4())
+        directory = self.package_directory(identifier)
+        committed = False
+        try:
+            if source_id:
+                source = self.package_directory(source_id)
+                if source.exists():
+                    shutil.copytree(source, directory)
+            if content.get("media") and not directory.exists():
+                raise ValueError("A cópia exige o pacote original e a mídia.")
+            with self._lock, self._connect() as c:
+                c.execute(
+                    "INSERT INTO documents (id,title,markdown,revision,updated_at,content_format,content_json) VALUES (?,?,?,?,?,?,?)",
+                    (
+                        identifier,
+                        title,
+                        markdown,
+                        1,
+                        datetime.now(timezone.utc).isoformat(),
+                        "opendoc-rich-v1",
+                        encoded,
+                    ),
+                )
+                c.execute(
+                    "INSERT OR REPLACE INTO session VALUES ('active',?)", (identifier,)
+                )
+            committed = True
+            return self.get(identifier)
+        except BaseException:
+            if not committed and directory.exists():
+                shutil.rmtree(directory, ignore_errors=True)
+            raise

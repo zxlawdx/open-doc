@@ -44,7 +44,8 @@
       }
     });
 
-    let documentState = null;
+    let documentState = null, model = null;
+    const mediaCache=new Map();
     let saved = "";
     let mode = "rich";
     let chain = Promise.resolve();
@@ -66,18 +67,25 @@
       });
     }
 
+    function mediaUrl(mid){
+      if(!mediaCache.has(mid))mediaCache.set(mid,request('document/media',{id:documentState.id,media_id:mid}).then(r=>r.url));
+      return mediaCache.get(mid);
+    }
+    function renderRich(){if(model && window.OpenDocRichRenderer)window.OpenDocRichRenderer.render(model,rich,mediaUrl);else rich.innerHTML=cleanHtml(source.value);}
+    function updateModel(dirty=null){if(window.OpenDocRichSerializer)model=window.OpenDocRichSerializer.serialize(rich,model,dirty);}
     function buffer() {
       return {
         id: documentState.id,
         title: title.value.trim() || "Sem título",
         markdown: source.value,
+        ...(model?{content_format:"opendoc-rich-v1",content:model}:{}),
         revision: documentState.revision,
         selection: mode === "rich" ? commands.bookmark() : {start: source.selectionStart, length: source.selectionEnd - source.selectionStart}
       };
     }
 
     function signature(snapshot) {
-      return JSON.stringify([snapshot.title, snapshot.markdown]);
+      return JSON.stringify([snapshot.title,snapshot.content?window.OpenDocModel.fingerprint(snapshot.content):snapshot.markdown]);
     }
 
     function isClean() {
@@ -96,12 +104,12 @@
     }
 
     function render() {
-      preview.innerHTML = cleanHtml(source.value);
+      if(model && mode==='preview')window.OpenDocRichRenderer.render(model,preview,mediaUrl);else if(!model)preview.innerHTML = cleanHtml(source.value);
       if (mode === "markdown") {
         source.style.height = "auto";
         source.style.height = Math.max(1123, source.scrollHeight) + "px";
       }
-      const text = preview.textContent.trim();
+      const text = (model?rich:preview).textContent.trim();
       const count = text ? text.split(/\s+/u).length : 0;
       root.querySelector("[data-count]").textContent =
         count + (count === 1 ? " palavra" : " palavras");
@@ -129,8 +137,11 @@
       }, RECOVERY_DELAY);
     }
 
-    function changed(kind = nextKind, origin = rich) {
-      if (mode === "rich" && origin === rich) source.value = converter.turndown(rich.innerHTML);
+    function changed(kind = nextKind, origin = rich, inputEvent=null) {
+      if (mode === 'rich' && origin === rich){
+        let dirty=null;if(kind==='typing' && inputEvent?.isTrusted && model){dirty=getSelection().anchorNode;if(dirty?.nodeType===3)dirty=dirty.parentElement;while(dirty && dirty.parentNode!==rich)dirty=dirty.parentElement;}
+        updateModel(dirty);source.value=model?window.OpenDocModel.markdown(model):converter.turndown(rich.innerHTML);
+      }
       history.record(buffer(), kind);
       updateHistoryControls();
       cache();
@@ -146,6 +157,13 @@
     function load(note) {
       clearTimeout(recoveryTimer);
       documentState = {...note};
+      model=note.content?window.OpenDocModel.clone(note.content):null;mediaCache.clear();
+      const warning=root.querySelector('[data-rich-warning]'),list=root.querySelector('[data-rich-warnings]');
+      if(warning && list){const warnings=model?.metadata?.warnings || [];warning.hidden=!warnings.length;list.replaceChildren();for(const message of warnings.slice(0,30)){const li=document.createElement('li');li.textContent=message;list.appendChild(li);}}
+      const section=model?.sections?.[0];surface.style.width=section?section.page_width_pt*4/3+'px':'';surface.style.minHeight=section?section.page_height_pt+'pt':'';surface.dataset.pageWidth=section?section.page_width_pt*4/3:'';surface.dataset.pageHeight=section?section.page_height_pt*4/3:'';
+      for(const pane of [rich,preview]){pane.style.minHeight=section?section.page_height_pt+'pt':'';pane.style.padding=section?[section.margin_top_pt,section.margin_right_pt,section.margin_bottom_pt,section.margin_left_pt].map(n=>n+'pt').join(' '):'';}
+      for(const [kind,selector] of [['headers','[data-rich-header]'],['footers','[data-rich-footer]']]){const pane=root.querySelector(selector);if(!pane)continue;const values=model?Object.values(model[kind] || {}):[];pane.hidden=!values.length;if(values.length)window.OpenDocRichRenderer.render({...model,blocks:values[0]},pane,mediaUrl);}
+
       source.value = note.markdown;
       title.value = note.title;
       saved = signature(note);
@@ -157,7 +175,7 @@
       });
       root.querySelector("[data-conflict]").hidden = true;
       root.querySelector("[data-export-result]").textContent = "";
-      rich.innerHTML = cleanHtml(note.markdown);
+      renderRich();source.readOnly=Boolean(model);
       recovered = note.recovery || null;
       const cached = window.OpenDocRecovery.read(documentState.id);
       if (cached && signature(cached) !== saved) recovered = cached;
@@ -204,7 +222,8 @@
       try {
         await chain;
         const note = await request("document/new", {
-          title: snapshot.title + " (cópia)", markdown: snapshot.markdown
+          title: snapshot.title + " (cópia)", markdown: snapshot.markdown,
+          ...(snapshot.content?{content_format:"opendoc-rich-v1",content:snapshot.content,source_id:documentState.id}:{})
         });
         if (discardRecovery) {
           await request("document/recovery", {id: documentState.id, discard: true});
@@ -218,7 +237,8 @@
 
     function setMode(next) {
       if (!["rich", "markdown", "preview"].includes(next)) return;
-      if (next === "rich") rich.innerHTML = cleanHtml(source.value);
+      if(model && next==='markdown'){source.readOnly=true;status('Markdown simplificado: somente leitura para preservar a formatação.');}
+      if (next === "rich") renderRich();
       mode = next;
       surface.dataset.editorMode = mode;
       source.hidden = mode !== "markdown";
@@ -237,7 +257,7 @@
       if (!snapshot) return;
       title.value = snapshot.title;
       source.value = snapshot.markdown;
-      rich.innerHTML = cleanHtml(snapshot.markdown);
+      model=snapshot.content?window.OpenDocModel.clone(snapshot.content):null;source.readOnly=Boolean(model);renderRich();
       cache(); scheduleRecovery(); render();
       status(isClean() ? "Salvo no dispositivo" : "Alterações não salvas");
       if (mode === "rich") commands.restoreBookmark(snapshot.selection);
@@ -250,6 +270,11 @@
       if (kind === "undo") { restoreSnapshot(history.undo()); return; }
       if (kind === "redo") { restoreSnapshot(history.redo()); return; }
       if (mode === "preview") setMode("rich");
+      if(['underline','strike','superscript','subscript'].includes(kind)){
+        const current=textState(),patch=kind==='underline'?{underline:current.underline && current.underline!=='none'?'none':'single'}:kind==='strike'?{strike:!current.strike}:{vertical_align:current.vertical_align===kind?'baseline':kind};style('inline',patch);return;
+      }
+      if(kind==='table'){if(mode!=='rich')setMode('rich');commands.restore();if(window.OpenDocTables?.insert(rich,getSelection().rangeCount?getSelection().getRangeAt(0):null))changed('format');return;}
+      if(model && mode==='markdown' && kind!=='selectAll'){status('Edite este documento no modo visual.');return;}
       if (kind === "selectAll" && mode === "markdown") { source.focus(); source.select(); return; }
       if (mode === "rich") {
         const mapping = {
@@ -279,13 +304,33 @@
       source.focus(); changed("format", source);
     }
 
+    function textState(){
+      const selection=getSelection();let node=selection.anchorNode;
+      if(node?.nodeType===1){node=node.childNodes[Math.min(selection.anchorOffset,node.childNodes.length-1)] || node;while(node.firstChild)node=node.firstChild;}
+      let e=node && (node.nodeType===1?node:node.parentElement);const ancestors=[],map=model && window.OpenDocModel?window.OpenDocModel.index(model):new Map(),out={};
+      while(e && rich.contains(e)){ancestors.unshift(e);e=e.parentElement;}
+      for(const element of ancestors){Object.assign(out,map.get(element.dataset.nodeId)?.style || {});if(window.OpenDocRichSerializer)Object.assign(out,window.OpenDocRichSerializer.readStyle(element,out));}
+      return out;
+    }
+    function style(scope,patch){
+      if(lockedState || !window.OpenDocFormatting)return;
+      if(patch.line_spacing!==undefined)patch.line_spacing_rule='auto';
+      if(patch.font_size_pt!==undefined && (!Number.isFinite(patch.font_size_pt) || patch.font_size_pt<1 || patch.font_size_pt>512)){status('Tamanho válido: 1 a 512 pt.');return;}
+      if(mode!=='rich')setMode('rich');history.checkpoint(buffer());commands.restore();const selection=getSelection(),range=selection.rangeCount?selection.getRangeAt(0):null;
+      const applied=scope==='inline'?window.OpenDocFormatting.apply(rich,range,patch):window.OpenDocFormatting.paragraph(rich,range,patch);
+      if(applied){commands.capture();const bookmark=commands.bookmark(),affected=Array.from(rich.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre')).filter(p=>range && range.intersectsNode(p));updateModel();const map=window.OpenDocModel.index(model);
+        for(const block of affected){const value=map.get(block.dataset.nodeId);if(!value)continue;const temp=document.createElement('div');window.OpenDocRichRenderer.render({...model,blocks:[value]},temp,mediaUrl);block.parentNode.replaceChild(temp.firstChild,block);}
+        commands.restoreBookmark(bookmark);changed('format');root.dispatchEvent(new CustomEvent('open-doc:content'));
+      }else status('Selecione o texto a formatar.');
+    }
+
     async function exportDocument(extension) {
       await flush();
       const result = await request("document/export", {
         id: documentState.id, revision: documentState.revision, format: extension
       });
       root.querySelector("[data-export-result]").textContent = "Exportado para: " + result.path;
-      status("Exportação concluída");
+      status(result.lossy?"Exportação simplificada: tipografia e layout não são preservados.":"Exportação concluída");
       return result;
     }
 
@@ -294,7 +339,7 @@
       source.disabled = locked;
       title.disabled = locked;
       rich.contentEditable = String(!locked);
-      root.querySelectorAll("[data-command], [data-mode], [data-save], [data-export], [data-save-copy], [data-recover]").forEach(button => {
+      root.querySelectorAll("[data-command], [data-inline-style], [data-paragraph-style], [data-mode], [data-save], [data-export], [data-save-copy], [data-recover]").forEach(button => {
         button.disabled = locked;
       });
       if (!locked) render();
@@ -315,8 +360,10 @@
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", () => { commands.capture(); history.checkpoint(buffer()); }, listeners);
     source.addEventListener("input", () => changed("typing", source), listeners);
-    rich.addEventListener("input", () => changed(), listeners);
+    rich.addEventListener("input", event => changed(nextKind,rich,event), listeners);
     title.addEventListener("input", () => changed("typing", title), listeners);
+    window.OpenDocTables?.bind(rich,controller.signal);
+    rich.addEventListener('click',event=>{const marker=event.target.closest('[data-note-id]');if(marker && model){const notes=model[marker.dataset.noteKind]?.[marker.dataset.noteId];if(notes)status('Nota '+marker.dataset.noteId+': '+notes.map(p=>(p.children || []).map(r=>r.text || '').join('')).join(' '));}},listeners);
     rich.addEventListener("paste", event => {
       event.preventDefault();
       const plain = event.clipboardData.getData("text/plain");
@@ -367,7 +414,7 @@
     const timer = setInterval(() => {
       if (!copying && !isClean()) flush().catch(() => {});
     }, autosaveSeconds * AUTOSAVE_MS);
-    const instance = {load, flush, destroy, isClean, setLocked, setMode, format, copy: copyDocument, export: exportDocument, capture: commands.capture, commandState: commands.state, refresh: render, snapshot: buffer};
+    const instance = {load, flush, destroy, isClean, setLocked, setMode, format, copy: copyDocument, export: exportDocument, capture: commands.capture, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;
     load(options.document);
     setMode("rich");
