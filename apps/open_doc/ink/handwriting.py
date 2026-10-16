@@ -17,11 +17,34 @@ class HandwritingService:
         self.backends = backends
 
     def capabilities(self):
-        return [{"backend": b.name, "available": b.available} for b in self.backends]
+        return [
+            (
+                b.diagnostics()
+                if hasattr(b, "diagnostics")
+                else {
+                    "backend": b.name,
+                    "available": b.available,
+                    "language": "pt-BR",
+                    "reason": (
+                        ""
+                        if b.available
+                        else "Reconhecimento manuscrito local não instalado/configurado."
+                    ),
+                }
+            )
+            for b in self.backends
+        ]
 
     async def recognize(self, strokes, *, language="pt-BR"):
         validate_layers([{"surface_index": 0, "strokes": strokes}])
         errors = []
+        capabilities = self.capabilities()
+        if not any(c["available"] for c in capabilities):
+            reasons = " ".join(c.get("reason", "") for c in capabilities)
+            raise RuntimeError(
+                (reasons or "Reconhecimento manuscrito local não instalado.")
+                + " Sua tinta foi mantida."
+            )
         for backend in self.backends:
             if not backend.available:
                 continue

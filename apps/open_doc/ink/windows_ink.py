@@ -8,16 +8,60 @@ from .handwriting import Recognition
 class WindowsInkBackend:
     name = "windows-ink"
 
-    @property
-    def available(self):
+    def diagnostics(self, language="pt-BR"):
+        result = {
+            "backend": self.name,
+            "available": False,
+            "language": language,
+            "pywinrt_installed": False,
+            "recognizers": [],
+            "reason": "Windows Ink requer Windows.",
+        }
         if sys.platform != "win32":
-            return False
+            return result
         try:
             import winrt.windows.ui.input.inking
 
-            return True
+            result["pywinrt_installed"] = True
         except ImportError:
-            return False
+            result["reason"] = (
+                "PyWinRT não instalado. Instale requirements-windows-ink.txt."
+            )
+            return result
+        try:
+            from winrt.runtime import init_apartment, uninit_apartment, ApartmentType
+
+            init_apartment(ApartmentType.MULTI_THREADED)
+            try:
+                from winrt.windows.ui.input.inking import InkRecognizerContainer
+
+                names = [r.name for r in InkRecognizerContainer().get_recognizers()]
+            finally:
+                uninit_apartment()
+            result["recognizers"] = names
+            matches = [
+                n
+                for n in names
+                if not language.startswith("pt") or "portugu" in n.casefold()
+            ]
+            result["available"] = bool(matches)
+            result["recognizer"] = matches[0] if matches else None
+            result["reason"] = (
+                ""
+                if matches
+                else (
+                    "Instale o recurso de escrita Português no Windows."
+                    if names
+                    else "Nenhum reconhecedor de escrita instalado no Windows."
+                )
+            )
+        except Exception as exc:
+            result["reason"] = "Windows Ink indisponível: " + str(exc)[:160]
+        return result
+
+    @property
+    def available(self):
+        return self.diagnostics()["available"]
 
     async def recognize(self, strokes, *, language="pt-BR"):
         return await asyncio.to_thread(self._recognize, strokes, language)
