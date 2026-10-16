@@ -1,7 +1,7 @@
 """
 Módulo: runtime.py.
 Responsabilidade: compartilhar serviços entre views, API e bridge do Vela.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
