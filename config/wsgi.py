@@ -21,9 +21,7 @@ def create_app(workspace: Config | None = None) -> VelaApp:
     """Constrói o runtime oficial do framework e registra o app Writer."""
     configure(workspace)
     sync_frontend()
-    application = VelaApp(
-        settings_module="config.settings", bridge_class=WriterBridge
-    )
+    application = VelaApp(settings_module="config.settings", bridge_class=WriterBridge)
     for name in INSTALLED_APPS:
         application.register_app(name)
     return application
