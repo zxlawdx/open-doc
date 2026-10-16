@@ -2,6 +2,27 @@
 
 Formato baseado em Keep a Changelog. Versões da aplicação seguem SemVer.
 
+## [0.3.0] - 2026-10-15
+
+### Alterado
+
+- Produto renomeado para Open Doc, app Vela apps/open_doc e API /open_doc.
+- Interface refeita como processador de documentos: papel branco, menu clássico,
+  toolbar compacta, estrutura, busca, documentos recentes, status e zoom.
+- Tema claro/escuro/sistema persistente; Markdown passa a ser opção avançada.
+- CSS fonte separado do bundle; comandos/seleção/history e módulos de UI separados.
+
+### Adicionado
+
+- Migração não destrutiva do workspace legado, com backup SQLite e relatório.
+- Compatibilidade de recovery storage, export Markdown e histórico limitado.
+- Régua informativa, QA real Qt e capturas light/dark nas três resoluções.
+
+### Corrigido
+
+- Seleção/foco após toolbar, undo/redo, preferências antigas e assets coletados.
+- Removidos branding antigo, recursos futuros cenográficos e dependências sem uso.
+
 ## [0.2.0] - 2026-10-15
 
 ### Adicionado
