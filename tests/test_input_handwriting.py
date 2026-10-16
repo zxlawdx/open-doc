@@ -1,9 +1,11 @@
 """Unavailable backend/language diagnostics never imply recognition success."""
 
 import asyncio
+import json
 import pytest
 from apps.open_doc.ink.handwriting import HandwritingService
 from apps.open_doc.ink.windows_ink import WindowsInkBackend
+from apps.open_doc.ink.paddle_ocr import PaddleOcrBackend
 
 
 def test_handwriting_capabilities_optional():
@@ -23,6 +25,36 @@ def test_windows_ink_diagnostics(monkeypatch):
     result = WindowsInkBackend().diagnostics()
     assert not result["available"] and not result["pywinrt_installed"]
     assert result["recognizers"] == [] and "Windows" in result["reason"]
+
+
+def test_paddleocr_diagnostics_distinguishes_missing_package(monkeypatch, tmp_path):
+    from apps.open_doc.services.preferences_service import Config
+    import apps.open_doc.ink.paddle_ocr as module
+
+    backend = PaddleOcrBackend(Config(tmp_path))
+    monkeypatch.setattr(module.importlib.util, "find_spec", lambda name: None)
+    result = backend.diagnostics()
+    assert result["available"] is False
+    assert result["package_installed"] is False
+    assert "não instalado" in result["reason"]
+
+
+def test_paddleocr_diagnostics_distinguishes_missing_models(monkeypatch, tmp_path):
+    from apps.open_doc.services.preferences_service import Config
+    import apps.open_doc.ink.paddle_ocr as module
+
+    backend = PaddleOcrBackend(Config(tmp_path))
+    backend.directory.mkdir(parents=True)
+    backend.settings.write_text(
+        json.dumps({"det_model_dir": "det", "rec_model_dir": "rec"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module.importlib.util, "find_spec", lambda name: object())
+    result = backend.diagnostics()
+    assert result["available"] is False
+    assert result["settings_present"] is True
+    assert result["models_present"] is False
+    assert "modelos locais" in result["reason"]
 
 
 def test_handwriting_missing_backend_message():
