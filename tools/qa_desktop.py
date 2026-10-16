@@ -360,8 +360,12 @@ def verify_rich_document(window: Any, source: Path) -> None:
     window.evaluate_js(
         """(() => {const rich=document.querySelector('[data-rich]');rich.focus();const text=rich.querySelector('p [data-node-type=text]').firstChild;const range=document.createRange();range.selectNodeContents(text);getSelection().removeAllRanges();getSelection().addRange(range);})()"""
     )
+    family = window.evaluate_js(
+        "['DejaVu Serif','Arial','Times New Roman'].find(name=>Array.from(document.querySelector('[data-font-family]').options).some(option=>option.value===name))"
+    )
+    assert family, "No test font available in the actual platform catalog"
     for selector, value in [
-        ("[data-font-family]", "DejaVu Serif"),
+        ("[data-font-family]", family),
         ("[data-font-size]", "18"),
     ]:
         window.evaluate_js(
@@ -382,7 +386,7 @@ def verify_rich_document(window: Any, source: Path) -> None:
         "content_format"
     ] == "opendoc-rich-v1" and "Celula editada no Qt" in str(saved["content"])
     assert any(
-        r.get("style", {}).get("font_family") == "DejaVu Serif"
+        r.get("style", {}).get("font_family") == family
         and r.get("style", {}).get("font_size_pt") == 18
         for b in saved["content"]["blocks"]
         for r in b.get("children", [])
@@ -391,7 +395,7 @@ def verify_rich_document(window: Any, source: Path) -> None:
     doc = Document(exported)
     assert "Celula editada no Qt" in doc.tables[0].cell(0, 0).text
     assert any(
-        r.font.name == "DejaVu Serif" and r.font.size.pt == 18
+        r.font.name == family and r.font.size.pt == 18
         for p in doc.paragraphs
         for r in p.runs
         if r.font.size
