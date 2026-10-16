@@ -20,11 +20,12 @@ staticfiles/
 logs/
 # Git não expande ~; protege workspaces criados dentro do repo.
 VelaWriter/
+OpenDoc/
 # ============ EDITORES ============
 .idea/
 .vscode/
 .DS_Store
 
 # Assets preparados pelo sync_frontend para collectstatic
-apps/writer/static/
+apps/open_doc/static/
 
