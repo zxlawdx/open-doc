@@ -1,7 +1,7 @@
 """
 Módulo: router.py.
 Responsabilidade: registrar telas e endpoints no roteamento nativo do Vela.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
@@ -41,6 +41,10 @@ def workspace_view(params: dict[str, Any]) -> str:
             str(PROJECT_ROOT / "ui/templates/editor.html"), router=router
         ),
     }
+    for part in ("menus", "toolbar", "home"):
+        context[part] = render_template(
+            str(PROJECT_ROOT / f"ui/templates/{part}.html"), router=router
+        )
     return render_template(
         str(PROJECT_ROOT / "ui/templates/base.html"),
         context=context,
@@ -54,7 +58,7 @@ def register_routes(router: Router) -> None:
         "/",
         workspace_view,
         title="Escrita",
-        name="writer",
+        name="open_doc",
         layout="blank",
         show_in_sidebar=False,
     )
@@ -65,7 +69,7 @@ def _data(context: dict[str, Any] | None) -> dict[str, Any]:
     data = context.get("json")
     if not isinstance(data, dict):
         raise ValueError("Esperado objeto JSON.")
-    supplied = context.get("headers", {}).get("X-Writer-Token", "")
+    supplied = context.get("headers", {}).get("X-Open-Doc-Token", "")
     if not secrets.compare_digest(str(supplied), services().token):
         raise PermissionError("Sessão inválida.")
     return data
@@ -89,7 +93,7 @@ def _handle(operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         return {"error": "Não foi possível gravar os dados. Seu texto foi mantido."}
 
 
-@api.get("/writer/files")
+@api.get("/open_doc/files")
 def files() -> dict[str, Any]:
     """Lista a biblioteca e os documentos editáveis."""
     return _handle(
@@ -100,7 +104,7 @@ def files() -> dict[str, Any]:
     )
 
 
-@api.post("/writer/settings")
+@api.post("/open_doc/settings")
 def save_settings(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Persiste preferências por meio da API Bottle gerenciada pelo Vela."""
 
@@ -112,7 +116,7 @@ def save_settings(context: dict[str, Any] | None = None) -> dict[str, Any]:
     return _handle(save)
 
 
-@api.post("/writer/document/new")
+@api.post("/open_doc/document/new")
 def new_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Cria um documento persistente."""
 
@@ -125,7 +129,7 @@ def new_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     return _handle(create)
 
 
-@api.post("/writer/document/open")
+@api.post("/open_doc/document/open")
 def open_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Seleciona uma nota existente ou uma cópia de Markdown importado."""
 
@@ -150,7 +154,7 @@ def open_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     return _handle(select)
 
 
-@api.post("/writer/document/save")
+@api.post("/open_doc/document/save")
 def save_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Salva um snapshot com verificação de revisão."""
 
@@ -163,7 +167,7 @@ def save_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     return _handle(save)
 
 
-@api.post("/writer/document/export")
+@api.post("/open_doc/document/export")
 def export_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Exporta um documento salvo, sem aceitar caminhos enviados pelo cliente."""
 
@@ -176,10 +180,17 @@ def export_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
         if document["revision"] != data["revision"]:
             raise RevisionConflict("Salve a versão atual antes de exportar.")
         extension = data["format"]
-        exporters = {"pdf": export_pdf, "docx": export_docx}
+
+        def export_markdown(markdown: str, target: Path, title: str) -> None:
+            target.write_text(markdown, encoding="utf-8")
+
+        exporters = {"pdf": export_pdf, "docx": export_docx, "md": export_markdown}
         if extension not in exporters:
             raise ValueError("Formato de exportação inválido.")
-        filename = document["id"] + "-" + uuid4().hex + "." + extension
+        import re
+
+        stem = re.sub(r"[^\w .-]", "", document["title"]).strip(" .")[:80]
+        filename = (stem or "Documento") + "-" + uuid4().hex[:8] + "." + extension
         target = services().config.root / "exports" / filename
         temporary = target.with_suffix(".tmp")
         try:
@@ -209,7 +220,7 @@ def bootstrap() -> dict[str, Any]:
 # ============ RECUPERAÇÃO DE ALTERAÇÕES ============
 
 
-@api.post("/writer/document/recovery")
+@api.post("/open_doc/document/recovery")
 def recovery_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Armazena recuperação ou descarta somente a nota indicada."""
 
