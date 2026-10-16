@@ -1,7 +1,7 @@
 """
 Módulo: editor.py.
 Responsabilidade: persistir documentos e sessões com controle de revisões.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
@@ -197,7 +197,7 @@ class Editor:
     def import_note(self, source: Path) -> dict[str, Any]:
         """Abre uma cópia de Markdown/TXT sem alterar o arquivo importado."""
         if source.suffix.lower() not in {".md", ".txt"}:
-            raise ValueError("A edição suporta Markdown e TXT nesta fase.")
+            raise ValueError("A edição suporta Markdown e TXT nesta versão.")
         if source.stat().st_size > MAX_DOCUMENT_BYTES:
             raise ValueError("O documento ultrapassa 5 MB.")
         return self.create(source.stem, source.read_text(encoding="utf-8"))
