@@ -178,6 +178,7 @@
       copying = true;
       setLocked(true);
       try {
+        await chain;
         const note = await request("document/new", {
           title: snapshot.title + " (cópia)", markdown: snapshot.markdown
         });
@@ -235,7 +236,7 @@
       source.disabled = locked;
       title.disabled = locked;
       rich.contentEditable = String(!locked);
-      root.querySelectorAll("[data-format], [data-mode]").forEach(button => {
+      root.querySelectorAll("[data-format], [data-mode], [data-save], [data-export], [data-save-copy], [data-recover]").forEach(button => {
         button.disabled = locked;
       });
     }
@@ -327,7 +328,7 @@
     }, listeners);
 
     const timer = setInterval(() => {
-      if (!isClean()) flush().catch(() => {});
+      if (!copying && !isClean()) flush().catch(() => {});
     }, autosaveSeconds * AUTOSAVE_MS);
     const instance = {load, flush, destroy, isClean, setLocked};
     active = instance;
