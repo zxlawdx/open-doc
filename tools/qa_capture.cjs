@@ -29,6 +29,38 @@ const destination = path.resolve(__dirname, '../docs/images/open-doc');
     await pause(); const image = await send('Page.captureScreenshot', {format: 'png'});
     fs.writeFileSync(path.join(destination, name + '.png'), Buffer.from(image.data, 'base64'));
   };
+  const click = async selector => {
+    const point = await evaluate(`(() => {const b=document.querySelector(${JSON.stringify(selector)});b.scrollIntoView({block:'nearest'});const r=b.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+    await send('Input.dispatchMouseEvent', {type:'mousePressed', button:'left', clickCount:1, ...point});
+    await send('Input.dispatchMouseEvent', {type:'mouseReleased', button:'left', clickCount:1, ...point});
+    await pause();
+  };
+  const fixture = await evaluate('window.OpenDocApp.editor().snapshot()');
+  await evaluate(`(() => {const rich=document.querySelector('[data-rich]');rich.focus();const range=document.createRange();range.selectNodeContents(rich.querySelector('p'));const s=getSelection();s.removeAllRanges();s.addRange(range);})()`);
+  await click('.toolbar [data-command=bold]');
+  assert.match(await evaluate("document.querySelector('[data-source]').value"), /\*\*/);
+  await click('.toolbar [data-command=undo]');
+  assert.doesNotMatch(await evaluate("document.querySelector('[data-source]').value"), /\*\*/);
+  await click('.toolbar [data-command=redo]');
+  assert.match(await evaluate("document.querySelector('[data-source]').value"), /\*\*/);
+  await click('[data-menu=help]'); await click('[data-action=about]');
+  assert.equal(await evaluate("document.querySelector('[data-dialog]').hidden"), false);
+  await click('[data-dialog-cancel]');
+  console.log('QT_TRUSTED_MOUSE_BOLD_UNDO_REDO_MENU_DIALOG_OK');
+  console.log('QT_API_FEATURES', JSON.stringify(await evaluate(`(() => {
+    const frame=document.createElement('iframe');document.body.appendChild(frame);
+    const w=frame.contentWindow;
+    const result={userAgent:navigator.userAgent,
+      nativeReplaceChildren:typeof w.Element.prototype.replaceChildren,
+      nativeAbortSignal:OpenDocCompat.nativeSupport,
+      append:typeof w.Element.prototype.append, prepend:typeof w.Element.prototype.prepend,
+      replaceWith:typeof w.Element.prototype.replaceWith, toggleAttribute:typeof w.Element.prototype.toggleAttribute,
+      nativeAt:typeof w.Array.prototype.at, selection:typeof w.getSelection, range:typeof w.document.createRange,
+      execCommand:typeof w.document.execCommand};frame.remove();return result;
+  })()`)));
+  await evaluate('window.OpenDocRecovery.clear(' + JSON.stringify(fixture.id) + ')');
+  await evaluate('window.OpenDocApp.editor().load(' + JSON.stringify(fixture) + ')');
+  assert.equal(await evaluate("document.querySelector('[data-status]').textContent"), 'Salvo no dispositivo');
   fs.mkdirSync(destination, {recursive: true});
   for (const theme of ['light', 'dark']) {
     await evaluate("window.OpenDocApp.theme().set('" + theme + "')");
@@ -49,6 +81,7 @@ const destination = path.resolve(__dirname, '../docs/images/open-doc');
       assert.ok(geometry.outline >= 3);
       console.log('QT_LAYOUT_OK', theme, width, height, JSON.stringify(geometry));
       await shot('editor-' + theme + '-' + width);
+      if (theme === 'light') await shot('editor-functional-' + width);
     }
   }
   await send('Emulation.setDeviceMetricsOverride', {width: 1366, height: 768, deviceScaleFactor: 1, mobile: false});
