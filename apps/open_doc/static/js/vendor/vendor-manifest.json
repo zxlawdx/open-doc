@@ -7,14 +7,14 @@
     "pptx-viewer": "0.2.2",
     "fflate": "0.8.3"
   },
-  "target": "chrome87",
-  "source_hash": "8b58aeb124d0c9cd821336bf2e5bafcc6b2a7d359f5ba4eef4237d09943e4583",
+  "target": "chrome83",
+  "source_hash": "6a071a21642460f1ceb3a1c0ff99551b0d4153db568e68ae2cde27474ad50de3",
   "files": {
-    "pdf.bundle.js": "6d06e0e578a809baf6e03289720ff69674606c6ad5d1c3c9f138f4c4c5426458",
-    "pdf.worker.bundle.js": "c24850ecb5bc0b830523075527b55ea70ecb06307751c7507e4613e06414d8d7",
+    "pdf.bundle.js": "c227b2fdceccf9739ec709fd8c9454955e080f39fec64fa77c1320a57fcc789f",
+    "pdf.worker.bundle.js": "a093627362cf42982a28cfd1774edfb88ffcc920b6c8c4d2f20215d584fecf16",
     "freehand.bundle.js": "3e93d52c14f1f9bc74fbc79c38712cf16ce8a6cf56e594ae7beabca90ae8d8b2",
     "pptx.bundle.js": "ae3939fde0f8288de84c9ac9f84dc93d53693843bb2d6246ce3d04ba9aed8fcf"
   },
-  "build_hash": "1dc67e079081a722d1d6c6ce7148244a7908f7d3f806198c5200e2500de0851f",
-  "built_at": "2026-10-16T14:44:58.873Z"
+  "build_hash": "c209fc3f2f2b1cfd0851e1926bc81d64308d4d4e5ab791f8874d008f81f6f0a2",
+  "built_at": "2026-10-16T17:36:17.586Z"
 }

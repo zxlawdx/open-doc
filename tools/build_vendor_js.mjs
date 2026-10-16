@@ -13,7 +13,7 @@ const {build}=await import('esbuild');await mkdir(out,{recursive:true});
 const temporary=await mkdtemp(join(root,'.vela-vendor-'));
 const hash=data=>createHash('sha256').update(data).digest('hex');
 try{
- const common={bundle:true,minify:true,target:'chrome87',platform:'browser',format:'iife',legalComments:'eof'};
+ const common={bundle:true,minify:true,target:'chrome83',platform:'browser',format:'iife',legalComments:'eof'};
  const entries={
   'pdf.bundle.js':"import 'core-js/actual';import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';window.OpenDocPdf=pdfjs;",
   'pdf.worker.bundle.js':"import 'core-js/actual';import {WorkerMessageHandler} from 'pdfjs-dist/legacy/build/pdf.worker.mjs';globalThis.pdfjsWorker={WorkerMessageHandler};",
@@ -25,7 +25,7 @@ try{
  const versions={};for(const name of dependencies)versions[name]=JSON.parse(await readFile(join(root,'node_modules',name,'package.json'),'utf8')).version;
  const source_hash=hash(Buffer.concat([await readFile(fileURLToPath(import.meta.url)),Buffer.from('\0'),await readFile(join(root,'package-lock.json'))]));
  const build_hash=hash(JSON.stringify({source_hash,files}));let previous={};try{previous=JSON.parse(await readFile(join(out,'vendor-manifest.json'),'utf8'));}catch{}
- const manifest={versions,target:'chrome87',source_hash,files,build_hash,built_at:previous.build_hash===build_hash?previous.built_at:new Date().toISOString()};
+ const manifest={versions,target:'chrome83',source_hash,files,build_hash,built_at:previous.build_hash===build_hash?previous.built_at:new Date().toISOString()};
  for(const name of ['standard_fonts','cmaps'])await cp(join(root,'node_modules','pdfjs-dist',name),join(root,'apps','open_doc','static','pdfjs',name),{recursive:true});
  for(const name of ['pdfjs-dist','perfect-freehand','core-js','pptx-viewer','fflate'])await cp(join(root,'node_modules',name,'LICENSE'),join(temporary,name+'-LICENSE.txt'));
  // The marker prevents startup with a partial group if any replace fails.

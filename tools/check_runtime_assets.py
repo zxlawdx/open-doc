@@ -18,7 +18,7 @@ def check(root=ROOT):
             + b"\0"
             + (root / "package-lock.json").read_bytes()
         ).hexdigest()
-        if manifest["source_hash"] != source or manifest["target"] != "chrome87":
+        if manifest["source_hash"] != source or manifest["target"] != "chrome83":
             raise ValueError("Manifesto de vendor desatualizado.")
         for name in [
             "pdf.bundle.js",
