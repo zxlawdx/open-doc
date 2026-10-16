@@ -1,6 +1,16 @@
 /* ============ VELA PAGE BOOTSTRAP ============ */
 "use strict";
 (() => {
+  // QtWebEngine 5.15 uses an older Chromium without Array.prototype.at.
+  if (!Array.prototype.at) {
+    Object.defineProperty(Array.prototype, "at", {
+      configurable: true, writable: true,
+      value(index) {
+        const offset = Math.trunc(Number(index)) || 0;
+        return this[offset < 0 ? this.length + offset : offset];
+      }
+    });
+  }
   const root = document.querySelector("[data-app]");
   if (!root) return;
   window.WriterApp?.destroy();
