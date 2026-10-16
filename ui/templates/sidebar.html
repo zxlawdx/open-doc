@@ -1,33 +1,22 @@
-<!-- ============ SIDEBAR ============ -->
-<aside class="sidebar">
-  <div class="brand"><span class="brand-icon" aria-hidden="true">V</span>
-    <span data-label>vela<span class="brand-light"> writer</span></span>
-  </div>
-  <button type="button" class="collapse" data-toggle
-    aria-expanded="true" aria-label="Recolher navegação" title="Alternar navegação">☰</button>
-  <button type="button" class="primary" data-new title="Nova nota">
-    <span aria-hidden="true">＋</span><span data-label>Nova nota</span>
-  </button>
-  <button type="button" class="secondary" data-import title="Importar documento">
-    <span aria-hidden="true">↥</span><span data-label>Importar documento</span>
-  </button>
-  <p class="nav-heading" data-label>ESPAÇO DE TRABALHO</p>
-  <nav aria-label="Navegação principal">
-    <button type="button" data-view="home" aria-current="page" title="Editor">
-      <span aria-hidden="true">✎</span><span data-label>Editor</span>
+<!-- ============ DOCUMENT NAVIGATOR ============ -->
+<aside class="navigator" aria-label="Navegador do documento">
+  <div class="navigator-header"><span data-nav-label>NAVEGADOR</span>
+    <button class="icon-button" data-toggle aria-label="Alternar navegador" aria-expanded="true" title="Alternar navegador">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#sidebar"></use></svg>
     </button>
-    <button type="button" data-view="library" title="Documentos">
-      <span aria-hidden="true">▤</span><span data-label>Documentos</span>
-    </button>
-  </nav>
-  <div class="coming" data-label>
-    <p class="nav-heading">NO HORIZONTE</p>
-    <p>↗ &nbsp; Notas conectadas <small>Fase 5</small></p>
-    <p>✎ &nbsp; Escrita à mão <small>Fase 4</small></p>
-    <p>⇄ &nbsp; Leitura de documentos <small>Fase 3</small></p>
   </div>
-  <div class="sidebar-bottom" data-label>
-    <span class="local-dot" aria-hidden="true"></span>
-    Seus arquivos, no seu computador.
+  <button class="navigator-document" data-action="home" title="Documentos recentes">
+    <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder"></use></svg>
+    <span data-nav-label>Documentos recentes</span>
+  </button>
+  <div class="navigator-content" data-nav-label>
+    <label class="find-label" for="find-input">LOCALIZAR NO DOCUMENTO</label>
+    <div class="find-field"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#search"></use></svg>
+      <input id="find-input" data-find placeholder="Buscar texto…" autocomplete="off">
+    </div>
+    <div class="find-results" data-find-results role="status"></div>
+    <p class="outline-label">ESTRUTURA DO DOCUMENTO</p>
+    <nav data-outline aria-label="Títulos do documento"></nav>
   </div>
+  <span class="navigator-local" data-nav-label>Salvo neste dispositivo</span>
 </aside>
