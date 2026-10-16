@@ -24,6 +24,24 @@
     Object.defineProperty(prototype, '__openDocAbortCompat', {value: true});
     return false;
   }
+  // Some Qt deployments lack replaceChildren(); detect the actual DOM API.
+  // Use a fragment so nodes, text and empty calls follow the DOM contract.
+  function installDOM(prototype = Element.prototype) {
+    if (typeof prototype.replaceChildren === 'function') return true;
+    Object.defineProperty(prototype, 'replaceChildren', {
+      configurable: true, writable: true,
+      value(...items) {
+        const fragment = this.ownerDocument.createDocumentFragment();
+        for (const item of items) fragment.appendChild(
+          item instanceof Node ? item : this.ownerDocument.createTextNode(String(item))
+        );
+        while (this.firstChild) this.removeChild(this.firstChild);
+        this.appendChild(fragment);
+      }
+    });
+    return false;
+  }
+  const nativeDOMSupport = installDOM();
   const nativeSupport = install();
-  window.OpenDocCompat = {install, nativeSupport};
+  window.OpenDocCompat = {install, installDOM, nativeSupport, nativeDOMSupport};
 })();
