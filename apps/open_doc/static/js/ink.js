@@ -24,7 +24,8 @@
   async function capabilities(){
     try{const result=await window.pywebview.api.handwriting_capabilities?.();if(signal.aborted)return;const backends=result?.backends || [];const backend=backends.find(b=>b.available);
       capable=Boolean(backend);convertButton.disabled=!capable;availability.textContent=backend?backend.backend+' · '+(backend.language || 'pt-BR'):'Escrita local: indisponível';convertButton.title=backend?'Converter escrita com revisão':backends.map(b=>b.reason).filter(Boolean).join(' ') || 'Reconhecimento manuscrito local não instalado.';
-    }catch(error){capable=false;convertButton.disabled=true;availability.textContent='Escrita local: indisponível';convertButton.title=error.message;}
+      if(!capable)availability.textContent='Escrita local indisponível: '+convertButton.title;
+    }catch(error){capable=false;convertButton.disabled=true;availability.textContent='Escrita local indisponível: '+error.message;convertButton.title=error.message;}
   }
   capabilities();root.addEventListener('open-doc:handwriting-capabilities',capabilities,{signal});
   const family=document.createElement('select');family.dataset.inkFont='';family.setAttribute('aria-label','Fonte do texto reconhecido');for(const name of ['Arial','Inter']){const option=document.createElement('option');option.value=name;option.textContent=name;family.append(option);}bar.append(family);

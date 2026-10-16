@@ -172,7 +172,7 @@
       const blockId=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId || null;
       if(window.OpenDocDebug.input)console.debug('[OpenDoc input]',{beforeDom:beforeDom?.slice(-240),afterDom:rich.textContent.slice(-240),modelText:source.value.slice(-240),blockId,pageIndex:dirty?.closest('[data-page-index]')?.dataset.pageIndex,selection:commands.bookmark()});
       if(origin===rich)root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',{detail:{blockId,reason:kind,structural}}));
-      history.record(buffer(), kind,{blockIds:blockId?[blockId]:[],structural});
+      history.record(buffer(), kind,{blockIds:Array.from(new Set([blockId,...(structural?[beforeInputBlockId]:[])].filter(Boolean))),structural});
       updateHistoryControls();
       cache();
       clearTimeout(renderTimer);
@@ -384,8 +384,9 @@
 
 
     function commitModel(next, kind='format') {
+      const previous=model,oldBlocks=previous?.blocks || [],newBlocks=next.blocks || [],blockIds=Array.from(new Set([...oldBlocks,...newBlocks].map(b=>b.id))).filter(id=>JSON.stringify(oldBlocks.find(b=>b.id===id))!==JSON.stringify(newBlocks.find(b=>b.id===id))),structural=JSON.stringify(oldBlocks.map(b=>b.id))!==JSON.stringify(newBlocks.map(b=>b.id));
       history.checkpoint(buffer());model=next;source.value=window.OpenDocModel.markdown(model);source.readOnly=true;
-      renderRich();history.record(buffer(),kind);cache();scheduleRecovery();render();
+      renderRich();history.record(buffer(),kind,{blockIds,structural});cache();scheduleRecovery();render();
     }
     function ensureModel(){if(!model)updateModel();return window.OpenDocModel.clone(model);}
     function insertPage(where='break',pageIndex=null){
