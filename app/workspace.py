@@ -6,6 +6,7 @@ import json
 import shutil
 import sqlite3
 import tempfile
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,7 +34,9 @@ def resolve_workspace(home: Path) -> Path:
         raise ValueError(
             "O workspace legado contém links simbólicos. Copie os dados para OpenDoc sem links antes de iniciar."
         )
+
     staged = Path(tempfile.mkdtemp(prefix=".open-doc-migration-", dir=home))
+    published = False
     try:
         shutil.copytree(legacy, staged, dirs_exist_ok=True, symlinks=True)
         database = legacy / ".veladata" / "writer.sqlite3"
@@ -41,17 +44,26 @@ def resolve_workspace(home: Path) -> Path:
             copied = staged / ".veladata" / "writer.sqlite3"
             for suffix in ("", "-wal", "-shm", "-journal"):
                 Path(str(copied) + suffix).unlink(missing_ok=True)
-            with sqlite3.connect(database) as source:
-                with sqlite3.connect(copied) as target:
-                    source.backup(target)
+
+            # sqlite3.Connection.__exit__ gerencia a transação, mas NÃO fecha
+            # a conexão. No Windows isso bloqueia rename/rmtree do diretório.
+            with closing(sqlite3.connect(database)) as source, closing(
+                sqlite3.connect(copied)
+            ) as target:
+                source.backup(target)
+                target.commit()
+
         _record(staged, "copied", legacy)
         if destination.exists():
             return destination
+
         staged.rename(destination)
+        published = True
         return destination
     finally:
-        if staged.exists():
-            shutil.rmtree(staged)
+        # Nunca esconda o erro original com uma segunda falha de cleanup.
+        if not published and staged.exists():
+            shutil.rmtree(staged, ignore_errors=True)
 
 
 def _record(root: Path, outcome: str, legacy: Path) -> None:
