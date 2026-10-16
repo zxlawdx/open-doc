@@ -15,6 +15,7 @@
       ruler.append(marker);
     }
     function measure() {
+      if(root.dataset.documentKind==='fixed')return;
       const scale = zoom / 100;
       const width=parseFloat(paper.style.width) || Number(paper.dataset.pageWidth) || WIDTH;
       const minimum=Number(paper.dataset.pageHeight) || MIN_HEIGHT;
@@ -33,12 +34,13 @@
       root.querySelector('[data-zoom-value]').textContent = zoom + '%';
     }
     function set(value) {
+      if(root.dataset.documentKind==='fixed'){root.dispatchEvent(new CustomEvent('open-doc:fixed-zoom',{detail:Number(value)}));return;}
       zoom = Math.max(50, Math.min(150, Math.round(Number(value) / 10) * 10));
       measure();
       clearTimeout(timer); timer = setTimeout(() => persist({zoom}).catch(() => {}), 250);
     }
     slider.addEventListener('input', event => set(event.target.value), {signal});
-    root.querySelectorAll('[data-zoom-step]').forEach(button => button.addEventListener('click', () => set(zoom + Number(button.dataset.zoomStep)), {signal}));
+    root.querySelectorAll('[data-zoom-step]').forEach(button => button.addEventListener('click', () => set((root.dataset.documentKind==='fixed'?Number(slider.value):zoom) + Number(button.dataset.zoomStep)), {signal}));
     root.addEventListener('open-doc:content', measure, {signal});
     root.addEventListener('open-doc:layout', measure, {signal});
     window.addEventListener('resize', measure, {signal});

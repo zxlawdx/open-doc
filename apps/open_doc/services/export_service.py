@@ -102,6 +102,15 @@ class ExportService:
                         "A fonte importada não pôde ser incorporada no PDF; foi usada Inter."
                     )
                     export_pdf(document["markdown"], temporary, document["title"])
+                if content and content.get("ink_layers"):
+                    from ..ink.exporters import add_rich_ink
+
+                    add_rich_ink(
+                        temporary, content["ink_layers"], getattr(self, "fonts", None)
+                    )
+                    warnings.append(
+                        "Tinta ancorada por página; a paginação do PDF simplificado pode diferir do editor."
+                    )
                 if content:
                     warnings.append(
                         "PDF usa uma família principal; estilos e fontes por trecho podem diferir."

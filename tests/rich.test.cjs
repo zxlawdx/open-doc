@@ -6,10 +6,11 @@ async function setup(t){
  const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('[data-app]');
  const paragraph=(id,rid,text,style={})=>({id,type:'paragraph',style:{},children:[{id:rid,type:'text',text,style}]});
  const content={version:'opendoc-rich-v1',blocks:[paragraph('p1','r1','Texto selecionado',{font_family:'Fonte ausente',font_size_pt:12}),{id:'table',type:'table',rows:[{id:'row',cells:[{id:'cell',col_span:1,row_span:1,blocks:[paragraph('cp','cr','Célula original')]}]}]}],styles:{},media:{},numbering:{},sections:[],headers:{},footers:{},footnotes:{},endnotes:{},metadata:{},preserved_parts:['customXml/item1.xml']};
+ w.OpenDocPdf={};w.OpenDocFreehand={};w.requestAnimationFrame=fn=>setTimeout(fn,0);
  const note={id:'test',title:'Rico',markdown:'Texto selecionado',revision:1,content_format:'opendoc-rich-v1',content};let saved;
  w.pywebview={api:{get_bootstrap:async()=>({token:'test',settings:{theme:'light',zoom:100},document:note,autosave_seconds:30}),get_font_catalog:async()=>({fonts:['Arial','DejaVu Serif']}),set_dirty:async()=>{}}};
  w.fetch=async(url,options)=>({ok:true,json:async()=>{const data=options.body?JSON.parse(options.body):{};if(url.endsWith('/document/save'))saved=data;return {...data,revision:2};}});
- for(const f of ['compat.js','vendor/marked.js','vendor/purify.js','vendor/turndown.js','document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js','history.js','recovery.js','popovers.js','pagination.js','page_menu.js','editor.js','menus.js','theme.js','paper_layout.js','navigation.js'])w.eval(fs.readFileSync(path.join(base,'apps/open_doc/static/js',f),'utf8'));
+ for(const f of ['compat.js','vendor/marked.js','vendor/purify.js','vendor/turndown.js','document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js','history.js','recovery.js','popovers.js','pagination.js','page_menu.js','editor.js','fixed_document.js','document_kinds.js','ink.js','menus.js','theme.js','paper_layout.js','navigation.js'])w.eval(fs.readFileSync(path.join(base,'apps/open_doc/static/js',f),'utf8'));
  w.document.execCommand=command=>{const range=w.getSelection().getRangeAt(0),span=w.document.createElement(command==='bold'?'b':'i');range.surroundContents(span);return true;};
  Object.defineProperty(w.document,'currentScript',{value:{src:'http://localhost/static/open_doc/js/app.js'}});w.eval(fs.readFileSync(path.join(base,'apps/open_doc/static/js/app.js'),'utf8'));
  for(let i=0;i<50 && root.dataset.ready!=='true';i++)await new Promise(r=>setTimeout(r,5));assert.equal(root.dataset.ready,'true');
@@ -64,3 +65,10 @@ test('table rows, columns, merge/split, deletion and chosen dimensions',async t=
 });
 
 test('page position stays numeric after selectionchange',async t=>{const s=await setup(t);s.editor.pagination().paginate();s.w.document.dispatchEvent(new s.w.Event('selectionchange'));assert.match(s.root.querySelector('[data-position]').textContent,/^Página \d+ de \d+$/);});
+
+test('rich ink survives history/save/reopen and reviewed text becomes a native styled run',async t=>{
+ const s=await setup(t),layer={surface_index:0,width_pt:595,height_pt:842,anchor_block_id:'p1',strokes:[{id:'ink1',tool:'pen',color:'#102030',size:2,opacity:1,points:[{x:.1,y:.2,pressure:.7}],outline:[[.1,.2],[.11,.2],[.11,.21]],handwriting:true}],text_overlays:[]};
+ s.editor.setInkLayers([layer]);assert.equal(s.editor.inkLayers()[0].strokes.length,1);s.editor.format('undo');assert.equal(s.editor.inkLayers().length,0);s.editor.format('redo');assert.equal(s.editor.inkLayers()[0].strokes.length,1);
+ s.editor.insertRecognized('Minha escrita',{font_family:'Arial',font_size_pt:18,color:'#102030'},0,['ink1']);assert.equal(s.editor.inkLayers()[0].strokes.length,0);const run=s.editor.snapshot().content.blocks[1].children[0];assert.equal(run.text,'Minha escrita');assert.equal(run.style.font_family,'Arial');assert.equal(run.style.font_size_pt,18);
+ await s.editor.flush();assert.equal(s.saved().content.blocks[1].children[0].style.font_family,'Arial');s.editor.load({...s.editor.snapshot(),revision:3});assert.equal(s.editor.snapshot().content.blocks[1].children[0].text,'Minha escrita');
+});

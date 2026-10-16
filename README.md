@@ -37,7 +37,10 @@ bibliotecas gráficas do sistema (Xtst, NSS, X11, xkbcommon, EGL e áudio).
 - Revisões transacionais, conflitos sem sobrescrita e salvar como cópia.
 - Recuperação SQLite após pausa de digitação de 600 ms e cache auxiliar local.
 - Importar DOCX abre imediatamente na folha editável, com pacote original preservado.
-- Biblioteca com capabilities do backend; DOCX, Markdown e TXT editáveis; PDF/PPTX arquivados.
+- Biblioteca com capabilities do backend; PDF local com texto selecionável, busca, marcadores, miniaturas e renderização sob demanda.
+- Tinta vetorial compartilhada em DOCX/PDF/PPTX: caneta, marca-texto, borracha de traço, histórico e recuperação.
+- Reconhecimento local opcional de escrita com revisão antes de inserir texto na fonte escolhida.
+- PPTX anotável com prévia fiel via LibreOffice opcional e exportação de texto nativo.
 - Fontes disponíveis no sistema, tamanho 1–512 pt, sublinhado, tachado, sobrescrito/subscrito, cores, alinhamento, espaçamento e recuo.
 - Tabelas com tamanho configurável, navegação por Tab, inserção/exclusão de linhas e colunas, mescla horizontal e divisão.
 - Exportar PDF, DOCX, HTML e Markdown pelo diálogo nativo **Salvar como**, com gravação atômica.
@@ -52,13 +55,16 @@ Ctrl+N cria, Ctrl+O importa, Ctrl+F localiza, Ctrl+B e Ctrl+I formatam,
 Ctrl+Z desfaz, Ctrl+Y ou Ctrl+Shift+Z refaz. Copiar, colar, recortar e selecionar
 usam os atalhos do sistema. Menus têm navegação por setas, Escape e foco visível.
 
+Detalhes de instalação opcional, escrita, PDF/PPTX, licenças e testes em
+[PDF e tinta](docs/OPEN_DOC_PDF_INK.md).
+
 ## Layout e limites
 
 Documentos começam no modo **Com páginas**, usando A4 para documentos nativos e
 as dimensões/margens das seções do DOCX. O layout distribui os nós editáveis entre
 folhas, fragmentando parágrafos longos e tabelas entre linhas. Quebras automáticas
 não são gravadas no modelo. Exibir > Fluxo contínuo muda somente a visualização.
-Clique esquerdo na margem ou no intervalo das folhas abre as ações de página.
+Clique direito na margem ou no intervalo das folhas abre as ações de página.
 O dark mode mantém as folhas brancas. A paginação é aproximada, sem equivalência
 pixel a pixel ao Word. Tabelas com mesclas verticais e objetos maiores que uma folha
 podem exceder a área de conteúdo; o conteúdo permanece acessível.

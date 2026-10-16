@@ -168,6 +168,7 @@ class Section:
 
 @dataclass(slots=True)
 class RichDocument:
+    ink_layers: list[dict[str, Any]] = field(default_factory=list)
     version: Literal["opendoc-rich-v1"] = "opendoc-rich-v1"
     blocks: list[dict[str, Any]] = field(default_factory=list)
     styles: dict[str, Any] = field(default_factory=dict)

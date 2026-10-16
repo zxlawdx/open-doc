@@ -28,6 +28,8 @@ class Services:
     token: str
     exports: ExportService | None = None
     fonts: FontService | None = None
+    fixed_documents: object = None
+    handwriting: object = None
 
 
 _services: Services | None = None
@@ -48,6 +50,18 @@ def configure(config: Config | None = None) -> Services:
         _services.fonts = FontService(workspace)
         _services.exports = ExportService(_services.editor, workspace)
         _services.exports.fonts = _services.fonts
+        from .fixed_document_service import FixedDocumentService
+        from ..ink.handwriting import HandwritingService
+        from ..ink.windows_ink import WindowsInkBackend
+        from ..ink.paddle_ocr import PaddleOcrBackend
+
+        _services.fixed_documents = FixedDocumentService(
+            _services.editor, workspace, _services.fonts
+        )
+        _services.handwriting = HandwritingService(
+            [WindowsInkBackend(), PaddleOcrBackend(workspace)]
+        )
+        _services.fixed_documents.handwriting = _services.handwriting
         return _services
 
 

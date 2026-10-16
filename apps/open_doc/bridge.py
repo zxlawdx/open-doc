@@ -54,11 +54,28 @@ class OpenDocBridge(BaseBridge):
         try:
             target = services().organizer.organize(Path(paths[0]))
             if target.suffix.lower() == ".docx":
+                services().fixed_documents.activate("rich")
                 return {
                     "name": target.name,
                     "document": services().editor.import_docx(target),
                     "opened": True,
                 }
+            if target.suffix.lower() in {".pdf", ".pptx"}:
+                service = services().fixed_documents
+                note = (
+                    service.import_pdf(target)
+                    if target.suffix.lower() == ".pdf"
+                    else service.import_pptx(target)
+                )
+                return {
+                    "name": target.name,
+                    "document": note,
+                    "opened": True,
+                    "view": (
+                        "pdf" if target.suffix.lower() == ".pdf" else "presentation"
+                    ),
+                }
+            services().fixed_documents.activate("rich")
             return {"name": target.name}
         except (ValueError, OSError, UnicodeError):
             return {
@@ -80,24 +97,41 @@ class OpenDocBridge(BaseBridge):
         """O destino só pode ser escolhido pelo seletor nativo."""
         import logging
         import webview
-        from .services.export_service import ExportError, EXTENSIONS
+        from .services.export_service import ExportError, EXTENSIONS, safe_stem
 
         if self._window is None:
             return {"error": "Janela indisponível."}
-        if not isinstance(file_format, str) or file_format not in EXTENSIONS:
+        if not isinstance(file_format, str) or file_format not in (
+            EXTENSIONS | {"pptx"}
+        ):
             return {"error": "Formato de exportação inválido."}
         try:
             service = services().exports
+            fixed = services().fixed_documents.exists(document_id)
+            if fixed:
+                note = services().fixed_documents.get(document_id)
+                if file_format not in (
+                    ["pdf"] if note["source_kind"] == "pdf" else ["pdf", "pptx"]
+                ):
+                    return {
+                        "error": "Exporte este documento como PDF ou PPTX compatível."
+                    }
             paths = self._window.create_file_dialog(
                 webview.FileDialog.SAVE,
                 directory=str(service.default_export_directory()),
-                save_filename=service.suggest_filename(document_id, file_format),
+                save_filename=(
+                    (safe_stem(note["title"]) + "." + file_format)
+                    if fixed
+                    else service.suggest_filename(document_id, file_format)
+                ),
                 file_types=(f"Documento (*.{file_format})",),
             )
             if not paths:
                 return {"cancelled": True}
             destination = paths if isinstance(paths, str) else paths[0]
-            return service.export(document_id, revision, file_format, Path(destination))
+            return (services().fixed_documents if fixed else service).export(
+                document_id, revision, file_format, Path(destination)
+            )
         except Exception as exc:
             logging.getLogger(__name__).exception("Falha de exportação nativa")
             return {
@@ -134,3 +168,19 @@ class OpenDocBridge(BaseBridge):
             return services().fonts.remove(font_id)
         except Exception:
             return {"error": "Não foi possível remover a fonte importada."}
+
+    def recognize_handwriting(self, strokes, language="pt-BR"):
+        import asyncio
+        from dataclasses import asdict
+
+        try:
+            return asdict(
+                asyncio.run(
+                    services().handwriting.recognize(strokes, language=language)
+                )
+            )
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    def handwriting_capabilities(self):
+        return {"backends": services().handwriting.capabilities()}

@@ -203,9 +203,9 @@ def verify_pages(window, services, wait_for):
     )
     assert 'w:type="page"' in exported.element.xml
     print("NATIVE_CTRL_ENTER_UNDO_REDO_FONT_IMPORT_APPLY_DOCX_OK", flush=True)
-    # Chrome click opens the menu; text click leaves it closed.
+    # Right click on page chrome opens the menu; text click leaves it closed.
     js(
-        "document.querySelector('[data-page-index]').dispatchEvent(new MouseEvent('click',{bubbles:true,button:0}))"
+        "document.querySelector('[data-page-index]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2}))"
     )
     assert js("document.querySelector('[data-page-menu]').hidden") is False
     js(

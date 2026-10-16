@@ -33,7 +33,7 @@ class DocxPackage:
         self._xml_cache = {}
 
     @classmethod
-    def open(cls, path):
+    def open(cls, path, required_parts=None):
         path = Path(path)
         if path.stat().st_size > MAX_DOCX_BYTES:
             raise ValueError("DOCX maior que 100 MB.")
@@ -66,9 +66,10 @@ class DocxPackage:
                     parts[name] = z.read(info)
         except (BadZipFile, RuntimeError) as exc:
             raise ValueError("DOCX inválido.") from exc
-        if not {"word/document.xml", "[Content_Types].xml", "_rels/.rels"}.issubset(
-            parts
-        ):
+        if not (
+            required_parts
+            or {"word/document.xml", "[Content_Types].xml", "_rels/.rels"}
+        ).issubset(parts):
             raise ValueError("Pacote DOCX incompleto.")
         result = cls(path, parts)
         for name in parts:

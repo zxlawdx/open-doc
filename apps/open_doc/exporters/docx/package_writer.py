@@ -135,8 +135,11 @@ class DocxPackageWriter:
         old_section = body.find(w("sectPr"))
         for e in list(body):
             body.remove(e)
+        block_nodes = {}
         for block in model["blocks"]:
-            body.append(self.block(block))
+            node = self.block(block)
+            body.append(node)
+            block_nodes[block["id"]] = node
         if model.get("sections"):
             section = model["sections"][-1]
             sect = properties(section.get("raw_xml"), "sectPr")
@@ -179,6 +182,9 @@ class DocxPackageWriter:
                     for side in ("top", "right", "bottom", "left")
                 },
             )
+        from .ink_writer import apply_ink
+
+        apply_ink(self, body, model, block_nodes)
         self.parts["word/document.xml"] = etree.tostring(
             root, encoding="UTF-8", xml_declaration=True, standalone=True
         )

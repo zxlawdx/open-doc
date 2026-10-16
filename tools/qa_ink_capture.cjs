@@ -37,7 +37,9 @@ const destination = path.resolve(__dirname, '../docs/images/ink');
   };
 
   fs.mkdirSync(destination,{recursive:true});
-  console.log('QT_READY');
+  assert.equal(await evaluate("fetch('/__vela__/static/open_doc/pdfjs/standard_fonts/LiberationSans-Regular.ttf').then(r=>r.status)"),200);
+  assert.equal(await evaluate("fetch('/__vela__/static/open_doc/pdfjs/cmaps/Adobe-Japan1-UCS2.bcmap').then(r=>r.status)"),200);
+  console.log('QT_READY_LOCAL_STANDARD_FONTS');
   assert.equal(await evaluate("document.querySelectorAll('.fixed-surface').length"),300);
   assert.ok(await evaluate("document.querySelectorAll('.fixed-surface canvas').length")<=5);
   assert.equal(await evaluate("(() => {const p=document.querySelector('.fixed-surface').getBoundingClientRect(),r=document.querySelector('.fixed-surface .ink-overlay').getBoundingClientRect();return Math.abs(r.width-p.width)<2 && Math.abs(r.height-p.height)<2;})()"),true);
@@ -64,4 +66,4 @@ const destination = path.resolve(__dirname, '../docs/images/ink');
   for(const [w,h] of [[1366,768],[1600,900],[1920,1080]]){await send('Emulation.setDeviceMetricsOverride',{width:w,height:h,deviceScaleFactor:1,mobile:false});await pause();await shot('pdf-ink-'+w);assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth+1"));}
   console.log('QT_SYNTHETIC_PEN_HISTORY_REVIEW_NATIVE_TEXT_3_RESOLUTIONS_OK');
   ws.close();
-})().catch(error=>{console.error(error);process.exitCode=1;});
+})().catch(error=>{console.error(error);process.exit(1);});

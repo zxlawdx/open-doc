@@ -65,7 +65,8 @@ def files() -> dict[str, Any]:
     return _handle(
         lambda: {
             "files": services().organizer.list_files(),
-            "documents": services().editor.list_documents(),
+            "documents": services().editor.list_documents()
+            + services().fixed_documents.list_documents(),
         }
     )
 
@@ -88,6 +89,7 @@ def new_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
 
     def create() -> dict[str, Any]:
         data = _data(context)
+        services().fixed_documents.activate("rich")
         if data.get("content_format") == "opendoc-rich-v1":
             return services().editor.create_rich_copy(
                 data["title"], data["content"], data.get("source_id")
@@ -106,6 +108,9 @@ def open_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
     def select() -> dict[str, Any]:
         data = _data(context)
         if "id" in data:
+            if services().fixed_documents.exists(data["id"]):
+                return services().fixed_documents.select(data["id"])
+            services().fixed_documents.activate("rich")
             return services().editor.select(data["id"])
         relative = data.get("path")
         if not isinstance(relative, str):
@@ -117,11 +122,18 @@ def open_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
             not (
                 resolved.is_relative_to(root / "notes")
                 or resolved.is_relative_to(root / "documents" / "docx")
+                or resolved.is_relative_to(root / "documents" / "pdf")
+                or resolved.is_relative_to(root / "documents" / "pptx")
             )
             or source.is_symlink()
             or not source.is_file()
         ):
             raise ValueError("Nota inválida.")
+        if resolved.suffix.lower() == ".pdf":
+            return services().fixed_documents.import_pdf(resolved)
+        if resolved.suffix.lower() == ".pptx":
+            return services().fixed_documents.import_pptx(resolved)
+        services().fixed_documents.activate("rich")
         return (
             services().editor.import_docx(resolved)
             if resolved.suffix.lower() == ".docx"
@@ -137,6 +149,10 @@ def save_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
 
     def save() -> dict[str, Any]:
         data = _data(context)
+        if data.get("content_format") == "opendoc-fixed-v1":
+            return services().fixed_documents.save(
+                data["id"], data["title"], data["content"], data["revision"]
+            )
         return services().editor.save(
             data["id"],
             data["title"],
@@ -172,7 +188,12 @@ def bootstrap() -> dict[str, Any]:
     return {
         "token": services().token,
         "settings": services().config.load_settings(),
-        "document": services().editor.current(),
+        "document": (
+            services().fixed_documents.current()
+            if services().fixed_documents.active_kind() != "rich"
+            else None
+        )
+        or services().editor.current(),
         "autosave_seconds": AUTOSAVE_SECONDS,
     }
 
@@ -186,6 +207,14 @@ def recovery_document(context: dict[str, Any] | None = None) -> dict[str, Any]:
 
     def recovery() -> dict[str, Any]:
         data = _data(context)
+        if services().fixed_documents.exists(data["id"]):
+            return services().fixed_documents.recovery(
+                data["id"],
+                data.get("title", ""),
+                data.get("content"),
+                data.get("revision", 0),
+                data.get("discard", False),
+            )
         if data.get("discard"):
             return services().editor.discard_recovery(data["id"])
         return services().editor.stash_recovery(
@@ -233,7 +262,11 @@ def document_media(context=None):
 def rename_document(context=None):
     def rename():
         data = _data(context)
-        return services().editor.rename(data["id"], data["title"], data["revision"])
+        return (
+            services().fixed_documents
+            if services().fixed_documents.exists(data["id"])
+            else services().editor
+        ).rename(data["id"], data["title"], data["revision"])
 
     return _handle(rename)
 
@@ -244,11 +277,49 @@ def delete_document(context=None):
         data = _data(context)
         if data.get("confirmed") is not True:
             raise ValueError("Confirme a exclusão do documento interno.")
-        return services().editor.delete(data["id"], data["revision"])
+        return (
+            services().fixed_documents
+            if services().fixed_documents.exists(data["id"])
+            else services().editor
+        ).delete(data["id"], data["revision"])
 
     return _handle(delete)
 
 
 @api.post("/open_doc/document/duplicate")
 def duplicate_document(context=None):
-    return _handle(lambda: services().editor.duplicate(_data(context)["id"]))
+    return _handle(lambda: duplicate_by_id(_data(context)["id"]))
+
+
+def duplicate_by_id(identifier):
+    return (
+        services().fixed_documents
+        if services().fixed_documents.exists(identifier)
+        else services().editor
+    ).duplicate(identifier)
+
+
+@api.get("/open_doc/artifact/content")
+def artifact_content(context=None):
+    """Token-authenticated identifier only; no filesystem path from the browser."""
+    from bottle import HTTPResponse, static_file
+
+    try:
+        context = context or {}
+        if not secrets.compare_digest(
+            str(context.get("headers", {}).get("X-Open-Doc-Token", "")),
+            services().token,
+        ):
+            return HTTPResponse(status=403, body="Sessão inválida.")
+        query = context.get("query", {})
+        path = services().fixed_documents.source(
+            query.get("id", ""), query.get("preview") == "1"
+        )
+        return static_file(
+            path.name,
+            root=str(path.parent),
+            mimetype="application/pdf",
+            headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
+        )
+    except Exception:
+        return HTTPResponse(status=404, body="Documento indisponível.")

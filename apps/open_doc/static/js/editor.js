@@ -50,7 +50,7 @@
     let saved = "";
     let mode = "rich";
     let chain = Promise.resolve();
-    let destroyed = false;
+    let destroyed = false, suspended = false;
     let recoveryTimer = null;
     let recovered = null;
     let copying = false;
@@ -90,10 +90,12 @@
     }
 
     function isClean() {
+      if(suspended)return true;
       return !documentState || signature(buffer()) === saved;
     }
 
     function cache() {
+      if(suspended)return;
       if (!documentState) return;
       if (isClean()) window.OpenDocRecovery.clear(documentState.id);
       else window.OpenDocRecovery.write(buffer());
@@ -105,6 +107,7 @@
     }
 
     function render() {
+      if(suspended)return;
       if(model && mode==='preview')window.OpenDocRichRenderer.render(model,preview,mediaUrl);else if(!model)preview.innerHTML = cleanHtml(source.value);
       if (mode === "markdown") {
         source.style.height = "auto";
@@ -188,6 +191,7 @@
     }
 
     function flush() {
+      if(suspended)return Promise.resolve();
       return enqueue(async () => {
         if (isClean()) return documentState;
         let result;
@@ -420,7 +424,7 @@
     rich.addEventListener("beforeinput", () => { commands.capture(); history.checkpoint(buffer()); }, listeners);
     source.addEventListener("input", () => changed("typing", source), listeners);
     rich.addEventListener("input", event => changed(nextKind,rich,event), listeners);
-    title.addEventListener("input", () => changed("typing", title), listeners);
+    title.addEventListener("input", () => {if(root.dataset.documentKind!=='fixed')changed("typing", title);}, listeners);
     window.OpenDocTables?.bind(rich,controller.signal,action=>{try{tableOperation(action);}catch(error){status(error.message);}});
     rich.addEventListener('click',event=>{const marker=event.target.closest('[data-note-id]');if(marker && model){const notes=model[marker.dataset.noteKind]?.[marker.dataset.noteId];if(notes)status('Nota '+marker.dataset.noteId+': '+notes.map(p=>(p.children || []).map(r=>r.text || '').join('')).join(' '));}},listeners);
     rich.addEventListener("paste", event => {
@@ -450,7 +454,7 @@
       }
     }, listeners);
     window.addEventListener("keydown", event => {
-      if (!(event.ctrlKey || event.metaKey)) return;
+      if(root.dataset.documentKind==='fixed' || !(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if(key === "enter" && mode === "rich" && rich.contains(getSelection()?.anchorNode)){event.preventDefault();insertPage("break");return;}
       if (key === "s") { event.preventDefault(); flush().catch(() => {}); }
@@ -474,7 +478,10 @@
     const timer = setInterval(() => {
       if (!copying && !isClean()) flush().catch(() => {});
     }, autosaveSeconds * AUTOSAVE_MS);
-    const instance = {load, flush, destroy, isClean, setLocked, setMode, format, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
+    function inkLayers(){return model?.ink_layers || [];}
+    function setInkLayers(layers){const next=ensureModel();next.ink_layers=layers;commitModel(next,'ink');root.dispatchEvent(new CustomEvent('open-doc:content'));}
+    function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}
+    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;
     if(window.OpenDocPagination)pagination=window.OpenDocPagination.create({root,model:()=>model,pageMetrics:()=>model?.sections?.[0],capture:()=>{commands.capture();return commands.bookmark();},restore:b=>commands.restoreBookmark(b)});
     if(window.OpenDocPageMenu)window.OpenDocPageMenu.create(root,instance,controller.signal);

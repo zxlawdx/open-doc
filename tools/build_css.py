@@ -27,6 +27,7 @@ STYLE_ORDER = (
     "home.css",
     "library.css",
     "statusbar.css",
+    "ink.css",
     "states.css",
     "responsive.css",
     "utilities.css",

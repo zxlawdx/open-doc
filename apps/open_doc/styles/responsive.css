@@ -120,3 +120,5 @@
         min-width: 80px;
     }
 }
+
+@media(max-width:800px){.fixed-document{grid-template-columns:110px minmax(0,1fr)}.fixed-scroll{padding:12px}.ink-toolbar{gap:3px}}

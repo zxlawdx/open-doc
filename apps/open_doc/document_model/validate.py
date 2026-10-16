@@ -199,4 +199,6 @@ def validate_rich_document(model):
             nodes(values)
     if not isinstance(model.get("sections", []), list):
         raise ValueError("Seções inválidas.")
+    from ..ink.validation import validate_layers
+    validate_layers(model.get("ink_layers", []))
     return model

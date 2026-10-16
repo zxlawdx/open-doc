@@ -240,10 +240,19 @@ class FixedDocumentService:
             if discard:
                 c.execute("DELETE FROM fixed_recovery WHERE id=?", (identifier,))
             else:
-                c.execute(
-                    "INSERT OR REPLACE INTO fixed_recovery VALUES (?,?,?,?)",
-                    (identifier, title, serialize(content), revision),
+                cursor = c.execute(
+                    "INSERT OR REPLACE INTO fixed_recovery SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM fixed_documents WHERE id=? AND revision=?)",
+                    (
+                        identifier,
+                        title,
+                        serialize(content),
+                        revision,
+                        identifier,
+                        revision,
+                    ),
                 )
+                if cursor.rowcount != 1:
+                    raise RevisionConflict("Recuperação baseada em revisão antiga.")
         return {"stored": not discard}
 
     def rename(self, identifier, title, revision):

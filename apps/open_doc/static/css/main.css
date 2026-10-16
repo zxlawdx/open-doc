@@ -1091,6 +1091,24 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+/* Shared ink stays outside editable text and scales with each page. */
+.ink-toolbar,.fixed-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 12px;background:var(--color-panel);border-bottom:1px solid var(--color-border)}
+.ink-toolbar button,.fixed-controls button,.fixed-sidebar button{padding:5px 8px;border-radius:4px;color:var(--color-text-primary);background:var(--color-panel);border:1px solid var(--color-border)}
+.open-doc .ink-toolbar button[aria-pressed=true]:not(:disabled){background:var(--color-primary);color:var(--color-on-primary)}
+.ink-toolbar input[type=number]{width:58px}.ink-toolbar input[type=color]{width:30px;height:28px;padding:0}
+.document-page,.fixed-surface{position:relative}.open-doc .ink-overlay{position:absolute;inset:0;width:100%;height:100%;z-index:8;touch-action:none;overflow:hidden}
+.fixed-document{flex:1;min-height:0;display:grid;grid-template-columns:170px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);overflow:hidden;background:var(--color-workspace)}
+.fixed-document[hidden], [data-home-view=true] .fixed-document{display:none!important}.fixed-controls{grid-column:1/-1}.fixed-controls input[type=number]{width:60px}.fixed-controls input[type=search]{max-width:220px}
+.fixed-sidebar{overflow:auto;padding:8px;display:flex;flex-direction:column;gap:6px;border-right:1px solid var(--color-border);background:var(--color-panel)}
+.fixed-scroll{overflow:auto;padding:24px;min-height:0}.fixed-surface{background:white;color:black;box-shadow:0 2px 8px #0003;margin:0 auto 24px;flex:none;overflow:hidden}.fixed-surface>canvas{position:absolute;inset:0}
+.fixed-text-overlay{position:absolute;white-space:pre-wrap;line-height:1.25;z-index:7}.pdf-links{position:absolute;inset:0;pointer-events:none;z-index:4}.pdf-links a{position:absolute;pointer-events:auto}
+.textLayer{--scale-factor:1;position:absolute;inset:0;overflow:hidden;opacity:1;line-height:1;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;z-index:3}
+.textLayer span,.textLayer br{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%}.textLayer> :not(.markedContent),.textLayer .markedContent span:not(.markedContent){z-index:1}.textLayer span.markedContent{top:0;height:0}.textLayer ::selection{background:#247bdf55;color:transparent}
+[data-document-kind=fixed] [data-document-body]{display:none!important}[data-document-kind=fixed] .toolbar{display:none}.dialog textarea{width:100%;min-height:140px;color:var(--color-text-primary);background:var(--color-panel);border:1px solid var(--color-border)}
+.fixed-sidebar canvas{display:block;margin:0 auto 4px;max-width:100%;height:auto}.fixed-sidebar [data-thumbnail-index]{min-height:90px}
+[data-home-view=true] .ink-toolbar{display:none}
+ .fixed-sidebar button{flex-shrink:0}
+
 /* Shared state vocabulary. A focus fallback also works without :focus-visible. */
 .open-doc button,
 .open-doc summary,
@@ -1281,6 +1299,8 @@ body {
         min-width: 80px;
     }
 }
+
+@media(max-width:800px){.fixed-document{grid-template-columns:110px minmax(0,1fr)}.fixed-scroll{padding:12px}.ink-toolbar{gap:3px}}
 
 /* Visibility is authoritative over flex/grid component display declarations. */
 .open-doc [hidden] {

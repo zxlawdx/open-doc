@@ -73,7 +73,7 @@
   function showView(home = false) {
     root.dataset.homeView = String(home);
     root.querySelector('[data-library]').hidden = !home;
-    root.querySelector('[data-document-body]').hidden = home;
+    root.querySelector('[data-document-body]').hidden = home || root.dataset.documentKind==='fixed';
     if (home) refresh().catch(error => status(error.message));
     else { layout?.measure(); editor?.refresh(); }
   }
@@ -132,7 +132,7 @@
     const result = await window.pywebview.api.import_document();
     if (result.error) throw Error(result.error);
     if (result.cancelled) return;
-    if(result.document){editor.load(result.document);editor.setMode('rich');showView(false);status('Documento Word importado.');return;}
+    if(result.document){editor.load(result.document);editor.setMode('rich');showView(false);status('Documento importado.');return;}
     showView(true); status('Arquivo importado: ' + result.name);
   }
   function closeDialog(value = null) {
@@ -162,7 +162,7 @@
   }
   async function refreshFonts(){
     const catalog=await window.pywebview.api.get_font_catalog(),select=root.querySelector('[data-font-family]'),value=select.value;
-    select.replaceChildren();for(const family of catalog.fonts){const option=document.createElement('option');option.value=family;option.textContent=family;select.appendChild(option);}select.value=value;updateToolbar();return catalog;
+    select.replaceChildren();for(const family of catalog.fonts){const option=document.createElement('option');option.value=family;option.textContent=family;select.appendChild(option);}select.value=value;updateToolbar();root.dispatchEvent(new CustomEvent('open-doc:fonts'));return catalog;
   }
   async function fontManager(){
     const catalog=await refreshFonts(),promise=dialog('Fontes importadas','A remoção afeta somente fontes importadas no Open Doc.');const body=root.querySelector('[data-dialog-body]');
@@ -197,7 +197,7 @@
       copy: () => operate(() => editor.copy()),
       navigator: () => toggleNavigator(),
       'zoom-reset': () => layout?.set(100),
-      find: async () => { showView(false); await toggleNavigator(true); navigation?.focus(); },
+      find: async () => { showView(false); if(editor.find?.())return;await toggleNavigator(true); navigation?.focus(); },
       link: async () => {
         const value = await dialog('Inserir link', 'Selecione o texto e informe um endereço. São aceitos HTTPS, HTTP e e-mail.', true);
         if (!value) return;
@@ -248,7 +248,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
@@ -256,7 +256,8 @@
     if (bootstrap.error) throw Error(bootstrap.error);
     token = bootstrap.token; settings = bootstrap.settings;
     collapsed(settings.sidebar_collapsed);
-    editor = window.OpenDocEditor.create({root, request, status, document: bootstrap.document, viewMode: settings.view_mode, autosaveSeconds: bootstrap.autosave_seconds});
+    editor = window.OpenDocDocumentKinds.create({root, request, status, token, signal, asset:name=>new URL(name,scriptUrl).href, document: bootstrap.document, viewMode: settings.view_mode, autosaveSeconds: bootstrap.autosave_seconds});
+    window.OpenDocInk.create({root,editor,status,signal});
     root.addEventListener('open-doc:page-setup',()=>action('page-setup'),{signal});
     root.querySelectorAll('[data-table-op]').forEach(button=>button.addEventListener('click',()=>{try{editor.tableOperation(button.dataset.tableOp);}catch(error){status(error.message);}},{signal}));
     window.OpenDocPopovers.bind(root, signal);
