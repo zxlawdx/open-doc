@@ -12,10 +12,29 @@
   const controller = new AbortController(), signal = controller.signal;
   let editor, theme, layout, navigation, menus, token = '', destroyed = false, busy = false;
   let settings = {}, preferenceChain = Promise.resolve();
-  let dialogResolver = null, dialogFocus = null;
+  let dialogResolver = null, dialogFocus = null, noticeTimer;
+  let lastStatus = '';
+  const failures = [];
 
   function status(text) {
+    lastStatus = text;
+    clearTimeout(noticeTimer);
     if (!destroyed) root.querySelector('[data-status]').textContent = text;
+  }
+  function report(name, error) {
+    console.error('Open Doc: ' + name, error);
+    failures.push({module: name, message: error.message});
+    root.querySelector('[data-status]').textContent = 'Recurso indisponível: ' + name + '.';
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => {
+      if (!destroyed) root.querySelector('[data-status]').textContent = lastStatus;
+    }, 4000);
+  }
+  async function auxiliary(name, global, file, create) {
+    try {
+      if (!window[global]) await loadScript(file);
+      if (!destroyed) return create(window[global]);
+    } catch (error) { report(name, error); }
   }
   async function request(path, data) {
     const options = data === undefined ? {} : {
@@ -136,8 +155,8 @@
       home: () => { showView(true); }, save: () => operate(() => editor.flush()),
       copy: () => operate(() => editor.copy()),
       navigator: () => toggleNavigator(),
-      'zoom-reset': () => layout.set(100),
-      find: async () => { showView(false); await toggleNavigator(true); navigation.focus(); },
+      'zoom-reset': () => layout?.set(100),
+      find: async () => { showView(false); await toggleNavigator(true); navigation?.focus(); },
       link: async () => {
         const value = await dialog('Inserir link', 'Selecione o texto e informe um endereço. São aceitos HTTPS, HTTP e e-mail.', true);
         if (!value) return;
@@ -145,8 +164,8 @@
         editor.format('link', value);
       },
       theme: async () => {
-        const value = await dialog('Aparência', 'O papel permanece branco nos temas claro e escuro.', false, theme.preference());
-        if (value) await theme.set(value);
+        const value = await dialog('Aparência', 'O papel permanece branco nos temas claro e escuro.', false, theme?.preference() || 'system');
+        if (value) await theme?.set(value);
       },
       shortcuts: () => dialog('Atalhos de teclado', 'Ctrl+N: novo · Ctrl+O: importar · Ctrl+S: salvar · Ctrl+B: negrito · Ctrl+I: itálico · Ctrl+Z: desfazer · Ctrl+Y ou Ctrl+Shift+Z: refazer · Ctrl+F: localizar. Copiar, recortar e colar usam os atalhos do sistema.'),
       about: () => dialog('Open Doc', 'Editor desktop local construído com o Vela Framework. Documento visual contínuo de largura A4. Exporta PDF, DOCX e Markdown. Não oferece paginação fiel ao Word nem edição direta de DOCX nesta versão.')
@@ -157,7 +176,7 @@
     const state = editor?.commandState() || {};
     for (const name of ['bold', 'italic']) root.querySelectorAll('[data-command="' + name + '"][aria-pressed]').forEach(button => button.setAttribute('aria-pressed', String(Boolean(state[name]))));
     const select = root.querySelector('[data-paragraph]');
-    if (select && state.paragraph) select.value = state.paragraph;
+    if (select && document.activeElement !== select && state.paragraph) select.value = state.paragraph;
   }
   async function loadScript(name) {
     if (destroyed) return;
@@ -169,11 +188,11 @@
   }
   const page = {
     destroy() {
-      editor?.destroy(); destroyed = true; controller.abort();
+      editor?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
       if (dialogResolver) closeDialog();
     },
     action, showHome: () => showView(true), editor: () => editor,
-    theme: () => theme, layout: () => layout, refresh, status
+    failures, theme: () => theme, layout: () => layout, refresh, status
   };
   window.OpenDocApp = page;
   window.VelaPage = {beforeUnmount: () => page.destroy()};
@@ -183,9 +202,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocEditor', 'editor.js'], ['OpenDocMenus', 'menus.js'],
-      ['OpenDocTheme', 'theme.js'], ['OpenDocPaperLayout', 'paper_layout.js'],
-      ['OpenDocNavigation', 'navigation.js']
+      ['OpenDocEditor', 'editor.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
@@ -194,10 +211,13 @@
     token = bootstrap.token; settings = bootstrap.settings;
     collapsed(settings.sidebar_collapsed);
     editor = window.OpenDocEditor.create({root, request, status, document: bootstrap.document, autosaveSeconds: bootstrap.autosave_seconds});
-    theme = window.OpenDocTheme.create(root, settings, persist, signal);
-    layout = window.OpenDocPaperLayout.create(root, settings, persist, signal);
-    navigation = window.OpenDocNavigation.create(root, editor, signal);
-    menus = window.OpenDocMenus.create(root, editor.capture, signal);
+    // Selection and command bindings are essential, independent of side panels.
+    function preserveSelection(event) {
+      if (event.target.closest('[data-menu], [data-command], [data-action="link"], [data-paragraph]')) editor.capture();
+      if (event.type === 'mousedown' && event.target.closest('.toolbar button')) event.preventDefault();
+    }
+    root.addEventListener('pointerdown', preserveSelection, {signal});
+    root.addEventListener('mousedown', preserveSelection, {signal});
     root.addEventListener('click', event => {
       const button = event.target.closest('button'); if (!button || button.disabled) return;
       if (button.hasAttribute('data-action')) action(button.dataset.action);
@@ -231,7 +251,12 @@
       const name = ({n: 'new', o: 'import', f: 'find'})[event.key.toLowerCase()];
       if (name) { event.preventDefault(); action(name); }
     }, {signal});
+    menus = await auxiliary('menus', 'OpenDocMenus', 'menus.js', module => module.create(root, editor.capture, signal));
+    theme = await auxiliary('aparência', 'OpenDocTheme', 'theme.js', module => module.create(root, settings, persist, signal));
+    layout = await auxiliary('zoom', 'OpenDocPaperLayout', 'paper_layout.js', module => module.create(root, settings, persist, signal));
+    navigation = await auxiliary('navegação', 'OpenDocNavigation', 'navigation.js', module => module.create(root, editor, signal));
     showView(false);
+    root.dataset.ready = 'true';
   }
-  mount().catch(error => status(error.message));
+  mount().catch(error => { console.error('Open Doc: inicialização', error); status(error.message); });
 })();
