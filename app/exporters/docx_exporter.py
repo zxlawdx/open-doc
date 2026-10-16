@@ -1,7 +1,7 @@
 """
 Módulo: docx_exporter.py.
 Responsabilidade: exportar estrutura e formatação Markdown para DOCX.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
