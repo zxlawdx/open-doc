@@ -36,12 +36,17 @@
 
     let documentState = null;
     let saved = "";
-    let mode = "markdown";
+    let mode = "rich";
     let chain = Promise.resolve();
     let destroyed = false;
     let recoveryTimer = null;
     let recovered = null;
     let copying = false;
+    let lockedState = false;
+    let renderTimer = null;
+    let nextKind = "typing";
+    const history = window.OpenDocHistory.create();
+    const commands = window.OpenDocCommands.create(rich, kind => changed(kind), controller.signal);
 
     function cleanHtml(markdown) {
       return window.DOMPurify.sanitize(window.marked.parse(markdown, {async: false}), {
@@ -56,7 +61,8 @@
         id: documentState.id,
         title: title.value.trim() || "Sem título",
         markdown: source.value,
-        revision: documentState.revision
+        revision: documentState.revision,
+        selection: mode === "rich" ? commands.bookmark() : {start: source.selectionStart, length: source.selectionEnd - source.selectionStart}
       };
     }
 
@@ -68,27 +74,26 @@
       return !documentState || signature(buffer()) === saved;
     }
 
-    function cacheKey() {
-      return "vela-writer-recovery:" + documentState.id;
-    }
-
     function cache() {
       if (!documentState) return;
-      try {
-        if (isClean()) localStorage.removeItem(cacheKey());
-        else localStorage.setItem(cacheKey(), JSON.stringify(buffer()));
-      } catch {
-        // SQLite recovery still works if WebView storage is unavailable.
-      }
+      if (isClean()) window.OpenDocRecovery.clear(documentState.id);
+      else window.OpenDocRecovery.write(buffer());
     }
 
     function render() {
       preview.innerHTML = cleanHtml(source.value);
+      if (mode === "markdown") {
+        source.style.height = "auto";
+        source.style.height = Math.max(1123, source.scrollHeight) + "px";
+      }
       const text = preview.textContent.trim();
       const count = text ? text.split(/\s+/u).length : 0;
       root.querySelector("[data-count]").textContent =
         count + (count === 1 ? " palavra" : " palavras");
       root.dataset.dirty = String(!isClean());
+      root.dispatchEvent(new CustomEvent("open-doc:content", {detail: {mode}}));
+      root.querySelectorAll('[data-command="undo"]').forEach(button => { button.disabled = !history.canUndo(); });
+      root.querySelectorAll('[data-command="redo"]').forEach(button => { button.disabled = !history.canRedo(); });
       if (window.pywebview?.api?.set_dirty) {
         window.pywebview.api.set_dirty(!isClean()).catch(() => {});
       }
@@ -110,12 +115,17 @@
       }, RECOVERY_DELAY);
     }
 
-    function changed() {
-      if (mode === "rich") source.value = converter.turndown(rich.innerHTML);
-      render();
+    function changed(kind = nextKind, origin = rich) {
+      if (mode === "rich" && origin === rich) source.value = converter.turndown(rich.innerHTML);
+      history.record(buffer(), kind);
       cache();
+      clearTimeout(renderTimer);
+      renderTimer = setTimeout(render, 100);
       scheduleRecovery();
-      status("Alterações pendentes · salvamento automático em até 30s");
+      root.dataset.dirty = String(!isClean());
+      if (window.pywebview?.api?.set_dirty) window.pywebview.api.set_dirty(!isClean()).catch(() => {});
+      status("Alterações não salvas");
+      root.dispatchEvent(new CustomEvent("open-doc:changed"));
     }
 
     function load(note) {
@@ -130,18 +140,17 @@
       root.querySelectorAll("[data-save], [data-export]").forEach(button => {
         button.disabled = false;
       });
-      root.querySelector("[data-save-copy]").hidden = true;
+      root.querySelector("[data-conflict]").hidden = true;
       root.querySelector("[data-export-result]").textContent = "";
       rich.innerHTML = cleanHtml(note.markdown);
       recovered = note.recovery || null;
-      try {
-        const cached = JSON.parse(localStorage.getItem(cacheKey()));
-        if (cached && signature(cached) !== saved) recovered = cached;
-      } catch { /* Invalid WebView cache does not affect persisted notes. */ }
+      const cached = window.OpenDocRecovery.read(documentState.id);
+      if (cached && signature(cached) !== saved) recovered = cached;
+      history.reset(buffer());
       root.querySelector("[data-recovery]").hidden =
         !recovered || signature(recovered) === saved;
       render();
-      status("Documento salvo · revisão " + note.revision);
+      status(recovered && signature(recovered) !== saved ? "Recuperação disponível" : "Salvo no dispositivo");
     }
 
     function flush() {
@@ -160,9 +169,9 @@
           cache();
           render();
           if (!isClean()) scheduleRecovery();
-          status(isClean() ? "Salvo · revisão " + result.revision : "Novas alterações pendentes");
+          status(isClean() ? "Salvo no dispositivo" : "Alterações não salvas");
         } catch (error) {
-          root.querySelector("[data-save-copy]").hidden = !error.conflict;
+          root.querySelector("[data-conflict]").hidden = !error.conflict;
           status(error.message);
           throw error;
         } finally {
@@ -185,7 +194,7 @@
         if (discardRecovery) {
           await request("document/recovery", {id: documentState.id, discard: true});
         }
-        try { localStorage.removeItem(cacheKey()); } catch {}
+        window.OpenDocRecovery.clear(documentState.id);
         load(note);
         status("Cópia salva.");
       } catch (error) { status(error.message); }
@@ -193,58 +202,94 @@
     }
 
     function setMode(next) {
-      if (next === mode) return;
+      if (!["rich", "markdown", "preview"].includes(next)) return;
       if (next === "rich") rich.innerHTML = cleanHtml(source.value);
-      // source is updated on each rich input, preserving unedited Markdown.
       mode = next;
       surface.dataset.editorMode = mode;
-      source.hidden = mode === "rich";
+      source.hidden = mode !== "markdown";
       rich.hidden = mode !== "rich";
+      preview.hidden = mode !== "preview";
       root.querySelectorAll("[data-mode]").forEach(button => {
-        button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+        button.setAttribute("aria-checked", String(button.dataset.mode === mode));
       });
-      (mode === "rich" ? rich : source).focus();
+      const label = root.querySelector("[data-mode-label]");
+      if (label) label.textContent = {rich: "Editor visual", markdown: "Código Markdown", preview: "Visualização"}[mode];
+      render();
+      if (mode !== "preview") (mode === "rich" ? rich : source).focus();
     }
 
-    function format(kind) {
+    function restoreSnapshot(snapshot) {
+      if (!snapshot) return;
+      title.value = snapshot.title;
+      source.value = snapshot.markdown;
+      rich.innerHTML = cleanHtml(snapshot.markdown);
+      cache(); scheduleRecovery(); render();
+      status(isClean() ? "Salvo no dispositivo" : "Alterações não salvas");
+      if (mode === "rich") commands.restoreBookmark(snapshot.selection);
+      else { source.focus(); source.setSelectionRange(snapshot.selection?.start || 0, (snapshot.selection?.start || 0) + (snapshot.selection?.length || 0)); }
+    }
+
+    function format(kind, value) {
+      if (lockedState) return;
+      history.checkpoint(buffer());
+      if (kind === "undo") { restoreSnapshot(history.undo()); return; }
+      if (kind === "redo") { restoreSnapshot(history.redo()); return; }
+      if (mode === "preview") setMode("rich");
+      if (kind === "selectAll" && mode === "markdown") { source.focus(); source.select(); return; }
       if (mode === "rich") {
-        rich.focus();
-        const commands = {
-          bold: ["bold"], italic: ["italic"], heading: ["formatBlock", "h2"],
-          list: ["insertUnorderedList"], quote: ["formatBlock", "blockquote"],
-          code: ["formatBlock", "pre"]
+        const mapping = {
+          bold: ["bold"], italic: ["italic"], paragraph: ["formatBlock", "p"],
+          h1: ["formatBlock", "h1"], heading: ["formatBlock", "h2"], h3: ["formatBlock", "h3"],
+          list: ["insertUnorderedList"], ordered: ["insertOrderedList"],
+          quote: ["formatBlock", "blockquote"], code: ["formatBlock", "pre"],
+          link: ["createLink", value], selectAll: ["selectAll"]
         };
-        const [command, argument] = commands[kind];
-        document.execCommand(command, false, argument || null);
-        changed();
+        if (!mapping[kind]) return;
+        nextKind = "format";
+        commands.execute(...mapping[kind]);
+        nextKind = "typing";
         return;
       }
-      const start = source.selectionStart;
-      const end = source.selectionEnd;
+      const start = source.selectionStart, end = source.selectionEnd;
       const selected = source.value.slice(start, end) || "texto";
       const wrappers = {
-        bold: ["**", "**"], italic: ["*", "*"], heading: ["\n## ", "\n"],
-        list: ["\n- ", "\n"], quote: ["\n> ", "\n"], code: ["\n\x60\x60\x60\n", "\n\x60\x60\x60\n"]
+        bold: ["**", "**"], italic: ["*", "*"], h1: ["\n# ", "\n"],
+        heading: ["\n## ", "\n"], h3: ["\n### ", "\n"], paragraph: ["\n", "\n"],
+        list: ["\n- ", "\n"], ordered: ["\n1. ", "\n"], quote: ["\n> ", "\n"],
+        code: ["\n\x60\x60\x60\n", "\n\x60\x60\x60\n"], link: ["[", "](" + value + ")"]
       };
+      if (!wrappers[kind]) return;
       const [before, after] = wrappers[kind];
       source.setRangeText(before + selected + after, start, end, "select");
-      source.focus();
-      changed();
+      source.focus(); changed("format", source);
+    }
+
+    async function exportDocument(extension) {
+      await flush();
+      const result = await request("document/export", {
+        id: documentState.id, revision: documentState.revision, format: extension
+      });
+      root.querySelector("[data-export-result]").textContent = "Exportado para: " + result.path;
+      status("Exportação concluída");
+      return result;
     }
 
     function setLocked(locked) {
+      lockedState = locked;
       source.disabled = locked;
       title.disabled = locked;
       rich.contentEditable = String(!locked);
-      root.querySelectorAll("[data-format], [data-mode], [data-save], [data-export], [data-save-copy], [data-recover]").forEach(button => {
+      root.querySelectorAll("[data-command], [data-mode], [data-save], [data-export], [data-save-copy], [data-recover]").forEach(button => {
         button.disabled = locked;
       });
+      if (!locked) render();
     }
 
     function destroy() {
       cache();
       clearInterval(timer);
       clearTimeout(recoveryTimer);
+      clearTimeout(renderTimer);
       if (!isClean()) {
         enqueue(() => request("document/recovery", buffer())).catch(() => {});
       }
@@ -252,27 +297,15 @@
       controller.abort();
     }
 
-    source.addEventListener("input", changed, listeners);
-    rich.addEventListener("input", changed, listeners);
-    title.addEventListener("input", changed, listeners);
+    source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
+    rich.addEventListener("beforeinput", () => { commands.capture(); history.checkpoint(buffer()); }, listeners);
+    source.addEventListener("input", () => changed("typing", source), listeners);
+    rich.addEventListener("input", () => changed(), listeners);
+    title.addEventListener("input", () => changed("typing", title), listeners);
     rich.addEventListener("paste", event => {
       event.preventDefault();
       const plain = event.clipboardData.getData("text/plain");
-      document.execCommand("insertText", false, plain);
-      changed();
-    }, listeners);
-    root.querySelectorAll("[data-format]").forEach(button => {
-      button.addEventListener("mousedown", event => event.preventDefault(), listeners);
-      button.addEventListener("click", () => format(button.dataset.format), listeners);
-    });
-    root.querySelectorAll("[data-mode]").forEach(button => {
-      button.addEventListener("click", () => setMode(button.dataset.mode), listeners);
-    });
-    root.querySelector("[data-preview-toggle]").addEventListener("change", event => {
-      surface.dataset.preview = String(event.target.checked);
-    }, listeners);
-    root.querySelector("[data-save]").addEventListener("click", () => {
-      flush().catch(() => {});
+      commands.execute("insertText", plain);
     }, listeners);
     root.querySelector("[data-save-copy]").addEventListener("click", () => {
       copyDocument();
@@ -283,27 +316,11 @@
     root.querySelector("[data-discard-recovery]").addEventListener("click", async () => {
       try {
         await request("document/recovery", {id: documentState.id, discard: true});
-        localStorage.removeItem(cacheKey());
+        window.OpenDocRecovery.clear(documentState.id);
         recovered = null;
         root.querySelector("[data-recovery]").hidden = true;
       } catch (error) { status(error.message); }
     }, listeners);
-    root.querySelectorAll("[data-export]").forEach(button => {
-      button.addEventListener("click", async () => {
-        button.disabled = true;
-        try {
-          await flush();
-          const result = await request("document/export", {
-            id: documentState.id, revision: documentState.revision,
-            format: button.dataset.export
-          });
-          root.querySelector("[data-export-result]").textContent =
-            "Exportado para: " + result.path;
-          status("Exportação concluída.");
-        } catch (error) { status(error.message); }
-        finally { button.disabled = false; }
-      }, listeners);
-    });
     root.addEventListener("click", event => {
       const anchor = event.target.closest("[data-preview-pane] a, [data-rich] a");
       if (anchor) {
@@ -315,7 +332,12 @@
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if (key === "s") { event.preventDefault(); flush().catch(() => {}); }
-      if (["b", "i"].includes(key)) {
+      if (key === "z" || key === "y") {
+        if ([source, rich].some(element => element === document.activeElement || element.contains(document.activeElement))) {
+          event.preventDefault(); format(key === "y" || event.shiftKey ? "redo" : "undo");
+        }
+      }
+      if (["b", "i"].includes(key) && document.activeElement !== title) {
         event.preventDefault();
         format(key === "b" ? "bold" : "italic");
       }
@@ -330,13 +352,14 @@
     const timer = setInterval(() => {
       if (!copying && !isClean()) flush().catch(() => {});
     }, autosaveSeconds * AUTOSAVE_MS);
-    const instance = {load, flush, destroy, isClean, setLocked};
+    const instance = {load, flush, destroy, isClean, setLocked, setMode, format, copy: copyDocument, export: exportDocument, capture: commands.capture, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;
     load(options.document);
+    setMode("rich");
     return instance;
   }
 
-  window.WriterEditor = {
+  window.OpenDocEditor = {
     create,
     isClean: () => active ? active.isClean() : true
   };
