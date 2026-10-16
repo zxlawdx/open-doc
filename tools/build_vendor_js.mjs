@@ -10,7 +10,7 @@ const dependencies=['esbuild','core-js','pdfjs-dist','perfect-freehand','pptx-vi
 await mkdir(out,{recursive:true});const marker=join(out,'.build-failed');await writeFile(marker,'Build incompleto: execute npm run build:vendor.\n');
 try{for(const name of dependencies)require.resolve(name);}catch(error){console.error('Dependência de vendor ausente. Execute npm ci.\n'+error.message);process.exit(1);}
 const {build}=await import('esbuild');await mkdir(out,{recursive:true});
-const temporary=await mkdtemp(join(out,'.build-'));
+const temporary=await mkdtemp(join(root,'.vela-vendor-'));
 const hash=data=>createHash('sha256').update(data).digest('hex');
 try{
  const common={bundle:true,minify:true,target:'chrome87',platform:'browser',format:'iife',legalComments:'eof'};

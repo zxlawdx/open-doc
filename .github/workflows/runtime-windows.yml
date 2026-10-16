@@ -11,7 +11,7 @@ jobs:
     env:
       PYWEBVIEW_GUI: qt
       QT_API: pyqt5
-      QT_QPA_PLATFORM: offscreen
+      QT_QPA_PLATFORM: windows
       QT_OPENGL: software
       QT_QUICK_BACKEND: software
       QTWEBENGINE_DISABLE_SANDBOX: '1'

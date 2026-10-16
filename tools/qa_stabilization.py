@@ -58,9 +58,10 @@ def main():
             imports = []
             for suffix in ["md", "txt"]:
                 path = services().config.root / ("import-" + suffix + "." + suffix)
-                path.write_text(
-                    "Olá, ação e acentuação 🐧\nConteúdo editável.", encoding="utf-8"
-                )
+                text = "Olá, ação e acentuação 🐧\nConteúdo editável."
+                if suffix == "txt":
+                    text = "Olá, ação e acentuação 🐧 conteúdo editável. " * 2500
+                path.write_text(text, encoding="utf-8")
                 imports.append(path)
             imports.extend(
                 [
@@ -117,6 +118,16 @@ def main():
                 )
                 assert window.evaluate_js("__fullRenders===0")
             print("QT_QTEST_TYPING_UNDO_FIRST_MIDDLE_LAST_PAGES_OK", flush=True)
+            if os.environ.get("OPEN_DOC_USER_FIXTURE"):
+                from qa_user_docx import verify
+
+                verify(
+                    window,
+                    services,
+                    keyboard,
+                    wait,
+                    os.environ["OPEN_DOC_USER_FIXTURE"],
+                )
             for suffix, title, kind in [
                 ("md", "import-md", "rich"),
                 ("txt", "import-txt", "rich"),
