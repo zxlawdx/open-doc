@@ -1,0 +1,5 @@
+# Optional. PyWinRT 3.2.1 wheel signatures verified separately from Linux runtime.
+winrt-runtime==3.2.1; sys_platform == 'win32'
+winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'
+winrt-Windows.Foundation.Numerics==3.2.1; sys_platform == 'win32'
+winrt-Windows.UI.Input.Inking==3.2.1; sys_platform == 'win32'
