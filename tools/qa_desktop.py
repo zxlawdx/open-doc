@@ -94,6 +94,16 @@ def native_keyboard(window: Any) -> None:
     time.sleep(0.2)
     driver.send("A")
     assert len(window.evaluate_js("window.getSelection().toString()")) > 50
+    driver.send("B")
+    assert "**" in window.evaluate_js("document.querySelector('[data-source]').value")
+    driver.send("Z")
+    driver.send("A")
+    driver.send("I")
+    assert window.evaluate_js(
+        "Boolean(document.querySelector('[data-rich] i, [data-rich] em'))"
+    )
+    driver.send("Z")
+    driver.send("A")
     driver.send("C")
     driver.send("X")
     assert not window.evaluate_js(
@@ -113,6 +123,158 @@ def native_keyboard(window: Any) -> None:
     print("NATIVE_CTRL_A_C_X_V_Z_Y_SHIFT_Z_S_OK", flush=True)
 
 
+def verify_controls(window: Any) -> None:
+    """Exercise UI handlers, selection and canonical output, never editor.format."""
+
+    def js(expression: str) -> Any:
+        return window.evaluate_js(expression)
+
+    def click(selector: str) -> None:
+        js("""(() => { const b=document.querySelector(%s);
+          if(!b || b.disabled) throw Error('Missing/disabled control: '+%s);
+          b.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));
+          b.click(); })()""" % (json.dumps(selector), json.dumps(selector)))
+        time.sleep(0.15)
+
+    def select() -> None:
+        # Reset is test setup; actions below always go through visible controls.
+        note = services().editor.current()
+        note = {**note, "markdown": "# Título\n\nTexto selecionado"}
+        js("window.OpenDocApp.editor().load(" + json.dumps(note) + ")")
+        js("""(() => {const r=document.querySelector('[data-rich]');r.focus();
+          const range=document.createRange();range.selectNodeContents(r.querySelector('p'));
+          const s=getSelection();s.removeAllRanges();s.addRange(range);})()""")
+
+    for command, expected in [
+        ("bold", "**Texto selecionado**"),
+        ("italic", "_Texto selecionado_"),
+        ("list", "-   Texto"),
+        ("ordered", "1.  Texto"),
+        ("quote", "> Texto"),
+        ("code", "```\nTexto selecionado\n```"),
+    ]:
+        select()
+        click(".toolbar [data-command=" + command + "]")
+        value = js("document.querySelector('[data-source]').value")
+        assert expected in value, (command, value)
+        if command == "code":
+            assert js("Boolean(document.querySelector('[data-rich] pre'))")
+    for style, tag in [
+        ("h1", "h1"),
+        ("heading", "h2"),
+        ("h3", "h3"),
+        ("paragraph", "p"),
+    ]:
+        select()
+        js(
+            """(() => {const s=document.querySelector('[data-paragraph]');
+          s.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));s.focus();
+          s.value=%s;s.dispatchEvent(new Event('change',{bubbles:true}));})()"""
+            % json.dumps(style)
+        )
+        assert (
+            js(
+                "document.querySelector('[data-rich]').lastElementChild.tagName.toLowerCase()"
+            )
+            == tag
+        )
+    select()
+    click(".toolbar [data-action=link]")
+    js("document.querySelector('[data-dialog-input]').value='https://example.com'")
+    click("[data-dialog-confirm]")
+    assert "[Texto selecionado](https://example.com)" in js(
+        "document.querySelector('[data-source]').value"
+    )
+    select()
+    click(".toolbar [data-action=link]")
+    click("[data-dialog-cancel]")
+    assert "](" not in js("document.querySelector('[data-source]').value")
+    select()
+    click(".toolbar [data-action=link]")
+    js("document.querySelector('[data-dialog-input]').value='javascript:alert(1)'")
+    click("[data-dialog-confirm]")
+    assert "](" not in js("document.querySelector('[data-source]').value")
+    for menu in ["file", "edit", "view", "insert", "format", "tools", "help"]:
+        click("[data-menu=" + menu + "]")
+        assert (
+            js("document.querySelector('[data-menu-panel=" + menu + "]').hidden")
+            is False
+        )
+        click("[data-menu=" + menu + "]")
+    for mode in ["markdown", "preview", "rich"]:
+        click("[data-menu=view]")
+        click("[data-mode=" + mode + "]")
+        assert js("document.querySelector('[data-surface]').dataset.editorMode") == mode
+    for command in [
+        "bold",
+        "italic",
+        "paragraph",
+        "h1",
+        "heading",
+        "h3",
+        "list",
+        "ordered",
+        "quote",
+        "code",
+        "selectAll",
+    ]:
+        select()
+        menu = (
+            "edit"
+            if command == "selectAll"
+            else (
+                "insert"
+                if command in ["list", "ordered", "quote", "code"]
+                else "format"
+            )
+        )
+        click("[data-menu=" + menu + "]")
+        click("[data-menu-panel=" + menu + "] [data-command=" + command + "]")
+        if command == "selectAll":
+            assert len(js("getSelection().toString()")) > 10
+        else:
+            assert (
+                js("document.querySelector('[data-source]').value")
+                != "# Título\n\nTexto selecionado"
+                or command == "paragraph"
+            ), (command, js("document.querySelector('[data-rich]').innerHTML"))
+    select()
+    click("[data-menu=tools]")
+    click("[data-menu-panel=tools] [data-action=find]")
+    js(
+        "document.querySelector('[data-find]').value='Texto';document.querySelector('[data-find]').dispatchEvent(new Event('input',{bubbles:true}))"
+    )
+    wait_for(window, "document.querySelectorAll('[data-find-results] button').length")
+    click("[data-find-results] button")
+    assert js("getSelection().toString()") == "Texto"
+    click("[data-outline] button")
+    click("[data-menu=view]")
+    click("[data-menu-panel=view] [data-action=navigator]")
+    assert js("document.querySelector('[data-app]').dataset.collapsed") == "true"
+    click("[data-menu=view]")
+    click("[data-menu-panel=view] [data-action=navigator]")
+    click('[data-zoom-step="10"]')
+    assert js("document.querySelector('[data-zoom-value]').textContent") == "110%"
+    click("[data-menu=view]")
+    click("[data-action=zoom-reset]")
+    assert js("document.querySelector('[data-zoom-value]').textContent") == "100%"
+    click("[data-menu=tools]")
+    click("[data-action=theme]")
+    js("document.querySelector('[data-dialog-select]').value='dark'")
+    click("[data-dialog-confirm]")
+    assert js("document.querySelector('[data-app]').dataset.theme") == "dark"
+    for action in ["shortcuts", "about"]:
+        click("[data-menu=help]")
+        click("[data-action=" + action + "]")
+        assert js("document.querySelector('[data-dialog]').hidden") is False
+        click("[data-dialog-confirm]")
+    assert not js(
+        "/is not a function|undefined|TypeError/.test(document.querySelector('[data-status]').textContent)"
+    )
+    assert js("window.OpenDocApp.failures.length") == 0
+    print("NATIVE_TOOLBAR_PARAGRAPHS_LINK_MENUS_FIND_SIDEBAR_ZOOM_OK", flush=True)
+
+
 def run_qa() -> None:
     """Executa VelaApp e verifica comandos no Chromium nativo do Qt."""
     original_start = webview.start
@@ -121,7 +283,10 @@ def run_qa() -> None:
     def qa() -> None:
         window = webview.windows[0]
         try:
-            wait_for(window, "Boolean(window.OpenDocApp && window.OpenDocApp.editor())")
+            wait_for(
+                window,
+                "Boolean(window.OpenDocApp && document.querySelector('[data-app]').dataset.ready === 'true')",
+            )
             assert window.title == "Open Doc"
             assert (
                 window.evaluate_js("document.querySelector('[data-rich]').hidden")
@@ -140,7 +305,7 @@ def run_qa() -> None:
             )
             wait_for(
                 window,
-                "Boolean(window.OpenDocApp !== window.__previousOpenDoc && window.OpenDocApp.editor())",
+                "Boolean(window.OpenDocApp !== window.__previousOpenDoc && document.querySelector('[data-app]').dataset.ready === 'true')",
             )
             print("NATIVE_VELA_REMOUNT_AND_LISTENER_CLEANUP_OK", flush=True)
             result = window.evaluate_js("""(() => {
@@ -153,19 +318,26 @@ def run_qa() -> None:
               return {markdown:document.querySelector('[data-source]').value,selected:selection.toString()};
             })()""")
             assert "**" in result["markdown"] and result["selected"]
-            window.evaluate_js("window.OpenDocApp.editor().format('undo')")
+            window.evaluate_js(
+                "document.querySelector('.toolbar [data-command=undo]').click()"
+            )
             assert "**" not in window.evaluate_js(
                 "document.querySelector('[data-source]').value"
             )
-            window.evaluate_js("window.OpenDocApp.editor().format('redo')")
+            window.evaluate_js(
+                "document.querySelector('.toolbar [data-command=redo]').click()"
+            )
             assert "**" in window.evaluate_js(
                 "document.querySelector('[data-source]').value"
             )
-            window.evaluate_js("window.OpenDocApp.editor().format('italic')")
+            window.evaluate_js(
+                "document.querySelector('.toolbar [data-command=italic]').click()"
+            )
             assert "*" in window.evaluate_js(
                 "document.querySelector('[data-source]').value"
             )
             print("NATIVE_SELECTION_BOLD_ITALIC_UNDO_REDO_OK", flush=True)
+            verify_controls(window)
             window.evaluate_js("window.OpenDocApp.editor().flush()")
             wait_for(window, "window.OpenDocEditor.isClean()")
             assert not window.confirm_close
@@ -180,6 +352,16 @@ def run_qa() -> None:
                 target = Path(exported["path"])
                 assert target.suffix == "." + extension and target.stat().st_size > 0
             print("NATIVE_SAVE_EXPORT_OK", flush=True)
+            keyboard_document = services().editor.current()
+            keyboard_document = services().editor.save(
+                keyboard_document["id"],
+                keyboard_document["title"],
+                FIXTURE,
+                keyboard_document["revision"],
+            )
+            window.evaluate_js(
+                "window.OpenDocApp.editor().load(" + json.dumps(keyboard_document) + ")"
+            )
             native_keyboard(window)
             # Return the fixture to its unformatted original content for screenshots.
             document = services().editor.current()
@@ -217,7 +399,10 @@ def run_qa() -> None:
             window.evaluate_js("window.OpenDocApp.editor().flush()")
             print("NATIVE_RECENT_NEW_AND_CLOSE_OK", flush=True)
         except Exception as error:
-            failures.append(str(error))
+            import traceback
+
+            traceback.print_exc()
+            failures.append(repr(error))
             print("NATIVE_QA_ERROR", repr(error), flush=True)
         finally:
             # Test cleanup only; avoid a modal blocking CI if an assertion failed.
