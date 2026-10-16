@@ -4,7 +4,7 @@
   const highlights={yellow:'FFFF00',green:'00FF00',cyan:'00FFFF',magenta:'FF00FF',blue:'0000FF',red:'FF0000',darkBlue:'000080',darkCyan:'008080',darkGreen:'008000',darkMagenta:'800080',darkRed:'800000',darkYellow:'808000',darkGray:'808080',lightGray:'C0C0C0',black:'000000',white:'FFFFFF'};
   function color(v){v=highlights[v] || v;return /^[a-f\d]{6}$/i.test(v || '')?'#'+v:'';}
   function textStyle(e,style){const s=e.style;style=style || {};
-    if(typeof style.font_family==='string' && style.font_family.length<=200)s.fontFamily=JSON.stringify(style.font_family)+', var(--document-font-fallback, serif)';
+    if(typeof style.font_family==='string' && style.font_family.length<=200)s.fontFamily=JSON.stringify(style.font_family)+', var(--font-document-default)';
     if(style.font_size_pt>=1 && style.font_size_pt<=512)s.fontSize=style.font_size_pt+'pt';
     if(style.bold!=null)s.fontWeight=style.bold?'700':'400';if(style.italic!=null)s.fontStyle=style.italic?'italic':'normal';
     const decorations=[];if(style.underline && style.underline!=='none')decorations.push('underline');if(style.strike)decorations.push('line-through');s.textDecorationLine=decorations.join(' ');

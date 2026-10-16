@@ -18,6 +18,7 @@
       trigger.setAttribute('aria-expanded', 'true');
       const panel = root.querySelector('[data-menu-panel="' + trigger.dataset.menu + '"]');
       panel.hidden = false;
+      window.OpenDocPopovers?.position(panel, trigger);
       if (focus) items(panel)[0]?.focus();
     }
     root.addEventListener('click', event => {

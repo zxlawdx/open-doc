@@ -63,3 +63,11 @@ Formato baseado em Keep a Changelog. Versões da aplicação seguem SemVer.
 - Páginas editáveis, Ctrl+Enter, configuração, modos páginas/contínuo e menu esquerdo.
 - Localizar/substituir, operações de documentos e tabelas.
 - Regressão DOCX preservada; detalhes e limites em docs/OPEN_DOC_VELA_PHASE2.md.
+
+## Styles e responsividade desktop
+
+- CSS organizado em 17 módulos legíveis com tokens semânticos e auditoria de var().
+- Biblioteca em grid e ações de documento como popover com posicionamento seguro.
+- Toolbar em grupos sem wrap aleatório, diálogos limitados à janela e estados coerentes.
+- Responsividade desktop centralizada; dark mode por tokens com papel branco.
+- Matriz visual no Vela/Qt nas seis resoluções, mantendo o runtime e o editor.

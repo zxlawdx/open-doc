@@ -1,5 +1,133 @@
-/* ============ OPEN DOC TOKENS ============ */
-@font-face{font-family:Inter;src:url('../fonts/Inter.woff2') format('woff2');font-style:normal;font-weight:400 600;font-display:swap}
-@font-face{font-family:'JetBrains Mono';src:url('../fonts/JetBrainsMono.woff2') format('woff2');font-display:swap}
-:root{--app-chrome:#f8f9fa;--workspace:#eaecef;--panel:#fff;--paper:#fff;--ink:#202124;--text-primary:#0f172a;--text-secondary:#475569;--border:#d1d5db;--border-soft:#e5e7eb;--primary:#1d4ed8;--on-primary:#fff;--primary-hover:#1e40af;--primary-soft:#dbeafe;--success:#15803d;--warning:#b45309;--danger:#dc2626;--info:#0284c7;--hover:#e9edf3;--menu-shadow:0 4px 18px #0f172a22;--paper-shadow:0 1px 3px #0000000f,0 4px 12px #0000000a;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--nav-width:228px;--radius-button:4px;--paper-width:794px;--paper-height:1123px;--focus-ring:2px solid var(--primary);color-scheme:light}
-.open-doc[data-theme=dark]{--app-chrome:#1e1f22;--workspace:#141517;--panel:#25272b;--text-primary:#f1f5f9;--text-secondary:#a8b0bd;--border:#393c43;--border-soft:#2e3035;--hover:#30343b;--primary:#8db7ff;--on-primary:#0f172a;--primary-hover:#b1ceff;--primary-soft:#263d5b;--success:#8fcea4;--warning:#f1c06d;--menu-shadow:0 5px 20px #0008;color-scheme:dark}
+/* Semantic colors are the only theme-dependent values. Paper stays light. */
+@font-face {
+    font-family: Inter;
+    src: url('../fonts/Inter.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: url('../fonts/JetBrainsMono.woff2') format('woff2');
+    font-display: swap;
+}
+.open-doc {
+    --color-app-chrome: #f8f9fa;
+    --color-workspace: #e9edf2;
+    --color-panel: #ffffff;
+    --color-paper: #ffffff;
+    --color-overlay: rgba(15, 23, 42, .28);
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #536174;
+    --color-text-muted: #738095;
+    --color-text-disabled: #98a2b3;
+    --color-border-strong: #c7ced8;
+    --color-border: #d4dae3;
+    --color-border-soft: #e7eaf0;
+    --color-primary: #1d4ed8;
+    --color-primary-hover: #1e40af;
+    --color-primary-active: #1e3a8a;
+    --color-primary-soft: #dbeafe;
+    --color-on-primary: #ffffff;
+    --color-hover: #e9edf3;
+    --color-danger: #b91c1c;
+    --color-danger-soft: #fee2e2;
+    --color-success: #15803d;
+    --color-warning: #b45309;
+    --color-paper-ink: #202124;
+    --color-paper-heading: #111827;
+    --color-paper-muted: #64748b;
+    --color-paper-border: #cbd0d8;
+    --color-paper-code: #f4f5f7;
+    --color-paper-selection: #c2dbff;
+    --color-paper-link: #1d4ed8;
+    --color-paper-placeholder: #9ca3af;
+    --color-opaque: #f1f5f9;
+    --color-opaque-ink: #475569;
+    --color-find: #fff1a5;
+    --font-ui: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', Consolas, monospace;
+    --font-document-default: Georgia, 'Times New Roman', serif;
+    --font-size-2xs: 9px;
+    --font-size-xs: 10px;
+    --font-size-sm: 11px;
+    --font-size-md: 12px;
+    --font-size-lg: 14px;
+    --font-size-xl: 16px;
+    --font-size-2xl: 20px;
+    --font-size-3xl: 28px;
+    --space-0-5: 2px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --control-height-sm: 28px;
+    --control-height-md: 30px;
+    --control-height-lg: 36px;
+    --control-icon-width: 30px;
+    --control-paragraph-width: 142px;
+    --control-font-width: 150px;
+    --control-number-width: 58px;
+    --control-select-width: 100px;
+    --control-color-width: 24px;
+    --radius-xs: 3px;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --shadow-menu: 0 8px 28px rgba(15,23,42,.14), 0 2px 6px rgba(15,23,42,.08);
+    --shadow-paper: 0 1px 2px rgba(15,23,42,.08), 0 6px 24px rgba(15,23,42,.08);
+    --header-height: 38px;
+    --menubar-height: 30px;
+    --toolbar-min-height: 40px;
+    --statusbar-height: 26px;
+    --navigator-width: 228px;
+    --navigator-collapsed-width: 38px;
+    --home-max-width: 1040px;
+    --page-gap: 24px;
+    --page-default-width: 794px;
+    --page-default-height: 1123px;
+    --page-default-padding: 78px 94.5px 94.5px;
+    --ruler-height: 22px;
+    --menu-min-width: 254px;
+    --popover-min-width: 220px;
+    --focus-ring: 2px solid var(--color-primary);
+    --focus-offset: -2px;
+    --motion-fast: 100ms;
+    --motion-normal: 160ms;
+    --z-menubar: 30;
+    --z-dropdown: 50;
+    --z-popover: 70;
+    --z-dialog: 100;
+    --z-tooltip: 120;
+    color-scheme: light;
+}
+.open-doc[data-theme='dark'] {
+    --color-app-chrome: #1e1f22;
+    --color-workspace: #141517;
+    --color-panel: #25272b;
+    --color-overlay: rgba(0,0,0,.55);
+    --color-text-primary: #f1f5f9;
+    --color-text-secondary: #b4bdca;
+    --color-text-muted: #9aa7b8;
+    --color-text-disabled: #738095;
+    --color-border-strong: #555d6b;
+    --color-border: #424854;
+    --color-border-soft: #333943;
+    --color-hover: #343b46;
+    --color-primary: #9bc0ff;
+    --color-primary-hover: #bdd5ff;
+    --color-primary-active: #d3e2ff;
+    --color-primary-soft: #263d5b;
+    --color-on-primary: #0f172a;
+    --color-danger: #fca5a5;
+    --color-danger-soft: #502b31;
+    --color-success: #8fcea4;
+    --color-warning: #f1c06d;
+    --shadow-menu: 0 8px 28px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.2);
+    color-scheme: dark;
+}

@@ -1,17 +1,74 @@
-/* ============ MENUS AND DIALOGS ============ */
-.menubar{height:28px;min-height:28px;display:flex;align-items:stretch;padding:0 12px;gap:2px;position:relative;z-index:30;background:var(--app-chrome)}
-.menu-group{position:relative;display:flex;align-items:stretch}
-.menubar [data-menu]{padding:3px 10px;font-size:12px;border-radius:3px}
-.menubar [aria-expanded=true]{background:var(--primary-soft);color:var(--primary)}
-.dropdown{position:absolute;top:100%;left:0;min-width:254px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--menu-shadow);border-radius:6px;padding:5px;z-index:40;color:var(--text-primary)}
-.dropdown button{display:flex;align-items:center;justify-content:space-between;gap:24px;width:100%;padding:7px 9px;text-align:left;font-size:12px;min-height:29px}
-.dropdown kbd{font:10px Inter,sans-serif;color:var(--text-secondary);white-space:nowrap}
-.dropdown hr{border:0;border-top:1px solid var(--border-soft);margin:4px 3px}
-.menu-section{font-size:9px;letter-spacing:.08em;color:var(--text-secondary);padding:5px 9px;margin:0}
-.dropdown [aria-checked=true]{color:var(--primary);background:var(--primary-soft)}
-.modal-backdrop{position:absolute;inset:0;display:grid;place-items:center;background:#0004;z-index:100}
-.dialog{background:var(--panel);border:1px solid var(--border);border-radius:8px;box-shadow:var(--menu-shadow);padding:24px;width:min(440px,90vw);color:var(--text-primary)}
-.dialog h2{font-size:16px;margin:0 0 16px}.dialog p{line-height:1.7;font-size:12px;color:var(--text-secondary)}
-.dialog input,.dialog select{width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--app-chrome);margin-top:8px}
-.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
-.dialog-actions button{border:1px solid var(--border);padding:7px 16px}[data-dialog-confirm]{background:var(--primary)!important;color:var(--on-primary)!important}
+/* Shared popover surface: main menus, library actions and page/table menus. */
+.open-doc .menubar {
+    min-height: var(--menubar-height);
+    height: var(--menubar-height);
+    flex-shrink: 0;
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-0-5);
+    padding: 0 var(--space-3);
+    position: relative;
+    z-index: var(--z-menubar);
+    background: var(--color-app-chrome);
+}
+.open-doc .menu-group {
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+}
+.open-doc .menubar [data-menu] {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-xs);
+    white-space: nowrap;
+}
+.open-doc .dropdown,
+.open-doc .document-action-menu,
+.open-doc .page-menu {
+    position: fixed;
+    min-width: var(--popover-min-width);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-panel);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-menu);
+    z-index: var(--z-popover);
+}
+.open-doc .dropdown {
+    min-width: var(--menu-min-width);
+    z-index: var(--z-dropdown);
+}
+.open-doc .dropdown button,
+.open-doc .document-action-menu button,
+.open-doc .page-menu button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-6);
+    width: 100%;
+    min-height: var(--control-height-md);
+    padding: var(--space-1) var(--space-2);
+    text-align: left;
+    font-size: var(--font-size-md);
+    white-space: nowrap;
+}
+.open-doc .dropdown kbd {
+    font: var(--font-size-xs) var(--font-ui);
+    color: var(--color-text-secondary);
+}
+.open-doc .dropdown hr,
+.open-doc .document-action-menu hr {
+    border: 0;
+    border-top: 1px solid var(--color-border-soft);
+    margin: var(--space-1) 0;
+}
+.open-doc .menu-section {
+    font-size: var(--font-size-2xs);
+    letter-spacing: .08em;
+    color: var(--color-text-secondary);
+    padding: var(--space-2);
+    margin: 0;
+}

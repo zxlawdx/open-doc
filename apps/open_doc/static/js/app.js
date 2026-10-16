@@ -91,33 +91,33 @@
     ]) {
       const list = root.querySelector(selector); list.replaceChildren();
       if (!items.length) {
-        const empty = document.createElement('li'); empty.textContent = notes ? 'Nenhum documento salvo.' : 'Nenhum arquivo importado.'; list.append(empty);
+        const empty = document.createElement('li'); empty.className='library-empty'; empty.textContent = notes ? 'Nenhum documento salvo.' : 'Nenhum arquivo importado.'; list.append(empty);
       }
       for (const file of items) {
-        const row = document.createElement('li');
-        const icon = document.createElement('span'); icon.className = 'file-icon'; icon.textContent = notes ? 'DOC' : file.type.toUpperCase();
-        const info = document.createElement('div');
+        const row = document.createElement('li'); row.className='library-row';
+        const icon = document.createElement('span'); icon.className = 'library-file-icon'; icon.textContent = notes ? 'DOC' : file.type.toUpperCase();
+        const info = document.createElement('div'); info.className='library-file-main';
         const editable=notes || Boolean(file.capabilities?.open);
-        const name = document.createElement(editable ? 'button' : 'span'); name.textContent = notes ? file.title : file.name;
+        const name = document.createElement(editable ? 'button' : 'span'); name.className='library-file-title'; name.textContent = notes ? file.title : file.name; name.title=name.textContent;
         if (editable) name.addEventListener('click', () => operate(async () => {
           await editor.flush();
           editor.load(await request('document/open', notes ? {id: file.id} : {path: file.path}));
           showView(false);
         }), {signal});
-        const date = document.createElement('small');
+        const date = document.createElement('small'); date.className='library-file-meta';
         date.textContent = notes ? new Date(file.updated_at).toLocaleString('pt-BR') : editable ? 'Abrir como novo documento' : 'Arquivo importado · leitura ainda não disponível';
         info.append(name, date);
-        const kind = document.createElement('span'); kind.className = 'file-kind'; kind.textContent = notes ? 'Documento local' : file.type.toUpperCase();
+        const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? 'Documento local' : file.type.toUpperCase();
         row.append(icon, info, kind);
-        if(notes){const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='⋯';summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);
-          for(const [operation,label] of [['rename','Renomear'],['duplicate','Duplicar'],['delete','Excluir']]){const button=document.createElement('button');button.textContent=label;button.addEventListener('click',()=>operate(async()=>{
+        if(notes){const details=document.createElement('details'),summary=document.createElement('summary');details.className='library-file-actions';summary.textContent='⋯';summary.setAttribute('aria-haspopup','menu');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);const menu=document.createElement('div');menu.className='document-action-menu';menu.setAttribute('role','menu');details.appendChild(menu);
+          for(const [operation,label] of [['rename','Renomear'],['duplicate','Duplicar'],['delete','Excluir']]){const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');if(operation==='delete'){button.className='danger-action';menu.appendChild(document.createElement('hr'));}button.addEventListener('click',()=>operate(async()=>{
             await editor.flush();let payload={id:file.id,revision:file.id===editor.snapshot().id?editor.snapshot().revision:file.revision};
             if(operation==='rename'){const value=await dialog('Renomear documento','Informe o novo título.',true);if(!value)return;payload.title=value;}
             if(operation==='delete'){if(!await dialog('Excluir documento','Excluir “'+file.title+'”? O arquivo importado original será preservado.'))return;payload.confirmed=true;}
             const result=await request('document/'+operation,payload);
             if(operation==='duplicate' || file.id===editor.snapshot().id){if(operation==='delete')editor.load(await request('document/new',{title:'Sem título'}));else editor.load(result);}
             await refresh();status(operation==='delete'?'Documento excluído.':'Documento atualizado.');
-          }),{signal});details.appendChild(button);}row.appendChild(details);}
+          }),{signal});menu.appendChild(button);}row.appendChild(details);}
         list.append(row);
       }
     }
@@ -248,7 +248,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
@@ -259,6 +259,7 @@
     editor = window.OpenDocEditor.create({root, request, status, document: bootstrap.document, viewMode: settings.view_mode, autosaveSeconds: bootstrap.autosave_seconds});
     root.addEventListener('open-doc:page-setup',()=>action('page-setup'),{signal});
     root.querySelectorAll('[data-table-op]').forEach(button=>button.addEventListener('click',()=>{try{editor.tableOperation(button.dataset.tableOp);}catch(error){status(error.message);}},{signal}));
+    window.OpenDocPopovers.bind(root, signal);
     // Selection and command bindings are essential, independent of side panels.
     function preserveSelection(event) {
       if (event.target.closest('[data-menu], [data-command], [data-action="link"], .toolbar select, .toolbar input, .toolbar button')) editor.capture();

@@ -37,17 +37,21 @@
   </div>
   {{ home }}
   <footer class="statusbar">
+    <div class="status-left">
     <button data-toggle aria-expanded="true" aria-label="Recolher navegador" title="Navegador">
       <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#sidebar"></use></svg>
     </button>
     <span data-position>Fluxo contínuo</span><span class="status-divider"></span>
-    <span data-count>0 palavras</span><span class="status-divider"></span><span lang="pt-BR">Português (Brasil)</span>
-    <span class="status-spacer"></span><span data-mode-label>Editor visual</span>
+    <span class="status-words" data-count>0 palavras</span><span class="status-divider"></span><span class="status-language" lang="pt-BR">Português (Brasil)</span>
+    </div>
+    <span class="status-spacer"></span>
+    <div class="status-right"><span class="status-mode" data-mode-label>Editor visual</span>
     <button data-zoom-step="-10" aria-label="Reduzir zoom" title="Reduzir zoom">−</button>
     <label class="sr-only" for="zoom">Zoom do documento</label>
     <input type="range" id="zoom" data-zoom min="50" max="150" value="100" step="10">
     <button data-zoom-step="10" aria-label="Aumentar zoom" title="Aumentar zoom">+</button>
     <output data-zoom-value for="zoom">100%</output>
+    </div>
   </footer>
   <div class="modal-backdrop" data-dialog hidden>
     <section role="dialog" aria-modal="true" aria-labelledby="dialog-title" class="dialog">

@@ -14,11 +14,22 @@ from vela.cli.collectstatic import run_tailwind_pipeline
 ROOT = Path(__file__).resolve().parents[1]
 STYLE_ORDER = (
     "tokens.css",
+    "base.css",
     "shell.css",
+    "header.css",
     "menus.css",
+    "dialogs.css",
     "toolbar.css",
-    "document.css",
+    "navigator.css",
+    "workspace.css",
+    "pages.css",
+    "document-content.css",
     "home.css",
+    "library.css",
+    "statusbar.css",
+    "states.css",
+    "responsive.css",
+    "utilities.css",
 )
 
 

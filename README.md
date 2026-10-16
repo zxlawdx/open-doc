@@ -4,7 +4,7 @@ Open Doc é um editor de documentos desktop local-first construído com o Vela F
 O editor visual abre numa folha branca, com menus clássicos, estrutura de títulos,
 busca local e ferramentas de formatação. Sem conta, nuvem ou CDN.
 
-![Páginas editáveis no Vela/Qt](docs/images/open-doc/editor-pages-1366.png)
+![Editor Open Doc no Vela/Qt](docs/images/open-doc/styles-editor-1366.png)
 
 ## Executar
 
@@ -126,6 +126,7 @@ python -m pip install -r requirements-dev.txt
 npm ci
 python -m pytest -q
 npm test
+python tools/audit_css.py
 python -m black --check --line-length 88 apps config tools tests main.py manage.py launcher.py
 node --check apps/open_doc/static/js/app.js
 python tools/build_css.py
@@ -144,8 +145,17 @@ a escolha dos seletores nativos, mantendo bridge, SQLite, HTTP e editor reais.
 Windows e a interação física com o popup do Windows exigem validação nessa plataforma.
 Veja [o relatório desta migração](docs/OPEN_DOC_VELA_PHASE2.md).
 
+## Styles
+
+Os fontes em `apps/open_doc/styles` separam tokens, layout, componentes, conteúdo,
+estados e política responsiva. Edite esses fontes e rode `python tools/build_css.py`
+seguido de `python manage.py collectstatic --no-tailwind`. O arquivo main.css é gerado.
+A toolbar usa grupos e scroll horizontal nas janelas menores; as páginas preservam
+as dimensões lógicas. `python tools/qa_styles.py` captura a matriz visual no Qt real.
+
 ## Documentação
 
+- [Sistema visual, responsividade e capturas Qt](docs/OPEN_DOC_STYLES.md)
 - [Integração Vela, fase 2, exportação, fontes e páginas](docs/OPEN_DOC_VELA_PHASE2.md)
 - [DOCX rico: modelo, preservação, testes e limites](docs/OPEN_DOC_RICH_DOCX.md)
 

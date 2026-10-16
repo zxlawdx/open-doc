@@ -14,7 +14,7 @@ async function mount(t, brokenNavigation = false) {
   const note = {id: 'note', title: 'Documento', markdown: '# Título\n\nTexto selecionado', revision: 1};
   w.pywebview = {api: {get_bootstrap: async () => ({token: 'test', settings: {theme: 'light', zoom: 100}, document: note, autosave_seconds: 30}), set_dirty: async () => {}}};
   w.fetch = async (_, options) => ({ok: true, json: async () => options?.body ? {...JSON.parse(options.body), revision: 2} : {documents: [note], files: []}});
-  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'pagination.js','page_menu.js','editor.js', 'menus.js', 'theme.js', 'paper_layout.js', 'navigation.js']) {
+  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','page_menu.js','editor.js', 'menus.js', 'theme.js', 'paper_layout.js', 'navigation.js']) {
     w.eval(fs.readFileSync(path.join(base, 'apps/open_doc/static/js', file), 'utf8'));
   }
   if (brokenNavigation) {
@@ -82,4 +82,36 @@ test('replaceChildren fallback accepts text, nodes, moved children and empty cal
   element.appendChild(child); element.replaceChildren('before', child, 42);
   assert.equal(element.textContent, 'before42'); assert.equal(element.children[0], child);
   element.replaceChildren(); assert.equal(element.childNodes.length, 0);
+});
+
+test('popover placement clamps both axes and flips above the trigger', async t => {
+  const {w} = await mount(t);
+  Object.defineProperty(w, 'innerWidth', {value: 720});
+  Object.defineProperty(w, 'innerHeight', {value: 600});
+  const panel = w.document.createElement('div');
+  panel.getBoundingClientRect = () => ({width: 254, height: 240});
+  w.OpenDocPopovers.position(panel, {left: 700, top: 570, bottom: 598});
+  assert.equal(panel.style.left, '458px');
+  assert.equal(panel.style.top, '330px');
+  assert.equal(panel.dataset.align, 'end');
+});
+
+test('library actions are a menu surface with keyboard dismissal', async t => {
+  const {w, root} = await mount(t);
+  await w.OpenDocApp.action('home');
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const details = root.querySelector('.library-file-actions');
+  assert.ok(root.querySelector('.library-row .library-file-main .library-file-title'));
+  assert.equal(details.querySelectorAll('.document-action-menu [role=menuitem]').length, 3);
+  assert.equal(details.querySelector('.danger-action').textContent, 'Excluir');
+  details.open = true;
+  details.dispatchEvent(new w.Event('toggle'));
+  assert.equal(details.querySelector('summary').getAttribute('aria-expanded'), 'true');
+  details.querySelector('summary').dispatchEvent(new w.KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true}));
+  assert.equal(w.document.activeElement.textContent, 'Renomear');
+  details.querySelector('summary').dispatchEvent(new w.KeyboardEvent('keydown', {key: 'ArrowUp', bubbles: true}));
+  assert.equal(w.document.activeElement.textContent, 'Excluir');
+  w.document.activeElement.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+  assert.equal(details.open, false);
+  assert.equal(w.document.activeElement.tagName, 'SUMMARY');
 });

@@ -25,7 +25,7 @@
       layout.style.minHeight = height * scale + 'px';
       paper.style.transform = 'scale(' + scale + ')';
       ruler.style.width=width+'px';
-      if(Number(paper.dataset.pageWidth)>0){const style=getComputedStyle(root.querySelector('[data-rich]'));ruler.style.background='linear-gradient(90deg,var(--border-soft) 0 '+style.paddingLeft+',white '+style.paddingLeft+' calc(100% - '+style.paddingRight+'),var(--border-soft) calc(100% - '+style.paddingRight+'))';}else ruler.style.background='';
+      if(Number(paper.dataset.pageWidth)>0){const style=getComputedStyle(root.querySelector('[data-rich]'));ruler.style.background='linear-gradient(90deg,var(--color-border-soft) 0 '+style.paddingLeft+',var(--color-paper) '+style.paddingLeft+' calc(100% - '+style.paddingRight+'),var(--color-border-soft) calc(100% - '+style.paddingRight+'))';}else ruler.style.background='';
       ruler.style.transform = 'scale(' + scale + ')';
       const band = root.querySelector('[data-ruler-band]');
       if (band) band.style.paddingRight = 24 + Math.max(0, canvas.offsetWidth - canvas.clientWidth) + 'px';
