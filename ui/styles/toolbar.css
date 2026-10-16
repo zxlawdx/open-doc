@@ -1,0 +1,7 @@
+/* ============ EDITING TOOLS ============ */
+.toolbar{height:40px;min-height:40px;display:flex;align-items:center;gap:3px;padding:3px 14px;border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border);background:var(--app-chrome)}
+.toolbar-divider{width:1px;height:19px;background:var(--border);margin:0 7px}
+.toolbar select{width:142px;height:28px;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0 8px;font-size:11px}
+.toolbar .icon-button{width:30px}.toolbar [aria-pressed=true]{color:var(--primary);background:var(--primary-soft)}
+.toolbar-spacer{flex:1}.toolbar-note{color:var(--text-secondary);font-size:10px;padding-right:8px}
+@media(max-width:850px){.toolbar{gap:0;padding-inline:6px}.toolbar-divider{margin-inline:3px}.toolbar select{width:118px}.toolbar .icon-button{min-width:28px;width:28px}}
