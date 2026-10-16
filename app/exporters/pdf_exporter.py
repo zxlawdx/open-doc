@@ -25,8 +25,12 @@ def export_pdf(markdown: str, target: Path, title: str) -> None:
     pdf = FPDF()
     pdf.set_margins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
     pdf.set_auto_page_break(True, BOTTOM_MARGIN)
-    for style, suffix in (("", ""), ("B", "-Bold"), ("I", "-Italic"),
-                          ("BI", "-BoldItalic")):
+    for style, suffix in (
+        ("", ""),
+        ("B", "-Bold"),
+        ("I", "-Italic"),
+        ("BI", "-BoldItalic"),
+    ):
         path = FONT_PATH.with_name("Inter" + suffix + ".ttf")
         pdf.add_font("Writer", style=style, fname=str(path))
     pdf.add_page()
@@ -34,4 +38,3 @@ def export_pdf(markdown: str, target: Path, title: str) -> None:
     pdf.set_title(title)
     pdf.write_html(safe_html(markdown), font_family="Writer")
     pdf.output(str(target))
-
