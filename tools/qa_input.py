@@ -284,8 +284,14 @@ def main():
             pages_before = window.evaluate_js(
                 "document.querySelectorAll('.document-page').length"
             )
-            keyboard.type("OVERFLOW_QA " * 40 + "FINAL_OVERFLOW_QA", delay=30)
+            overflow_lines = ["Overflow linha " + str(i) for i in range(80)]
+            for line in overflow_lines:
+                keyboard.type(line, delay=30)
+                keyboard.key("Return")
+            keyboard.type("FINAL_OVERFLOW_QA", delay=30)
             retained("FINAL_OVERFLOW_QA")
+            for line in overflow_lines:
+                assert_text(line)
             assert (
                 window.evaluate_js("document.querySelectorAll('.document-page').length")
                 > pages_before
