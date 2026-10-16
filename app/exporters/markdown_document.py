@@ -1,7 +1,7 @@
 """
 Módulo: markdown_document.py.
 Responsabilidade: interpretar Markdown com HTML e recursos remotos bloqueados.
-Autor: Vela Writer Contributors
+Autor: Open Doc Contributors
 Criado em: 2026
 """
 
