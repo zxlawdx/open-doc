@@ -1,1 +1,1 @@
-"""Configuração do projeto Vela Writer."""
+"""Configuração do projeto Open Doc."""
