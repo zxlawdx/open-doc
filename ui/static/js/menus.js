@@ -25,10 +25,6 @@
       if (trigger) { current === trigger ? close() : open(trigger); return; }
       if (event.target.closest('[data-menu-panel] button')) close();
     }, {signal});
-    root.addEventListener('mousedown', event => {
-      if (event.target.closest('[data-menu], [data-command], [data-action="link"], [data-paragraph]')) capture();
-      if (event.target.closest('.toolbar button')) event.preventDefault();
-    }, {signal});
     document.addEventListener('pointerdown', event => {
       if (!event.target.closest('.menu-group')) close();
     }, {signal});
