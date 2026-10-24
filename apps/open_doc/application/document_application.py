@@ -57,6 +57,12 @@ class DocumentApplication:
         )
 
     def open(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Open an existing internal document or a file already in the workspace.
+
+        Opening a library file must never copy it again. External native-picker
+        imports use :meth:`import_path`, which is a distinct use case and does
+        organize/copy the selected source into the workspace first.
+        """
         identifier = data.get("id")
         if identifier is not None:
             if self.context.fixed_documents.exists(identifier):
@@ -64,9 +70,23 @@ class DocumentApplication:
             self.context.fixed_documents.activate("rich")
             return self.context.editor.select(identifier)
         resolved = self.workspace.resolve_document(data.get("path"))
-        return self.import_path(resolved)
+        return self._open_workspace_path(resolved)
+
+    def _open_workspace_path(self, path: Path) -> dict[str, Any]:
+        suffix = path.suffix.lower()
+        if suffix == ".pdf":
+            return self.context.fixed_documents.import_pdf(path)
+        if suffix == ".pptx":
+            return self.context.fixed_documents.import_pptx(path)
+        self.context.fixed_documents.activate("rich")
+        if suffix == ".docx":
+            return self.context.editor.import_docx(path)
+        if suffix in {".md", ".txt"}:
+            return self.context.editor.import_note(path)
+        raise ValueError("Formato não suportado.")
 
     def import_path(self, path: Path) -> dict[str, Any]:
+        """Import an external file, copying it into the managed workspace."""
         target = self.context.organizer.organize(Path(path))
         suffix = target.suffix.lower()
         if suffix == ".docx":
@@ -206,10 +226,14 @@ class DocumentApplication:
             or media_id not in document.get("content", {}).get("media", {})
         ):
             raise ValueError("Imagem inválida.")
-        blob = (self.context.editor.package_directory(document["id"]) / "media" / media_id).read_bytes()
+        blob = (
+            self.context.editor.package_directory(document["id"]) / "media" / media_id
+        ).read_bytes()
         with Image.open(io.BytesIO(blob)) as image:
             kind = image.format.lower()
-        return {"url": f"data:image/{kind};base64," + base64.b64encode(blob).decode()}
+        return {
+            "url": f"data:image/{kind};base64," + base64.b64encode(blob).decode()
+        }
 
     def artifact_source(self, identifier: str, preview: bool = False) -> Path:
         return self.context.fixed_documents.source(identifier, preview)
@@ -223,8 +247,12 @@ class DocumentApplication:
     def remove_font(self, font_id: str):
         return self.context.fonts.remove(font_id)
 
-    def recognize_handwriting(self, strokes: Any, language: str = "pt-BR") -> dict[str, Any]:
-        return asdict(asyncio.run(self.context.handwriting.recognize(strokes, language=language)))
+    def recognize_handwriting(
+        self, strokes: Any, language: str = "pt-BR"
+    ) -> dict[str, Any]:
+        return asdict(
+            asyncio.run(self.context.handwriting.recognize(strokes, language=language))
+        )
 
     def handwriting_capabilities(self) -> dict[str, Any]:
         return {"backends": self.context.handwriting.capabilities()}
