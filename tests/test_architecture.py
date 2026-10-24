@@ -47,6 +47,17 @@ def test_bridge_delegates_document_rules_to_application_facade():
     assert "import_pdf" not in text
 
 
+def test_wsgi_does_not_import_bottle_directly():
+    imports = _imports(ROOT / "config" / "wsgi.py")
+    assert not any(name == "bottle" or name.startswith("bottle.") for name in imports)
+
+
+def test_legacy_vela_transport_workaround_is_isolated_in_infrastructure():
+    compat = APP / "infrastructure" / "vela_compat.py"
+    assert "from bottle import BaseRequest" in compat.read_text(encoding="utf-8")
+    assert "BaseRequest.MEMFILE_MAX" in compat.read_text(encoding="utf-8")
+
+
 def test_document_value_objects_are_framework_free():
     assert DocumentFormat.PDF.value == "pdf"
     assert DocumentRef("abc", 2).revision == 2
