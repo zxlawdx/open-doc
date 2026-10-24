@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from vela.apps import AppConfig
 
 
-@dataclass(frozen=True, slots=True)
-class AppDefinition:
-    name: str
-    module: str
-    api_module: str
-    routes_module: str
-    static_dirs: tuple[str, ...] = ()
-
-
-OPEN_DOC_APP = AppDefinition(
+OPEN_DOC_APP = AppConfig(
     name="open_doc",
     module="apps.open_doc",
+    views_module="apps.open_doc.views",
+    urls_module="apps.open_doc.urls",
     api_module="apps.open_doc.api",
-    routes_module="apps.open_doc.urls",
     static_dirs=("apps/open_doc/static",),
+    persistent_modules=(
+        "apps.open_doc.application",
+        "apps.open_doc.domain",
+        "apps.open_doc.services",
+        "apps.open_doc.infrastructure",
+    ),
 )
