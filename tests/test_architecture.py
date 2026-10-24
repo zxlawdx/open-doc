@@ -3,8 +3,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from vela.core.router import Router
+
 from apps.open_doc.app import OPEN_DOC_APP
 from apps.open_doc.domain import DocumentFormat, DocumentRef
+from apps.open_doc.views.editor import workspace_view
+from config.settings import ASSETS
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "apps" / "open_doc"
@@ -56,11 +60,23 @@ def test_wsgi_does_not_import_bottle_directly():
     assert not any(name == "bottle" or name.startswith("bottle.") for name in imports)
 
 
-def test_legacy_vela_transport_workaround_is_isolated_in_infrastructure():
-    compat = APP / "infrastructure" / "vela_compat.py"
-    text = compat.read_text(encoding="utf-8")
-    assert "from bottle import BaseRequest" in text
-    assert "BaseRequest.MEMFILE_MAX" in text
+def test_legacy_vela_transport_workaround_is_removed():
+    assert not (APP / "infrastructure" / "vela_compat.py").exists()
+
+
+def test_collectstatic_is_the_declared_asset_entrypoint():
+    assert ASSETS["node"]["install"] == "ci"
+    assert ASSETS["node"]["scripts"] == ["build:vendor"]
+    assert ASSETS["hooks"] == ["tools.build_css:main"]
+    assert ASSETS["tailwind"] is False
+
+
+def test_composed_local_partials_survive_vela_autoescape():
+    html = workspace_view({"router": Router()})
+    assert '<div class="toolbar"' in html
+    assert "data-paragraph" in html
+    assert "data-document-body" in html
+    assert "&lt;div class=&quot;toolbar&quot;" not in html
 
 
 def test_document_value_objects_are_framework_free():

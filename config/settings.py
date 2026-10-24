@@ -16,3 +16,13 @@ API = {
     "docs_enabled": False,
     "max_body_size": MAX_MODEL_JSON_BYTES * 2 + 65536,
 }
+ASSETS = {
+    "node": {
+        "install": "ci",
+        "scripts": ["build:vendor"],
+    },
+    "hooks": ["tools.build_css:main"],
+    # build_css.py owns Tailwind because it merges the generated utility bundle
+    # with Open Doc's handwritten style modules before files are collected.
+    "tailwind": False,
+}
