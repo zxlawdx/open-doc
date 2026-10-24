@@ -1,9 +1,10 @@
-name: Vela Qt Windows stabilization
+name: Vela Qt cross-platform validation
 on:
+  pull_request:
+  workflow_dispatch:
   push:
     branches: [fix/stabilization, fix/input-stability, fix/stylus-handwriting-stability]
     paths-ignore: ["docs/**", "README.md", "THIRD_PARTY_NOTICES.md"]
-  workflow_dispatch:
 jobs:
   windows-qt:
     runs-on: windows-latest
@@ -40,7 +41,8 @@ jobs:
           node --version
           npm --version
           python tools/check_runtime_assets.py
-      - name: Unit regressions
+          exit $LASTEXITCODE
+      - name: Unit and architecture regressions
         shell: pwsh
         run: |
           python -m pytest -q
@@ -99,7 +101,7 @@ jobs:
           npm ci
           npm run build
           python tools/check_runtime_assets.py
-      - name: Unit regressions
+      - name: Unit and architecture regressions
         run: |
           python -m pytest -q
           npm test
