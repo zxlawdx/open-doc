@@ -1,5 +1,5 @@
 # Runtime Vela fixado no commit inspecionado.
-vela-framework @ git+https://github.com/zxlawdx/Vela-framework.git@175d54f8b8997c70ea34bb302acce038944c2d56
+vela-framework @ git+https://github.com/zxlawdx/Vela-framework.git@d665437b8edd716301037190333e3fe0c6b5635a
 bottle==0.13.4
 pywebview==6.2.1
 PyQt5>=5.15.11,<6
@@ -10,7 +10,6 @@ fpdf2>=2.8,<3
 pypdf>=5,<7
 
 markdown-it-py>=3,<5
-
 
 # OOXML parsing and safe local raster validation.
 lxml>=5,<7
