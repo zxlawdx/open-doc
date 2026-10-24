@@ -1,9 +1,10 @@
-name: Vela Qt Windows stabilization
+name: Vela Qt cross-platform validation
 on:
+  pull_request:
+  workflow_dispatch:
   push:
     branches: [fix/stabilization, fix/input-stability, fix/stylus-handwriting-stability]
     paths-ignore: ["docs/**", "README.md", "THIRD_PARTY_NOTICES.md"]
-  workflow_dispatch:
 jobs:
   windows-qt:
     runs-on: windows-latest
@@ -20,48 +21,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+        with: {python-version: '3.12'}
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+        with: {node-version: '22'}
       - name: Dependencies and clean build
         shell: pwsh
         run: |
           python -m pip install -r requirements-dev.txt
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm ci
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item apps/open_doc/static/js/vendor/pdf.bundle.js -ErrorAction SilentlyContinue
           npm run build
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --version
-          npm --version
           python tools/check_runtime_assets.py
-      - name: Unit regressions
+      - name: Unit and architecture regressions
         shell: pwsh
         run: |
           python -m pytest -q
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm test
-          exit $LASTEXITCODE
       - name: Actual Vela PyQt QtWebEngine
         shell: pwsh
         run: |
           python -u tools/qa_windows_ink.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_input.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_stabilization.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_ink.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_pptx.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_desktop.py
-          exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -83,11 +67,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+        with: {python-version: '3.12'}
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+        with: {node-version: '22'}
       - name: Linux runtime libraries
         run: |
           sudo apt-get update -qq
@@ -99,7 +81,7 @@ jobs:
           npm ci
           npm run build
           python tools/check_runtime_assets.py
-      - name: Unit regressions
+      - name: Unit and architecture regressions
         run: |
           python -m pytest -q
           npm test
