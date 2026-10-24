@@ -8,6 +8,7 @@ from apps.open_doc.domain import DocumentFormat, DocumentRef
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "apps" / "open_doc"
+FORBIDDEN_FRAMEWORKS = {"vela", "bottle", "webview", "pywebview"}
 
 
 def _imports(path: Path) -> set[str]:
@@ -21,22 +22,25 @@ def _imports(path: Path) -> set[str]:
     return result
 
 
-def test_domain_is_independent_from_vela_and_webview():
+def _framework_offenders(root: Path) -> list[str]:
     offenders = []
-    for path in (APP / "domain").rglob("*.py"):
+    for path in root.rglob("*.py"):
         for imported in _imports(path):
-            if imported.split(".", 1)[0] in {"vela", "bottle", "webview", "pywebview"}:
+            if imported.split(".", 1)[0] in FORBIDDEN_FRAMEWORKS:
                 offenders.append(f"{path.relative_to(ROOT)} -> {imported}")
-    assert offenders == []
+    return offenders
+
+
+def test_domain_is_independent_from_vela_and_webview():
+    assert _framework_offenders(APP / "domain") == []
+
+
+def test_canonical_document_model_is_independent_from_vela_and_webview():
+    assert _framework_offenders(APP / "document_model") == []
 
 
 def test_application_does_not_depend_on_webview_or_bottle():
-    offenders = []
-    for path in (APP / "application").rglob("*.py"):
-        for imported in _imports(path):
-            if imported.split(".", 1)[0] in {"vela", "bottle", "webview", "pywebview"}:
-                offenders.append(f"{path.relative_to(ROOT)} -> {imported}")
-    assert offenders == []
+    assert _framework_offenders(APP / "application") == []
 
 
 def test_bridge_delegates_document_rules_to_application_facade():
@@ -54,8 +58,9 @@ def test_wsgi_does_not_import_bottle_directly():
 
 def test_legacy_vela_transport_workaround_is_isolated_in_infrastructure():
     compat = APP / "infrastructure" / "vela_compat.py"
-    assert "from bottle import BaseRequest" in compat.read_text(encoding="utf-8")
-    assert "BaseRequest.MEMFILE_MAX" in compat.read_text(encoding="utf-8")
+    text = compat.read_text(encoding="utf-8")
+    assert "from bottle import BaseRequest" in text
+    assert "BaseRequest.MEMFILE_MAX" in text
 
 
 def test_document_value_objects_are_framework_free():
