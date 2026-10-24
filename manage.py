@@ -20,7 +20,9 @@ def main() -> None:
     os.environ.setdefault("QT_API", "pyqt5")
     from vela.cli.commands import CommandRunner
 
-    CommandRunner().execute(sys.argv[1:])
+    result = CommandRunner().execute(sys.argv[1:])
+    if isinstance(result, int):
+        raise SystemExit(result)
 
 
 if __name__ == "__main__":
