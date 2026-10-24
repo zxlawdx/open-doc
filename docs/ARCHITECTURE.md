@@ -9,14 +9,20 @@ Application: DocumentApplication + ApplicationContext
    |
 Domain: document concepts and model invariants
    |
-Infrastructure: workspace/filesystem, format/native adapters, Vela compatibility
+Infrastructure: workspace/filesystem and format/native adapters
 ```
 
 ## Composition root
 
 `config/wsgi.py` configures one `ApplicationContext` and then creates `VelaApp`. It does not import Bottle or contain document business rules.
 
-The project still pins a Vela revision that predates native `API.max_body_size` support. The temporary `BaseRequest.MEMFILE_MAX` mutation therefore lives only in `infrastructure/vela_compat.py`. `settings.py` already declares `API["max_body_size"]`, so removing the adapter after upgrading Vela is a small, explicit migration.
+The pinned Vela revision natively consumes `API["max_body_size"]`, so Open Doc no longer mutates `Bottle.BaseRequest.MEMFILE_MAX` and no transport-compatibility adapter is required.
+
+## Asset composition
+
+`config/settings.py` declares the project-specific asset pipeline through `ASSETS`. `python manage.py collectstatic` is the single preparation entrypoint: it validates Node/npm, offers to install missing project-local npm dependencies, runs the vendor build, invokes `tools.build_css:main`, collects app static files and writes the SHA-256 manifest.
+
+Node/npm remain system prerequisites and are never installed by Vela. In CI the same path is authorized explicitly with `collectstatic --yes`.
 
 ## Thin boundaries
 
@@ -30,8 +36,8 @@ The domain must not import Vela, Bottle or WebView. The existing `document_model
 
 ## Infrastructure
 
-Filesystem path policy is centralized in `infrastructure/workspace.py`. Import/export implementations remain technology adapters and may depend on filesystem, PDF/DOCX libraries and OS capabilities. Framework-version compatibility is also an infrastructure concern, never a domain/application concern.
+Filesystem path policy is centralized in `infrastructure/workspace.py`. Import/export implementations remain technology adapters and may depend on filesystem, PDF/DOCX libraries and OS capabilities. Framework-version workarounds should live at this boundary only when they are still required.
 
 ## Tests
 
-`tests/test_architecture.py` validates the dependency direction with AST import scanning. `tests/test_vela_compat.py` makes the legacy body-limit shim explicit. Existing DOCX round-trip, fixed document, handwriting and frontend tests remain the behavioral safety net.
+`tests/test_architecture.py` validates dependency direction with AST import scanning and asserts the declarative `collectstatic` asset contract. Existing DOCX round-trip, fixed document, handwriting and frontend tests remain the behavioral safety net.
