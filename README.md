@@ -110,20 +110,11 @@ OpenDoc inteiro. A API é local e exige token para alterações.
 
 ## Arquitetura Vela
 
-`manage.py` delega ao CommandRunner do framework. `config/wsgi.py` instancia
-VelaApp com `config.settings`, registra `apps.open_doc`, descobre views/API e
-executa o lifecycle oficial. OpenDocBridge estende BaseBridge. Templates usam
-`render_template` do Vela e layout blank, ocupando toda a WebView.
+`config/wsgi.py` é o composition entrypoint: configura um `ApplicationContext` e então monta o `VelaApp`. `apps/open_doc/application/document_application.py` é a facade de casos de uso compartilhada por HTTP e WebView; `api.py` cuida apenas da boundary HTTP e `bridge.py` dos diálogos/capacidades nativas. Regras de documento ficam fora dessas boundaries.
 
-Todo runtime do produto está em `apps/open_doc/`: views, API, bridge, services,
-modelo, parsers, exporters, templates e estáticos. As antigas pastas `app/`, `ui/`
-e `tools/sync_frontend.py` foram removidas. Não há servidor ou janela paralela.
-`manage.py` usa diretamente o CommandRunner oficial; `launcher.py` entra no mesmo
-`config.wsgi.run()` de `main.py`. `collectstatic` é o único coletor de assets.
-O CSS do Open Doc está no namespace `open_doc`; o bundle do shell é gerado pelo
-pipeline oficial do framework. Após o primeiro build, `collectstatic --no-tailwind`
-serve para atualizar os assets sem recompilar o shell. Distribuições precisam incluir
-`staticfiles` produzido no build.
+A estrutura segue `presentation -> application -> domain -> infrastructure`. O domínio não importa Vela/Bottle/WebView; política de filesystem fica em `infrastructure/workspace.py`. A compatibilidade temporária com o Vela atualmente fixado para body grande está isolada em `infrastructure/vela_compat.py`, não no domínio nem nos services.
+
+Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para o fluxo de dependências, boundaries e pontos de migração. O antigo `services.container` permanece como shim durante a migração incremental. `manage.py` usa diretamente o CommandRunner oficial; `launcher.py` entra no mesmo `config.wsgi.run()` de `main.py`. `collectstatic` continua sendo o coletor de assets.
 
 ## Desenvolvimento e validação
 
@@ -162,10 +153,10 @@ as dimensões lógicas. `python tools/qa_styles.py` captura a matriz visual no Q
 
 ## Documentação
 
+- [Arquitetura e boundaries](docs/ARCHITECTURE.md)
 - [Sistema visual, responsividade e capturas Qt](docs/OPEN_DOC_STYLES.md)
 - [Integração Vela, fase 2, exportação, fontes e páginas](docs/OPEN_DOC_VELA_PHASE2.md)
 - [DOCX rico: modelo, preservação, testes e limites](docs/OPEN_DOC_RICH_DOCX.md)
-
 - [Auditoria e baseline](docs/OPEN_DOC_AUDIT.md)
 - [Pesquisa de referências](docs/EDITOR_REFERENCE_RESEARCH.md)
 - [Decisão do engine](docs/EDITOR_ENGINE_DECISION.md)
