@@ -24,7 +24,7 @@ def create_app(workspace: Config | None = None) -> VelaApp:
     LOGGER.info("Open Doc vendors: %s (%s)", manifest["versions"], manifest["build_hash"])
 
     application = VelaApp(settings_module="config.settings", bridge_class=OpenDocBridge)
-    application.register_app(OPEN_DOC_APP.module)
+    application.register_app(OPEN_DOC_APP)
     return application
 
 
