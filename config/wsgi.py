@@ -9,9 +9,7 @@ from vela.core.app import VelaApp
 from apps.open_doc.app import OPEN_DOC_APP
 from apps.open_doc.application.context import configure
 from apps.open_doc.bridge import OpenDocBridge
-from apps.open_doc.infrastructure.vela_compat import configure_request_body_limit
 from apps.open_doc.services.preferences_service import Config
-from config.settings import API
 
 LOGGER = logging.getLogger(__name__)
 
@@ -19,9 +17,6 @@ LOGGER = logging.getLogger(__name__)
 def create_app(workspace: Config | None = None) -> VelaApp:
     """Configure application dependencies, then build the Vela runtime."""
     from tools.check_runtime_assets import check
-
-    # Compatibility belongs to infrastructure, not to business/application code.
-    configure_request_body_limit(int(API["max_body_size"]))
 
     manifest = check()
     context = configure(workspace)
