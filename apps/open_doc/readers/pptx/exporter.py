@@ -9,7 +9,7 @@ from io import BytesIO
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.util import Pt
 
 from ...ink.raster import render_layer
@@ -41,9 +41,22 @@ class SlideDeckExporter:
         if kind == "text":
             shape = slide.shapes.add_textbox(left, top, w, h)
             shape.fill.background()
+        elif kind == "line":
+            shape = slide.shapes.add_connector(
+                MSO_CONNECTOR.STRAIGHT, left, top + h, left + w, top
+            )
+            shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
+            shape.line.width = Pt(2)
         else:
-            shape_type = MSO_SHAPE.RECTANGLE if kind == "rect" else MSO_SHAPE.OVAL
-            shape = slide.shapes.add_shape(shape_type, left, top, w, h)
+            types = {
+                "rect": MSO_SHAPE.RECTANGLE,
+                "round_rect": MSO_SHAPE.ROUNDED_RECTANGLE,
+                "ellipse": MSO_SHAPE.OVAL,
+                "arrow": MSO_SHAPE.RIGHT_ARROW,
+                "triangle": MSO_SHAPE.ISOSCELES_TRIANGLE,
+                "diamond": MSO_SHAPE.DIAMOND,
+            }
+            shape = slide.shapes.add_shape(types[kind], left, top, w, h)
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj.get("fill", "#DAE2FD"))
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
