@@ -163,6 +163,8 @@
       if(ACTION_ICONS[label]){
         const svg=document.createElementNS(SVG_NS,"svg");
         svg.classList.add("slide-action-icon");svg.setAttribute("aria-hidden","true");
+        Object.assign(svg.style,{width:"17px",height:"17px",display:"inline-block",
+          flex:"none",pointerEvents:"none"});
         const use=document.createElementNS(SVG_NS,"use");
         const base=this.root.querySelector(".brand-mark use")?.getAttribute("href")?.split("#")[0]||"";
         use.setAttribute("href",base+"#"+ACTION_ICONS[label]);svg.append(use);button.prepend(svg);
