@@ -50,6 +50,9 @@
     position: relative;
     flex: none;
     counter-increment: sheet;
+    /* Page chrome must clip ink and oversized fragments at the physical edge. */
+    overflow: hidden;
+    box-sizing: border-box;
 }
 .open-doc .document-page::after {
     content: counter(sheet);
