@@ -49,6 +49,12 @@
    const index=Number(surface.dataset.pageIndex),layer=values.find(l=>l.surface_index===index);let svg=surface.querySelector(':scope > .ink-overlay');
    if(!svg){svg=document.createElementNS(NS,'svg');svg.classList.add('ink-overlay');svg.setAttribute('contenteditable','false');svg.setAttribute('focusable','false');svg.setAttribute('viewBox','0 0 1 1');svg.setAttribute('preserveAspectRatio','none');svg.setAttribute('aria-label','Camada de tinta');surface.append(svg);svg.addEventListener('pointerdown',e=>down(e,surface),{signal});svg.addEventListener('pointermove',move,{signal});svg.addEventListener('pointerup',up,{signal});svg.addEventListener('pointercancel',cancel,{signal});svg.addEventListener('lostpointercapture',e=>{debugPointer(e);if(active?.id===e.pointerId && phase==='drawing')cancel(e);},{signal});
     for(const type of ['click','auxclick','contextmenu'])svg.addEventListener(type,e=>{debugPointer(e);if(mode!=='cursor' && (performance.now()<suppressClickUntil || type==='contextmenu'))suppressSyntheticClick(e,type==='contextmenu');},{capture:true,signal});}
+   // Absolutely positioned SVG percentages can include the page's padding
+   // differently across QtWebEngine/Chromium versions. Bind the ink viewport
+   // to the physical page border box, not to the writable text inset.
+   // offsetWidth/Height stay in layout pixels when the page is zoomed.
+   svg.style.left='0px';svg.style.top='0px';svg.style.right='auto';svg.style.bottom='auto';
+   svg.style.width=surface.clientWidth+'px';svg.style.height=surface.clientHeight+'px';
    svg.style.pointerEvents=mode==='cursor'?'none':'auto';
    if(active?.svg===svg)continue;
    svg.replaceChildren();for(const stroke of layer?.strokes || []){const p=document.createElementNS(NS,'path');p.setAttribute('d',path(stroke));p.setAttribute('fill',stroke.color);p.setAttribute('opacity',stroke.opacity);svg.append(p);}
