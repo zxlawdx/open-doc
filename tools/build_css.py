@@ -31,6 +31,7 @@ STYLE_ORDER = (
     "ink.css",
     "semantic_annotations.css",
     "states.css",
+    "oficio_design.css",
     "responsive.css",
     "utilities.css",
 )
