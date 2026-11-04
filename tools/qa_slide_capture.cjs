@@ -63,5 +63,43 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  fs.writeFileSync(file,Buffer.from(png.data,'base64'));
  fs.writeFileSync(geometry,JSON.stringify(result,null,2));
  console.log('QT_SLIDE_SVG_DOM_AND_HIT_TEST_OK',geometry);
+ // Regression reported by Windows users: the "Endereço" dialog was placed
+ // outside the clickable region because Chromium 83 ignores CSS inset:0.
+ await evaluate('(()=>{OpenDocApp.action("link");return true})()');
+ let dialogOpen=false;
+ for(let i=0;i<24;i++){
+  dialogOpen=await evaluate("document.querySelector('[data-dialog]')?.hidden===false");
+  if(dialogOpen)break;
+  await new Promise(resolve=>setTimeout(resolve,125));
+ }
+ assert.ok(dialogOpen,'The link dialog must open before Cancel can be tested');
+ const dialog=await evaluate(`(()=>{
+   const overlay=document.querySelector('[data-dialog]');
+   const cancel=document.querySelector('[data-dialog-cancel]');
+   const back=overlay.getBoundingClientRect(),c=cancel.getBoundingClientRect();
+   const x=c.x+c.width/2,y=c.y+c.height/2;
+   return {back:{x:back.x,y:back.y,width:back.width,height:back.height},
+     cancel:{x,y,width:c.width,height:c.height},
+     hit:document.elementFromPoint(x,y)?.closest('[data-dialog-cancel]')===cancel,
+     hidden:overlay.hidden,display:getComputedStyle(overlay).display,
+     viewport:{width:innerWidth,height:innerHeight}};
+ })()`);
+ assert.ok(dialog.back.width>=dialog.viewport.width-2 &&
+   dialog.back.height>=dialog.viewport.height-2,
+   'Modal backdrop does not cover legacy Qt viewport: '+JSON.stringify(dialog));
+ assert.ok(dialog.hit,'Cancel must receive actual pointer input: '+JSON.stringify(dialog));
+ const dialogShot=await send('Page.captureScreenshot',{format:'png'});
+ fs.writeFileSync(path.join(destination,'slide-link-dialog.png'),Buffer.from(dialogShot.data,'base64'));
+ for(const type of ['mousePressed','mouseReleased'])
+   await send('Input.dispatchMouseEvent',{type,button:'left',clickCount:1,
+     x:dialog.cancel.x,y:dialog.cancel.y});
+ const cancelled=await evaluate(`(()=>{
+   const el=document.querySelector('[data-dialog]');
+   return {hidden:el.hidden,display:getComputedStyle(el).display,
+     inlineDisplay:el.style.display};
+ })()`);
+ assert.equal(cancelled.hidden,true,'Cancel should hide link dialog');
+ assert.equal(cancelled.display,'none','Dialog should not remain on screen after Cancel');
+ console.log('QT_DIALOG_CANCEL_POINTER_AND_VISIBILITY_OK');
  ws.close();
 })().catch(error=>{console.error(error);process.exit(1);});
