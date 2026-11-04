@@ -144,3 +144,41 @@ def test_rotation_transform_preserves_quad_coordinates(tmp_path, angle):
     )
     assert list(saved["/QuadPoints"]) == pytest.approx(expected, abs=1e-4)
     assert str(saved["/Subtype"]) == "/Highlight"
+
+
+def test_sticky_note_preserves_source_and_exports_native_text_annotation(tmp_path):
+    path = source_pdf(tmp_path)
+    original = path.read_bytes()
+    context = configure(Config(tmp_path))
+    service = context.fixed_documents
+    note = service.import_pdf(path)
+    model = deepcopy(note["content"])
+    sticky = {
+        **markup("note", identifier="sticky-1"),
+        "selected_text": "Nota na página 1",
+        "quad_points": [[30, 350, 48, 350, 30, 332, 48, 332]],
+        "comment": "Revisar a citação no artigo",
+        "color": "#f5cc54",
+        "opacity": 1.0,
+    }
+    model["annotations"] = [sticky]
+    assert validate_annotations(model) == [sticky]
+    saved = service.save(note["id"], note["title"], model, note["revision"])
+    output = tmp_path / "sticky-export.pdf"
+    service.export(note["id"], saved["revision"], "pdf", output)
+    assert path.read_bytes() == original
+    assert service.get(note["id"])["content"]["annotations"] == [sticky]
+    native = PdfReader(output).pages[0]["/Annots"][0].get_object()
+    assert str(native["/Subtype"]) == "/Text"
+    assert str(native["/Contents"]) == "Revisar a citação no artigo"
+    assert native["/NM"] == "sticky-1"
+    assert len(native["/C"]) == 3
+
+
+def test_sticky_notes_require_single_quad(tmp_path):
+    model = model_for(source_pdf(tmp_path))
+    note = markup("note", identifier="sticky-invalid")
+    note["quad_points"].append(note["quad_points"][0])
+    model["annotations"] = [note]
+    with pytest.raises(ValueError):
+        validate_annotations(model)
