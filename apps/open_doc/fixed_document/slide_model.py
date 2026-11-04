@@ -103,6 +103,11 @@ class SlideModelValidator:
                 raise ValueError("Imagem não encontrada no catálogo de recursos.")
             if not isinstance(element.get("flip_h", False), bool) or not isinstance(element.get("flip_v", False), bool):
                 raise ValueError("Espelhamento de imagem inválido.")
+            crop = {key: number(element.get(key, 0), 0, .95)
+                    for key in ("crop_left", "crop_right", "crop_top", "crop_bottom")}
+            if (crop["crop_left"] + crop["crop_right"] > .9500001 or
+                crop["crop_top"] + crop["crop_bottom"] > .9500001):
+                raise ValueError("O recorte não pode eliminar toda a imagem.")
         x = number(element.get("x"), 0, 1)
         y = number(element.get("y"), 0, 1)
         w = number(element.get("width"), .01, 1)
