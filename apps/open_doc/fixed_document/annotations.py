@@ -63,6 +63,9 @@ def validate_annotations(model: dict) -> list[dict]:
             or not 1 <= len(quads) <= MAX_QUADS_PER_ANNOTATION
         ):
             raise ValueError("Geometria da anotação PDF inválida.")
+        total_quads += len(quads)
+        if total_quads > 100000:
+            raise ValueError('Limite de fragmentos de anotações PDF excedido.')
         for quad in quads:
             if not isinstance(quad, list) or len(quad) != 8:
                 raise ValueError("QuadPoints inválidos.")
