@@ -236,6 +236,9 @@ def main():
             assert shapes[2].shape_type == MSO_SHAPE_TYPE.PICTURE
             assert shapes[2].name == "qt-pixel.png"
             assert shapes[2].image.size == (2, 2)
+            assert abs(shapes[2].crop_left - .25) < .00001, (
+                "O recorte visual do Qt não chegou ao PPTX editável."
+            )
             assert shapes[3].text == "Novo texto"
             assert len(slide_note["content"].get("assets", {})) == 1
             print("QT_SLIDE_SVG_AND_EDITABLE_OOXML_EXPORT_OK", flush=True)
