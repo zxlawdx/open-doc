@@ -10,7 +10,7 @@
   window.OpenDocApp?.destroy();
   const scriptUrl = document.currentScript.src;
   const controller = new AbortController(), signal = controller.signal;
-  let editor, theme, layout, navigation, menus, token = '', destroyed = false, busy = false;
+  let editor, theme, layout, navigation, menus, design, token = '', destroyed = false, busy = false;
   let settings = {}, preferenceChain = Promise.resolve();
   let dialogResolver = null, dialogFocus = null, noticeTimer;
   let lastStatus = '';
@@ -74,6 +74,7 @@
     root.dataset.homeView = String(home);
     root.querySelector('[data-library]').hidden = !home;
     root.querySelector('[data-document-body]').hidden = home || root.dataset.documentKind==='fixed';
+    design?.sync();
     if (home) refresh().catch(error => status(error.message));
     else { layout?.measure(); editor?.refresh(); }
   }
@@ -95,6 +96,7 @@
       }
       for (const file of items) {
         const row = document.createElement('li'); row.className='library-row';
+        row.dataset.fileFormat = notes ? 'docx' : String(file.type || file.name?.split('.').pop() || 'docx').toLowerCase();
         const icon = document.createElement('span'); icon.className = 'library-file-icon'; icon.textContent = notes ? 'DOC' : file.type.toUpperCase();
         const info = document.createElement('div'); info.className='library-file-main';
         const editable=notes || Boolean(file.capabilities?.open);
@@ -121,6 +123,7 @@
         list.append(row);
       }
     }
+    design?.refreshLibrary();
   }
   async function newDocument() {
     await editor.flush(); editor.load(await request('document/new', {title: 'Documento sem título'}));
@@ -235,7 +238,7 @@
   }
   const page = {
     destroy() {
-      editor?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
+      editor?.destroy(); design?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
       if (dialogResolver) closeDialog();
     },
     action, showHome: () => showView(true), editor: () => editor,
@@ -318,6 +321,7 @@
     theme = await auxiliary('aparência', 'OpenDocTheme', 'theme.js', module => module.create(root, settings, persist, signal));
     layout = await auxiliary('zoom', 'OpenDocPaperLayout', 'paper_layout.js', module => module.create(root, settings, persist, signal));
     navigation = await auxiliary('navegação', 'OpenDocNavigation', 'navigation.js', module => module.create(root, editor, signal));
+    design = await auxiliary('interface de documentos', 'OpenDocDesign', 'design_system.js', module => module.create({root,action,signal}));
     showView(false);
     root.dataset.ready = 'true';
   }
