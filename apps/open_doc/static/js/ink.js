@@ -212,7 +212,7 @@
   for(const type of ['click','auxclick','contextmenu'])root.addEventListener(type,e=>{if(mode!=='cursor' && isInkSurfaceEvent(e) && performance.now()<suppressClickUntil && (e.detail>0 || e.pointerType==='pen' || type==='contextmenu'))suppressSyntheticClick(e);},{capture:true,signal});
   root.addEventListener('open-doc:ink-mode',event=>setMode(event.detail),{signal});
   root.addEventListener('open-doc:ink-changed',queue,{signal});
-  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});root.addEventListener('open-doc:changed',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
+  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});root.addEventListener('open-doc:changed',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
  window.OpenDocInk={create,simplify,path,shouldErase,eraseStrokes,erasePartialStroke};
 })();
