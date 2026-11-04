@@ -171,6 +171,24 @@
         slides[index].elements=slides[index].elements.filter(o=>o.id!==id);
       });
     }
+    deleteObjects(index,ids){
+      const set=new Set(ids);
+      if(!set.size)return;
+      this.apply(slides=>{
+        slides[index].elements=slides[index].elements.filter(obj=>!set.has(obj.id));
+      });
+    }
+    alignObjects(index,ids,axis){
+      const set=new Set(ids);
+      this.apply(slides=>{
+        const selected=slides[index].elements.filter(obj=>set.has(obj.id));
+        if(selected.length<2)throw Error("Selecione dois ou mais objetos para alinhar.");
+        const sizeKey=axis==="x"?"width":axis==="y"?"height":null;
+        if(!sizeKey)throw Error("Eixo de alinhamento inválido.");
+        const center=selected.reduce((sum,obj)=>sum+obj[axis]+obj[sizeKey]/2,0)/selected.length;
+        for(const obj of selected)obj[axis]=clamp(center-obj[sizeKey]/2,0,1-obj[sizeKey]);
+      });
+    }
     shiftLayer(index,id,delta){
       this.apply(slides=>{
         const objects=slides[index].elements,from=objects.findIndex(o=>o.id===id),to=from+delta;
@@ -186,7 +204,7 @@
       Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender});
       this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
       this.shapeRenderer=new SlideSvgRenderer();
-      this.active=false;this.selected=null;this.current=0;this.drag=null;
+      this.active=false;this.selected=null;this.selectedIds=new Set();this.current=0;this.drag=null;
       this.pan=null;this.spacePressed=false;this.imageReplacement=null;
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
       this.imageInput=document.createElement("input");this.imageInput.type="file";
@@ -252,6 +270,14 @@
       }
       return null;
     }
+    _selectObject(id,additive=false){
+      if(!additive)this.selectedIds.clear();
+      if(id){
+        if(additive&&this.selectedIds.has(id))this.selectedIds.delete(id);
+        else this.selectedIds.add(id);
+      }
+      this.selected=Array.from(this.selectedIds).pop()||null;
+    }
     _bindEvents(){
       // Scope drop handling to a real slide: dropping on toolbar/sidebar never
       // imports a file or overwrites another object.
@@ -302,9 +328,11 @@
         if(!this.active)return;
         const surface=event.target.closest(".fixed-surface");
         if(!surface)return;
-        this.current=Number(surface.dataset.pageIndex);
+        const targetIndex=Number(surface.dataset.pageIndex);
+        const changedSlide=targetIndex!==this.current;
+        this.current=targetIndex;
         const item=event.target.closest("[data-slide-element]");
-        this.selected=item?item.dataset.slideElement:null;
+        this._selectObject(item?item.dataset.slideElement:null,!changedSlide&&event.shiftKey);
         this.render();
       },{signal:this.signal});
       this.scroller.addEventListener("dblclick",event=>{
@@ -322,11 +350,12 @@
         if(event.target.closest("input,textarea,[contenteditable=true]"))return;
         if(event.key===" "){event.preventDefault();this.spacePressed=true;
           if(!this.pan)this.scroller.style.cursor="grab";return;}
-        if(event.key==="Escape"){this.selected=null;this.render();return;}
+        if(event.key==="Escape"){this._selectObject(null);this.render();return;}
         if(!this.selected)return;
         if(event.key==="Delete"||event.key==="Backspace"){
-          event.preventDefault();this.commands.deleteObject(this.current,this.selected);
-          this.selected=null;this.render();return;
+          event.preventDefault();
+          this.commands.deleteObjects(this.current,this.selectedIds);
+          this._selectObject(null);this.render();return;
         }
         if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="d"){
           event.preventDefault();
@@ -347,25 +376,29 @@
     }
     load(){
       this.active=true;this.host.dataset.slideEditor="true";this.toolbar.hidden=false;this.inspector.hidden=false;
-      this.current=0;this.selected=null;
+      this.current=0;this._selectObject(null);
       // An ink tool left active in PDF must never intercept slide selection.
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
       this.render();
     }
     deactivate(){
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
-      this.selected=null;this.drag=null;this.pan=null;
+      this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.scroller.style.cursor="";this.inspector.replaceChildren();
     }
     onPageChange(index){
-      this.current=index;if(this.selected&&!this.getModel().surfaces[index].elements.some(o=>o.id===this.selected))this.selected=null;
+      if(index!==this.current)this._selectObject(null);
+      this.current=index;
+      const ids=new Set(this.getModel().surfaces[index].elements.map(obj=>obj.id));
+      this.selectedIds=new Set(Array.from(this.selectedIds).filter(id=>ids.has(id)));
+      if(!ids.has(this.selected))this.selected=Array.from(this.selectedIds).pop()||null;
       if(this.active)this._properties();
     }
     add(type){
       // Insertions activate selection; otherwise the full-page ink SVG wins
       // hit-testing when the user previously selected Pen/Highlighter.
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
-      const id=this.commands.insertObject(this.current,type);this.selected=id;this.render();
+      const id=this.commands.insertObject(this.current,type);this._selectObject(id);this.render();
     }
     async importImage(file,replacement=null){
       if(!file||!this.active)return;
@@ -389,13 +422,13 @@
         : this.commands.insertImage(targetIndex,image);
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
       this.current=replacement?replacement.index:targetIndex;
-      this.selected=id;this.render();
+      this._selectObject(id);this.render();
     }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
     _makeObject(obj,index,thumb=false){
       const node=document.createElement("div");node.className="slide-object slide-object-"+obj.type;
       node.dataset.slideElement=obj.id;node.dataset.kind=obj.type;
-      if(!thumb&&this.selected===obj.id&&index===this.current)node.dataset.selected="true";
+      if(!thumb&&this.selectedIds.has(obj.id)&&index===this.current)node.dataset.selected="true";
       this._styleObject(node,obj,index,thumb);
       const vector=this.shapeRenderer.create(obj);
       if(vector)node.append(vector);
@@ -534,10 +567,25 @@
         const peers=slide.elements.filter(e=>e.type===obj.type);
         const fallback=labelFor(obj.type)+" "+(peers.indexOf(obj)+1);
         const button=document.createElement("button");button.textContent=obj.name||fallback;
-        button.setAttribute("aria-pressed",String(this.selected===obj.id));
-        button.addEventListener("click",()=>{this.selected=obj.id;this.render();},{signal:this.signal});
+        button.setAttribute("aria-pressed",String(this.selectedIds.has(obj.id)));
+        button.addEventListener("click",event=>{this._selectObject(obj.id,event.shiftKey);this.render();},{signal:this.signal});
         list.append(button);
       });this.inspector.append(list);
+      if(this.selectedIds.size>1){
+        const groupActions=document.createElement("div");groupActions.className="slide-layer-actions";
+        for(const [label,task] of [
+          ["Alinhar centros horizontalmente",()=>this.commands.alignObjects(this.current,this.selectedIds,"x")],
+          ["Alinhar centros verticalmente",()=>this.commands.alignObjects(this.current,this.selectedIds,"y")],
+          ["Excluir selecionados",()=>{
+            this.commands.deleteObjects(this.current,this.selectedIds);
+            this._selectObject(null);this.render();
+          }]
+        ]){
+          const button=document.createElement("button");button.type="button";button.textContent=label;
+          button.addEventListener("click",task,{signal:this.signal});groupActions.append(button);
+        }
+        this.inspector.append(groupActions);
+      }
       const selected=slide.elements?.find(e=>e.id===this.selected);
       if(selected){
         const heading=document.createElement("h4");heading.textContent="Editar "+labelFor(selected.type);this.inspector.append(heading);
@@ -618,14 +666,15 @@
       event?.preventDefault();return true;
     }
     _start(event){
-      if(!this.active||event.button!==0)return;
+      if(!this.active||event.button!==0||event.shiftKey)return;
       const node=event.target.closest("[data-slide-element]");
       if(!node)return;
       const surface=node.closest(".fixed-surface"),index=Number(surface.dataset.pageIndex);
       if(index!==this.current)this.current=index;
       const obj=this.getModel().surfaces[index].elements.find(e=>e.id===node.dataset.slideElement);
       if(!obj)return;
-      this.selected=obj.id;this._properties();
+      if(!this.selectedIds.has(obj.id))this._selectObject(obj.id);
+      this._properties();
       const box=surface.getBoundingClientRect();
       if(!box.width||!box.height)return;
       this.drag={index,id:obj.id,startX:event.clientX,startY:event.clientY,
