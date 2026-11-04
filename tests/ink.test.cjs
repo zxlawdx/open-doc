@@ -59,7 +59,7 @@ test('partial eraser cuts only the crossed part of a long, sparsely sampled line
  assert.equal(parts.length,2,'the two visible pieces survive');
  assert.equal(parts[0].id,before.id);
  assert.notEqual(parts[1].id,parts[0].id);
- assert.deepEqual(parts.map(p=>p.color),[before.color,before.color]);
+ assert.equal(parts[0].color,before.color);assert.equal(parts[1].color,before.color);
  assert.ok(parts.every(p=>p.outline.length>=3 && p.points.length>1));
  assert.ok(parts[0].points.every(p=>p.x*900<450));
  assert.ok(parts[1].points.every(p=>p.x*900>450));
