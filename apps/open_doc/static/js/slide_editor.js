@@ -168,7 +168,7 @@
       const node=document.createElement("div");node.className="slide-object slide-object-"+obj.type;
       node.dataset.slideElement=obj.id;node.dataset.kind=obj.type;
       if(!thumb&&this.selected===obj.id&&index===this.current)node.dataset.selected="true";
-      this._styleObject(node,obj,thumb);
+      this._styleObject(node,obj,index,thumb);
       if(obj.type==="rect"||obj.type==="ellipse"){
         // Use SVG primitives rather than relying on CSS-only shape painting.
         const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
@@ -200,10 +200,22 @@
       }
       return node;
     }
-    _styleObject(node,obj,thumb=false){
+    _styleObject(node,obj,index=0,thumb=false){
+      // Render directly relative to the physical slide, never to the
+      // computed percentage size of an intermediate absolutely positioned
+      // layer. In QtWebEngine/Chromium 83 that layer may collapse to 0x0.
+      const surface=this.getModel().surfaces[index];
       const zoom=thumb?1:this.getZoom();
+      const pxWidth=surface.width_pt*4/3*zoom;
+      const pxHeight=surface.height_pt*4/3*zoom;
+      const bounds=thumb
+        ? {left:obj.x*100+"%",top:obj.y*100+"%",
+           width:obj.width*100+"%",height:obj.height*100+"%"}
+        : {left:obj.x*pxWidth+"px",top:obj.y*pxHeight+"px",
+           width:obj.width*pxWidth+"px",height:obj.height*pxHeight+"px"};
       Object.assign(node.style,{
-        left:obj.x*100+"%",top:obj.y*100+"%",width:obj.width*100+"%",height:obj.height*100+"%",
+        position:"absolute",boxSizing:"border-box",
+        ...bounds,
         color:obj.color,backgroundColor:"transparent",
         borderColor:"transparent",
         fontSize:(obj.font_size_pt||28)*4/3*zoom*(thumb?.16:1)+"px",
@@ -247,8 +259,11 @@
         Object.assign(layer.style,{position:"absolute",top:"0px",left:"0px",
           right:"0px",bottom:"0px",width:"100%",height:"100%"});
         layer.style.backgroundColor=slide.background||"#FFFFFF";
-        for(const obj of slide.elements||[])layer.append(this._makeObject(obj,index));
         surface.prepend(layer);
+        // Shapes are direct slide children so percentages on the layer
+        // cannot collapse their bounds to zero in legacy QtWebEngine.
+        surface.querySelectorAll(":scope > .slide-object").forEach(n=>n.remove());
+        for(const obj of slide.elements||[])surface.append(this._makeObject(obj,index));
         this._thumb(buttons[index],slide,index);
       });
       this.root.querySelector("[data-position]").textContent="Slide "+(this.current+1)+" de "+slides.length;
@@ -343,7 +358,7 @@
         item.y=clamp(state.initial.y+dy,0,1-state.initial.height);
       }
       state.value=item;
-      this._styleObject(state.node,item);
+      this._styleObject(state.node,item,state.index);
     }
     _finish(event){
       const drag=this.drag;if(!drag)return;
