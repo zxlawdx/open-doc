@@ -44,7 +44,7 @@ test('new slides support text and native shape objects with editable properties'
  const shape=q.scroller.querySelector('.slide-object-rect');
  assert.equal(shape.parentElement,slide,'shapes must attach directly to slide');
  assert.equal(shape.style.position,'absolute');
- assert.equal(shape.style.left,'256px');
+ assert.equal(shape.style.left,'307.2px');
  assert.equal(shape.style.width,'345.6px');
  assert.equal(shape.style.zIndex,'3');
  const layer=q.scroller.querySelector('.slide-object-layer');
@@ -119,4 +119,35 @@ test('shape insertion returns to selection rather than leaving ink interception 
  assert.equal(shape.dataset.selected,'true');
  assert.equal(shape.querySelector('svg rect').getAttribute('stroke'),'#004AC6');
  assert.ok(shape.querySelector('[data-resize]'));
+});
+
+test('local SVG toolbar icons, expanded shape catalog and editable layer names',t=>{
+ const q=setup(t);
+ for(const label of ['Arredondado','Linha','Seta','Triângulo','Losango'])
+   clickLabel(q.controls,label);
+ const shapes=q.model().surfaces[0].elements;
+ assert.deepEqual(shapes.map(s=>s.type),['round_rect','line','arrow','triangle','diamond']);
+ const surface=q.scroller.querySelector('.fixed-surface');
+ assert.equal(surface.querySelectorAll(':scope > .slide-object').length,5);
+ assert.equal(surface.querySelectorAll('.slide-vector-shape').length,5);
+ assert.ok(surface.querySelector('.slide-object-round_rect rect[rx]'));
+ assert.ok(surface.querySelector('.slide-object-line line'));
+ assert.ok(surface.querySelector('.slide-object-arrow path'));
+ assert.equal(surface.querySelectorAll('.slide-object polygon').length,2);
+ for(const label of ['Retângulo','Elipse','Linha','Seta']){
+   const button=Array.from(q.controls.querySelectorAll('.slide-studio-toolbar button'))
+      .find(b=>b.textContent===label);
+   assert.ok(button.querySelector('svg use'),'SVG icon for '+label);
+ }
+ assert.ok(q.host.querySelector('.slide-layer-list').textContent.includes('Losango 1'));
+ const name=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(x=>x.textContent.startsWith('Nome')).querySelector('input');
+ name.value='Formação regional';name.dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[4].name,'Formação regional');
+ assert.ok(q.host.querySelector('.slide-layer-list').textContent.includes('Formação regional'));
+ const duplicate=Array.from(q.host.querySelectorAll('.slide-layer-actions button'))
+   .find(b=>b.textContent==='Duplicar objeto');
+ duplicate.click();
+ assert.equal(q.model().surfaces[0].elements.length,6);
+ assert.notEqual(q.model().surfaces[0].elements[4].id,q.model().surfaces[0].elements[5].id);
 });
