@@ -53,7 +53,7 @@ class SlideModelValidator:
         if not isinstance(uid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", uid) or uid in ids:
             raise ValueError("Identificador de elemento inválido ou duplicado.")
         ids.add(uid)
-        if element.get("type") not in {"text", "rect", "ellipse"}:
+        if element.get("type") not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond"}:
             raise ValueError("Tipo de elemento não suportado.")
         x = number(element.get("x"), 0, 1)
         y = number(element.get("y"), 0, 1)
@@ -64,6 +64,9 @@ class SlideModelValidator:
         self._color(element.get("color", "#191C1E"), "texto")
         self._color(element.get("fill", "#DAE2FD"), "preenchimento")
         self._color(element.get("stroke", "#004AC6"), "contorno")
+        label = element.get("name")
+        if label is not None and (not isinstance(label, str) or not 1 <= len(label) <= 80):
+            raise ValueError("Nome de forma inválido.")
         text = element.get("text", "")
         if not isinstance(text, str) or len(text) > 10000:
             raise ValueError("Texto de slide inválido.")
