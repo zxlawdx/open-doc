@@ -28,7 +28,7 @@
       svg.setAttribute("preserveAspectRatio","none");
       svg.setAttribute("aria-hidden","true");
       const tag=({rect:"rect",round_rect:"rect",ellipse:"ellipse",
-        line:"line",arrow:"path",triangle:"polygon",diamond:"polygon"})[obj.type];
+        line:"line",arrow:"polygon",triangle:"polygon",diamond:"polygon"})[obj.type];
       if(!tag)return null;
       const shape=document.createElementNS(SVG_NS,tag);
       const geometry=({
@@ -36,16 +36,16 @@
         round_rect:{x:1,y:1,width:98,height:98,rx:16,ry:16},
         ellipse:{cx:50,cy:50,rx:49,ry:49},
         line:{x1:5,y1:95,x2:95,y2:5},
-        arrow:{d:"M 5 95 L 92 8 M 65 8 L 92 8 L 92 35"},
+        arrow:{points:"4,38 62,38 62,14 98,50 62,86 62,62 4,62"},
         triangle:{points:"50,2 98,98 2,98"},
         diamond:{points:"50,2 98,50 50,98 2,50"}
       })[obj.type];
       for(const [key,value] of Object.entries(geometry))
         shape.setAttribute(key,String(value));
-      const open=obj.type==="line"||obj.type==="arrow";
+      const open=obj.type==="line";
       shape.setAttribute("fill",open?"none":obj.fill||"#DAE2FD");
       shape.setAttribute("stroke",obj.stroke||"#004AC6");
-      shape.setAttribute("stroke-width",open?"3":"1.5");
+      shape.setAttribute("stroke-width",String(obj.stroke_width||1.5));
       shape.setAttribute("stroke-linecap","round");
       shape.setAttribute("stroke-linejoin","round");
       shape.setAttribute("vector-effect","non-scaling-stroke");
@@ -103,7 +103,7 @@
         x:.2+offset,y:.24+offset,width:type==="text"?.5:.27,height:type==="text"?.19:.22,
         text:type==="text"?"Novo texto":"",color:"#191C1E",
         fill:"#DAE2FD",stroke:"#004AC6",font_family:"Inter",
-        font_size_pt:type==="text"?28:20};
+        font_size_pt:type==="text"?28:20,stroke_width:1.5,rotation:0};
       this.apply(slides=>slides[index].elements.push(obj));
       return obj.id;
     }
@@ -315,6 +315,7 @@
         ...bounds,
         color:obj.color,backgroundColor:"transparent",
         borderColor:"transparent",
+        transform:"rotate("+Number(obj.rotation||0)+"deg)",
         fontSize:(obj.font_size_pt||28)*4/3*zoom*(thumb?.16:1)+"px",
         fontFamily:JSON.stringify(obj.font_family||"Inter")+",sans-serif"
       });
@@ -411,9 +412,13 @@
           if(selected.type!=="line"&&selected.type!=="arrow")
             this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
           this._property("Contorno",selected.stroke,"color",value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
+          const strokeField=this._property("Espessura do contorno (pt)",selected.stroke_width||1.5,"number",value=>this.commands.updateObject(this.current,selected.id,{stroke_width:clamp(Number(value)||1.5,.5,20)}));
+          strokeField.min=".5";strokeField.max="20";strokeField.step=".5";
         }
         if(selected.type==="text"||selected.text)
           this._property("Fonte (pt)",selected.font_size_pt||28,"number",value=>this.commands.updateObject(this.current,selected.id,{font_size_pt:clamp(Number(value)||28,6,144)}));
+        const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
+        rotationField.min="-360";rotationField.max="360";
         for(const [key,label] of fields)this._property(label,Math.round(selected[key]*100),"number",value=>{
           const amount=clamp(Number(value)/100,0,key==="x"||key==="y"?1:1);
           const patch={[key]:amount};
