@@ -239,7 +239,46 @@
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
     }
+    _transferImage(data){
+      if(!data)return null;
+      for(const file of Array.from(data.files||[])){
+        if(file&&/^image\/(png|jpeg|webp)$/.test(file.type))return file;
+      }
+      for(const item of Array.from(data.items||[])){
+        if(item.kind==="file"&&/^image\/(png|jpeg|webp)$/.test(item.type)){
+          const file=item.getAsFile?.();
+          if(file)return file;
+        }
+      }
+      return null;
+    }
     _bindEvents(){
+      // Scope drop handling to a real slide: dropping on toolbar/sidebar never
+      // imports a file or overwrites another object.
+      this.scroller.addEventListener("dragover",event=>{
+        if(!this.active||!event.target.closest(".fixed-surface"))return;
+        const types=Array.from(event.dataTransfer?.types||[]);
+        if(!types.includes("Files"))return;
+        event.preventDefault();
+        if(event.dataTransfer)event.dataTransfer.dropEffect="copy";
+      },{signal:this.signal});
+      this.scroller.addEventListener("drop",event=>{
+        if(!this.active)return;
+        const surface=event.target.closest(".fixed-surface");
+        if(!surface)return;
+        const file=this._transferImage(event.dataTransfer);
+        if(!file)return;
+        event.preventDefault();
+        this.current=Number(surface.dataset.pageIndex);
+        this.importImage(file).catch(error=>this.status(error.message));
+      },{signal:this.signal});
+      this.root.addEventListener("paste",event=>{
+        if(!this.active||event.target.closest("input,textarea,[contenteditable=true]"))return;
+        const file=this._transferImage(event.clipboardData);
+        if(!file)return;
+        event.preventDefault();
+        this.importImage(file).catch(error=>this.status(error.message));
+      },{signal:this.signal});
       this.scroller.addEventListener("pointerdown",event=>{
         if(this._beginPan(event))return;
         this._start(event);
@@ -330,6 +369,7 @@
     }
     async importImage(file,replacement=null){
       if(!file||!this.active)return;
+      const targetIndex=this.current;
       if(!["image/png","image/jpeg","image/webp"].includes(file.type))
         throw Error("Selecione uma imagem PNG, JPEG ou WebP.");
       if(!file.size||file.size>4*1024*1024)
@@ -346,9 +386,9 @@
       const image={mime:file.type,data:encoded.slice(prefix.length),name:file.name.slice(0,80)};
       const id=replacement
         ? this.commands.replaceImage(replacement.index,replacement.id,image)
-        : this.commands.insertImage(this.current,image);
+        : this.commands.insertImage(targetIndex,image);
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
-      if(replacement)this.current=replacement.index;
+      this.current=replacement?replacement.index:targetIndex;
       this.selected=id;this.render();
     }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
