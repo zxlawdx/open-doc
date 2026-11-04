@@ -58,9 +58,12 @@ class SlideDeckExporter:
             run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
         return shape
 
-    def _overlay(self, slide, surface):
-        # Keep legacy layer ordering: raster ink is behind editable text.
-        # This is also required for exported PPTX text to stay clickable.
+    def _raster_ink(self, slide, surface):
+        """Add ink before editable OOXML shapes on a native slide.
+
+        python-pptx appends shapes front-to-back. A full-slide ink picture
+        inserted after native shapes would cover them in exported PowerPoint.
+        """
         if surface.get("strokes"):
             image = render_layer(
                 surface["strokes"],
@@ -75,6 +78,7 @@ class SlideDeckExporter:
                 width=self.presentation.slide_width,
                 height=self.presentation.slide_height,
             )
+    def _text_overlays(self, slide, surface):
         for text in surface.get("text_overlays", []):
             shape = slide.shapes.add_textbox(
                 int(text["x"] * self.presentation.slide_width),
@@ -89,17 +93,25 @@ class SlideDeckExporter:
             run.font.size = Pt(text["font_size_pt"])
             run.font.color.rgb = rgb(text["color"])
 
+    def _overlay(self, slide, surface):
+        """Preserve the historical annotation order for imported slides."""
+        self._raster_ink(slide, surface)
+        self._text_overlays(slide, surface)
+
     def write(self, destination):
         if self.native:
             for surface in self.model["surfaces"]:
                 slide = self.presentation.slides.add_slide(self.presentation.slide_layouts[6])
                 slide.background.fill.solid()
                 slide.background.fill.fore_color.rgb = rgb(surface.get("background", "#FFFFFF"))
+                # Paint ink first so vector shapes remain above the bitmap.
+                # Legacy text overlays stay above native objects.
+                self._raster_ink(slide, surface)
                 for obj in surface.get("elements", []):
                     self._native_shape(slide, obj)
                 if surface.get("notes"):
                     slide.notes_slide.notes_text_frame.text = surface["notes"]
-                self._overlay(slide, surface)
+                self._text_overlays(slide, surface)
         else:
             for slide, surface in zip(self.presentation.slides, self.model["surfaces"]):
                 self._overlay(slide, surface)
