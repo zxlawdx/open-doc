@@ -297,3 +297,36 @@ def test_native_images_reject_non_hashable_metadata(tmp_path):
     invalid["assets"]["asset-1"]["mime"] = ["image/png"]
     with pytest.raises(ValueError):
         validate(invalid)
+
+def test_native_image_mirror_flags_export_as_editable_ooxml_transform(tmp_path):
+    """Flips survive persistence and are stored as native a:xfrm flags, not rasterized."""
+    import base64
+    from io import BytesIO
+    from PIL import Image
+
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    stream = BytesIO()
+    Image.new("RGB", (4, 3), "green").save(stream, "PNG")
+    model["assets"] = {"asset-1": {"mime": "image/png", "data": base64.b64encode(stream.getvalue()).decode("ascii")}}
+    model["surfaces"][0]["elements"] = [{
+        **element("mirror-1", "image"), "text": "", "asset_id": "asset-1",
+        "flip_h": True, "flip_v": True, "rotation": 12,
+    }]
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    reopened = ctx.fixed_documents.get(note["id"])
+    assert reopened["content"]["surfaces"][0]["elements"][0]["flip_h"] is True
+    result = tmp_path / "mirrored.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", result)
+    picture = Presentation(result).slides[0].shapes[0]
+    transform = picture._pic.spPr.xfrm
+    assert transform.flipH is True and transform.flipV is True
+    assert picture.rotation == 12
+    assert picture.image.size == (4, 3)
+
+    for invalid in (1, "true", {}, []):
+        changed = deepcopy(model)
+        changed["surfaces"][0]["elements"][0]["flip_h"] = invalid
+        with pytest.raises(ValueError, match="Espelhamento"):
+            validate(changed)
