@@ -163,7 +163,7 @@
       tools.prepend(search,select);
       list=document.createElement('div');list.className='semantic-annotation-list';
       editor=document.createElement('div');editor.className='semantic-annotation-editor';
-      panel.append(heading,tools,list,editor);sidebar.append(panel);redrawList();
+      panel.append(heading,tools,list,editor);panel.hidden=root.dataset.sourceKind!=='pdf';sidebar.append(panel);redrawList();
     }
     function redrawList(){
       if(!list)return;
