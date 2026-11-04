@@ -82,3 +82,34 @@ def test_manager_is_thin_vela_dispatcher():
     assert "from vela.cli.commands import CommandRunner" in source
     assert "from apps.open_doc.services.preferences_service" not in source
     assert "sys.path.insert(0, str(BASE_DIR))" in source
+
+
+def test_outdated_vela_is_reported_instead_of_fake_missing_wsgi(tmp_path: Path) -> None:
+    fake = tmp_path / "old-framework"
+    cli = fake / "vela" / "cli"
+    cli.mkdir(parents=True)
+    (fake / "vela" / "__init__.py").write_text("")
+    (cli / "__init__.py").write_text("")
+    (cli / "commands.py").write_text(
+        "class CommandRunner:\n"
+        "    def execute(self, argv): raise AssertionError('CLI antigo não deve executar')\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(fake), "PYTHONUTF8": "1"}
+    script = (
+        "import runpy,sys;"
+        f"sys.argv=[{str(ROOT / 'manage.py')!r}, 'runapp'];"
+        f"runpy.run_path({str(ROOT / 'manage.py')!r},run_name='__main__')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "Vela Framework instalado é antigo ou incompatível" in result.stderr
+    assert "Reinstale apenas a versão do Vela" in result.stderr
+    assert "vela-framework @ git+" in result.stderr
