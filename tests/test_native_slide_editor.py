@@ -151,4 +151,6 @@ def test_extended_shapes_export_as_editable_powerpoint_objects(tmp_path):
     assert shapes[2].auto_shape_type == MSO_SHAPE.RIGHT_ARROW
     assert shapes[3].auto_shape_type == MSO_SHAPE.ISOSCELES_TRIANGLE
     assert shapes[4].auto_shape_type == MSO_SHAPE.DIAMOND
+    assert shapes[0].rotation == 25
+    assert shapes[0].line.width.pt == 3
     assert ctx.fixed_documents.get(note["id"])["content"]["surfaces"][0]["elements"] == model["surfaces"][0]["elements"]
