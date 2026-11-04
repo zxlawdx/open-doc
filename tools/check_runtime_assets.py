@@ -6,6 +6,7 @@ the two text inputs to CRLF, which must not invalidate identical source files.
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +37,50 @@ def source_hashes(root: Path = ROOT) -> set[str]:
         hashlib.sha256(source + b"\0" + lock).hexdigest(),
         source_hash(root),
     }
+
+
+def repair_vendor_line_endings(root: Path = ROOT) -> list[str]:
+    """Restore checked-in bundle bytes only when Git converted LF to CRLF.
+
+    The manifest's SHA-256 is still authoritative. Convert bytes only if
+    changing CRLF back to LF produces the exact expected digest. Never repair
+    a genuinely different bundle or mask a partial/interrupted build.
+    All files are verified before any write, so failures leave them untouched.
+    """
+    vendor = root / "apps/open_doc/static/js/vendor"
+    if (vendor / ".build-failed").exists():
+        raise RuntimeError("Build de vendor interrompido; não restaurar automaticamente.")
+    try:
+        manifest = json.loads((vendor / "vendor-manifest.json").read_text("utf-8"))
+        expected_hashes = manifest["files"]
+        corrections: dict[Path, bytes] = {}
+        for name in BUNDLES:
+            path = vendor / name
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() == expected_hashes[name]:
+                continue
+            canonical = data.replace(b"\r\n", b"\n")
+            if (
+                canonical == data
+                or hashlib.sha256(canonical).hexdigest() != expected_hashes[name]
+            ):
+                raise RuntimeError(
+                    f"Bundle {name} foi alterado além de CRLF/LF; "
+                    "reparação automática recusada. "
+                    "Verifique git status e recupere o arquivo original."
+                )
+            corrections[path] = canonical
+    except (OSError, KeyError, ValueError) as exc:
+        raise RuntimeError("Não foi possível conferir os bundles do Git.") from exc
+
+    for path, data in corrections.items():
+        temporary = path.with_name(path.name + ".lf-repair.tmp")
+        try:
+            temporary.write_bytes(data)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return [path.name for path in corrections]
 
 
 def validate_vendor(root: Path = ROOT) -> dict:

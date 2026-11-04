@@ -23,7 +23,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.build_css import STYLE_ORDER
-from tools.check_runtime_assets import check, source_hash, validate_vendor
+from tools.check_runtime_assets import (
+    check,
+    repair_vendor_line_endings,
+    source_hash,
+    validate_vendor,
+)
 METADATA = "open-doc-prebuilt.json"
 FORMAT = "open-doc-prebuilt-v1"
 MAX_TOTAL_BYTES = 180 * 1024 * 1024
@@ -142,6 +147,9 @@ def prepare(root: Path = ROOT) -> None:
     Tailwind utility base is reused, and CURRENT handwritten styles are
     reassembled (including PDF annotations). Vela itself copies all app assets.
     """
+    repaired = repair_vendor_line_endings(root)
+    if repaired:
+        print("Corrigidas quebras de linha dos bundles: " + ", ".join(repaired))
     validate_vendor(root)
     compiled = _existing_tailwind_css(root)
     custom = "\n".join(
@@ -149,6 +157,7 @@ def prepare(root: Path = ROOT) -> None:
         for name in STYLE_ORDER
     )
     main_css = root / "apps/open_doc/static/css/main.css"
+    original_css = main_css.read_bytes()
     shell_css = root / "staticfiles/css/vela.bundle.css"
     shell_css.parent.mkdir(parents=True, exist_ok=True)
     shell_css.write_text(compiled + "\n", encoding="utf-8")
@@ -171,6 +180,7 @@ def prepare(root: Path = ROOT) -> None:
         )
     finally:
         os.chdir(old_cwd)
+        main_css.write_bytes(original_css)
     if result.get("errors"):
         raise RuntimeError("Vela reportou erro ao coletar assets.")
     check(root)
