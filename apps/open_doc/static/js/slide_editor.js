@@ -173,6 +173,9 @@
         // Use SVG primitives rather than relying on CSS-only shape painting.
         const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
         svg.classList.add("slide-vector-shape");
+        // Inline physical geometry survives missing/stale compiled CSS bundles.
+        Object.assign(svg.style,{position:"absolute",left:"0px",top:"0px",
+          width:"100%",height:"100%",display:"block",pointerEvents:"none"});
         svg.setAttribute("viewBox","0 0 100 100");
         svg.setAttribute("preserveAspectRatio","none");
         svg.setAttribute("aria-hidden","true");
