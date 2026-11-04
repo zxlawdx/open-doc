@@ -104,6 +104,7 @@ class FixedDocumentService:
         note["capabilities"] = {
             "preview": can_preview,
             "ink": can_preview,
+            "edit_slides": note["source_kind"] == "pptx" and note["content"].get("editable_deck") is True,
             "handwriting": can_preview
             and handwriting is not None
             and any(b["available"] for b in handwriting.capabilities()),
@@ -120,6 +121,38 @@ class FixedDocumentService:
         note = self.get(identifier)
         self.activate(note["source_kind"], identifier)
         return note
+
+    def create_presentation(self, title="Nova apresentação"):
+        """Create a real, valid blank PPTX and a separately editable slide model.
+
+        The source file remains immutable. All subsequent slide edits are
+        stored in the validated fixed-document JSON and exported to PPTX.
+        """
+        from pptx import Presentation
+        from pptx.util import Inches
+
+        self.documents._validate(title, "")
+        fd, name = tempfile.mkstemp(
+            prefix=".open-doc-new-slides-", suffix=".pptx", dir=self.config.root
+        )
+        os.close(fd)
+        temporary = Path(name)
+        try:
+            deck = Presentation()
+            deck.slide_width = Inches(13.333)
+            deck.slide_height = Inches(7.5)
+            deck.slides.add_slide(deck.slide_layouts[6])
+            deck.save(temporary)
+            note = self.import_pptx(temporary)
+            model = json.loads(json.dumps(note["content"]))
+            model["editable_deck"] = True
+            for surface in model["surfaces"]:
+                surface["elements"] = []
+                surface["background"] = "#FFFFFF"
+                surface["notes"] = ""
+            return self.save(note["id"], title, model, note["revision"])
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def import_pdf(self, path):
         return self._import(path, "pdf")
@@ -191,13 +224,31 @@ class FixedDocumentService:
     def _checked(self, identifier, content):
         old = self.get(identifier)
         serialize(content)
-        if (
+        origin_changed = (
             content["source_sha256"] != old["content"]["source_sha256"]
             or content["source_kind"] != old["source_kind"]
-            or [(s["width_pt"], s["height_pt"]) for s in content["surfaces"]]
-            != [(s["width_pt"], s["height_pt"]) for s in old["content"]["surfaces"]]
-        ):
-            raise ValueError("Não altere a geometria/origem do documento fixo.")
+        )
+        editable = bool(old["content"].get("editable_deck"))
+        if editable:
+            # The source slide is a bootstrap template, not the editable deck.
+            # Page size remains locked, but slides may be added or removed.
+            size = (old["content"]["surfaces"][0]["width_pt"],
+                    old["content"]["surfaces"][0]["height_pt"])
+            bad_geometry = any(
+                (s["width_pt"], s["height_pt"]) != size
+                for s in content["surfaces"]
+            )
+            bad_geometry |= content.get("editable_deck") is not True
+        else:
+            bad_geometry = (
+                [(s["width_pt"], s["height_pt"]) for s in content["surfaces"]]
+                != [(s["width_pt"], s["height_pt"]) for s in old["content"]["surfaces"]]
+            )
+            bad_geometry |= content.get("editable_deck") is True and (
+                old["source_kind"] != "pptx" or len(content["surfaces"]) != 1
+            )
+        if origin_changed or bad_geometry:
+            raise ValueError("Não altere a origem ou as dimensões do documento.")
         return old
 
     def save(self, identifier, title, content, revision):
@@ -265,6 +316,11 @@ class FixedDocumentService:
 
     def duplicate(self, identifier):
         old = self.get(identifier)
+        if old["content"].get("editable_deck"):
+            note = self.create_presentation(old["title"][:170] + " (cópia)")
+            model = json.loads(json.dumps(old["content"]))
+            model["source_sha256"] = note["content"]["source_sha256"]
+            return self.save(note["id"], note["title"], model, note["revision"])
         note = self._import(self.source(identifier), old["source_kind"])
         return self.save(
             note["id"],
