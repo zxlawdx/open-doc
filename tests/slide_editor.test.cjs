@@ -187,3 +187,22 @@ test('middle-mouse and Space drag pan workspace without mutating slide history',
  assert.equal(q.versions.length,before);
  assert.equal(q.scroller.style.cursor,'');
 });
+
+
+test('legacy Qt keeps shape previews contained, while the canvas clips slide edges',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Elipse');
+ const page=q.scroller.querySelector('.fixed-surface');
+ const thumb=q.sidebar.querySelector('.slide-thumb-preview');
+ assert.equal(page.style.overflow,'hidden','slide objects must be clipped to page bounds');
+ assert.equal(page.style.position,'relative');
+ assert.equal(page.style.isolation,'isolate');
+ assert.equal(thumb.style.minHeight,'62px','Chromium 83 has no aspect-ratio support');
+ assert.equal(thumb.style.overflow,'hidden');
+ assert.equal(thumb.style.position,'relative');
+ assert.equal(page.querySelectorAll(':scope > .slide-object').length,1);
+ q.editor.render();
+ assert.equal(page.querySelectorAll(':scope > .slide-object').length,1,
+   'rerender may not leave duplicate SVGs outside slide');
+ assert.equal(q.scroller.querySelectorAll('.slide-object').length,1);
+});
