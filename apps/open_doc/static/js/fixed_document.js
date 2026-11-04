@@ -75,7 +75,7 @@
    if(note.source_kind==='pptx' && model.editable_deck){
      root.dataset.readerState='ready';
      slidesEditor?.load();
-     fit(true); // Complete slide, never clipped after opening.
+     if(scroller.clientWidth>80 && scroller.clientHeight>80)fit(true);
      return;
    }
    if(note.source_kind==='pptx'){
