@@ -59,6 +59,22 @@ class SlideDeckExporter:
         return shape
 
     def _overlay(self, slide, surface):
+        # Keep legacy layer ordering: raster ink is behind editable text.
+        # This is also required for exported PPTX text to stay clickable.
+        if surface.get("strokes"):
+            image = render_layer(
+                surface["strokes"],
+                width=round(surface["width_pt"] * 2),
+                height=round(surface["height_pt"] * 2),
+            )
+            stream = BytesIO()
+            image.save(stream, format="PNG")
+            stream.seek(0)
+            slide.shapes.add_picture(
+                stream, 0, 0,
+                width=self.presentation.slide_width,
+                height=self.presentation.slide_height,
+            )
         for text in surface.get("text_overlays", []):
             shape = slide.shapes.add_textbox(
                 int(text["x"] * self.presentation.slide_width),
@@ -72,23 +88,6 @@ class SlideDeckExporter:
             run.font.name = text["font_family"]
             run.font.size = Pt(text["font_size_pt"])
             run.font.color.rgb = rgb(text["color"])
-
-        if surface.get("strokes"):
-            image = render_layer(
-                surface["strokes"],
-                width=round(surface["width_pt"] * 2),
-                height=round(surface["height_pt"] * 2),
-            )
-            stream = BytesIO()
-            image.save(stream, format="PNG")
-            stream.seek(0)
-            slide.shapes.add_picture(
-                stream,
-                0,
-                0,
-                width=self.presentation.slide_width,
-                height=self.presentation.slide_height,
-            )
 
     def write(self, destination):
         if self.native:
