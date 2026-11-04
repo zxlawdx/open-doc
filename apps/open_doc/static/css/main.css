@@ -346,13 +346,24 @@ body {
 /* Dialog contents scroll within the window, including page setup forms. */
 .open-doc .modal-backdrop {
     position: fixed;
-    inset: 0;
+    /* QtWebEngine Windows ships Chromium 83: `inset` is unsupported.
+       Explicit sides and viewport dimensions restore click hit-testing. */
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    box-sizing: border-box;
     display: grid;
     place-items: center;
     padding: var(--space-4);
     background: var(--color-overlay);
     z-index: var(--z-dialog);
 }
+
+/* Never let display:grid override the HTML hidden state. */
+.open-doc .modal-backdrop[hidden] { display: none !important; }
 .open-doc .dialog {
     width: min(440px, calc(100vw - 32px));
     max-height: calc(100vh - 32px);
