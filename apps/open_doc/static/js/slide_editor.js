@@ -97,13 +97,31 @@
       this.apply(items=>{const [slide]=items.splice(index,1);items.splice(dest,0,slide);});
     }
     insertObject(index,type){
+      const count=this.getModel().surfaces[index].elements.length;
+      const offset=(count%8)*.04;
       const obj={id:window.OpenDocModel.id(),type,
-        x:.2,y:.24,width:type==="text"?.5:.27,height:type==="text"?.19:.22,
+        x:.2+offset,y:.24+offset,width:type==="text"?.5:.27,height:type==="text"?.19:.22,
         text:type==="text"?"Novo texto":"",color:"#191C1E",
         fill:"#DAE2FD",stroke:"#004AC6",font_family:"Inter",
         font_size_pt:type==="text"?28:20};
       this.apply(slides=>slides[index].elements.push(obj));
       return obj.id;
+    }
+    duplicateObject(index,id){
+      const newId=window.OpenDocModel.id();
+      this.apply(slides=>{
+        const elements=slides[index].elements;
+        const at=elements.findIndex(o=>o.id===id);
+        if(at<0)throw Error("Objeto não encontrado.");
+        if(elements.length>=500)throw Error("Limite de objetos atingido.");
+        const copy=clone(elements[at]);
+        copy.id=newId;
+        copy.x=clamp(copy.x+.03,0,1-copy.width);
+        copy.y=clamp(copy.y+.03,0,1-copy.height);
+        if(copy.name)copy.name=copy.name.slice(0,65)+" (cópia)";
+        elements.splice(at+1,0,copy);
+      });
+      return newId;
     }
     updateObject(index,id,patch){
       this.apply(slides=>{
@@ -196,9 +214,29 @@
         this.commands.updateObject(index,id,{text:next.slice(0,10000)});
       },{signal:this.signal});
       this.root.addEventListener("keydown",event=>{
-        if(!this.active||!this.selected||event.key!=="Delete"&&event.key!=="Backspace")return;
+        if(!this.active)return;
         if(event.target.closest("input,textarea,[contenteditable=true]"))return;
-        event.preventDefault();this.commands.deleteObject(this.current,this.selected);this.selected=null;this.render();
+        if(event.key==="Escape"){this.selected=null;this.render();return;}
+        if(!this.selected)return;
+        if(event.key==="Delete"||event.key==="Backspace"){
+          event.preventDefault();this.commands.deleteObject(this.current,this.selected);
+          this.selected=null;this.render();return;
+        }
+        if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="d"){
+          event.preventDefault();
+          this.selected=this.commands.duplicateObject(this.current,this.selected);this.render();return;
+        }
+        if(event.key.startsWith("Arrow")){
+          const obj=this.getModel().surfaces[this.current].elements.find(o=>o.id===this.selected);
+          if(!obj)return;
+          const step=event.shiftKey?.05:.01;
+          const dx=event.key==="ArrowRight"?step:event.key==="ArrowLeft"?-step:0;
+          const dy=event.key==="ArrowDown"?step:event.key==="ArrowUp"?-step:0;
+          event.preventDefault();
+          this.commands.updateObject(this.current,this.selected,{
+            x:clamp(obj.x+dx,0,1-obj.width),y:clamp(obj.y+dy,0,1-obj.height)
+          });
+        }
       },{signal:this.signal});
     }
     load(){
@@ -330,7 +368,9 @@
       const subtitle=document.createElement("h4");subtitle.textContent="Camadas";this.inspector.append(subtitle);
       const list=document.createElement("div");list.className="slide-layer-list";
       (slide.elements||[]).slice().reverse().forEach(obj=>{
-        const button=document.createElement("button");button.textContent=labelFor(obj.type)+" · "+(obj.text||obj.id).slice(0,28);
+        const peers=slide.elements.filter(e=>e.type===obj.type);
+        const fallback=labelFor(obj.type)+" "+(peers.indexOf(obj)+1);
+        const button=document.createElement("button");button.textContent=obj.name||fallback;
         button.setAttribute("aria-pressed",String(this.selected===obj.id));
         button.addEventListener("click",()=>{this.selected=obj.id;this.render();},{signal:this.signal});
         list.append(button);
@@ -338,11 +378,17 @@
       const selected=slide.elements?.find(e=>e.id===this.selected);
       if(selected){
         const heading=document.createElement("h4");heading.textContent="Editar "+labelFor(selected.type);this.inspector.append(heading);
+        const sameType=slide.elements.filter(obj=>obj.type===selected.type);
+        this._property("Nome",selected.name||labelFor(selected.type)+" "+(sameType.indexOf(selected)+1),"text",value=>{
+          const name=value.trim().slice(0,80);
+          if(name)this.commands.updateObject(this.current,selected.id,{name});
+        });
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
         if(selected.type==="text"||selected.text)
           this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));
         if(selected.type!=="text"){
-          this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
+          if(selected.type!=="line"&&selected.type!=="arrow")
+            this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
           this._property("Contorno",selected.stroke,"color",value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
         }
         if(selected.type==="text"||selected.text)
@@ -360,7 +406,8 @@
           });
         });
         const actions=document.createElement("div");actions.className="slide-layer-actions";
-        for(const [label,task] of [["Subir camada",()=>this.commands.shiftLayer(this.current,selected.id,1)],
+        for(const [label,task] of [["Duplicar objeto",()=>{this.selected=this.commands.duplicateObject(this.current,selected.id);this.render();}],
+          ["Subir camada",()=>this.commands.shiftLayer(this.current,selected.id,1)],
           ["Descer camada",()=>this.commands.shiftLayer(this.current,selected.id,-1)],
           ["Excluir objeto",()=>{this.commands.deleteObject(this.current,selected.id);this.selected=null;this.render();}]]){
           const b=document.createElement("button");b.textContent=label;
