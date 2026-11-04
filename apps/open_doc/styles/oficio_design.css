@@ -292,3 +292,46 @@
 }
 .open-doc .ink-toolbar [data-ink-mode] svg,.open-doc .fixed-controls button svg { width: 18px; height: 18px; }
 .open-doc .ink-toolbar [data-ink-mode="eraser-partial"] { color: var(--color-primary); }
+
+/* The PDF semantic toolbar and annotations remain wired to the real parser. */
+.open-doc .semantic-selection-menu {
+    border-radius: 13px;
+    padding: 7px;
+    gap: 4px;
+    box-shadow: var(--shadow-menu);
+}
+.open-doc .semantic-selection-menu button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--of-surface-low);
+    color: var(--color-text-primary);
+}
+.open-doc .semantic-selection-menu button svg { width: 16px; height: 16px; }
+.open-doc .semantic-selection-menu input[type="color"] { border-radius: 8px; }
+.open-doc .semantic-annotation-panel {
+    border-top: 1px solid var(--color-border-soft);
+    margin-top: 14px;
+    padding-top: 13px;
+}
+.open-doc .semantic-annotation-panel h3 { font-weight: 700; font-size: 14px; }
+.open-doc .semantic-annotation-list { gap: 7px; }
+.open-doc .semantic-annotation-list button {
+    border-radius: 9px;
+    border: 1px solid var(--color-border-soft);
+    background: var(--of-surface-low);
+    text-align: left;
+    padding: 10px;
+}
+.open-doc .semantic-annotation-list button[aria-pressed="true"] {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-text-primary);
+}
+.open-doc .semantic-annotation-editor textarea {
+    border-radius: 10px;
+    background: var(--of-surface-low);
+}
