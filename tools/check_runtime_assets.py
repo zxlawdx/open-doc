@@ -59,7 +59,7 @@ def repair_vendor_line_endings(root: Path = ROOT) -> list[str]:
             data = path.read_bytes()
             if hashlib.sha256(data).hexdigest() == expected_hashes[name]:
                 continue
-            canonical = data.replace(b"\\r\\n", b"\\n")
+            canonical = data.replace(b"\r\n", b"\n")
             if (
                 canonical == data
                 or hashlib.sha256(canonical).hexdigest() != expected_hashes[name]
