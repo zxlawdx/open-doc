@@ -314,3 +314,40 @@ def test_recovery_checks_revision_atomically_after_validation(
         service.recovery(note["id"], note["title"], note["content"], note["revision"])
     current = service.get(note["id"])
     assert current["title"] == "Outra janela" and current["recovery"] is None
+
+
+def test_extract_pdf_page_range_preserves_native_text_annotations_and_original(env, tmp_path):
+    service = env.fixed_documents
+    source = pdf_source(tmp_path)
+    original_bytes = source.read_bytes()
+    note = service.import_pdf(source)
+    content = deepcopy(note["content"])
+    content["surfaces"][1]["text_overlays"] = [text()]
+    saved = service.save(note["id"], note["title"], content, note["revision"])
+    destination = tmp_path / "pages-2-3.pdf"
+
+    result = service.extract_pages(
+        note["id"], saved["revision"], 2, 3, destination
+    )
+    assert result["pages"] == 2 and result["lossy"] is False
+    assert destination.is_file()
+    pages = PdfReader(destination).pages
+    assert len(pages) == 2
+    assert "Original 1" in pages[0].extract_text()
+    assert "Escrita convertida" in pages[0].extract_text()
+    assert "Original 2" in pages[1].extract_text()
+    assert "Original 0" not in pages[0].extract_text()
+    assert source.read_bytes() == original_bytes
+    assert service.get(note["id"])["revision"] == saved["revision"]
+    assert service.get(note["id"])["content"] == content
+
+    for first, last in [(0, 2), (3, 2), (1, 5), (True, 2), ("1", 2)]:
+        with pytest.raises(ValueError):
+            service.extract_pages(note["id"], saved["revision"], first, last,
+                                  tmp_path / "invalid.pdf")
+    assert not (tmp_path / "invalid.pdf").exists()
+    with pytest.raises(RevisionConflict):
+        service.extract_pages(note["id"], note["revision"], 2, 3, destination)
+    with pytest.raises(ValueError):
+        service.extract_pages(note["id"], saved["revision"], 2, 3, source)
+    assert source.read_bytes() == original_bytes

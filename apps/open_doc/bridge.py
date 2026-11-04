@@ -10,6 +10,7 @@ from vela.core.bridge import BaseBridge
 
 from apps.open_doc.application.context import get_context
 from apps.open_doc.services.export_service import ExportError
+from apps.open_doc.services.document_service import RevisionConflict
 
 LOGGER = logging.getLogger(__name__)
 
@@ -90,6 +91,35 @@ class OpenDocBridge(BaseBridge):
                     if isinstance(exc, ExportError)
                     else "Não foi possível exportar o documento. Seu conteúdo continua salvo."
                 )
+            }
+
+    def extract_pdf_pages(self, document_id, revision, first_page, last_page):
+        """Native Save dialog for a page interval; no HTML-supplied paths."""
+        import webview
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        try:
+            descriptor = self._documents.export_descriptor(document_id, "pdf")
+            stem = Path(descriptor["filename"]).stem
+            filename = f"{stem} - paginas {first_page}-{last_page}.pdf"
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(descriptor["directory"]),
+                save_filename=filename,
+                file_types=("Documento PDF (*.pdf)",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            destination = paths if isinstance(paths, str) else paths[0]
+            return self._documents.extract_pdf_pages(
+                document_id, revision, first_page, last_page, Path(destination)
+            )
+        except Exception as exc:
+            LOGGER.exception("Falha na extração de páginas PDF")
+            return {
+                "error": str(exc) if isinstance(exc, (ValueError, RevisionConflict))
+                else "Não foi possível extrair páginas. O documento original foi preservado."
             }
 
     def import_font(self):

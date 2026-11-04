@@ -141,6 +141,25 @@ def main():
             )
             print("QT_PDF_SEMANTIC_ANNOTATION_EXPORT_OK", flush=True)
 
+            # Extract two pages from the same annotated PDF displayed by Qt:
+            # the native highlight/comment must survive the page-copy step.
+            subset = services().config.root / "qa-annotated-subset.pdf"
+            result = services().fixed_documents.extract_pages(
+                note["id"], updated["revision"], 1, 2, subset
+            )
+            pages = PdfReader(subset).pages
+            assert result["pages"] == len(pages) == 2
+            marks = [
+                item.get_object()
+                for item in pages[0]["/Annots"]
+            ]
+            assert any(
+                item["/Subtype"] == "/Highlight"
+                and item["/Contents"] == "Comentário testado no Qt"
+                for item in marks
+            ), "Extração de páginas perdeu a anotação nativa do PDF."
+            print("QT_PDF_EXTRACT_PAGES_PRESERVES_ANNOTATIONS_OK", flush=True)
+
             # Verify actual Qt pixel output, not merely JS model/DOM objects.
             window.evaluate_js("OpenDocApp.action('presentation-new')")
             wait(window, "document.querySelector('.fixed-document')?.dataset.slideEditor==='true'")

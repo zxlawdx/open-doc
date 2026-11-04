@@ -17,7 +17,7 @@
   function button(label,fn){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',()=>Promise.resolve(fn()).catch(e=>status(e.message)),{signal});controls.append(b);return b;}
   button('Anterior',()=>go(Number(pageField.value)-2));controls.append(pageField);pageField.addEventListener('change',()=>go(Number(pageField.value)-1),{signal});button('Próxima',()=>go(Number(pageField.value)));
   button('Ajustar largura',()=>fit(false));button('Página inteira',()=>fit(true));button('−',()=>scale(zoom/1.2));button('+',()=>scale(zoom*1.2));
-  const search=document.createElement('input');search.type='search';search.placeholder='Localizar no PDF';search.setAttribute('aria-label','Localizar no PDF');controls.append(search);button('Buscar',find);
+  const search=document.createElement('input');search.type='search';search.placeholder='Localizar no PDF';search.setAttribute('aria-label','Localizar no PDF');controls.append(search);button('Buscar',find);const extractButton=button('Extrair páginas',()=>extractPages().catch(error=>status(error.message)));
   const pdfButton=button('Salvar PDF',()=>exportDocument('pdf'));const pptxButton=button('Salvar PPTX',()=>exportDocument('pptx'));
   const noteButton=button('Nota adesiva',()=>{inkMode('cursor');semantic?.setNoteMode(!semantic.noteActive());});
   semantic?.bindNoteButton(noteButton);
@@ -124,7 +124,7 @@
     searchEpoch++;
     sidebar.querySelectorAll('[data-search-result]').forEach(node=>node.remove());
   },{signal});
-  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
+  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
    for(const s of model.surfaces){const node=document.createElement('div');node.className='fixed-surface';node.dataset.pageIndex=s.index;node.dataset.widthPt=s.width_pt;node.dataset.heightPt=s.height_pt;node.style.width=s.width_pt*4/3+'px';node.style.height=s.height_pt*4/3+'px';scroller.append(node);pageNodes.push(node);const b=document.createElement('button');b.textContent='Página '+(s.index+1);b.dataset.thumbnailIndex=s.index;b.onclick=()=>go(s.index);sidebar.append(b);}
    root.querySelector('[data-mode-label]').textContent=note.source_kind==='pdf'?'Leitor PDF':'Apresentação';root.querySelector('[data-count]').textContent=model.surfaces.length+' páginas';texts();root.dispatchEvent(new CustomEvent('open-doc:content'));
@@ -147,6 +147,23 @@
   function inkMode(mode){root.dispatchEvent(new CustomEvent('open-doc:ink-mode',{detail:mode}));}
   scroller.addEventListener('contextmenu',e=>{if(e.target.closest('.textLayer span,.pdf-links a'))return;e.preventDefault();context.hidden=false;window.OpenDocPopovers.position(context,{left:e.clientX,top:e.clientY,bottom:e.clientY});context.querySelector('button').focus();},{signal});
   root.addEventListener('click',e=>{if(!context.contains(e.target))context.hidden=true;},{signal});root.addEventListener('keydown',e=>{if(e.key==='Escape')context.hidden=true;if(!context.hidden && ['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();const buttons=Array.from(context.querySelectorAll('button')),at=buttons.indexOf(document.activeElement);buttons[(at+(e.key==='ArrowDown'?1:buttons.length-1))%buttons.length].focus();}},{signal});
+  async function extractPages(){
+    if(!active || note?.source_kind!=='pdf')return;
+    const total=model.surfaces.length;
+    const firstText=window.prompt('Página inicial para extrair (1 a '+total+')','1');
+    if(firstText===null)return;
+    const lastText=window.prompt('Página final para extrair (1 a '+total+')',String(total));
+    if(lastText===null)return;
+    const parse=value=>/^[0-9]+$/.test(String(value).trim())?Number(value):NaN;
+    const first=parse(firstText),last=parse(lastText);
+    if(!Number.isInteger(first)||!Number.isInteger(last)||first<1||last<first||last>total)
+      throw Error('Informe um intervalo de páginas válido.');
+    await flush();
+    const result=await window.pywebview.api.extract_pdf_pages(note.id,note.revision,first,last);
+    if(result.error)throw Error(result.error);
+    if(!result.cancelled)status('PDF extraído: '+result.path);
+    return result;
+  }
   async function exportDocument(format){await flush();const result=await window.pywebview.api.export_document(note.id,note.revision,format);if(result.error)throw Error(result.error);if(!result.cancelled)status('Salvo em: '+result.path);return result;}
   root.addEventListener('open-doc:fixed-zoom',event=>{if(active)scale(event.detail/100);},{signal});
   root.addEventListener('open-doc:view-ready',()=>{

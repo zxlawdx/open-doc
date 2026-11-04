@@ -214,6 +214,16 @@ class DocumentApplication:
         )
         return service.export(document_id, revision, file_format, Path(destination))
 
+    def extract_pdf_pages(
+        self, document_id: str, revision: int, first_page: int, last_page: int,
+        destination: Path,
+    ) -> dict[str, Any]:
+        if not self.context.fixed_documents.exists(document_id):
+            raise ValueError("Selecione um PDF importado.")
+        return self.context.fixed_documents.extract_pages(
+            document_id, revision, first_page, last_page, Path(destination)
+        )
+
     def export_temporary(self, data: dict[str, Any], filename: str) -> dict[str, Any]:
         return self.context.exports.export(
             data["id"],
