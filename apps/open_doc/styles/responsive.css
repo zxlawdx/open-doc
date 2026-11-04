@@ -204,3 +204,28 @@
     .open-doc .document-quickbar { padding-inline: 5px; }
     .open-doc .document-quickbar button { padding-inline: 7px; font-size: 11px; }
 }
+
+/* Dialogs become accessible bottom sheets only in compact windows. */
+@media (max-width: 719px) {
+    .open-doc .modal-backdrop { align-items: end; justify-items: stretch; padding: 0; }
+    .open-doc .dialog {
+        width: 100%;
+        max-height: min(85vh, 740px);
+        border-radius: 20px 20px 0 0;
+        padding: 22px 16px max(22px, env(safe-area-inset-bottom, 0px));
+        border-bottom: 0;
+    }
+    .open-doc .fixed-document { grid-template-columns: 100px minmax(0,1fr); }
+    .open-doc .fixed-sidebar { padding: 7px; }
+    .open-doc .fixed-scroll { padding: 12px; }
+    .open-doc .semantic-selection-menu {
+        max-width: calc(100vw - 16px);
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+}
+@media (max-width: 479px) {
+    .open-doc .fixed-document { grid-template-columns: 80px minmax(0,1fr); }
+    .open-doc .fixed-controls { overflow-x: auto; flex-wrap: nowrap; }
+    .open-doc .fixed-controls input[type="search"] { min-width: 120px; }
+}
