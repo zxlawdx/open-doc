@@ -380,3 +380,62 @@ class FixedDocumentService:
                 else []
             ),
         }
+
+    def extract_pages(self, identifier, revision, first_page, last_page, destination):
+        """Extract an inclusive PDF page interval with existing ink/annotations.
+
+        Export through the ordinary annotated-PDF path first, then copy pages
+        losslessly. The immutable imported source and SQLite history stay intact.
+        """
+        from pypdf import PdfReader, PdfWriter
+
+        note = self.get(identifier)
+        if note["source_kind"] != "pdf":
+            raise ValueError("A extração de páginas só está disponível para PDFs.")
+        if type(first_page) is not int or type(last_page) is not int:
+            raise ValueError("Os números de página devem ser inteiros.")
+        total = len(note["content"]["surfaces"])
+        if not 1 <= first_page <= last_page <= total:
+            raise ValueError("Intervalo de páginas inválido.")
+        if note["revision"] != revision:
+            raise RevisionConflict("Salve a versão atual antes de extrair páginas.")
+
+        destination = Path(destination).with_suffix(".pdf")
+        source = self.source(identifier)
+        if (destination.is_symlink() or
+            destination.resolve() == source.resolve() or
+            (destination.is_file() and
+             hashlib.sha256(destination.read_bytes()).hexdigest()
+             == note["content"]["source_sha256"])):
+            raise ValueError("Escolha um destino diferente do original.")
+        if not destination.parent.is_dir():
+            raise ValueError("Pasta de exportação não encontrada.")
+
+        with tempfile.TemporaryDirectory(
+            prefix=".opendoc-pages-", dir=destination.parent
+        ) as folder:
+            work = Path(folder)
+            annotated = work / "annotated.pdf"
+            self.export(identifier, revision, "pdf", annotated)
+            reader = PdfReader(annotated, strict=False)
+            if len(reader.pages) != total:
+                raise ValueError("A quantidade de páginas exportadas não confere.")
+            writer = PdfWriter()
+            for index in range(first_page - 1, last_page):
+                writer.add_page(reader.pages[index])
+            writer.add_metadata({"/Title": note["title"], "/Creator": "Open Doc"})
+            staged = work / "extracted.pdf"
+            with staged.open("wb") as stream:
+                writer.write(stream)
+            if not staged.stat().st_size:
+                raise ValueError("O PDF extraído está vazio.")
+            os.replace(staged, destination)
+
+        return {
+            "path": str(destination),
+            "name": destination.name,
+            "revision": revision,
+            "pages": last_page - first_page + 1,
+            "lossy": False,
+            "warnings": [],
+        }
