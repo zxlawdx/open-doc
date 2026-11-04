@@ -40,15 +40,20 @@ test('new slides support text and native shape objects with editable properties'
  clickLabel(q.controls,'Texto');clickLabel(q.controls,'Retângulo');clickLabel(q.controls,'Elipse');
  assert.equal(q.model().surfaces[0].elements.length,3);
  assert.equal(q.scroller.querySelectorAll('.slide-object').length,3);
+ assert.equal(q.scroller.querySelectorAll('.slide-vector-shape rect').length,1);
+ assert.equal(q.scroller.querySelectorAll('.slide-vector-shape ellipse').length,1);
+ assert.equal(q.scroller.querySelector('.slide-vector-shape rect').getAttribute('fill'),'#DAE2FD');
  assert.equal(q.sidebar.querySelectorAll('[data-thumbnail-index]').length,1);
  assert.equal(q.root.querySelector('[data-count]').textContent,'1 slides');
  const ids=q.model().surfaces[0].elements.map(o=>o.id);
  assert.equal(new Set(ids).size,3);
  const props=Array.from(q.host.querySelectorAll('.slide-inspector label'));
- const label=props.find(x=>x.textContent.startsWith('Cor do texto'));
+ const label=props.find(x=>x.textContent.startsWith('Preenchimento'));
+ assert.equal(props.some(x=>x.textContent.startsWith('Cor do texto')),false);
  assert.ok(label);
  const input=label.querySelector('input');input.value='#224466';input.dispatchEvent(new q.w.Event('change'));
- assert.equal(q.model().surfaces[0].elements[2].color,'#224466');
+ assert.equal(q.model().surfaces[0].elements[2].fill,'#224466');
+ assert.equal(q.scroller.querySelector('.slide-vector-shape ellipse').getAttribute('fill'),'#224466');
  clickLabel(q.controls,'+ Slide');
  assert.equal(q.model().surfaces.length,2);
  assert.equal(q.model().surfaces[1].index,1);
@@ -91,4 +96,15 @@ test('inspector edits text/notes and layer deletion affects saved model',t=>{
  assert.equal(q.model().surfaces[0].notes,'Apresentação no evento');
  const del=Array.from(q.host.querySelectorAll('.slide-layer-actions button')).find(x=>x.textContent==='Excluir objeto');
  del.click();assert.equal(q.model().surfaces[0].elements.length,0);
+});
+
+test('shape insertion returns to selection rather than leaving ink interception active',t=>{
+ const q=setup(t),modes=[];
+ q.root.addEventListener('open-doc:ink-mode',event=>modes.push(event.detail));
+ clickLabel(q.controls,'Retângulo');
+ assert.deepEqual(modes,['cursor']);
+ const shape=q.scroller.querySelector('.slide-object-rect');
+ assert.equal(shape.dataset.selected,'true');
+ assert.equal(shape.querySelector('svg rect').getAttribute('stroke'),'#004AC6');
+ assert.ok(shape.querySelector('[data-resize]'));
 });
