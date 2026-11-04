@@ -27,6 +27,8 @@ def test_manage_cli_finds_project_config_without_reimplementing_vela(
     cli.mkdir(parents=True)
     (fake / "vela" / "__init__.py").write_text("")
     (cli / "__init__.py").write_text("")
+    (fake / "vela" / "apps.py").write_text("class AppConfig: pass")
+    (cli / "collectstatic.py").write_text("def collect_static(*, asset_config=None): return {}")
     (fake / "config").mkdir()
     (fake / "config" / "__init__.py").write_text("# shadow package")
     (fake / "config" / "wsgi.py").write_text("# unwanted wsgi")
