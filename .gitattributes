@@ -1,0 +1,2 @@
+# Precompiled JavaScript is hashed as raw bytes. Git must never rewrite its LF endings.
+apps/open_doc/static/js/vendor/*.bundle.js -text
