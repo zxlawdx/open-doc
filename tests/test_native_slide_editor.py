@@ -126,3 +126,28 @@ def test_native_ink_does_not_cover_editable_shapes(tmp_path, monkeypatch):
     assert shapes[0].shape_type == MSO_SHAPE_TYPE.PICTURE
     assert shapes[1].shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE
     assert shapes[2].shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE
+
+
+def test_extended_shapes_export_as_editable_powerpoint_objects(tmp_path):
+    from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
+
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    kinds = ["round_rect", "line", "arrow", "triangle", "diamond"]
+    model["surfaces"][0]["elements"] = [
+        {**element(f"shape-{i}", kind), "text": "", "name": f"Forma {i}"}
+        for i, kind in enumerate(kinds)
+    ]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    destination = tmp_path / "formas-editaveis.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", destination)
+    shapes = Presentation(destination).slides[0].shapes
+    assert len(shapes) == len(kinds)
+    assert shapes[0].auto_shape_type == MSO_SHAPE.ROUNDED_RECTANGLE
+    assert shapes[1].shape_type == MSO_SHAPE_TYPE.LINE
+    assert shapes[2].auto_shape_type == MSO_SHAPE.RIGHT_ARROW
+    assert shapes[3].auto_shape_type == MSO_SHAPE.ISOSCELES_TRIANGLE
+    assert shapes[4].auto_shape_type == MSO_SHAPE.DIAMOND
+    assert ctx.fixed_documents.get(note["id"])["content"]["surfaces"][0]["elements"] == model["surfaces"][0]["elements"]
