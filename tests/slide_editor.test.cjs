@@ -279,3 +279,36 @@ test('replacing a slide picture preserves geometry, layer and undo history entry
  assert.match(q.scroller.querySelector('.fixed-surface .slide-object-image').style.transform,/scale\(-1,-1\)/);
  assert.throws(()=>q.editor.commands.replaceImage(0,'missing',{mime:'image/png',data:'Yw=='}),/Selecione uma imagem/);
 });
+
+test('dragging an image onto a slide imports once and regular paste preserves text editing',async t=>{
+ const q=setup(t),slide=q.scroller.querySelector('.fixed-surface');
+ const image=new q.w.File([Buffer.from('abc')],'dropped.png',{type:'image/png'});
+ const over=new q.w.Event('dragover',{bubbles:true,cancelable:true});
+ Object.defineProperty(over,'dataTransfer',{value:{types:['Files'],files:[image],dropEffect:'none'}});
+ slide.dispatchEvent(over);
+ assert.equal(over.defaultPrevented,true,'file drop has copy affordance');
+ const before=q.versions.length;
+ const drop=new q.w.Event('drop',{bubbles:true,cancelable:true});
+ Object.defineProperty(drop,'dataTransfer',{value:{files:[image],items:[]}});
+ slide.dispatchEvent(drop);
+ assert.equal(drop.defaultPrevented,true);
+ for(let i=0;i<150&&q.model().surfaces[0].elements.length===0;i++)
+   await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(q.model().surfaces[0].elements.length,1);
+ assert.equal(q.versions.length,before+1,'drop enters history exactly once');
+ const ignored=new q.w.Event('paste',{bubbles:true,cancelable:true});
+ Object.defineProperty(ignored,'clipboardData',{value:{files:[],items:[]}});
+ q.root.dispatchEvent(ignored);
+ assert.equal(ignored.defaultPrevented,false,'text-only clipboard is not intercepted');
+ const pasted=new q.w.Event('paste',{bubbles:true,cancelable:true});
+ Object.defineProperty(pasted,'clipboardData',{value:{
+   files:[],items:[{kind:'file',type:'image/png',getAsFile:()=>image}]
+ }});
+ q.root.dispatchEvent(pasted);
+ assert.equal(pasted.defaultPrevented,true);
+ for(let i=0;i<150&&q.model().surfaces[0].elements.length!==2;i++)
+   await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(q.model().surfaces[0].elements.length,2);
+ assert.equal(q.versions.length,before+2);
+ assert.equal(Object.keys(q.model().assets).length,1,'paste reuses identical assets');
+});
