@@ -57,11 +57,24 @@
   ).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);
   return {...stroke,id:first?stroke.id:window.OpenDocModel.id(),points:retained,outline};
  }
+ function nearStroke(stroke,eraser,rect,threshold){
+  const points=stroke.points || [];
+  if(!points.length||!eraser.length)return false;
+  let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity;
+  for(const p of eraser){const x=p.x*rect.width,y=p.y*rect.height;left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+  left-=threshold;right+=threshold;top-=threshold;bottom+=threshold;
+  // Bounding the original control points is sufficient for the full line:
+  // all interpolated points lie inside their stroke's bounding rectangle.
+  let sx=Infinity,ex=-Infinity,sy=Infinity,ey=-Infinity;
+  for(const p of points){const x=p.x*rect.width,y=p.y*rect.height;sx=Math.min(sx,x);ex=Math.max(ex,x);sy=Math.min(sy,y);ey=Math.max(ey,y);}
+  return ex>=left&&sx<=right&&ey>=top&&sy<=bottom;
+ }
  function erasePartialStroke(stroke,eraser,rect,dimensions,radius){
-  const points=denseStrokePoints(stroke.points,rect,radius);
-  if(!points.length)return {changed:false,fragments:[stroke]};
   const width=(stroke.size||2)*rect.width/(dimensions.width_pt||rect.width);
   const threshold=radius+Math.min(6,width/2);
+  if(!nearStroke(stroke,eraser,rect,threshold))return {changed:false,fragments:[stroke]};
+  const points=denseStrokePoints(stroke.points,rect,radius);
+  if(!points.length)return {changed:false,fragments:[stroke]};
   // Quick rectangle rejection for distant strokes, avoiding processing all
   // saved points on every move when writing over a long document.
   const xs=eraser.map(p=>p.x*rect.width),ys=eraser.map(p=>p.y*rect.height);
@@ -82,9 +95,11 @@
   return {changed,fragments:changed?fragments:[stroke]};
  }
  function touchesStroke(stroke,eraser,rect,dimensions,radius){
-  const pts=denseStrokePoints(stroke.points,rect,radius);
   const width=(stroke.size||2)*rect.width/(dimensions.width_pt||rect.width);
-  return pts.some(p=>underEraser(p,eraser,rect,radius+Math.min(6,width/2)));
+  const threshold=radius+Math.min(6,width/2);
+  if(!nearStroke(stroke,eraser,rect,threshold))return false;
+  const pts=denseStrokePoints(stroke.points,rect,radius);
+  return pts.some(p=>underEraser(p,eraser,rect,threshold));
  }
  function eraseStrokes(strokes,eraser,rect,dimensions,radius,whole){
   const result=[];let changed=false;
@@ -108,7 +123,7 @@
   function suppressSyntheticClick(event,force=false){if(mode==='cursor' || (!force && performance.now()>=suppressClickUntil))return;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();}
   function releaseCapture(svg,pointerId){try{if(svg.hasPointerCapture?.(pointerId)===false)return;svg.releasePointerCapture?.(pointerId);}catch{}}
   const bar=document.createElement('div');bar.className='ink-toolbar';bar.setAttribute('role','toolbar');bar.setAttribute('aria-label','Tinta e escrita');
-  for(const [value,label] of [['cursor','Selecionar'],['pen','Caneta'],['highlighter','Marca-texto'],['eraser-partial','Borracha parcial'],['eraser','Apagar traço'],['handwriting','Escrita']]){const b=document.createElement('button');b.textContent=label;b.dataset.inkMode=value;b.setAttribute('aria-pressed',String(value===mode));b.addEventListener('click',()=>setMode(value),{signal});bar.append(b);}
+  for(const [value,label] of [['cursor','Selecionar'],['pen','Caneta'],['highlighter','Marca-texto'],['eraser-partial','Borracha parcial'],['eraser','Apagar traço'],['handwriting','Escrita']]){const b=document.createElement('button');b.textContent=label;b.dataset.inkMode=value;b.title=value==='eraser-partial'?'Apaga somente a área percorrida, preservando o restante do traço':value==='eraser'?'Apaga o traço inteiro ao tocá-lo':'';b.setAttribute('aria-pressed',String(value===mode));b.addEventListener('click',()=>setMode(value),{signal});bar.append(b);}
   const c=document.createElement('input');c.type='color';c.value=color;c.setAttribute('aria-label','Cor da tinta');c.oninput=()=>{color=c.value;};bar.append(c);
   const s=document.createElement('input');s.type='number';s.min='.5';s.max='30';s.step='.5';s.value=size;s.setAttribute('aria-label','Espessura em pontos');s.onchange=()=>{size=Math.max(.5,Math.min(30,Number(s.value)||2));};bar.append(s);
   for(const [label,action] of [['Desfazer',()=>editor.format('undo')],['Refazer',()=>editor.format('redo')],['Converter escrita',convert]]){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',action,{signal});bar.append(b);}
