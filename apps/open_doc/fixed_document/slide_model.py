@@ -41,7 +41,8 @@ class SlideModelValidator:
         for identifier, asset in assets.items():
             if not isinstance(identifier, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", identifier):
                 raise ValueError("Identificador de imagem inválido.")
-            if not isinstance(asset, Mapping) or asset.get("mime") not in formats:
+            if (not isinstance(asset, Mapping) or
+                not isinstance(asset.get("mime"), str) or asset["mime"] not in formats):
                 raise ValueError("Formato de imagem não suportado.")
             encoded = asset.get("data")
             if not isinstance(encoded, str) or len(encoded) > 5_600_000:
@@ -95,9 +96,9 @@ class SlideModelValidator:
         if not isinstance(uid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", uid) or uid in ids:
             raise ValueError("Identificador de elemento inválido ou duplicado.")
         ids.add(uid)
-        if element.get("type") not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image"}:
+        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image"}:
             raise ValueError("Tipo de elemento não suportado.")
-        if element.get("type") == "image" and element.get("asset_id") not in (assets or {}):
+        if element.get("type") == "image" and (not isinstance(element.get("asset_id"), str) or element["asset_id"] not in (assets or {})):
             raise ValueError("Imagem não encontrada no catálogo de recursos.")
         x = number(element.get("x"), 0, 1)
         y = number(element.get("y"), 0, 1)
