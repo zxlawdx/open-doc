@@ -130,11 +130,18 @@
   const convertButton=Array.from(bar.querySelectorAll('button')).find(b=>b.textContent==='Converter escrita');
   convertButton.disabled=true;convertButton.title='Reconhecimento manuscrito local não instalado.';
   const availability=document.createElement('span');availability.dataset.handwritingStatus='';availability.textContent='Escrita local: verificando…';bar.append(availability);
+  const handwritingDetails=document.createElement('button');
+  handwritingDetails.type='button';handwritingDetails.textContent='Detalhes';handwritingDetails.hidden=true;
+  handwritingDetails.setAttribute('aria-label','Detalhes do reconhecimento de escrita local');
+  handwritingDetails.addEventListener('click',()=>status(convertButton.title),{signal});
+  bar.append(handwritingDetails);
   async function capabilities(){
     try{const result=await window.pywebview.api.handwriting_capabilities?.();if(signal.aborted)return;const backends=result?.backends || [];const backend=backends.find(b=>b.available);
       capable=Boolean(backend);convertButton.disabled=!capable;availability.textContent=backend?backend.backend+' · '+(backend.language || 'pt-BR'):'Escrita local: indisponível';convertButton.title=backend?'Converter escrita com revisão':backends.map(b=>b.reason).filter(Boolean).join(' ') || 'Reconhecimento manuscrito local não instalado.';
-      if(!capable)availability.textContent='Escrita local indisponível: '+convertButton.title;
-    }catch(error){capable=false;convertButton.disabled=true;availability.textContent='Escrita local indisponível: '+error.message;convertButton.title=error.message;}
+      if(!capable)availability.textContent='Escrita local indisponível';
+      handwritingDetails.hidden=capable;
+      if(!capable)console.info('Open Doc: backends de escrita indisponíveis',convertButton.title);
+    }catch(error){capable=false;convertButton.disabled=true;availability.textContent='Escrita local indisponível';convertButton.title=error.message;handwritingDetails.hidden=false;console.warn('Open Doc: falha na verificação de escrita local',error);}
   }
   capabilities();root.addEventListener('open-doc:handwriting-capabilities',capabilities,{signal});
   const family=document.createElement('select');family.dataset.inkFont='';family.setAttribute('aria-label','Fonte do texto reconhecido');for(const name of ['Arial','Inter']){const option=document.createElement('option');option.value=name;option.textContent=name;family.append(option);}bar.append(family);
