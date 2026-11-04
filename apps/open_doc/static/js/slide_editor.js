@@ -108,24 +108,38 @@
       this.apply(slides=>slides[index].elements.push(obj));
       return obj.id;
     }
+    _storeImageAsset(deck,image){
+      const assets=deck.assets||(deck.assets={});
+      let assetId=Object.keys(assets).find(key=>
+        assets[key].mime===image.mime&&assets[key].data===image.data);
+      if(!assetId){
+        if(Object.keys(assets).length>=128)throw Error("Limite de 128 imagens atingido.");
+        assetId=window.OpenDocModel.id();
+        assets[assetId]={mime:image.mime,data:image.data};
+      }
+      return assetId;
+    }
     insertImage(index,image){
       const id=window.OpenDocModel.id();
       this.apply((slides,deck)=>{
         const elements=slides[index].elements;
         if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
-        const assets=deck.assets||(deck.assets={});
-        let assetId=Object.keys(assets).find(key=>
-          assets[key].mime===image.mime&&assets[key].data===image.data);
-        if(!assetId){
-          if(Object.keys(assets).length>=128)throw Error("Limite de 128 imagens atingido.");
-          assetId=window.OpenDocModel.id();
-          assets[assetId]={mime:image.mime,data:image.data};
-        }
+        const assetId=this._storeImageAsset(deck,image);
         const offset=(elements.length%8)*.04;
         elements.push({id,type:"image",asset_id:assetId,name:image.name||"Imagem",
           x:.2+offset,y:.24+offset,width:.36,height:.30,text:"",
           color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
-          font_family:"Inter",font_size_pt:20,stroke_width:1.5,rotation:0});
+          font_family:"Inter",font_size_pt:20,stroke_width:1.5,rotation:0,
+          flip_h:false,flip_v:false});
+      });
+      return id;
+    }
+    replaceImage(index,id,image){
+      // Keep the same shape ID, layer position, geometry and all non-image properties.
+      this.apply((slides,deck)=>{
+        const target=slides[index]?.elements.find(obj=>obj.id===id);
+        if(!target||target.type!=="image")throw Error("Selecione uma imagem existente.");
+        target.asset_id=this._storeImageAsset(deck,image);
       });
       return id;
     }
@@ -173,7 +187,7 @@
       this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
       this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.current=0;this.drag=null;
-      this.pan=null;this.spacePressed=false;
+      this.pan=null;this.spacePressed=false;this.imageReplacement=null;
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
       this.imageInput=document.createElement("input");this.imageInput.type="file";
       this.imageInput.accept="image/png,image/jpeg,image/webp";this.imageInput.hidden=true;
@@ -181,7 +195,9 @@
       this.imageInput.addEventListener("change",()=>{
         const file=this.imageInput.files&&this.imageInput.files[0];
         this.imageInput.value="";
-        this.importImage(file).catch(error=>this.status(error.message));
+        const replacement=this.imageReplacement;
+        this.imageReplacement=null;
+        this.importImage(file,replacement).catch(error=>this.status(error.message));
       },{signal:this.signal});
       this.inspector=document.createElement("aside");this.inspector.className="slide-inspector";this.inspector.hidden=true;
       this.inspector.setAttribute("aria-label","Propriedades e camadas dos slides");
@@ -219,7 +235,7 @@
       this._button("Seta",()=>this.add("arrow"));
       this._button("Triângulo",()=>this.add("triangle"));
       this._button("Losango",()=>this.add("diamond"));
-      this._button("Imagem",()=>this.imageInput.click(),"Inserir PNG, JPEG ou WebP");
+      this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
     }
@@ -312,7 +328,7 @@
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
       const id=this.commands.insertObject(this.current,type);this.selected=id;this.render();
     }
-    async importImage(file){
+    async importImage(file,replacement=null){
       if(!file||!this.active)return;
       if(!["image/png","image/jpeg","image/webp"].includes(file.type))
         throw Error("Selecione uma imagem PNG, JPEG ou WebP.");
@@ -327,10 +343,12 @@
       if(!this.active)return;
       const prefix="data:"+file.type+";base64,";
       if(!encoded.startsWith(prefix))throw Error("Formato de imagem inválido.");
-      const id=this.commands.insertImage(this.current,{
-        mime:file.type,data:encoded.slice(prefix.length),name:file.name.slice(0,80)
-      });
+      const image={mime:file.type,data:encoded.slice(prefix.length),name:file.name.slice(0,80)};
+      const id=replacement
+        ? this.commands.replaceImage(replacement.index,replacement.id,image)
+        : this.commands.insertImage(this.current,image);
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
+      if(replacement)this.current=replacement.index;
       this.selected=id;this.render();
     }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
@@ -377,7 +395,7 @@
         ...bounds,
         color:obj.color,backgroundColor:"transparent",
         borderColor:"transparent",
-        transform:"rotate("+Number(obj.rotation||0)+"deg)",
+        transform:"rotate("+Number(obj.rotation||0)+"deg) scale("+(obj.flip_h?-1:1)+","+(obj.flip_v?-1:1)+")",
         fontSize:(obj.font_size_pt||28)*4/3*zoom*(thumb?.16:1)+"px",
         fontFamily:JSON.stringify(obj.font_family||"Inter")+",sans-serif"
       });
@@ -454,6 +472,14 @@
       input.addEventListener("change",()=>onChange(input.value),{signal:this.signal});
       wrapper.append(input);this.inspector.append(wrapper);return input;
     }
+    _toggleProperty(label,checked,onChange){
+      const wrapper=document.createElement("label");
+      const input=document.createElement("input");
+      input.type="checkbox";input.checked=Boolean(checked);
+      input.addEventListener("change",()=>onChange(input.checked),{signal:this.signal});
+      wrapper.append(input,document.createTextNode(label));
+      this.inspector.append(wrapper);return input;
+    }
     _properties(){
       this.inspector.replaceChildren();
       const slides=this.getModel().surfaces;
@@ -480,6 +506,19 @@
           const name=value.trim().slice(0,80);
           if(name)this.commands.updateObject(this.current,selected.id,{name});
         });
+        if(selected.type==="image"){
+          const replaceButton=document.createElement("button");
+          replaceButton.type="button";replaceButton.textContent="Substituir imagem";
+          replaceButton.addEventListener("click",()=>{
+            this.imageReplacement={index:this.current,id:selected.id};
+            this.imageInput.click();
+          },{signal:this.signal});
+          this.inspector.append(replaceButton);
+          this._toggleProperty("Espelhar horizontalmente",selected.flip_h||false,
+            checked=>this.commands.updateObject(this.current,selected.id,{flip_h:checked}));
+          this._toggleProperty("Espelhar verticalmente",selected.flip_v||false,
+            checked=>this.commands.updateObject(this.current,selected.id,{flip_v:checked}));
+        }
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
         if(selected.type==="text"||selected.text)
           this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));

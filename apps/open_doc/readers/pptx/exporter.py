@@ -51,6 +51,10 @@ class SlideDeckExporter:
                     raster.seek(0)
                     picture_data = raster
             shape = slide.shapes.add_picture(picture_data, left, top, w, h)
+            # python-pptx exposes picture transforms via its OOXML shape properties.
+            xfrm = shape._pic.spPr.get_or_add_xfrm()
+            xfrm.flipH = obj.get("flip_h", False)
+            xfrm.flipV = obj.get("flip_v", False)
         elif kind == "text":
             shape = slide.shapes.add_textbox(left, top, w, h)
             shape.fill.background()

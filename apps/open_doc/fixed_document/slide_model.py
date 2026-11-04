@@ -98,8 +98,11 @@ class SlideModelValidator:
         ids.add(uid)
         if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image"}:
             raise ValueError("Tipo de elemento não suportado.")
-        if element.get("type") == "image" and (not isinstance(element.get("asset_id"), str) or element["asset_id"] not in (assets or {})):
-            raise ValueError("Imagem não encontrada no catálogo de recursos.")
+        if element.get("type") == "image":
+            if not isinstance(element.get("asset_id"), str) or element["asset_id"] not in (assets or {}):
+                raise ValueError("Imagem não encontrada no catálogo de recursos.")
+            if not isinstance(element.get("flip_h", False), bool) or not isinstance(element.get("flip_v", False), bool):
+                raise ValueError("Espelhamento de imagem inválido.")
         x = number(element.get("x"), 0, 1)
         y = number(element.get("y"), 0, 1)
         w = number(element.get("width"), .01, 1)

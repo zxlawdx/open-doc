@@ -252,3 +252,30 @@ test('file image insertion renders editable slide picture and reuses one stored 
  q.editor.render();
  assert.equal(q.scroller.querySelectorAll('.slide-object-image img').length,2);
 });
+
+test('replacing a slide picture preserves geometry, layer and undo history entry; mirror flags stay editable',t=>{
+ const q=setup(t);
+ const first={mime:'image/png',data:'YQ==',name:'Original'};
+ const id=q.editor.commands.insertImage(0,first);
+ const el=q.model().surfaces[0].elements[0];
+ q.editor.commands.updateObject(0,id,{x:.12,y:.13,width:.55,height:.31,rotation:15});
+ const before=q.versions.length;
+ q.editor.commands.replaceImage(0,id,{mime:'image/png',data:'Yg==',name:'Nova'});
+ const updated=q.model().surfaces[0].elements[0];
+ assert.equal(updated.id,id);
+ assert.equal(updated.name,'Original');
+ assert.deepEqual([updated.x,updated.y,updated.width,updated.height,updated.rotation],[.12,.13,.55,.31,15]);
+ assert.equal(q.model().assets[updated.asset_id].data,'Yg==');
+ assert.equal(q.versions.length,before+1,'replacement is one undo operation');
+ q.editor.selected=id;q.editor.render();
+ const replaceButton=Array.from(q.host.querySelectorAll('.slide-inspector button')).find(b=>b.textContent==='Substituir imagem');
+ assert.ok(replaceButton,'replace image action in inspector');
+ const h=Array.from(q.host.querySelectorAll('.slide-inspector label')).find(label=>label.textContent.includes('Espelhar horizontalmente')).querySelector('input');
+ h.checked=true;h.dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[0].flip_h,true);
+ const v=Array.from(q.host.querySelectorAll('.slide-inspector label')).find(label=>label.textContent.includes('Espelhar verticalmente')).querySelector('input');
+ v.checked=true;v.dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[0].flip_v,true);
+ assert.match(q.scroller.querySelector('.fixed-surface .slide-object-image').style.transform,/scale\(-1,-1\)/);
+ assert.throws(()=>q.editor.commands.replaceImage(0,'missing',{mime:'image/png',data:'Yw=='}),/Selecione uma imagem/);
+});
