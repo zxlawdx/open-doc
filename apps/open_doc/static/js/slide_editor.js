@@ -5,7 +5,53 @@
 (() => {
   const clone=value=>JSON.parse(JSON.stringify(value));
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
-  const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse"})[type]||"Objeto";
+  const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
+    round_rect:"Arredondado",line:"Linha",arrow:"Seta",
+    triangle:"Triângulo",diamond:"Losango"})[type]||"Objeto";
+  const SVG_NS="http://www.w3.org/2000/svg";
+  const ACTION_ICONS={
+    "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
+    "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
+    Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
+    Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
+    Triângulo:"shape-triangle",Losango:"shape-diamond",
+    Desfazer:"undo",Refazer:"redo"
+  };
+  // A compact SVG shape renderer, backed by the existing slide model.
+  class SlideSvgRenderer {
+    create(obj){
+      const svg=document.createElementNS(SVG_NS,"svg");
+      svg.classList.add("slide-vector-shape");
+      Object.assign(svg.style,{position:"absolute",left:"0px",top:"0px",
+        width:"100%",height:"100%",display:"block",pointerEvents:"none"});
+      svg.setAttribute("viewBox","0 0 100 100");
+      svg.setAttribute("preserveAspectRatio","none");
+      svg.setAttribute("aria-hidden","true");
+      const tag=({rect:"rect",round_rect:"rect",ellipse:"ellipse",
+        line:"line",arrow:"path",triangle:"polygon",diamond:"polygon"})[obj.type];
+      if(!tag)return null;
+      const shape=document.createElementNS(SVG_NS,tag);
+      const geometry=({
+        rect:{x:1,y:1,width:98,height:98},
+        round_rect:{x:1,y:1,width:98,height:98,rx:16,ry:16},
+        ellipse:{cx:50,cy:50,rx:49,ry:49},
+        line:{x1:5,y1:95,x2:95,y2:5},
+        arrow:{d:"M 5 95 L 92 8 M 65 8 L 92 8 L 92 35"},
+        triangle:{points:"50,2 98,98 2,98"},
+        diamond:{points:"50,2 98,50 50,98 2,50"}
+      })[obj.type];
+      for(const [key,value] of Object.entries(geometry))
+        shape.setAttribute(key,String(value));
+      const open=obj.type==="line"||obj.type==="arrow";
+      shape.setAttribute("fill",open?"none":obj.fill||"#DAE2FD");
+      shape.setAttribute("stroke",obj.stroke||"#004AC6");
+      shape.setAttribute("stroke-width",open?"3":"1.5");
+      shape.setAttribute("stroke-linecap","round");
+      shape.setAttribute("stroke-linejoin","round");
+      shape.setAttribute("vector-effect","non-scaling-stroke");
+      svg.append(shape);return svg;
+    }
+  }
   const fields=[
     ["x","Posição X (%)"],["y","Posição Y (%)"],
     ["width","Largura (%)"],["height","Altura (%)"]
@@ -85,6 +131,7 @@
     constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender}){
       Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender});
       this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
+      this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.current=0;this.drag=null;
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
       this.inspector=document.createElement("aside");this.inspector.className="slide-inspector";this.inspector.hidden=true;
@@ -95,6 +142,13 @@
     }
     _button(label,action,title=label){
       const button=document.createElement("button");button.type="button";button.textContent=label;
+      if(ACTION_ICONS[label]){
+        const svg=document.createElementNS(SVG_NS,"svg");
+        svg.classList.add("slide-action-icon");svg.setAttribute("aria-hidden","true");
+        const use=document.createElementNS(SVG_NS,"use");
+        const base=this.root.querySelector(".brand-mark use")?.getAttribute("href")?.split("#")[0]||"";
+        use.setAttribute("href",base+"#"+ACTION_ICONS[label]);svg.append(use);button.prepend(svg);
+      }
       button.title=title;button.addEventListener("click",()=>{
         if(!this.active)return;
         try{action();}catch(error){this.status(error.message);}
@@ -109,6 +163,11 @@
       this._button("Texto",()=>this.add("text"));
       this._button("Retângulo",()=>this.add("rect"));
       this._button("Elipse",()=>this.add("ellipse"));
+      this._button("Arredondado",()=>this.add("round_rect"));
+      this._button("Linha",()=>this.add("line"));
+      this._button("Seta",()=>this.add("arrow"));
+      this._button("Triângulo",()=>this.add("triangle"));
+      this._button("Losango",()=>this.add("diamond"));
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
     }
@@ -169,29 +228,8 @@
       node.dataset.slideElement=obj.id;node.dataset.kind=obj.type;
       if(!thumb&&this.selected===obj.id&&index===this.current)node.dataset.selected="true";
       this._styleObject(node,obj,index,thumb);
-      if(obj.type==="rect"||obj.type==="ellipse"){
-        // Use SVG primitives rather than relying on CSS-only shape painting.
-        const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
-        svg.classList.add("slide-vector-shape");
-        // Inline physical geometry survives missing/stale compiled CSS bundles.
-        Object.assign(svg.style,{position:"absolute",left:"0px",top:"0px",
-          width:"100%",height:"100%",display:"block",pointerEvents:"none"});
-        svg.setAttribute("viewBox","0 0 100 100");
-        svg.setAttribute("preserveAspectRatio","none");
-        svg.setAttribute("aria-hidden","true");
-        const shape=document.createElementNS(
-          "http://www.w3.org/2000/svg",obj.type==="rect"?"rect":"ellipse");
-        if(obj.type==="rect"){
-          for(const [key,value] of [["x","0.5"],["y","0.5"],["width","99"],["height","99"]])shape.setAttribute(key,value);
-        }else{
-          for(const [key,value] of [["cx","50"],["cy","50"],["rx","49.5"],["ry","49.5"]])shape.setAttribute(key,value);
-        }
-        shape.setAttribute("fill",obj.fill);
-        shape.setAttribute("stroke",obj.stroke);
-        shape.setAttribute("stroke-width","1.5");
-        shape.setAttribute("vector-effect","non-scaling-stroke");
-        svg.append(shape);node.append(svg);
-      }
+      const vector=this.shapeRenderer.create(obj);
+      if(vector)node.append(vector);
       if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
@@ -372,5 +410,5 @@
     }
   }
 
-  window.OpenDocSlidesEditor={create:options=>new SlideStudio(options),SlideDeckCommands};
+  window.OpenDocSlidesEditor={create:options=>new SlideStudio(options),SlideDeckCommands,SlideSvgRenderer};
 })();
