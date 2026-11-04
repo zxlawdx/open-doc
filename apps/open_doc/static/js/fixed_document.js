@@ -75,7 +75,7 @@
    if(note.source_kind==='pptx' && model.editable_deck){
      root.dataset.readerState='ready';
      slidesEditor?.load();
-     fit(false);
+     if(scroller.clientWidth>80 && scroller.clientHeight>80)fit(true);
      return;
    }
    if(note.source_kind==='pptx'){
@@ -93,6 +93,10 @@
   root.addEventListener('click',e=>{if(!context.contains(e.target))context.hidden=true;},{signal});root.addEventListener('keydown',e=>{if(e.key==='Escape')context.hidden=true;if(!context.hidden && ['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();const buttons=Array.from(context.querySelectorAll('button')),at=buttons.indexOf(document.activeElement);buttons[(at+(e.key==='ArrowDown'?1:buttons.length-1))%buttons.length].focus();}},{signal});
   async function exportDocument(format){await flush();const result=await window.pywebview.api.export_document(note.id,note.revision,format);if(result.error)throw Error(result.error);if(!result.cancelled)status('Salvo em: '+result.path);return result;}
   root.addEventListener('open-doc:fixed-zoom',event=>{if(active)scale(event.detail/100);},{signal});
+  root.addEventListener('open-doc:view-ready',()=>{
+    if(active && model?.editable_deck && host.dataset.slideEditor==='true' &&
+       scroller.clientWidth>80 && scroller.clientHeight>80)fit(true);
+  },{signal});
   title.addEventListener('input',()=>{if(active)changed();},{signal});scroller.addEventListener('scroll',lazy,{signal});
   function format(command){if(locked)return;if(command==='undo' || command==='redo'){const value=history[command]();if(value){model=clone(value.content);title.value=value.title;clearTimeout(timer);timer=setTimeout(()=>flush().catch(e=>status(e.message)),800);texts();semantic?.refresh();slidesEditor?.render();root.dispatchEvent(new CustomEvent('open-doc:content'));}}}
   window.addEventListener('keydown',e=>{if(!active || !(e.ctrlKey || e.metaKey))return;if(e.key.toLowerCase()==='s'){e.preventDefault();flush().catch(e=>status(e.message));}if(['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});

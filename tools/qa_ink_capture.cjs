@@ -47,7 +47,7 @@ const destination = path.resolve(__dirname, '../docs/images/ink');
   console.log('QT_INK_OVERLAY_GEOMETRY',JSON.stringify(inkGeometry));
   assert.ok(Math.abs(inkGeometry.ink.width-inkGeometry.page.width)<2 &&
             Math.abs(inkGeometry.ink.height-inkGeometry.page.height)<2,
-            'Ink overlay must match page border box: '+JSON.stringify(inkGeometry));
+            'Ink overlay must match physical page border box: '+JSON.stringify(inkGeometry));
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.textLayer span')).color"),'rgba(0, 0, 0, 0)');
   console.log('QT_PDF_300_PAGES_BOUNDED_RENDER_AND_OVERLAY_GEOMETRY_OK');
   assert.match(await evaluate(`(() => {const layer=document.querySelector('.textLayer'),range=document.createRange();range.selectNodeContents(layer);getSelection().removeAllRanges();getSelection().addRange(range);const text=getSelection().toString();getSelection().removeAllRanges();return text;})()`),/Pagina 1 texto pesquisavel/);

@@ -40,15 +40,32 @@ test('new slides support text and native shape objects with editable properties'
  clickLabel(q.controls,'Texto');clickLabel(q.controls,'Retângulo');clickLabel(q.controls,'Elipse');
  assert.equal(q.model().surfaces[0].elements.length,3);
  assert.equal(q.scroller.querySelectorAll('.slide-object').length,3);
+ const slide=q.scroller.querySelector('.fixed-surface');
+ const shape=q.scroller.querySelector('.slide-object-rect');
+ assert.equal(shape.parentElement,slide,'shapes must attach directly to slide');
+ assert.equal(shape.style.position,'absolute');
+ assert.ok(Math.abs(parseFloat(shape.style.left)-307.2)<.001,'pixel positioning within floating-point tolerance');
+ assert.equal(shape.style.width,'345.6px');
+ assert.equal(shape.style.zIndex,'3');
+ const layer=q.scroller.querySelector('.slide-object-layer');
+ assert.equal(layer.style.width,'100%','Windows Qt/Chromium 83 must have nonzero shape parent width');
+ assert.equal(layer.style.height,'100%','Windows Qt/Chromium 83 must have nonzero shape parent height');
+ assert.equal(layer.style.left,'0px');
+ assert.equal(layer.style.top,'0px');
+ assert.equal(q.scroller.querySelectorAll('.slide-vector-shape rect').length,1);
+ assert.equal(q.scroller.querySelectorAll('.slide-vector-shape ellipse').length,1);
+ assert.equal(q.scroller.querySelector('.slide-vector-shape rect').getAttribute('fill'),'#DAE2FD');
  assert.equal(q.sidebar.querySelectorAll('[data-thumbnail-index]').length,1);
  assert.equal(q.root.querySelector('[data-count]').textContent,'1 slides');
  const ids=q.model().surfaces[0].elements.map(o=>o.id);
  assert.equal(new Set(ids).size,3);
  const props=Array.from(q.host.querySelectorAll('.slide-inspector label'));
- const label=props.find(x=>x.textContent.startsWith('Cor do texto'));
+ const label=props.find(x=>x.textContent.startsWith('Preenchimento'));
+ assert.equal(props.some(x=>x.textContent.startsWith('Cor do texto')),false);
  assert.ok(label);
  const input=label.querySelector('input');input.value='#224466';input.dispatchEvent(new q.w.Event('change'));
- assert.equal(q.model().surfaces[0].elements[2].color,'#224466');
+ assert.equal(q.model().surfaces[0].elements[2].fill,'#224466');
+ assert.equal(q.scroller.querySelector('.slide-vector-shape ellipse').getAttribute('fill'),'#224466');
  clickLabel(q.controls,'+ Slide');
  assert.equal(q.model().surfaces.length,2);
  assert.equal(q.model().surfaces[1].index,1);
@@ -91,4 +108,101 @@ test('inspector edits text/notes and layer deletion affects saved model',t=>{
  assert.equal(q.model().surfaces[0].notes,'Apresentação no evento');
  const del=Array.from(q.host.querySelectorAll('.slide-layer-actions button')).find(x=>x.textContent==='Excluir objeto');
  del.click();assert.equal(q.model().surfaces[0].elements.length,0);
+});
+
+test('shape insertion returns to selection rather than leaving ink interception active',t=>{
+ const q=setup(t),modes=[];
+ q.root.addEventListener('open-doc:ink-mode',event=>modes.push(event.detail));
+ clickLabel(q.controls,'Retângulo');
+ assert.deepEqual(modes,['cursor']);
+ const shape=q.scroller.querySelector('.slide-object-rect');
+ assert.equal(shape.dataset.selected,'true');
+ assert.equal(shape.querySelector('svg rect').getAttribute('stroke'),'#004AC6');
+ assert.ok(shape.querySelector('[data-resize]'));
+});
+
+test('local SVG toolbar icons, expanded shape catalog and editable layer names',t=>{
+ const q=setup(t);
+ for(const label of ['Arredondado','Linha','Seta','Triângulo','Losango'])
+   clickLabel(q.controls,label);
+ const shapes=q.model().surfaces[0].elements;
+ assert.equal(JSON.stringify(shapes.map(s=>s.type)),JSON.stringify(['round_rect','line','arrow','triangle','diamond']));
+ const surface=q.scroller.querySelector('.fixed-surface');
+ assert.equal(surface.querySelectorAll(':scope > .slide-object').length,5);
+ assert.equal(surface.querySelectorAll('.slide-vector-shape').length,5);
+ assert.ok(surface.querySelector('.slide-object-round_rect rect[rx]'));
+ assert.ok(surface.querySelector('.slide-object-line line'));
+ assert.ok(surface.querySelector('.slide-object-arrow polygon'));
+ assert.equal(surface.querySelectorAll('.slide-object polygon').length,3,'arrow, triangle and diamond are filled polygons');
+ for(const label of ['Retângulo','Elipse','Linha','Seta']){
+   const button=Array.from(q.controls.querySelectorAll('.slide-studio-toolbar button'))
+      .find(b=>b.textContent===label);
+   assert.ok(button.querySelector('svg use'),'SVG icon for '+label);
+ }
+ assert.ok(q.host.querySelector('.slide-layer-list').textContent.includes('Losango 1'));
+ const name=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(x=>x.textContent.startsWith('Nome')).querySelector('input');
+ name.value='Formação regional';name.dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[4].name,'Formação regional');
+ const rotation=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(x=>x.textContent.startsWith('Rotação')).querySelector('input');
+ rotation.value='45';rotation.dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[4].rotation,45);
+ const strokeWidth=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(x=>x.textContent.startsWith('Espessura')).querySelector('input');
+ strokeWidth.value='3';strokeWidth.dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[4].stroke_width,3);
+ assert.ok(q.host.querySelector('.slide-layer-list').textContent.includes('Formação regional'));
+ const duplicate=Array.from(q.host.querySelectorAll('.slide-layer-actions button'))
+   .find(b=>b.textContent==='Duplicar objeto');
+ duplicate.click();
+ assert.equal(q.model().surfaces[0].elements.length,6);
+ assert.notEqual(q.model().surfaces[0].elements[4].id,q.model().surfaces[0].elements[5].id);
+});
+
+
+test('middle-mouse and Space drag pan workspace without mutating slide history',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Retângulo');
+ const before=q.versions.length;
+ q.scroller.scrollLeft=80;q.scroller.scrollTop=60;
+ q.scroller.dispatchEvent(new q.w.MouseEvent('pointerdown',
+   {bubbles:true,button:1,clientX:100,clientY:100}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointermove',
+   {bubbles:true,clientX:120,clientY:130}));
+ assert.equal(q.scroller.scrollLeft,60);
+ assert.equal(q.scroller.scrollTop,30);
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',
+   {bubbles:true,button:1,clientX:120,clientY:130}));
+ assert.equal(q.versions.length,before,'pan must not enter undo history');
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:' ',bubbles:true}));
+ assert.equal(q.scroller.style.cursor,'grab');
+ q.scroller.dispatchEvent(new q.w.MouseEvent('pointerdown',
+   {bubbles:true,button:0,clientX:10,clientY:10}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointermove',
+   {bubbles:true,clientX:20,clientY:20}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',
+   {bubbles:true,button:0,clientX:20,clientY:20}));
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keyup',{key:' ',bubbles:true}));
+ assert.equal(q.versions.length,before);
+ assert.equal(q.scroller.style.cursor,'');
+});
+
+
+test('legacy Qt keeps shape previews contained, while the canvas clips slide edges',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Elipse');
+ const page=q.scroller.querySelector('.fixed-surface');
+ const thumb=q.sidebar.querySelector('.slide-thumb-preview');
+ assert.equal(page.style.overflow,'hidden','slide objects must be clipped to page bounds');
+ assert.equal(page.style.position,'relative');
+ assert.equal(page.style.isolation,'isolate');
+ assert.equal(thumb.style.minHeight,'62px','Chromium 83 has no aspect-ratio support');
+ assert.equal(thumb.style.overflow,'hidden');
+ assert.equal(thumb.style.position,'relative');
+ assert.equal(page.querySelectorAll(':scope > .slide-object').length,1);
+ q.editor.render();
+ assert.equal(page.querySelectorAll(':scope > .slide-object').length,1,
+   'rerender may not leave duplicate SVGs outside slide');
+ assert.equal(q.scroller.querySelectorAll('.slide-object').length,1);
 });

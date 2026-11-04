@@ -140,6 +140,89 @@ def main():
                 for item in marks
             )
             print("QT_PDF_SEMANTIC_ANNOTATION_EXPORT_OK", flush=True)
+
+            # Verify actual Qt pixel output, not merely JS model/DOM objects.
+            window.evaluate_js("OpenDocApp.action('presentation-new')")
+            wait(window, "document.querySelector('.fixed-document')?.dataset.slideEditor==='true'")
+            window.evaluate_js(
+                "Array.from(document.querySelectorAll('.slide-studio-toolbar button'))"
+                ".find(b=>b.textContent==='Retângulo').click()"
+            )
+            wait(window, "!!document.querySelector('.slide-vector-shape rect')")
+            window.evaluate_js(
+                "Array.from(document.querySelectorAll('.slide-studio-toolbar button'))"
+                ".find(b=>b.textContent==='Elipse').click()"
+            )
+            wait(window, "!!document.querySelector('.slide-vector-shape ellipse')")
+            window.evaluate_js(
+                "(function(){"
+                "var label=Array.from(document.querySelectorAll('.slide-inspector label'))"
+                ".find(x=>x.textContent.startsWith('Preenchimento'));"
+                "var color=label.querySelector('input');color.value='#F4B183';"
+                "color.dispatchEvent(new Event('change'));"
+                "document.querySelector('.slide-object-ellipse')"
+                ".scrollIntoView({block:'center',inline:'center'});"
+                "})()"
+            )
+            wait(
+                window,
+                "document.querySelector('.slide-vector-shape ellipse')?.getAttribute('fill')?.toUpperCase()==='#F4B183'",
+            )
+            output = subprocess.run(
+                [
+                    "node", str(ROOT / "tools/qa_slide_capture.cjs"),
+                    os.environ["QTWEBENGINE_REMOTE_DEBUGGING"],
+                ],
+                capture_output=True, text=True, timeout=35,
+            )
+            print(output.stdout, output.stderr, flush=True)
+            assert output.returncode == 0, "Qt screenshot/shape hit test failed"
+            from PIL import Image
+
+            image_dir = ROOT / "docs/images/ink"
+            screenshot = Image.open(image_dir / "slide-svg-shapes.png").convert("RGB")
+            geometry = json.loads((image_dir / "slide-svg-shapes.json").read_text())
+            for shape, fx, fy in [("rect", .06, .06), ("ellipse", .5, .5)]:
+                rect = geometry[shape]
+                px = round((rect["x"] + rect["width"] * fx)
+                           * screenshot.width / geometry["viewport"]["width"])
+                py = round((rect["y"] + rect["height"] * fy)
+                           * screenshot.height / geometry["viewport"]["height"])
+                assert 0 <= px < screenshot.width and 0 <= py < screenshot.height, (
+                    "A forma ficou fora da área visível do Qt: " + shape
+                )
+                color = screenshot.getpixel((px, py))
+                target = tuple(bytes.fromhex(rect["fill"].lstrip("#")))
+                assert max(abs(a - b) for a, b in zip(color, target)) <= 24, (
+                    f"Qt não pintou {shape} em {(px, py)}: {color} != {target}"
+                )
+            print("QT_SLIDE_SVG_PIXELS_REAL_VISIBLE_OK", flush=True)
+
+            window.evaluate_js(
+                "Array.from(document.querySelectorAll('.slide-studio-toolbar button'))"
+                ".find(b=>b.textContent==='Texto').click()"
+            )
+            wait(window, "!!document.querySelector('.slide-object-text')")
+            slide_note = None
+            for _ in range(70):
+                current = services().fixed_documents.current()
+                if current.get("source_kind") == "pptx" and len(
+                    current["content"]["surfaces"][0].get("elements", [])
+                ) == 3:
+                    slide_note = current
+                    break
+                time.sleep(.1)
+            assert slide_note, "Os SVGs/texto não foram persistidos em SQLite."
+            from pptx import Presentation
+            target_pptx = services().config.root / "qa-slide-editable.pptx"
+            services().fixed_documents.export(
+                slide_note["id"], slide_note["revision"], "pptx", target_pptx
+            )
+            shapes = Presentation(target_pptx).slides[0].shapes
+            assert len(shapes) == 3
+            assert shapes[2].text == "Novo texto"
+            print("QT_SLIDE_SVG_AND_EDITABLE_OOXML_EXPORT_OK", flush=True)
+
         except Exception as e:
             import traceback
 

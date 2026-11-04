@@ -3,7 +3,7 @@ on:
   pull_request:
   workflow_dispatch:
   push:
-    branches: [fix/stabilization, fix/input-stability, fix/stylus-handwriting-stability]
+    branches: [fix/stabilization, fix/input-stability, fix/stylus-handwriting-stability, fix/slide-visibility-ink-geometry-20261104]
     paths-ignore: ["docs/**", "README.md", "THIRD_PARTY_NOTICES.md"]
 jobs:
   windows-qt:
@@ -68,7 +68,9 @@ jobs:
         if: always()
         with:
           name: windows-qt-screenshots
-          path: docs/images/stabilization/
+          path: |
+            docs/images/stabilization/
+            docs/images/ink/
 
   linux-qt:
     runs-on: ubuntu-latest
@@ -118,4 +120,6 @@ jobs:
         if: always()
         with:
           name: linux-qt-screenshots
-          path: docs/images/stabilization/
+          path: |
+            docs/images/stabilization/
+            docs/images/ink/

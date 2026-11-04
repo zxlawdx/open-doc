@@ -97,3 +97,60 @@ def test_native_slide_validation_rejects_overflow_and_duplicate_ids(tmp_path):
     invalid["surfaces"][0]["width_pt"] += 5
     with pytest.raises(ValueError):
         ctx.fixed_documents.save(note["id"], note["title"], invalid, note["revision"])
+
+
+def test_native_ink_does_not_cover_editable_shapes(tmp_path, monkeypatch):
+    """PowerPoint shape order must match the layer ordering in the editor."""
+    from PIL import Image
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+    from apps.open_doc.readers.pptx import exporter as pptx_exporter
+
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    slide = model["surfaces"][0]
+    slide["strokes"] = [{"id": "test-stroke"}]
+    slide["elements"] = [
+        {**element("rect-1", "rect"), "text": ""},
+        {**element("ellipse-1", "ellipse"), "text": ""},
+    ]
+    monkeypatch.setattr(
+        pptx_exporter,
+        "render_layer",
+        lambda strokes, width, height: Image.new("RGBA", (width, height)),
+    )
+    destination = tmp_path / "camadas-editaveis.pptx"
+    pptx_exporter.export_pptx(ctx.fixed_documents.source(note["id"]), model, destination)
+    shapes = Presentation(destination).slides[0].shapes
+    assert len(shapes) == 3
+    assert shapes[0].shape_type == MSO_SHAPE_TYPE.PICTURE
+    assert shapes[1].shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE
+    assert shapes[2].shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE
+
+
+def test_extended_shapes_export_as_editable_powerpoint_objects(tmp_path):
+    from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
+
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    kinds = ["round_rect", "line", "arrow", "triangle", "diamond"]
+    model["surfaces"][0]["elements"] = [
+        {**element(f"shape-{i}", kind), "text": "", "name": f"Forma {i}",
+         "stroke_width": 3, "rotation": 25}
+        for i, kind in enumerate(kinds)
+    ]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    destination = tmp_path / "formas-editaveis.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", destination)
+    shapes = Presentation(destination).slides[0].shapes
+    assert len(shapes) == len(kinds)
+    assert shapes[0].auto_shape_type == MSO_SHAPE.ROUNDED_RECTANGLE
+    assert shapes[1].shape_type == MSO_SHAPE_TYPE.LINE
+    assert shapes[2].auto_shape_type == MSO_SHAPE.RIGHT_ARROW
+    assert shapes[3].auto_shape_type == MSO_SHAPE.ISOSCELES_TRIANGLE
+    assert shapes[4].auto_shape_type == MSO_SHAPE.DIAMOND
+    assert shapes[0].rotation == 25
+    assert shapes[0].line.width.pt == 3
+    assert ctx.fixed_documents.get(note["id"])["content"]["surfaces"][0]["elements"] == model["surfaces"][0]["elements"]

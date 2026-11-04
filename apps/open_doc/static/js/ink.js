@@ -130,11 +130,18 @@
   const convertButton=Array.from(bar.querySelectorAll('button')).find(b=>b.textContent==='Converter escrita');
   convertButton.disabled=true;convertButton.title='Reconhecimento manuscrito local não instalado.';
   const availability=document.createElement('span');availability.dataset.handwritingStatus='';availability.textContent='Escrita local: verificando…';bar.append(availability);
+  const handwritingDetails=document.createElement('button');
+  handwritingDetails.type='button';handwritingDetails.textContent='Detalhes';handwritingDetails.hidden=true;
+  handwritingDetails.setAttribute('aria-label','Detalhes do reconhecimento de escrita local');
+  handwritingDetails.addEventListener('click',()=>status(convertButton.title),{signal});
+  bar.append(handwritingDetails);
   async function capabilities(){
     try{const result=await window.pywebview.api.handwriting_capabilities?.();if(signal.aborted)return;const backends=result?.backends || [];const backend=backends.find(b=>b.available);
       capable=Boolean(backend);convertButton.disabled=!capable;availability.textContent=backend?backend.backend+' · '+(backend.language || 'pt-BR'):'Escrita local: indisponível';convertButton.title=backend?'Converter escrita com revisão':backends.map(b=>b.reason).filter(Boolean).join(' ') || 'Reconhecimento manuscrito local não instalado.';
-      if(!capable)availability.textContent='Escrita local indisponível: '+convertButton.title;
-    }catch(error){capable=false;convertButton.disabled=true;availability.textContent='Escrita local indisponível: '+error.message;convertButton.title=error.message;}
+      if(!capable)availability.textContent='Escrita local indisponível';
+      handwritingDetails.hidden=capable;
+      if(!capable)console.info('Open Doc: backends de escrita indisponíveis',convertButton.title);
+    }catch(error){capable=false;convertButton.disabled=true;availability.textContent='Escrita local indisponível';convertButton.title=error.message;handwritingDetails.hidden=false;console.warn('Open Doc: falha na verificação de escrita local',error);}
   }
   capabilities();root.addEventListener('open-doc:handwriting-capabilities',capabilities,{signal});
   const family=document.createElement('select');family.dataset.inkFont='';family.setAttribute('aria-label','Fonte do texto reconhecido');for(const name of ['Arial','Inter']){const option=document.createElement('option');option.value=name;option.textContent=name;family.append(option);}bar.append(family);
@@ -155,7 +162,9 @@
    // differently across QtWebEngine/Chromium versions. Bind the ink viewport
    // to the physical page border box, not to the writable text inset.
    // offsetWidth/Height stay in layout pixels when the page is zoomed.
-   // Match the page border box in Qt layout px, not the padded content.
+   // Match the border box, including borders and padding, in *layout* px.
+   // CSS transforms/zoom then apply equally to the page and the SVG.
+   // Using clientWidth/clientHeight alone underfills bordered pages in Qt.
    svg.style.left=(-surface.clientLeft)+'px';svg.style.top=(-surface.clientTop)+'px';
    svg.style.right='auto';svg.style.bottom='auto';
    svg.style.width=(surface.offsetWidth||surface.clientWidth)+'px';
@@ -203,7 +212,7 @@
   for(const type of ['click','auxclick','contextmenu'])root.addEventListener(type,e=>{if(mode!=='cursor' && isInkSurfaceEvent(e) && performance.now()<suppressClickUntil && (e.detail>0 || e.pointerType==='pen' || type==='contextmenu'))suppressSyntheticClick(e);},{capture:true,signal});
   root.addEventListener('open-doc:ink-mode',event=>setMode(event.detail),{signal});
   root.addEventListener('open-doc:ink-changed',queue,{signal});
-  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});root.addEventListener('open-doc:changed',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
+  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});root.addEventListener('open-doc:changed',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
  window.OpenDocInk={create,simplify,path,shouldErase,eraseStrokes,erasePartialStroke};
 })();

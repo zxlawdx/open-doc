@@ -11,10 +11,14 @@
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar{grid-column:1;grid-row:2;background:var(--color-panel);border-right:1px solid var(--color-border-soft);gap:10px;padding:12px}
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{grid-column:2;grid-row:2;min-width:0;overflow:auto;background:var(--color-workspace);padding:24px 20px}
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-surface{position:relative;background:#fff;box-shadow:var(--shadow-paper);border-radius:2px;overflow:hidden}
-.open-doc .slide-object-layer{position:absolute;inset:0;overflow:hidden;z-index:2;user-select:none}
+.open-doc .slide-object-layer{position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;overflow:hidden;z-index:1;pointer-events:none;user-select:none}
 .open-doc .slide-object{position:absolute;box-sizing:border-box;border:1.5px solid;white-space:pre-wrap;overflow:hidden;padding:6px;line-height:1.18;cursor:move;touch-action:none;color:#191c1e}
 .open-doc .slide-object-text{border-color:transparent!important;background:transparent;word-break:break-word;overflow-wrap:anywhere}
-.open-doc .slide-object-ellipse{border-radius:50%}
+.open-doc .slide-object-ellipse{border-radius:0}
+
+/* Native SVG shapes: the wrapper remains responsible for drag/resize. */
+.open-doc .slide-object:not(.slide-object-text){padding:0;border:0}
+.open-doc .slide-object .slide-vector-shape{position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none}
 .open-doc .slide-object[data-selected=true]{outline:2px solid #004ac6;outline-offset:2px;z-index:3}
 .open-doc .slide-resize-handle{position:absolute;bottom:0;right:0;width:12px;height:12px;border:2px solid #fff;border-radius:2px;background:#004ac6;cursor:nwse-resize;touch-action:none}
 .open-doc .slide-inspector{grid-column:3;grid-row:2;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:16px;border-left:1px solid var(--color-border-soft);background:var(--color-panel);color:var(--color-text-primary)}
@@ -33,3 +37,38 @@
 .open-doc .fixed-sidebar [data-thumbnail-index] .slide-thumb-preview{width:100%}
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]{background:transparent;border:1px solid var(--color-border-soft);border-radius:10px;padding:7px;font-size:11px;text-align:left}
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]:hover,.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]:focus-visible{border-color:var(--color-primary);background:var(--color-primary-soft)}
+
+/* Compact contextual slide command strip. Icons come from local icons.svg. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:4px;
+  min-width:0;padding:5px 9px;scrollbar-width:thin;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{
+  flex:0 0 auto;border:0;padding:0;margin:0 9px 0 0;
+  gap:3px;overflow:visible;min-width:0;
+  border-right:1px solid var(--color-border-soft);
+  padding-right:10px;
+}
+.open-doc .slide-studio-toolbar button{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:33px;padding:5px 9px;font-size:12px;
+  background:var(--of-surface-low);border:1px solid transparent;
+  transition:background .12s ease,border-color .12s ease;
+}
+.open-doc .slide-studio-toolbar button:focus-visible{
+  outline:2px solid var(--color-primary);outline-offset:1px;
+}
+.open-doc .slide-studio-toolbar button:hover{border-color:var(--color-border-soft);}
+.open-doc .slide-studio-toolbar .slide-action-icon{
+  display:inline-block;width:17px;height:17px;flex:none;
+  pointer-events:none;color:currentColor;stroke:currentColor;fill:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{
+  min-width:0;min-height:0;overflow:auto;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-inspector{
+  min-width:0;overflow-y:auto;
+}
+.open-doc .slide-layer-list button{
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
