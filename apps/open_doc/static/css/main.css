@@ -1563,6 +1563,42 @@ body {
     background: var(--of-surface-low);
 }
 
+/* Native slide composition, presented inside Vela's existing fixed document view. */
+.open-doc .fixed-document[data-slide-editor="true"]{
+  grid-template-columns:180px minmax(0,1fr) 268px;
+  grid-template-rows:auto minmax(0,1fr);
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{grid-column:1/-1;flex-wrap:wrap;gap:6px}
+.open-doc .slide-studio-toolbar{display:flex;align-items:center;gap:4px;overflow-x:auto;flex:1 1 100%;padding-top:6px;border-top:1px solid var(--color-border-soft);scrollbar-width:thin}
+.open-doc .slide-studio-toolbar[hidden],.open-doc .slide-inspector[hidden]{display:none!important}
+.open-doc .slide-studio-toolbar button{border-radius:9px;white-space:nowrap;flex-shrink:0;background:var(--of-surface-low);padding:6px 11px;min-height:33px;color:var(--color-text-primary)}
+.open-doc .slide-studio-toolbar button:hover{background:var(--color-primary-soft);color:var(--color-primary)}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar{grid-column:1;grid-row:2;background:var(--color-panel);border-right:1px solid var(--color-border-soft);gap:10px;padding:12px}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{grid-column:2;grid-row:2;min-width:0;overflow:auto;background:var(--color-workspace);padding:24px 20px}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-surface{position:relative;background:#fff;box-shadow:var(--shadow-paper);border-radius:2px;overflow:hidden}
+.open-doc .slide-object-layer{position:absolute;inset:0;overflow:hidden;z-index:2;user-select:none}
+.open-doc .slide-object{position:absolute;box-sizing:border-box;border:1.5px solid;white-space:pre-wrap;overflow:hidden;padding:6px;line-height:1.18;cursor:move;touch-action:none;color:#191c1e}
+.open-doc .slide-object-text{border-color:transparent!important;background:transparent;word-break:break-word;overflow-wrap:anywhere}
+.open-doc .slide-object-ellipse{border-radius:50%}
+.open-doc .slide-object[data-selected=true]{outline:2px solid #004ac6;outline-offset:2px;z-index:3}
+.open-doc .slide-resize-handle{position:absolute;bottom:0;right:0;width:12px;height:12px;border:2px solid #fff;border-radius:2px;background:#004ac6;cursor:nwse-resize;touch-action:none}
+.open-doc .slide-inspector{grid-column:3;grid-row:2;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:16px;border-left:1px solid var(--color-border-soft);background:var(--color-panel);color:var(--color-text-primary)}
+.open-doc .slide-inspector h3{font-size:15px;font-weight:700;margin:0 0 4px}
+.open-doc .slide-inspector h4{font-size:12px;font-weight:700;margin:12px 0 0;padding-top:8px;border-top:1px solid var(--color-border-soft)}
+.open-doc .slide-inspector label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--color-text-secondary)}
+.open-doc .slide-inspector label input,.open-doc .slide-inspector label textarea{background:var(--of-surface-low);color:var(--color-text-primary);border:1px solid var(--color-border);border-radius:8px;padding:7px 9px;width:100%;min-width:0}
+.open-doc .slide-inspector label input[type=color]{height:36px;padding:4px}
+.open-doc .slide-inspector label textarea{resize:vertical;min-height:72px}
+.open-doc .slide-layer-list,.open-doc .slide-layer-actions{display:flex;flex-direction:column;gap:5px}
+.open-doc .slide-layer-list button,.open-doc .slide-layer-actions button{border:1px solid var(--color-border);background:var(--of-surface-low);padding:8px 10px;min-height:34px;border-radius:8px;text-align:left;font-size:12px}
+.open-doc .slide-layer-list button[aria-pressed=true]{border-color:var(--color-primary);background:var(--color-primary-soft);color:var(--color-primary);font-weight:600}
+.open-doc .slide-layer-actions button:last-child{color:var(--color-danger)}
+.open-doc .slide-thumb-preview{display:block;position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border:1px solid var(--color-border);border-radius:4px;background:#fff;margin-bottom:6px}
+.open-doc .slide-thumb-preview .slide-object{padding:1px;border-width:.5px;cursor:default;overflow:hidden;line-height:1.05}
+.open-doc .fixed-sidebar [data-thumbnail-index] .slide-thumb-preview{width:100%}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]{background:transparent;border:1px solid var(--color-border-soft);border-radius:10px;padding:7px;font-size:11px;text-align:left}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]:hover,.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]:focus-visible{border-color:var(--color-primary);background:var(--color-primary-soft)}
+
 /* Desktop policy: one scrollable toolbar strip; never compress paper geometry. */
 @media (max-width: 1439px) {
     .open-doc {
@@ -1793,6 +1829,26 @@ body {
     .open-doc .fixed-document { grid-template-columns: 80px minmax(0,1fr); }
     .open-doc .fixed-controls { overflow-x: auto; flex-wrap: nowrap; }
     .open-doc .fixed-controls input[type="search"] { min-width: 120px; }
+}
+
+/* Slide studio gives the stage priority as the window narrows. */
+@media (max-width: 1199px) {
+    .open-doc .fixed-document[data-slide-editor="true"] { grid-template-columns:132px minmax(0,1fr) 230px; }
+    .open-doc .slide-inspector { padding:12px; }
+    .open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll { padding:16px; }
+}
+@media (max-width: 850px) {
+    .open-doc .fixed-document[data-slide-editor="true"] { grid-template-columns:98px minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) 185px; }
+    .open-doc .fixed-document[data-slide-editor="true"] .slide-inspector { grid-column:2;grid-row:3;position:static;width:auto;max-height:185px;box-shadow:none;border-top:1px solid var(--color-border);border-left:0;padding:10px; }
+    .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar { grid-column:1; }
+    .open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll { grid-column:2; }
+    .open-doc .slide-studio-toolbar { overflow-x:auto;flex-wrap:nowrap; }
+}
+@media (max-width: 600px) {
+    .open-doc .fixed-document[data-slide-editor="true"] { grid-template-columns:76px minmax(0,1fr); }
+    .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar { padding:5px; }
+    .open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll { padding:8px; }
+    .open-doc .slide-studio-toolbar button { padding:5px 9px; }
 }
 
 /* Visibility is authoritative over flex/grid component display declarations. */

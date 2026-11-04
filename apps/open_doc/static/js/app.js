@@ -96,7 +96,7 @@
       }
       for (const file of items) {
         const row = document.createElement('li'); row.className='library-row';
-        row.dataset.fileFormat = notes ? 'docx' : String(file.type || file.name?.split('.').pop() || 'docx').toLowerCase();
+        row.dataset.fileFormat = notes ? String(file.source_kind || 'docx').toLowerCase() : String(file.type || file.name?.split('.').pop() || 'docx').toLowerCase();
         const icon = document.createElement('span'); icon.className = 'library-file-icon'; icon.textContent = notes ? 'DOC' : file.type.toUpperCase();
         const info = document.createElement('div'); info.className='library-file-main';
         const editable=notes || Boolean(file.capabilities?.open);
@@ -109,7 +109,7 @@
         const date = document.createElement('small'); date.className='library-file-meta';
         date.textContent = notes ? new Date(file.updated_at).toLocaleString('pt-BR') : editable ? 'Abrir como novo documento' : 'Arquivo importado · leitura ainda não disponível';
         info.append(name, date);
-        const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? 'Documento local' : file.type.toUpperCase();
+        const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? (file.source_kind==='pptx'?'Apresentação local':file.source_kind==='pdf'?'PDF local':'Documento local') : file.type.toUpperCase();
         row.append(icon, info, kind);
         if(notes){const details=document.createElement('details'),summary=document.createElement('summary');details.className='library-file-actions';summary.textContent='⋯';summary.setAttribute('aria-haspopup','menu');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);const menu=document.createElement('div');menu.className='document-action-menu';menu.setAttribute('role','menu');details.appendChild(menu);
           for(const [operation,label] of [['rename','Renomear'],['duplicate','Duplicar'],['delete','Excluir']]){const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');if(operation==='delete'){button.className='danger-action';menu.appendChild(document.createElement('hr'));}button.addEventListener('click',()=>operate(async()=>{
@@ -128,6 +128,11 @@
   async function newDocument() {
     await editor.flush(); editor.load(await request('document/new', {title: 'Documento sem título'}));
     showView(false); root.querySelector('[data-title]').focus(); root.querySelector('[data-title]').select();
+  }
+  async function newPresentation() {
+    await editor.flush();
+    const document=await request('document/new',{content_format:'opendoc-presentation-v1',title:'Nova apresentação'});
+    editor.load(document);showView(false);status('Apresentação criada. Adicione textos e formas aos slides.');
   }
   async function importDocument() {
     await editor.flush();
@@ -195,7 +200,7 @@
       'font-manage':fontManager,
       'table-insert':async()=>{const value=await dialog('Inserir tabela','Informe linhas × colunas (por exemplo, 3x4).',true);if(!value)return;const m=value.match(/^(\d+)\s*[x×]\s*(\d+)$/i);if(!m || +m[1]<1 || +m[2]<1 || +m[1]>100 || +m[2]>30)throw Error('Use de 1 a 100 linhas e de 1 a 30 colunas.');editor.tableOperation('insert',+m[1],+m[2]);},
 
-      new: () => operate(newDocument), import: () => operate(importDocument),
+      new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
       home: () => { showView(true); }, save: () => operate(() => editor.flush()),
       copy: () => operate(() => editor.copy()),
       navigator: () => toggleNavigator(),
@@ -252,7 +257,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
@@ -281,6 +286,7 @@
       else if (button.hasAttribute('data-export')) operate(() => editor.export(button.dataset.export));
       else if (button.hasAttribute('data-new')) action('new');
       else if (button.hasAttribute('data-import')) action('import');
+      else if (button.hasAttribute('data-new-presentation')) action('presentation-new');
       else if (button.hasAttribute('data-toggle')) toggleNavigator();
     }, {signal});
     root.querySelectorAll('[data-inline-style],[data-paragraph-style]').forEach(control=>control.addEventListener('change',()=>{

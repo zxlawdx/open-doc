@@ -2,6 +2,7 @@ import json
 import re
 from .schema import VERSION
 from .annotations import validate_annotations
+from .slide_model import SlideModelValidator
 from ..ink.validation import validate_layers, number, MAX_JSON
 
 
@@ -24,6 +25,7 @@ def validate(model):
         number(surface.get("height_pt"), 1, 20000)
     validate_layers([{**s, "surface_index": s["index"]} for s in surfaces])
     validate_annotations(model)
+    SlideModelValidator().validate(model)
     if len(json.dumps(model, allow_nan=False).encode()) > MAX_JSON:
         raise ValueError("Documento ultrapassa 16 MB de anotações.")
     return model

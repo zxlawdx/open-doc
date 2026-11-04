@@ -41,9 +41,9 @@
           <span class="home-card-icon pdf"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#pdf"></use></svg></span>
           <span><strong>Anotar PDF</strong><small>Importar, ler, destacar e assinar com tinta</small></span>
         </button>
-        <button class="home-create-card" data-import>
+        <button class="home-create-card" data-new-presentation>
           <span class="home-card-icon slides"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#slides"></use></svg></span>
-          <span><strong>Apresentações</strong><small>Importar e visualizar slides PPTX</small></span>
+          <span><strong>Apresentações</strong><small>Criar e editar slides em PPTX</small></span>
         </button>
         <button class="home-create-card" disabled title="Digitalização por câmera ainda não disponível neste aplicativo">
           <span class="home-card-icon scan"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#scan"></use></svg></span>
@@ -70,6 +70,7 @@
   </nav>
   <div class="home-quick-menu" data-create-menu hidden role="menu" aria-label="Criar ou importar documento">
     <button type="button" data-new role="menuitem"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#file-text"></use></svg> Novo documento</button>
+    <button type="button" data-new-presentation role="menuitem"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#slides"></use></svg> Nova apresentação</button>
     <button type="button" data-import role="menuitem"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg> Abrir arquivo</button>
   </div>
   <button type="button" class="home-fab" data-create-trigger aria-expanded="false" aria-label="Ações rápidas de criação"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg></button>

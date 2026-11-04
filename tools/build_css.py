@@ -32,6 +32,7 @@ STYLE_ORDER = (
     "semantic_annotations.css",
     "states.css",
     "oficio_design.css",
+    "slide_editor.css",
     "responsive.css",
     "utilities.css",
 )

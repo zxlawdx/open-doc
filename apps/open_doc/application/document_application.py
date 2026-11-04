@@ -47,6 +47,10 @@ class DocumentApplication:
         return {"ok": True}
 
     def create(self, data: dict[str, Any]) -> dict[str, Any]:
+        if data.get("content_format") == "opendoc-presentation-v1":
+            return self.context.fixed_documents.create_presentation(
+                data.get("title", "Nova apresentação")
+            )
         self.context.fixed_documents.activate("rich")
         if data.get("content_format") == "opendoc-rich-v1":
             return self.context.editor.create_rich_copy(

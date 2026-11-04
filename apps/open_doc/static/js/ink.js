@@ -155,8 +155,7 @@
    // differently across QtWebEngine/Chromium versions. Bind the ink viewport
    // to the physical page border box, not to the writable text inset.
    // offsetWidth/Height stay in layout pixels when the page is zoomed.
-   // Align the SVG to the visible page border box, not the padded
-   // content box. offset dimensions are layout pixels and match Qt zoom.
+   // Match the page border box in Qt layout px, not the padded content.
    svg.style.left=(-surface.clientLeft)+'px';svg.style.top=(-surface.clientTop)+'px';
    svg.style.right='auto';svg.style.bottom='auto';
    svg.style.width=(surface.offsetWidth||surface.clientWidth)+'px';
