@@ -74,3 +74,5 @@ class SlideModelValidator:
         if not isinstance(family, str) or not 1 <= len(family) <= 80:
             raise ValueError("Fonte de slide inválida.")
         number(element.get("font_size_pt", 28), 6, 144)
+        number(element.get("stroke_width", 1.5), .5, 20)
+        number(element.get("rotation", 0), -360, 360)
