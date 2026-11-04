@@ -55,7 +55,7 @@ test('new slides support text and native shape objects with editable properties'
  assert.equal(q.scroller.querySelectorAll('.fixed-surface').length,2);
  clickLabel(q.controls,'Duplicar');
  assert.equal(q.model().surfaces.length,3);
- assert.deepEqual(q.model().surfaces.map(s=>s.index),[0,1,2]);
+ assert.equal(q.model().surfaces.map(s=>s.index).join(','),'0,1,2');
  clickLabel(q.controls,'↑ Slide');
  assert.equal(q.model().surfaces.length,3);
  clickLabel(q.controls,'Excluir slide');
