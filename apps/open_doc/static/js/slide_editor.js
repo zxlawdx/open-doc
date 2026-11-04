@@ -130,7 +130,8 @@
           x:.2+offset,y:.24+offset,width:.36,height:.30,text:"",
           color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
           font_family:"Inter",font_size_pt:20,stroke_width:1.5,rotation:0,
-          flip_h:false,flip_v:false});
+          flip_h:false,flip_v:false,
+          crop_left:0,crop_right:0,crop_top:0,crop_bottom:0});
       });
       return id;
     }
@@ -435,12 +436,25 @@
       if(obj.type==="image"){
         const asset=(this.getModel().assets||{})[obj.asset_id];
         if(asset){
+          // Keep picture pixels behind an independent clipping viewport: the
+          // outer object retains its resize handle, rotation and selection.
+          const crop={left:Number(obj.crop_left)||0,right:Number(obj.crop_right)||0,
+            top:Number(obj.crop_top)||0,bottom:Number(obj.crop_bottom)||0};
+          const visibleWidth=Math.max(.05,1-crop.left-crop.right);
+          const visibleHeight=Math.max(.05,1-crop.top-crop.bottom);
+          const viewport=document.createElement("span");
+          viewport.className="slide-image-crop";
+          Object.assign(viewport.style,{position:"absolute",top:"0px",left:"0px",
+            width:"100%",height:"100%",overflow:"hidden",pointerEvents:"none"});
           const picture=document.createElement("img");picture.alt=obj.name||"Imagem";
           picture.draggable=false;
           picture.src="data:"+asset.mime+";base64,"+asset.data;
-          Object.assign(picture.style,{width:"100%",height:"100%",display:"block",
+          Object.assign(picture.style,{position:"absolute",display:"block",
+            width:(100/visibleWidth)+"%",height:(100/visibleHeight)+"%",
+            left:(-100*crop.left/visibleWidth)+"%",
+            top:(-100*crop.top/visibleHeight)+"%",
             objectFit:"fill",pointerEvents:"none"});
-          node.append(picture);
+          viewport.append(picture);node.append(viewport);
         }
       }else if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.textContent=obj.text;node.append(label);}
@@ -606,6 +620,19 @@
             checked=>this.commands.updateObject(this.current,selected.id,{flip_h:checked}));
           this._toggleProperty("Espelhar verticalmente",selected.flip_v||false,
             checked=>this.commands.updateObject(this.current,selected.id,{flip_v:checked}));
+          for(const [key,opposite,label] of [
+            ["crop_left","crop_right","Recorte esquerdo (%)"],
+            ["crop_right","crop_left","Recorte direito (%)"],
+            ["crop_top","crop_bottom","Recorte superior (%)"],
+            ["crop_bottom","crop_top","Recorte inferior (%)"]
+          ]){
+            const input=this._property(label,Math.round((selected[key]||0)*100),"number",value=>{
+              const maximum=Math.max(0,.95-(selected[opposite]||0));
+              const amount=clamp((Number(value)||0)/100,0,maximum);
+              this.commands.updateObject(this.current,selected.id,{[key]:amount});
+            });
+            input.min="0";input.max="95";input.step="1";
+          }
         }
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
         if(selected.type==="text"||selected.text)
