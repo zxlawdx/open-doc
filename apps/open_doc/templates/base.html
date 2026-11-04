@@ -3,18 +3,35 @@
 <div class="open-doc" data-app data-theme="light" data-collapsed="false">
   <header class="app-header">
     <button class="product" data-action="home" aria-label="Open Doc — documentos recentes">
-      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#document"></use></svg>
+      <span class="brand-mark"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#file-text"></use></svg></span>
       <span>Open Doc</span>
     </button>
     <span class="header-divider" aria-hidden="true"></span>
     <label class="sr-only" for="document-title">Nome do documento</label>
     <input id="document-title" data-title maxlength="180" placeholder="Documento sem título" disabled>
     <span class="save-status" data-status role="status" aria-live="polite">Abrindo documento…</span>
-    <button class="icon-button header-search" data-action="find" aria-label="Localizar no documento" title="Localizar (Ctrl+F)">
-      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#search"></use></svg>
-    </button>
+    <div class="header-actions">
+      <button class="icon-button header-search" data-header-search aria-label="Pesquisar arquivos ou localizar texto" title="Pesquisar">
+        <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#search"></use></svg>
+      </button>
+      <button class="icon-button header-new" data-action="new" aria-label="Novo documento" title="Novo documento (Ctrl+N)">
+        <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg>
+      </button>
+    </div>
   </header>
   {{ menus }}
+  <div class="document-quickbar" role="toolbar" aria-label="Modos de página e exportação" data-quickbar>
+    <span class="quickbar-title"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#file-text"></use></svg><span data-quickbar-caption>Editor de documento</span></span>
+    <span class="quickbar-rich" data-quickbar-rich>
+      <button data-action="pages" data-view-shortcut="pages" title="Visualização paginada"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#page"></use></svg>Página</button>
+      <button data-action="continuous" data-view-shortcut="continuous" title="Fluxo contínuo"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#flow"></use></svg>Fluxo</button>
+    </span>
+    <span class="quickbar-divider" aria-hidden="true"></span>
+    <button data-export="docx" data-export-shortcut="docx" title="Exportar como DOCX"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#download"></use></svg>.DOCX</button>
+    <button data-export="pdf" data-export-shortcut="pdf" title="Exportar como PDF"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#pdf"></use></svg>.PDF</button>
+    <button data-export="md" data-export-shortcut="md" title="Exportar como Markdown"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg>.MD</button>
+    <span class="quickbar-local">Arquivos no seu dispositivo</span>
+  </div>
   {{ toolbar }}
   <div class="document-body" data-document-body>
     {{ sidebar }}
