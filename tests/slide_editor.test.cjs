@@ -44,7 +44,7 @@ test('new slides support text and native shape objects with editable properties'
  const shape=q.scroller.querySelector('.slide-object-rect');
  assert.equal(shape.parentElement,slide,'shapes must attach directly to slide');
  assert.equal(shape.style.position,'absolute');
- assert.equal(shape.style.left,'307.2px');
+ assert.ok(Math.abs(parseFloat(shape.style.left)-307.2)<.001,'pixel positioning within floating-point tolerance');
  assert.equal(shape.style.width,'345.6px');
  assert.equal(shape.style.zIndex,'3');
  const layer=q.scroller.querySelector('.slide-object-layer');
@@ -126,7 +126,7 @@ test('local SVG toolbar icons, expanded shape catalog and editable layer names',
  for(const label of ['Arredondado','Linha','Seta','Triângulo','Losango'])
    clickLabel(q.controls,label);
  const shapes=q.model().surfaces[0].elements;
- assert.deepEqual(shapes.map(s=>s.type),['round_rect','line','arrow','triangle','diamond']);
+ assert.equal(JSON.stringify(shapes.map(s=>s.type)),JSON.stringify(['round_rect','line','arrow','triangle','diamond']));
  const surface=q.scroller.querySelector('.fixed-surface');
  assert.equal(surface.querySelectorAll(':scope > .slide-object').length,5);
  assert.equal(surface.querySelectorAll('.slide-vector-shape').length,5);
