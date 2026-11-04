@@ -19,7 +19,10 @@
     }
     for(const [kind,label] of actions)makeButton(label,()=>add(kind));
     makeButton('Comentar',()=>add('highlight',true));
-    makeButton('Copiar',()=>{if(pending){const txt=pending.text;navigator.clipboard?.writeText(txt).catch(()=>{});}hide();});
+    makeButton('Copiar',()=>{if(!pending)return;const txt=pending.text;hide();
+      function fallback(){const input=document.createElement('textarea');input.value=txt;input.style.position='fixed';input.style.left='-9999px';document.body.append(input);input.select();let ok=false;try{ok=document.execCommand('copy');}finally{input.remove();}if(!ok)status('Não foi possível copiar o trecho.');}
+      if(navigator.clipboard?.writeText)navigator.clipboard.writeText(txt).catch(fallback);else fallback();
+    });
     menu.append(color);
     // Keep the selected range intact when clicking the contextual toolbar.
     menu.addEventListener('mousedown',event=>{if(event.target!==color)event.preventDefault();},{signal});
