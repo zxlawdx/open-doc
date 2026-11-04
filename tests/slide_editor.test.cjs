@@ -133,7 +133,7 @@ test('local SVG toolbar icons, expanded shape catalog and editable layer names',
  assert.ok(surface.querySelector('.slide-object-round_rect rect[rx]'));
  assert.ok(surface.querySelector('.slide-object-line line'));
  assert.ok(surface.querySelector('.slide-object-arrow polygon'));
- assert.equal(surface.querySelectorAll('.slide-object polygon').length,2);
+ assert.equal(surface.querySelectorAll('.slide-object polygon').length,3,'arrow, triangle and diamond are filled polygons');
  for(const label of ['Retângulo','Elipse','Linha','Seta']){
    const button=Array.from(q.controls.querySelectorAll('.slide-studio-toolbar button'))
       .find(b=>b.textContent===label);
