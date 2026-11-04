@@ -114,7 +114,25 @@
       signal.addEventListener("abort",()=>this.destroy(),{once:true});
       this.sync();
     }
+    decorateTools(){
+      const names={cursor:"cursor",pen:"pen",highlighter:"highlighter",
+        "eraser-partial":"eraser",eraser:"eraser",handwriting:"handwriting"};
+      this.root.querySelectorAll(".ink-toolbar [data-ink-mode]").forEach(button=>{
+        if(button.dataset.designIcon)return;
+        const name=names[button.dataset.inkMode];
+        if(name)button.prepend(localIcon(this.root,name));
+        button.dataset.designIcon="true";
+      });
+      const fixedNames={"Anterior":"chevron-left","Próxima":"chevron-right","Buscar":"search"};
+      this.root.querySelectorAll(".fixed-controls button").forEach(button=>{
+        if(button.dataset.designIcon)return;
+        const name=fixedNames[button.textContent.trim()];
+        if(name)button.prepend(localIcon(this.root,name));
+        button.dataset.designIcon="true";
+      });
+    }
     sync(){
+      this.decorateTools();
       const kind=this.root.dataset.documentKind,source=this.root.dataset.sourceKind;
       const fixed=kind==="fixed";
       const caption=this.root.querySelector("[data-quickbar-caption]");
