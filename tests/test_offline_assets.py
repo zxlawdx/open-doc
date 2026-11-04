@@ -6,6 +6,23 @@ import hashlib
 from pathlib import Path
 from shutil import copyfile
 
+import subprocess
+import sys
+
+
+def test_offline_script_bootstraps_project_imports():
+    result = subprocess.run(
+        [sys.executable, "tools/offline_assets.py", "--help"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "prepare" in result.stdout
+
+
 from tools.check_runtime_assets import source_hash
 from tools.offline_assets import ROOT, STYLE_ORDER, _existing_tailwind_css, prepare
 
