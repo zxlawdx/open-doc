@@ -225,3 +225,47 @@ def test_native_image_validation_rejects_external_urls_missing_assets_and_false_
     }}
     with pytest.raises(ValueError):
         validate(bad)
+
+
+@pytest.mark.parametrize(
+    ("mime", "image_format", "expected_ext"),
+    [
+        ("image/jpeg", "JPEG", "jpg"),
+        ("image/webp", "WEBP", "png"),
+    ],
+)
+def test_native_jpeg_and_webp_export_with_editable_picture_shape(
+    tmp_path, mime, image_format, expected_ext
+):
+    from io import BytesIO
+    import base64
+    from PIL import Image, features
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    if image_format == "WEBP" and not features.check("webp"):
+        pytest.skip("Pillow foi compilado sem suporte WebP.")
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    stream = BytesIO()
+    Image.new("RGBA" if image_format == "WEBP" else "RGB", (5, 4), "blue").save(
+        stream, image_format
+    )
+    model["assets"] = {"picture-1": {
+        "mime": mime, "data": base64.b64encode(stream.getvalue()).decode("ascii"),
+    }}
+    model["surfaces"][0]["elements"] = [{
+        **element("image-1", "image"),
+        "text": "",
+        "name": "Imagem externa editável",
+        "asset_id": "picture-1",
+    }]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    result = tmp_path / f"native-{image_format.lower()}.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", result)
+    picture = Presentation(result).slides[0].shapes[0]
+    assert picture.shape_type == MSO_SHAPE_TYPE.PICTURE
+    assert picture.image.ext == expected_ext
+    assert picture.image.size == (5, 4)
+    assert picture.name == "Imagem externa editável"
