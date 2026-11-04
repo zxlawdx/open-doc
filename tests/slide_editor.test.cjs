@@ -151,3 +151,31 @@ test('local SVG toolbar icons, expanded shape catalog and editable layer names',
  assert.equal(q.model().surfaces[0].elements.length,6);
  assert.notEqual(q.model().surfaces[0].elements[4].id,q.model().surfaces[0].elements[5].id);
 });
+
+
+test('middle-mouse and Space drag pan workspace without mutating slide history',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Retângulo');
+ const before=q.versions.length;
+ q.scroller.scrollLeft=80;q.scroller.scrollTop=60;
+ q.scroller.dispatchEvent(new q.w.MouseEvent('pointerdown',
+   {bubbles:true,button:1,clientX:100,clientY:100}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointermove',
+   {bubbles:true,clientX:120,clientY:130}));
+ assert.equal(q.scroller.scrollLeft,60);
+ assert.equal(q.scroller.scrollTop,30);
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',
+   {bubbles:true,button:1,clientX:120,clientY:130}));
+ assert.equal(q.versions.length,before,'pan must not enter undo history');
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:' ',bubbles:true}));
+ assert.equal(q.scroller.style.cursor,'grab');
+ q.scroller.dispatchEvent(new q.w.MouseEvent('pointerdown',
+   {bubbles:true,button:0,clientX:10,clientY:10}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointermove',
+   {bubbles:true,clientX:20,clientY:20}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',
+   {bubbles:true,button:0,clientX:20,clientY:20}));
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keyup',{key:' ',bubbles:true}));
+ assert.equal(q.versions.length,before);
+ assert.equal(q.scroller.style.cursor,'');
+});
