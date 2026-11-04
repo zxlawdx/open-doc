@@ -3,7 +3,7 @@ on:
   pull_request:
   workflow_dispatch:
   push:
-    branches: [fix/stabilization, fix/input-stability, fix/stylus-handwriting-stability]
+    branches: [fix/stabilization, fix/input-stability, fix/stylus-handwriting-stability, fix/slide-visibility-ink-geometry-20261104]
     paths-ignore: ["docs/**", "README.md", "THIRD_PARTY_NOTICES.md"]
 jobs:
   windows-qt:
