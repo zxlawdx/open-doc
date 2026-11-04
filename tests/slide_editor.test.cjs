@@ -40,6 +40,11 @@ test('new slides support text and native shape objects with editable properties'
  clickLabel(q.controls,'Texto');clickLabel(q.controls,'Retângulo');clickLabel(q.controls,'Elipse');
  assert.equal(q.model().surfaces[0].elements.length,3);
  assert.equal(q.scroller.querySelectorAll('.slide-object').length,3);
+ const layer=q.scroller.querySelector('.slide-object-layer');
+ assert.equal(layer.style.width,'100%','Windows Qt/Chromium 83 must have nonzero shape parent width');
+ assert.equal(layer.style.height,'100%','Windows Qt/Chromium 83 must have nonzero shape parent height');
+ assert.equal(layer.style.left,'0px');
+ assert.equal(layer.style.top,'0px');
  assert.equal(q.scroller.querySelectorAll('.slide-vector-shape rect').length,1);
  assert.equal(q.scroller.querySelectorAll('.slide-vector-shape ellipse').length,1);
  assert.equal(q.scroller.querySelector('.slide-vector-shape rect').getAttribute('fill'),'#DAE2FD');
