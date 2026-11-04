@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import re
 
+from pypdf import Transformation
 from pypdf.annotations import Highlight
+from pypdf.generic import RectangleObject
 from pypdf.generic import ArrayObject, FloatObject, NameObject, TextStringObject
 
 from ..ink.validation import color, number
@@ -71,11 +73,30 @@ def validate_annotations(model: dict) -> list[dict]:
     return annotations
 
 
-def add_native_annotations(writer, model: dict) -> None:
+def rotation_transform(page):
+    """Match pypdf PageObject.transfer_rotation_to_content geometry."""
+    box = RectangleObject(page.mediabox)
+    center_x = float(box.left + box.width / 2)
+    center_y = float(box.bottom + box.height / 2)
+    transform = Transformation().translate(-center_x, -center_y).rotate(-page.rotation)
+    p1 = transform.apply_on(box.lower_left)
+    p2 = transform.apply_on(box.upper_right)
+    return transform.translate(-min(p1[0], p2[0]), -min(p1[1], p2[1]))
+
+
+def add_native_annotations(writer, model: dict, transforms=None) -> None:
     """Write standard markup annotation objects without flattening the PDF text."""
     for annotation in validate_annotations(model):
         quads = annotation["quad_points"]
         coordinates = [point for quad in quads for point in quad]
+        transform = (transforms or {}).get(annotation["page_index"])
+        if transform is not None:
+            coordinates = [
+                value
+                for quad in quads
+                for i in (0, 2, 4, 6)
+                for value in transform.apply_on((quad[i], quad[i + 1]))
+            ]
         xs, ys = coordinates[0::2], coordinates[1::2]
         native = Highlight(
             rect=(min(xs), min(ys), max(xs), max(ys)),
