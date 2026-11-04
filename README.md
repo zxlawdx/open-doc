@@ -20,6 +20,29 @@ python manage.py collectstatic
 python manage.py runapp
 ```
 
+### Executar sem Node.js (computador corporativo)
+
+Se o Windows não permite instalar Node/npm, o **runtime do Open Doc pode ser
+preparado com o Python e o Vela já instalados**. Execute na raiz do projeto:
+
+```powershell
+git pull --ff-only origin main
+python tools/offline_assets.py prepare
+python manage.py runapp
+```
+
+O comando offline valida SHA-256 dos bundles JS versionados, reaproveita o
+Tailwind já compilado no repositório, atualiza os estilos próprios do editor
+(inclusive as anotações PDF) e chama o coletor de estáticos **oficial do
+Vela**, sem executar Node/npm. Não é um servidor alternativo e não exige
+direitos administrativos nem conexão CDN. O arquivo CSS gerado é atualizado
+localmente; não execute `collectstatic` novamente sem Node.
+
+**Limitação:** esse modo reaproveita utilitários Tailwind e bibliotecas
+pré-compilados. Para alterar dependências JavaScript ou gerar novas classes
+Tailwind, use o fluxo de build normal em uma máquina autorizada com Node.
+Não é uma forma de contornar políticas corporativas de execução.
+
 Para atualizar um clone existente, use `git pull origin main` antes de instalar.
 No Linux/Mint, ative com `source .venv/bin/activate`. QtWebEngine precisa das
 bibliotecas gráficas do sistema (Xtst, NSS, X11, xkbcommon, EGL e áudio).
