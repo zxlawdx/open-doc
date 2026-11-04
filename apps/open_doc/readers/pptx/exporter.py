@@ -63,6 +63,8 @@ class SlideDeckExporter:
         if kind != "text":
             shape.line.width = Pt(obj.get("stroke_width", 1.5))
         shape.rotation = obj.get("rotation", 0)
+        if obj.get("name"):
+            shape.name = obj["name"]
         if kind == "text" or obj.get("text"):
             frame = shape.text_frame
             frame.clear()
