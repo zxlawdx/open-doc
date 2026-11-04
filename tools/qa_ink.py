@@ -197,6 +197,18 @@ def main():
                     f"Qt não pintou {shape} em {(px, py)}: {color} != {target}"
                 )
             print("QT_SLIDE_SVG_PIXELS_REAL_VISIBLE_OK", flush=True)
+            image_geometry = json.loads((image_dir / "slide-native-image.json").read_text())
+            native_shot = Image.open(image_dir / "slide-native-image.png").convert("RGB")
+            pixel_x = round((image_geometry["x"] + image_geometry["width"] / 2)
+                            * native_shot.width / image_geometry["viewport"]["width"])
+            pixel_y = round((image_geometry["y"] + image_geometry["height"] / 2)
+                            * native_shot.height / image_geometry["viewport"]["height"])
+            assert 0 <= pixel_x < native_shot.width and 0 <= pixel_y < native_shot.height
+            image_pixel = native_shot.getpixel((pixel_x, pixel_y))
+            assert max(abs(a - b) for a, b in zip(image_pixel, (20, 100, 200))) <= 24, (
+                f"Native Qt image pixel is missing: {image_pixel}"
+            )
+            print("QT_SLIDE_IMAGE_PIXELS_REAL_VISIBLE_OK", flush=True)
 
             window.evaluate_js(
                 "Array.from(document.querySelectorAll('.slide-studio-toolbar button'))"
@@ -208,7 +220,7 @@ def main():
                 current = services().fixed_documents.current()
                 if current.get("source_kind") == "pptx" and len(
                     current["content"]["surfaces"][0].get("elements", [])
-                ) == 3:
+                ) == 4:
                     slide_note = current
                     break
                 time.sleep(.1)
@@ -219,8 +231,13 @@ def main():
                 slide_note["id"], slide_note["revision"], "pptx", target_pptx
             )
             shapes = Presentation(target_pptx).slides[0].shapes
-            assert len(shapes) == 3
-            assert shapes[2].text == "Novo texto"
+            from pptx.enum.shapes import MSO_SHAPE_TYPE
+            assert len(shapes) == 4
+            assert shapes[2].shape_type == MSO_SHAPE_TYPE.PICTURE
+            assert shapes[2].name == "qt-pixel.png"
+            assert shapes[2].image.size == (2, 2)
+            assert shapes[3].text == "Novo texto"
+            assert len(slide_note["content"].get("assets", {})) == 1
             print("QT_SLIDE_SVG_AND_EDITABLE_OOXML_EXPORT_OK", flush=True)
 
         except Exception as e:
