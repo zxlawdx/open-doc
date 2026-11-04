@@ -130,6 +130,14 @@
         if(name)button.prepend(localIcon(this.root,name));
         button.dataset.designIcon="true";
       });
+      const semanticIcons={"Destacar":"highlighter","Sublinhar":"underline",
+        "Tachar":"strike","Comentar":"comment","Copiar":"copy"};
+      this.root.querySelectorAll(".semantic-selection-menu button").forEach(button=>{
+        if(button.dataset.designIcon)return;
+        const name=semanticIcons[button.textContent.trim()];
+        if(name)button.prepend(localIcon(this.root,name));
+        button.dataset.designIcon="true";
+      });
     }
     sync(){
       this.decorateTools();
