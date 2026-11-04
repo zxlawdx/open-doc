@@ -111,7 +111,31 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    await new Promise(resolve=>setTimeout(resolve,100));
  }
  assert.ok(decoded,'Qt did not decode slide image after FileReader input');
- const imageGeometry=await evaluate("(()=>{const item=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');const pic=item.querySelector('img');const box=pic.getBoundingClientRect();const x=box.left+box.width/2,y=box.top+box.height/2;return {x:box.x,y:box.y,width:box.width,height:box.height,hit:document.elementFromPoint(x,y)?.closest('[data-slide-element]')?.dataset.slideElement,imageId:item.dataset.slideElement,viewport:{width:innerWidth,height:innerHeight}};})()");
+ // Exercise real Qt controls, the rendered non-destructive crop and the
+ // persisted model before validating the screenshot and native PPTX.
+ const cropped=await evaluate(`(()=>{
+   const item=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');
+   const label=Array.from(document.querySelectorAll('.slide-inspector label'))
+     .find(el=>el.textContent.includes('Recorte esquerdo (%)'));
+   if(!item||!label)return {error:'Image crop Inspector control missing'};
+   const field=label.querySelector('input');
+   field.value='25';field.dispatchEvent(new Event('change',{bubbles:true}));
+   const updated=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');
+   const viewport=updated.querySelector('.slide-image-crop');
+   const picture=viewport?.querySelector('img');
+   const source=OpenDocApp.editor().snapshot().content.surfaces[0].elements.find(
+     obj=>obj.id===updated.dataset.slideElement);
+   return {fraction:source?.crop_left,clip:getComputedStyle(viewport).overflow,
+     fullWidth:picture?.getBoundingClientRect().width,
+     visibleWidth:viewport.getBoundingClientRect().width};
+ })()`);
+ assert.ok(!cropped.error,JSON.stringify(cropped));
+ assert.ok(Math.abs(cropped.fraction-.25)<.000001,'Qt image crop must persist: '+JSON.stringify(cropped));
+ assert.equal(cropped.clip,'hidden');
+ assert.ok(cropped.fullWidth>cropped.visibleWidth*1.30,
+   'Qt must keep full image pixels behind non-destructive crop viewport: '+JSON.stringify(cropped));
+ console.log('QT_SLIDE_IMAGE_CROP_INSPECTOR_AND_GEOMETRY_OK');
+ const imageGeometry=await evaluate("(()=>{const item=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');const box=item.getBoundingClientRect();const x=box.left+box.width/2,y=box.top+box.height/2;return {x:box.x,y:box.y,width:box.width,height:box.height,hit:document.elementFromPoint(x,y)?.closest('[data-slide-element]')?.dataset.slideElement,imageId:item.dataset.slideElement,viewport:{width:innerWidth,height:innerHeight}};})()");
  assert.ok(imageGeometry.width>20&&imageGeometry.height>20,'Qt slide image has zero size: '+JSON.stringify(imageGeometry));
  assert.equal(imageGeometry.hit,imageGeometry.imageId,'Qt slide image not selectable');
  const imageShot=await send('Page.captureScreenshot',{format:'png'});
