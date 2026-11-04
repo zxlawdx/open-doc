@@ -282,3 +282,13 @@
 .open-doc .document-quickbar button:disabled { opacity: .4; }
 .open-doc .toolbar [data-command="underline"],.open-doc .toolbar [data-command="strike"] { font-size: 17px; }
 .open-doc .fixed-controls input[type="search"] { width: min(220px, 28vw); }
+
+.open-doc .ink-toolbar [data-ink-mode],.open-doc .fixed-controls button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.open-doc .ink-toolbar [data-ink-mode] svg,.open-doc .fixed-controls button svg { width: 18px; height: 18px; }
+.open-doc .ink-toolbar [data-ink-mode="eraser-partial"] { color: var(--color-primary); }
