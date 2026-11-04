@@ -56,3 +56,40 @@ test('PDF text selection records line-precise PDF coordinates and comments',asyn
   assert.equal(model.annotations[0].comment,'Passagem de referência');
   assert.equal(changes,2);
 });
+
+
+test('sticky notes add page-anchored native-ready geometry, search and Markdown summary',t=>{
+ const dom=new JSDOM('<div id="root" data-source-kind="pdf"><section id="host"><aside id="side"></aside><div id="scroll"><div class="fixed-surface" data-page-index="0"></div></div></section></div>',{runScripts:'outside-only'});
+ const w=dom.window;t.after(()=>w.close());w.eval(script);
+ w.OpenDocModel={id:(()=>{let i=0;return()=>'note-'+(++i);})()};
+ const root=w.document.querySelector('#root'),host=w.document.querySelector('#host'),scroller=w.document.querySelector('#scroll'),sidebar=w.document.querySelector('#side'),surface=w.document.querySelector('.fixed-surface');
+ surface.getBoundingClientRect=()=>({left:100,top:50,width:400,height:500,right:500,bottom:550});
+ const page={getViewport:()=>({width:400,height:500,
+   convertToPdfPoint:(x,y)=>[x,500-y],convertToViewportPoint:(x,y)=>[x,500-y]})};
+ let model={annotations:[]},updates=0;const controller=new w.AbortController();t.after(()=>controller.abort());
+ const reader=w.OpenDocSemanticAnnotations.create({root,host,scroller,sidebar,signal:controller.signal,
+   getModel:()=>model,getPage:()=>page,getZoom:()=>1,update:next=>{model={annotations:next};updates++;},
+   go:()=>{},status:()=>{}});
+ reader.reset();
+ const toggle=w.document.createElement('button');reader.bindNoteButton(toggle);
+ reader.setNoteMode(true);assert.equal(toggle.getAttribute('aria-pressed'),'true');
+ const click=new w.MouseEvent('pointerup',{bubbles:true,button:0,clientX:200,clientY:180});
+ surface.dispatchEvent(click);
+ assert.equal(updates,1);assert.equal(model.annotations.length,1);
+ const annotation=model.annotations[0];
+ assert.equal(annotation.kind,'note');assert.equal(annotation.page_index,0);
+ assert.equal(annotation.quad_points[0].length,8);
+ assert.equal(reader.noteActive(),false);assert.equal(toggle.getAttribute('aria-pressed'),'false');
+ const note=surface.querySelector('.semantic-note-pin');
+ assert.ok(note);assert.match(note.getAttribute('aria-label'),/nota/i);
+ const textarea=sidebar.querySelector('textarea');textarea.value='Conferir referência bibliográfica';
+ textarea.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(model.annotations[0].comment,'Conferir referência bibliográfica');
+ assert.match(reader.summary(),/Conferir referência bibliográfica/);
+ const search=sidebar.querySelector('input[type=search]');search.value='sem resultado';
+ search.dispatchEvent(new w.Event('input'));assert.ok(sidebar.querySelector('.semantic-empty'));
+ search.value='bibliográfica';search.dispatchEvent(new w.Event('input'));
+ assert.equal(sidebar.querySelectorAll('.semantic-annotation-list button').length,1);
+ reader.setNoteMode(true);note.click();
+ assert.equal(reader.noteActive(),false);
+});

@@ -10,13 +10,13 @@ from __future__ import annotations
 import re
 
 from pypdf import Transformation
-from pypdf.annotations import Highlight
+from pypdf.annotations import Highlight, Text
 from pypdf.generic import RectangleObject
 from pypdf.generic import ArrayObject, FloatObject, NameObject, TextStringObject
 
 from ..ink.validation import color, number
 
-KINDS = {"highlight", "underline", "strikeout"}
+KINDS = {"highlight", "underline", "strikeout", "note"}
 MAX_ANNOTATIONS = 10000
 MAX_QUADS_PER_ANNOTATION = 2048
 MAX_QUOTE = 20000
@@ -60,7 +60,7 @@ def validate_annotations(model: dict) -> list[dict]:
         quads = annotation.get("quad_points")
         if (
             not isinstance(quads, list)
-            or not 1 <= len(quads) <= MAX_QUADS_PER_ANNOTATION
+            or not 1 <= len(quads) <= (1 if annotation["kind"] == "note" else MAX_QUADS_PER_ANNOTATION)
         ):
             raise ValueError("Geometria da anotação PDF inválida.")
         total_quads += len(quads)
@@ -102,20 +102,32 @@ def add_native_annotations(writer, model: dict, transforms=None) -> None:
                 for value in transform.apply_on((quad[i], quad[i + 1]))
             ]
         xs, ys = coordinates[0::2], coordinates[1::2]
-        native = Highlight(
-            rect=(min(xs), min(ys), max(xs), max(ys)),
-            quad_points=ArrayObject([FloatObject(x) for x in coordinates]),
-            highlight_color=annotation["color"][1:],
-            printing=True,
-        )
-        native[NameObject("/Subtype")] = NameObject(
-            "/" + {"highlight": "Highlight", "underline": "Underline",
-                   "strikeout": "StrikeOut"}[annotation["kind"]]
-        )
+        if annotation["kind"] == "note":
+            native = Text(
+                rect=(min(xs), min(ys), max(xs), max(ys)),
+                text=annotation.get("comment") or "Nota adicionada no Open Doc",
+                open=False,
+            )
+        else:
+            native = Highlight(
+                rect=(min(xs), min(ys), max(xs), max(ys)),
+                quad_points=ArrayObject([FloatObject(x) for x in coordinates]),
+                highlight_color=annotation["color"][1:],
+                printing=True,
+            )
+            native[NameObject("/Subtype")] = NameObject(
+                "/" + {"highlight": "Highlight", "underline": "Underline",
+                       "strikeout": "StrikeOut"}[annotation["kind"]]
+            )
         native[NameObject("/NM")] = TextStringObject(annotation["id"])
         native[NameObject("/Contents")] = TextStringObject(
             annotation.get("comment") or annotation["selected_text"]
         )
+        if annotation["kind"] == "note":
+            native[NameObject("/C")] = ArrayObject([
+                FloatObject(int(annotation["color"][i:i + 2], 16) / 255)
+                for i in (1, 3, 5)
+            ])
         native[NameObject("/T")] = TextStringObject("Open Doc")
         native[NameObject("/CA")] = FloatObject(
             annotation.get("opacity", 0.35)

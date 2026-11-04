@@ -155,8 +155,12 @@
    // differently across QtWebEngine/Chromium versions. Bind the ink viewport
    // to the physical page border box, not to the writable text inset.
    // offsetWidth/Height stay in layout pixels when the page is zoomed.
-   svg.style.left='0px';svg.style.top='0px';svg.style.right='auto';svg.style.bottom='auto';
-   svg.style.width=surface.clientWidth+'px';svg.style.height=surface.clientHeight+'px';
+   // Align the SVG to the visible page border box, not the padded
+   // content box. offset dimensions are layout pixels and match Qt zoom.
+   svg.style.left=(-surface.clientLeft)+'px';svg.style.top=(-surface.clientTop)+'px';
+   svg.style.right='auto';svg.style.bottom='auto';
+   svg.style.width=(surface.offsetWidth||surface.clientWidth)+'px';
+   svg.style.height=(surface.offsetHeight||surface.clientHeight)+'px';
    svg.style.pointerEvents=mode==='cursor'?'none':'auto';
    if(active?.svg===svg)continue;
    svg.replaceChildren();for(const stroke of layer?.strokes || []){const p=document.createElementNS(NS,'path');p.setAttribute('d',path(stroke));p.setAttribute('fill',stroke.color);p.setAttribute('opacity',stroke.opacity);svg.append(p);}
