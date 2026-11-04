@@ -37,3 +37,38 @@
 .open-doc .fixed-sidebar [data-thumbnail-index] .slide-thumb-preview{width:100%}
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]{background:transparent;border:1px solid var(--color-border-soft);border-radius:10px;padding:7px;font-size:11px;text-align:left}
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]:hover,.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]:focus-visible{border-color:var(--color-primary);background:var(--color-primary-soft)}
+
+/* Compact contextual slide command strip. Icons come from local icons.svg. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:4px;
+  min-width:0;padding:5px 9px;scrollbar-width:thin;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{
+  flex:0 0 auto;border:0;padding:0;margin:0 9px 0 0;
+  gap:3px;overflow:visible;min-width:0;
+  border-right:1px solid var(--color-border-soft);
+  padding-right:10px;
+}
+.open-doc .slide-studio-toolbar button{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:33px;padding:5px 9px;font-size:12px;
+  background:var(--of-surface-low);border:1px solid transparent;
+  transition:background .12s ease,border-color .12s ease;
+}
+.open-doc .slide-studio-toolbar button:focus-visible{
+  outline:2px solid var(--color-primary);outline-offset:1px;
+}
+.open-doc .slide-studio-toolbar button:hover{border-color:var(--color-border-soft);}
+.open-doc .slide-studio-toolbar .slide-action-icon{
+  display:inline-block;width:17px;height:17px;flex:none;
+  pointer-events:none;color:currentColor;stroke:currentColor;fill:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{
+  min-width:0;min-height:0;overflow:auto;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-inspector{
+  min-width:0;overflow-y:auto;
+}
+.open-doc .slide-layer-list button{
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
