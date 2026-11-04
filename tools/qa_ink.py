@@ -166,7 +166,7 @@ def main():
             )
             wait(
                 window,
-                "document.querySelector('.slide-vector-shape ellipse')?.getAttribute('fill')==='#F4B183'",
+                "document.querySelector('.slide-vector-shape ellipse')?.getAttribute('fill')?.toUpperCase()==='#F4B183'",
             )
             output = subprocess.run(
                 [
