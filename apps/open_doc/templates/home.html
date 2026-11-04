@@ -15,12 +15,12 @@
       <span class="home-status-badge">100% local</span>
     </section>
 
-    <label class="home-search">
+    <div class="home-search" role="search">
       <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#search"></use></svg>
       <span class="sr-only">Pesquisar na biblioteca de documentos</span>
-      <input type="search" data-library-search placeholder="Buscar documentos, apresentações ou notas…" autocomplete="off">
+      <input type="search" data-library-search aria-label="Pesquisar na biblioteca" placeholder="Buscar documentos, apresentações ou notas…" autocomplete="off">
       <button type="button" class="search-clear" data-search-clear aria-label="Limpar pesquisa" title="Limpar pesquisa"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#close"></use></svg></button>
-    </label>
+    </div>
 
     <div class="home-filters" role="group" aria-label="Filtrar formatos dos documentos">
       <button type="button" data-library-filter="all" aria-pressed="true">Todos <span data-library-count>0</span></button>
