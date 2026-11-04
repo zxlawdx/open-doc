@@ -60,6 +60,9 @@ class SlideDeckExporter:
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj.get("fill", "#DAE2FD"))
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
+        if kind != "text":
+            shape.line.width = Pt(obj.get("stroke_width", 1.5))
+        shape.rotation = obj.get("rotation", 0)
         if kind == "text" or obj.get("text"):
             frame = shape.text_frame
             frame.clear()
