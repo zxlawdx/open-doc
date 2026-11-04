@@ -149,9 +149,15 @@
     showView(true); status('Arquivo importado: ' + result.name);
   }
   function closeDialog(value = null) {
-    root.querySelector('[data-dialog]').hidden = true;
+    const backdrop = root.querySelector('[data-dialog]');
+    // QtWebEngine (Chromium 83) must not rely solely on the [hidden]
+    // attribute when a component stylesheet sets display:grid.
+    backdrop.hidden = true;
+    backdrop.style.display = 'none';
     const resolve = dialogResolver; dialogResolver = null;
-    dialogFocus?.focus(); resolve?.(value);
+    const previousFocus = dialogFocus; dialogFocus = null;
+    if(previousFocus?.isConnected)previousFocus.focus();
+    resolve?.(value);
   }
   function dialog(title, text, input = false, selection = null) {
     if (dialogResolver) closeDialog();
@@ -169,7 +175,9 @@
       }
       select.value = selection; label.append(select); body.append(label);
     }
-    root.querySelector('[data-dialog]').hidden = false;
+    const backdrop = root.querySelector('[data-dialog]');
+    backdrop.style.display = 'grid';
+    backdrop.hidden = false;
     (input ? field : body.querySelector('select') || root.querySelector('[data-dialog-confirm]')).focus();
     return new Promise(resolve => { dialogResolver = resolve; });
   }
@@ -303,8 +311,11 @@
     root.querySelector('[data-paragraph]').addEventListener('change', event => { editor.format(event.target.value); updateToolbar(); }, {signal});
     document.addEventListener('selectionchange', updateToolbar, {signal});
     root.addEventListener('open-doc:content', updateToolbar, {signal});
-    root.querySelector('[data-dialog-cancel]').addEventListener('click', () => closeDialog(), {signal});
-    root.querySelector('[data-dialog-confirm]').addEventListener('click', () => {
+    root.querySelector('[data-dialog-cancel]').addEventListener('click', event => {
+      event.preventDefault();event.stopPropagation();closeDialog();
+    }, {signal});
+    root.querySelector('[data-dialog-confirm]').addEventListener('click', event => {
+      event.preventDefault();event.stopPropagation();
       const value = root.querySelector('[data-dialog-select]')?.value || (root.querySelector('[data-dialog-label]').hidden ? true : root.querySelector('[data-dialog-input]').value.trim());
       closeDialog(value);
     }, {signal});
