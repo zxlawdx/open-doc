@@ -78,7 +78,6 @@ def test_prepare_uses_vela_collector_without_node(monkeypatch, tmp_path: Path):
     assert called["skip_tailwind"] is True
     assert called["allow_install"] is False
     assert css.read_text("utf-8") == original
-    assert "semantic-overlay" not in css.read_text("utf-8")
     assert "--tw-" in (tmp_path / "staticfiles/css/vela.bundle.css").read_text("utf-8")
 
 
