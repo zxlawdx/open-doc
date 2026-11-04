@@ -214,7 +214,7 @@
         : {left:obj.x*pxWidth+"px",top:obj.y*pxHeight+"px",
            width:obj.width*pxWidth+"px",height:obj.height*pxHeight+"px"};
       Object.assign(node.style,{
-        position:"absolute",boxSizing:"border-box",
+        position:"absolute",boxSizing:"border-box",zIndex:"3",
         ...bounds,
         color:obj.color,backgroundColor:"transparent",
         borderColor:"transparent",
@@ -258,6 +258,7 @@
         // percentage-positioned SVG shapes never collapse to zero size.
         Object.assign(layer.style,{position:"absolute",top:"0px",left:"0px",
           right:"0px",bottom:"0px",width:"100%",height:"100%"});
+        layer.style.zIndex="1";layer.style.pointerEvents="none";
         layer.style.backgroundColor=slide.background||"#FFFFFF";
         surface.prepend(layer);
         // Shapes are direct slide children so percentages on the layer
