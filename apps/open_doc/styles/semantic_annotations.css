@@ -18,7 +18,7 @@
   background:var(--color-workspace)
 }
 .semantic-selection-menu input[type=color]{width:32px;height:30px;padding:1px}
-.fixed-document:has(.semantic-annotation-panel){grid-template-columns:220px minmax(0,1fr)}
+.fixed-document{grid-template-columns:220px minmax(0,1fr)}
 .semantic-annotation-panel{border-top:1px solid var(--color-border);margin-top:8px;padding-top:8px;min-width:0}
 .semantic-annotation-panel h3{font-size:13px;font-weight:650;margin:0 0 8px}
 .semantic-annotation-list{display:flex;flex-direction:column;gap:5px;max-height:230px;overflow:auto}
@@ -30,7 +30,7 @@
 .semantic-annotation-editor textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:72px;color:var(--color-text-primary);background:var(--color-panel);border:1px solid var(--color-border);border-radius:5px}
 .semantic-annotation-editor input[type=color]{width:40px;height:30px}
 @media(max-width:760px){
-  .fixed-document:has(.semantic-annotation-panel){grid-template-columns:140px minmax(0,1fr)}
+  .fixed-document{grid-template-columns:140px minmax(0,1fr)}
   .fixed-scroll{padding:12px}
   .fixed-sidebar{padding:5px}
 }
