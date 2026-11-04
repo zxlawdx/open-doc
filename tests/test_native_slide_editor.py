@@ -155,3 +155,145 @@ def test_extended_shapes_export_as_editable_powerpoint_objects(tmp_path):
     assert [shape.name for shape in shapes] == [f"Forma {i}" for i in range(len(kinds))]
     assert shapes[0].line.width.pt == 3
     assert ctx.fixed_documents.get(note["id"])["content"]["surfaces"][0]["elements"] == model["surfaces"][0]["elements"]
+
+
+def test_native_images_roundtrip_as_editable_pptx_picture_shapes(tmp_path):
+    """One deck asset may back multiple shapes without embedding it twice in JSON."""
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    original = ctx.fixed_documents.source(note["id"]).read_bytes()
+    model = deepcopy(note["content"])
+    stream = BytesIO()
+    Image.new("RGB", (3, 2), color=(40, 100, 210)).save(stream, "PNG")
+    encoded = base64.b64encode(stream.getvalue()).decode("ascii")
+    model["assets"] = {"asset-1": {"mime": "image/png", "data": encoded}}
+    picture = {
+        **element("image-1", "image"), "name": "Imagem da pesquisa",
+        "asset_id": "asset-1", "text": "",
+    }
+    model["surfaces"][0]["elements"] = [
+        picture, {**picture, "id": "image-2", "x": .30, "name": "Duplicada"},
+    ]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    reopened = ctx.fixed_documents.get(note["id"])
+    assert reopened["content"]["assets"] == model["assets"]
+    assert len(reopened["content"]["surfaces"][0]["elements"]) == 2
+    dest = tmp_path / "imagens-nativas.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", dest)
+    exported = Presentation(dest).slides[0].shapes
+    assert len(exported) == 2
+    assert all(shape.shape_type == MSO_SHAPE_TYPE.PICTURE for shape in exported)
+    assert [shape.name for shape in exported] == ["Imagem da pesquisa", "Duplicada"]
+    assert all(shape.image.ext == "png" for shape in exported)
+    assert exported[0].image.blob == stream.getvalue()
+    assert ctx.fixed_documents.source(note["id"]).read_bytes() == original
+
+
+def test_native_image_validation_rejects_external_urls_missing_assets_and_false_mime(tmp_path):
+    import base64
+    from io import BytesIO
+    from PIL import Image
+
+    ctx = configure(Config(tmp_path))
+    base = deepcopy(ctx.fixed_documents.create_presentation()["content"])
+    base["surfaces"][0]["elements"] = [{
+        **element("image-1", "image"), "asset_id": "asset-1", "text": ""
+    }]
+    for payload in [
+        {},
+        {"asset-1": {"mime": "image/png", "data": "https://example.com/image.png"}},
+        {"asset-1": {"mime": "image/png", "data": "not-base64"}},
+        {"asset-1": {"mime": "text/html", "data": "PGh0bWw+"}},
+    ]:
+        invalid = deepcopy(base)
+        invalid["assets"] = payload
+        with pytest.raises(ValueError):
+            validate(invalid)
+
+    stream = BytesIO()
+    Image.new("RGB", (3, 2)).save(stream, "PNG")
+    bad = deepcopy(base)
+    bad["assets"] = {"asset-1": {
+        "mime": "image/jpeg",
+        "data": base64.b64encode(stream.getvalue()).decode("ascii"),
+    }}
+    with pytest.raises(ValueError):
+        validate(bad)
+
+
+@pytest.mark.parametrize(
+    ("mime", "image_format", "expected_ext"),
+    [
+        ("image/jpeg", "JPEG", "jpg"),
+        ("image/webp", "WEBP", "png"),
+    ],
+)
+def test_native_jpeg_and_webp_export_with_editable_picture_shape(
+    tmp_path, mime, image_format, expected_ext
+):
+    from io import BytesIO
+    import base64
+    from PIL import Image, features
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    if image_format == "WEBP" and not features.check("webp"):
+        pytest.skip("Pillow foi compilado sem suporte WebP.")
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    stream = BytesIO()
+    Image.new("RGBA" if image_format == "WEBP" else "RGB", (5, 4), "blue").save(
+        stream, image_format
+    )
+    model["assets"] = {"picture-1": {
+        "mime": mime, "data": base64.b64encode(stream.getvalue()).decode("ascii"),
+    }}
+    model["surfaces"][0]["elements"] = [{
+        **element("image-1", "image"),
+        "text": "",
+        "name": "Imagem externa editável",
+        "asset_id": "picture-1",
+    }]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    result = tmp_path / f"native-{image_format.lower()}.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", result)
+    picture = Presentation(result).slides[0].shapes[0]
+    assert picture.shape_type == MSO_SHAPE_TYPE.PICTURE
+    assert picture.image.ext == expected_ext
+    assert picture.image.size == (5, 4)
+    assert picture.name == "Imagem externa editável"
+
+
+def test_native_images_reject_non_hashable_metadata(tmp_path):
+    """Untrusted JSON arrays and dictionaries must raise ValueError, not TypeError."""
+    from io import BytesIO
+    import base64
+    from PIL import Image
+
+    ctx = configure(Config(tmp_path))
+    base = deepcopy(ctx.fixed_documents.create_presentation()["content"])
+    stream = BytesIO()
+    Image.new("RGB", (2, 2), "red").save(stream, "PNG")
+    base["assets"] = {"asset-1": {
+        "mime": "image/png", "data": base64.b64encode(stream.getvalue()).decode("ascii"),
+    }}
+    base["surfaces"][0]["elements"] = [{
+        **element("image-1", "image"), "asset_id": "asset-1", "text": "",
+    }]
+    for field, bad in [("type", []), ("asset_id", []), ("asset_id", {})]:
+        invalid = deepcopy(base)
+        invalid["surfaces"][0]["elements"][0][field] = bad
+        with pytest.raises(ValueError):
+            validate(invalid)
+
+    invalid = deepcopy(base)
+    invalid["assets"]["asset-1"]["mime"] = ["image/png"]
+    with pytest.raises(ValueError):
+        validate(invalid)

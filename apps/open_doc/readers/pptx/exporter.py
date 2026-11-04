@@ -5,7 +5,10 @@ text or figures; keep source shapes intact for imported presentations.
 """
 from __future__ import annotations
 
+import base64
 from io import BytesIO
+
+from PIL import Image
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
@@ -38,7 +41,17 @@ class SlideDeckExporter:
         w = max(1, int(obj["width"] * width))
         h = max(1, int(obj["height"] * height))
         kind = obj["type"]
-        if kind == "text":
+        if kind == "image":
+            asset = self.model["assets"][obj["asset_id"]]
+            picture_data = BytesIO(base64.b64decode(asset["data"], validate=True))
+            if asset["mime"] == "image/webp":
+                with Image.open(picture_data) as webp:
+                    raster = BytesIO()
+                    webp.save(raster, format="PNG")
+                    raster.seek(0)
+                    picture_data = raster
+            shape = slide.shapes.add_picture(picture_data, left, top, w, h)
+        elif kind == "text":
             shape = slide.shapes.add_textbox(left, top, w, h)
             shape.fill.background()
         elif kind == "line":
@@ -60,7 +73,7 @@ class SlideDeckExporter:
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj.get("fill", "#DAE2FD"))
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
-        if kind != "text":
+        if kind not in {"text", "image"}:
             shape.line.width = Pt(obj.get("stroke_width", 1.5))
         shape.rotation = obj.get("rotation", 0)
         if obj.get("name"):

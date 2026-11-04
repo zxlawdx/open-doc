@@ -5,8 +5,13 @@ state isolated from the imported/source PPTX bytes.
 """
 from __future__ import annotations
 
+import base64
 import re
+from binascii import Error as Base64Error
 from collections.abc import Mapping
+from io import BytesIO
+
+from PIL import Image, UnidentifiedImageError
 
 from ..ink.validation import number
 
@@ -23,11 +28,49 @@ class SlideModelValidator:
         if not isinstance(value, str) or not HEX_COLOR.fullmatch(value):
             raise ValueError(f"Cor inválida em {label}.")
 
+    @staticmethod
+    def validate_assets(model):
+        """Embedded deck assets are stored once, referenced by native image elements.
+
+        No external path or URL may enter the persisted model.
+        """
+        assets = model.get("assets", {})
+        if not isinstance(assets, dict) or len(assets) > 128:
+            raise ValueError("Catálogo de imagens inválido.")
+        formats = {"image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}
+        for identifier, asset in assets.items():
+            if not isinstance(identifier, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", identifier):
+                raise ValueError("Identificador de imagem inválido.")
+            if (not isinstance(asset, Mapping) or
+                not isinstance(asset.get("mime"), str) or asset["mime"] not in formats):
+                raise ValueError("Formato de imagem não suportado.")
+            encoded = asset.get("data")
+            if not isinstance(encoded, str) or len(encoded) > 5_600_000:
+                raise ValueError("Imagem inválida ou muito grande.")
+            try:
+                payload = base64.b64decode(encoded, validate=True)
+            except (Base64Error, ValueError) as exc:
+                raise ValueError("Dados de imagem inválidos.") from exc
+            if not payload or len(payload) > 4 * 1024 * 1024:
+                raise ValueError("Imagem deve possuir no máximo 4 MB.")
+            try:
+                with Image.open(BytesIO(payload)) as picture:
+                    width, height = picture.size
+                    if (picture.format != formats[asset["mime"]] or
+                        width <= 0 or height <= 0 or
+                        width > 8000 or height > 8000 or width * height > 16_000_000):
+                        raise ValueError("Formato ou dimensões da imagem inválidos.")
+                    picture.verify()
+            except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+                raise ValueError("Arquivo de imagem inválido.") from exc
+        return assets
+
     def validate(self, model: dict) -> None:
         if not model.get("editable_deck", False):
             return
         if model.get("source_kind") != "pptx":
             raise ValueError("Um documento PDF não pode ser um editor de slides.")
+        assets = self.validate_assets(model)
         surfaces = model["surfaces"]
         if len(surfaces) > MAX_SLIDES:
             raise ValueError("O editor suporta no máximo 200 slides.")
@@ -44,17 +87,19 @@ class SlideModelValidator:
                 raise ValueError("Notas do apresentador inválidas.")
             ids = set()
             for element in elements:
-                self.validate_element(element, ids)
+                self.validate_element(element, ids, assets)
 
-    def validate_element(self, element: dict, ids: set[str]) -> None:
+    def validate_element(self, element: dict, ids: set[str], assets=None) -> None:
         if not isinstance(element, Mapping):
             raise ValueError("Elemento de slide inválido.")
         uid = element.get("id")
         if not isinstance(uid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", uid) or uid in ids:
             raise ValueError("Identificador de elemento inválido ou duplicado.")
         ids.add(uid)
-        if element.get("type") not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond"}:
+        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image"}:
             raise ValueError("Tipo de elemento não suportado.")
+        if element.get("type") == "image" and (not isinstance(element.get("asset_id"), str) or element["asset_id"] not in (assets or {})):
+            raise ValueError("Imagem não encontrada no catálogo de recursos.")
         x = number(element.get("x"), 0, 1)
         y = number(element.get("y"), 0, 1)
         w = number(element.get("width"), .01, 1)
