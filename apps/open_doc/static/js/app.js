@@ -96,7 +96,7 @@
       }
       for (const file of items) {
         const row = document.createElement('li'); row.className='library-row';
-        row.dataset.fileFormat = notes ? 'docx' : String(file.type || file.name?.split('.').pop() || 'docx').toLowerCase();
+        row.dataset.fileFormat = notes ? String(file.source_kind || 'docx').toLowerCase() : String(file.type || file.name?.split('.').pop() || 'docx').toLowerCase();
         const icon = document.createElement('span'); icon.className = 'library-file-icon'; icon.textContent = notes ? 'DOC' : file.type.toUpperCase();
         const info = document.createElement('div'); info.className='library-file-main';
         const editable=notes || Boolean(file.capabilities?.open);
@@ -109,7 +109,7 @@
         const date = document.createElement('small'); date.className='library-file-meta';
         date.textContent = notes ? new Date(file.updated_at).toLocaleString('pt-BR') : editable ? 'Abrir como novo documento' : 'Arquivo importado · leitura ainda não disponível';
         info.append(name, date);
-        const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? 'Documento local' : file.type.toUpperCase();
+        const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? (file.source_kind==='pptx'?'Apresentação local':file.source_kind==='pdf'?'PDF local':'Documento local') : file.type.toUpperCase();
         row.append(icon, info, kind);
         if(notes){const details=document.createElement('details'),summary=document.createElement('summary');details.className='library-file-actions';summary.textContent='⋯';summary.setAttribute('aria-haspopup','menu');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);const menu=document.createElement('div');menu.className='document-action-menu';menu.setAttribute('role','menu');details.appendChild(menu);
           for(const [operation,label] of [['rename','Renomear'],['duplicate','Duplicar'],['delete','Excluir']]){const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');if(operation==='delete'){button.className='danger-action';menu.appendChild(document.createElement('hr'));}button.addEventListener('click',()=>operate(async()=>{
