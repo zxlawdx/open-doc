@@ -151,6 +151,7 @@
       this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
       this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.current=0;this.drag=null;
+      this.pan=null;this.spacePressed=false;
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
       this.inspector=document.createElement("aside");this.inspector.className="slide-inspector";this.inspector.hidden=true;
       this.inspector.setAttribute("aria-label","Propriedades e camadas dos slides");
@@ -192,10 +193,25 @@
       this._button("Refazer",()=>this.redo());
     }
     _bindEvents(){
-      this.scroller.addEventListener("pointerdown",event=>this._start(event),{signal:this.signal});
-      window.addEventListener("pointermove",event=>this._drag(event),{signal:this.signal});
-      window.addEventListener("pointerup",event=>this._finish(event),{signal:this.signal});
-      window.addEventListener("pointercancel",()=>{this.drag=null;this.render();},{signal:this.signal});
+      this.scroller.addEventListener("pointerdown",event=>{
+        if(this._beginPan(event))return;
+        this._start(event);
+      },{signal:this.signal});
+      window.addEventListener("pointermove",event=>{
+        if(this._movePan(event))return;
+        this._drag(event);
+      },{signal:this.signal});
+      window.addEventListener("pointerup",event=>{
+        if(this._endPan(event))return;
+        this._finish(event);
+      },{signal:this.signal});
+      window.addEventListener("pointercancel",()=>{
+        this._endPan();this.drag=null;this.render();
+      },{signal:this.signal});
+      this.root.addEventListener("keyup",event=>{
+        if(event.key===" "){this.spacePressed=false;
+          if(!this.pan)this.scroller.style.cursor="";}
+      },{signal:this.signal});
       this.scroller.addEventListener("click",event=>{
         if(!this.active)return;
         const surface=event.target.closest(".fixed-surface");
@@ -218,6 +234,8 @@
       this.root.addEventListener("keydown",event=>{
         if(!this.active)return;
         if(event.target.closest("input,textarea,[contenteditable=true]"))return;
+        if(event.key===" "){event.preventDefault();this.spacePressed=true;
+          if(!this.pan)this.scroller.style.cursor="grab";return;}
         if(event.key==="Escape"){this.selected=null;this.render();return;}
         if(!this.selected)return;
         if(event.key==="Delete"||event.key==="Backspace"){
@@ -250,7 +268,8 @@
     }
     deactivate(){
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
-      this.selected=null;this.drag=null;this.inspector.replaceChildren();
+      this.selected=null;this.drag=null;this.pan=null;
+      this.spacePressed=false;this.scroller.style.cursor="";this.inspector.replaceChildren();
     }
     onPageChange(index){
       this.current=index;if(this.selected&&!this.getModel().surfaces[index].elements.some(o=>o.id===this.selected))this.selected=null;
@@ -418,6 +437,26 @@
       }
       const notes=document.createElement("h4");notes.textContent="Notas do apresentador";this.inspector.append(notes);
       this._property("Notas",slide.notes||"","textarea",value=>this.commands.updateSlide(this.current,{notes:value.slice(0,5000)}));
+    }
+    _beginPan(event){
+      if(!this.active||!(event.button===1||(event.button===0&&this.spacePressed)))return false;
+      this.pan={startX:event.clientX,startY:event.clientY,
+        left:this.scroller.scrollLeft,top:this.scroller.scrollTop};
+      this.scroller.style.cursor="grabbing";
+      event.preventDefault();event.stopPropagation();
+      return true;
+    }
+    _movePan(event){
+      if(!this.pan||!this.active)return false;
+      this.scroller.scrollLeft=this.pan.left-(event.clientX-this.pan.startX);
+      this.scroller.scrollTop=this.pan.top-(event.clientY-this.pan.startY);
+      event.preventDefault();return true;
+    }
+    _endPan(event){
+      if(!this.pan)return false;
+      this.pan=null;
+      this.scroller.style.cursor=this.spacePressed?"grab":"";
+      event?.preventDefault();return true;
     }
     _start(event){
       if(!this.active||event.button!==0)return;
