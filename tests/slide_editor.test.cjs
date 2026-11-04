@@ -132,7 +132,7 @@ test('local SVG toolbar icons, expanded shape catalog and editable layer names',
  assert.equal(surface.querySelectorAll('.slide-vector-shape').length,5);
  assert.ok(surface.querySelector('.slide-object-round_rect rect[rx]'));
  assert.ok(surface.querySelector('.slide-object-line line'));
- assert.ok(surface.querySelector('.slide-object-arrow path'));
+ assert.ok(surface.querySelector('.slide-object-arrow polygon'));
  assert.equal(surface.querySelectorAll('.slide-object polygon').length,2);
  for(const label of ['Retângulo','Elipse','Linha','Seta']){
    const button=Array.from(q.controls.querySelectorAll('.slide-studio-toolbar button'))
