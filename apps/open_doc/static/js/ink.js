@@ -155,8 +155,12 @@
    // differently across QtWebEngine/Chromium versions. Bind the ink viewport
    // to the physical page border box, not to the writable text inset.
    // offsetWidth/Height stay in layout pixels when the page is zoomed.
-   svg.style.left='0px';svg.style.top='0px';svg.style.right='auto';svg.style.bottom='auto';
-   svg.style.width=surface.clientWidth+'px';svg.style.height=surface.clientHeight+'px';
+   // Match the border box, including borders and padding, in *layout* px.
+   // CSS transforms/zoom then apply equally to the page and the SVG.
+   // Using clientWidth/clientHeight alone underfills bordered pages in Qt.
+   svg.style.left=(-surface.clientLeft)+'px';svg.style.top=(-surface.clientTop)+'px';
+   svg.style.right='auto';svg.style.bottom='auto';
+   svg.style.width=surface.offsetWidth+'px';svg.style.height=surface.offsetHeight+'px';
    svg.style.pointerEvents=mode==='cursor'?'none':'auto';
    if(active?.svg===svg)continue;
    svg.replaceChildren();for(const stroke of layer?.strokes || []){const p=document.createElementNS(NS,'path');p.setAttribute('d',path(stroke));p.setAttribute('fill',stroke.color);p.setAttribute('opacity',stroke.opacity);svg.append(p);}
