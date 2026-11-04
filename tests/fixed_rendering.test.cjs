@@ -83,3 +83,55 @@ test('PDF search returns a distant page incrementally with bounded workers and c
  input.value='';input.dispatchEvent(new w.Event('input',{bubbles:true}));
  assert.ok(statuses.some(s=>s.includes('pesquisando')),'user receives incremental progress');
 });
+
+test('PDF page extraction UI validates inclusive range and invokes the native bridge',async t=>{
+ const dom=new JSDOM(html(),{runScripts:'outside-only'}),w=dom.window;
+ const root=w.document.querySelector('[data-app]'),abort=new w.AbortController();
+ t.after(()=>{abort.abort();w.close();});
+ w.console.error=()=>{};
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ w.HTMLCanvasElement.prototype.getContext=()=>({});
+ w.IntersectionObserver=class{observe(){}disconnect(){}};
+ w.eval(source('compat.js'));w.eval(source('document_model.js'));
+ w.eval(source('history.js'));w.eval(source('recovery.js'));
+ let extracted=null;const statuses=[];
+ w.pywebview={api:{
+   set_dirty:async()=>{},
+   extract_pdf_pages:async(...args)=>{
+     extracted=args;
+     return {path:'/tmp/pages.pdf',pages:2,revision:1};
+   }
+ }};
+ const page={
+   getViewport:()=>({width:400,height:500,scale:1}),
+   render:()=>({promise:Promise.resolve(),cancel(){}}),
+   getTextContent:async()=>({items:[]}),getAnnotations:async()=>[],cleanup(){}
+ };
+ const pdf={numPages:4,getPage:async()=>page,getOutline:async()=>[],destroy(){}};
+ w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',
+   getDocument:()=>({promise:Promise.resolve(pdf)}),
+   TextLayer:class{render(){return Promise.resolve();}}};
+ w.eval(source('fixed_document.js'));
+ const editor=w.OpenDocFixedDocument.create({
+   root,signal:abort.signal,token:'t',asset:s=>'http://localhost/'+s,
+   request:async()=>({}),status:s=>statuses.push(s)
+ });
+ const surfaces=Array.from({length:4},(_,index)=>({
+   index,width_pt:300,height_pt:400,strokes:[],text_overlays:[]
+ }));
+ await editor.load({id:'pdf-range',title:'PDF',revision:1,source_kind:'pdf',
+   capabilities:{preview:true},content:{source_kind:'pdf',surfaces}});
+ const button=Array.from(root.querySelectorAll('.fixed-controls button'))
+   .find(b=>b.textContent==='Extrair páginas');
+ assert.ok(button&&!button.hidden,'PDF extraction is available in PDF reader');
+ let answers=['2','3'];w.prompt=()=>answers.shift();
+ button.click();
+ for(let i=0;i<100&&!extracted;i++)await new Promise(resolve=>setTimeout(resolve,5));
+ assert.deepEqual(extracted,['pdf-range',1,2,3]);
+ assert.ok(statuses.some(s=>s.includes('pages.pdf')));
+ extracted=null;answers=['3','2'];
+ button.click();
+ await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(extracted,null,'invalid page ranges never enter native bridge');
+ assert.ok(statuses.some(s=>s.includes('intervalo de páginas válido')));
+});
