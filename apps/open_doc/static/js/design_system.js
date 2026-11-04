@@ -123,7 +123,7 @@
         if(name)button.prepend(localIcon(this.root,name));
         button.dataset.designIcon="true";
       });
-      const fixedNames={"Anterior":"chevron-left","Próxima":"chevron-right","Buscar":"search"};
+      const fixedNames={"Anterior":"chevron-left","Próxima":"chevron-right","Buscar":"search","Nota adesiva":"comment"};
       this.root.querySelectorAll(".fixed-controls button").forEach(button=>{
         if(button.dataset.designIcon)return;
         const name=fixedNames[button.textContent.trim()];
@@ -150,9 +150,11 @@
       const exportDocx=this.root.querySelector("[data-export-shortcut=docx]");
       const exportMd=this.root.querySelector("[data-export-shortcut=md]");
       const exportPdf=this.root.querySelector("[data-export-shortcut=pdf]");
+      const exportPptx=this.root.querySelector("[data-export-shortcut=pptx]");
       if(exportDocx)exportDocx.hidden=fixed;
       if(exportMd)exportMd.hidden=fixed;
       if(exportPdf)exportPdf.hidden=source==="pptx";
+      if(exportPptx)exportPptx.hidden=source!=="pptx";
       this.root.querySelectorAll("[data-view-shortcut]").forEach(button=>{
         button.dataset.active=String(!fixed&&button.dataset.viewShortcut===(this.root.dataset.pageMode||"pages"));
         button.setAttribute("aria-pressed",button.dataset.active);
