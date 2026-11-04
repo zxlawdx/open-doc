@@ -76,7 +76,12 @@
     root.querySelector('[data-document-body]').hidden = home || root.dataset.documentKind==='fixed';
     design?.sync();
     if (home) refresh().catch(error => status(error.message));
-    else { layout?.measure(); editor?.refresh(); }
+    else {
+      layout?.measure(); editor?.refresh();
+      // The view was hidden during document.load(). Fixed slides must only
+      // compute fit-to-window once this canvas has measurable dimensions.
+      root.dispatchEvent(new CustomEvent('open-doc:view-ready'));
+    }
   }
   async function operate(operation) {
     if (busy || !editor || destroyed) return;
