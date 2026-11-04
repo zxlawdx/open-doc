@@ -102,8 +102,13 @@ test('ink and fixed-reader commands gain icons without duplicating controls',t=>
  s.root.append(toolbar);
  const fixed=s.w.document.createElement('div');fixed.className='fixed-controls';fixed.innerHTML='<button>Anterior</button><button>Buscar</button>';
  s.root.append(fixed);
+ const menu=s.w.document.createElement('div');menu.className='semantic-selection-menu';
+ menu.innerHTML='<button>Destacar</button><button>Comentar</button><button>Copiar</button>';
+ s.root.append(menu);
  s.ui.sync();s.ui.sync();
  assert.equal(toolbar.querySelectorAll('svg').length,2);
  assert.equal(fixed.querySelectorAll('svg').length,2);
+ assert.equal(menu.querySelectorAll('svg').length,3);
+ assert.equal(menu.querySelector('button use').getAttribute('href').endsWith('#highlighter'),true);
  assert.equal(toolbar.querySelector('[data-ink-mode=pen] use').getAttribute('href').endsWith('#pen'),true);
 });
