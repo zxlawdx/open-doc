@@ -150,7 +150,14 @@ class FixedDocumentService:
                 surface["elements"] = []
                 surface["background"] = "#FFFFFF"
                 surface["notes"] = ""
-            return self.save(note["id"], title, model, note["revision"])
+            # Only this trusted server-side creation path can mark the source
+            # as an editable blank deck; regular imports remain immutable.
+            with self.documents._lock, self.documents._connect() as connection:
+                connection.execute(
+                    "UPDATE fixed_documents SET title=?,content_json=? WHERE id=?",
+                    (title, serialize(model), note["id"]),
+                )
+            return self.select(note["id"])
         finally:
             temporary.unlink(missing_ok=True)
 
@@ -244,9 +251,9 @@ class FixedDocumentService:
                 [(s["width_pt"], s["height_pt"]) for s in content["surfaces"]]
                 != [(s["width_pt"], s["height_pt"]) for s in old["content"]["surfaces"]]
             )
-            bad_geometry |= content.get("editable_deck") is True and (
-                old["source_kind"] != "pptx" or len(content["surfaces"]) != 1
-            )
+            # Never promote an imported PPTX into an editable source through
+            # a normal document/save request. That could discard OOXML parts.
+            bad_geometry |= content.get("editable_deck") is True
         if origin_changed or bad_geometry:
             raise ValueError("Não altere a origem ou as dimensões do documento.")
         return old
