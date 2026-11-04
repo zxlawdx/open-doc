@@ -77,3 +77,23 @@ def test_prepare_uses_vela_collector_without_node(monkeypatch, tmp_path: Path):
     assert called["allow_install"] is False
     assert "semantic-overlay" in css.read_text("utf-8")
     assert "--tw-" in (tmp_path / "staticfiles/css/vela.bundle.css").read_text("utf-8")
+
+
+def test_real_vela_offline_collectstatic_runs_without_node(tmp_path: Path, monkeypatch):
+    """Exercise actual Vela copy/manifest flow with PATH containing no Node."""
+    from shutil import copytree
+    from tools.check_runtime_assets import check
+
+    for rel in ["apps/open_doc/static", "apps/open_doc/styles"]:
+        copytree(ROOT / rel, tmp_path / rel)
+    for rel in ["tools/build_vendor_js.mjs", "package-lock.json"]:
+        dest = tmp_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        copyfile(ROOT / rel, dest)
+
+    monkeypatch.setenv("PATH", "")
+    prepare(tmp_path)
+    assert check(tmp_path)["target"] == "chrome83"
+    generated = tmp_path / "staticfiles/open_doc/css/main.css"
+    assert generated.is_file()
+    assert "semantic-overlay" in generated.read_text(encoding="utf-8")
