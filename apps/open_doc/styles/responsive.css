@@ -122,3 +122,10 @@
 }
 
 @media(max-width:800px){.fixed-document{grid-template-columns:110px minmax(0,1fr)}.fixed-scroll{padding:12px}.ink-toolbar{gap:3px}}
+
+/* Semantic PDF reader in narrow desktop windows. */
+@media(max-width:760px){
+  .fixed-document{grid-template-columns:140px minmax(0,1fr)}
+  .fixed-scroll{padding:12px}
+  .fixed-sidebar{padding:5px}
+}

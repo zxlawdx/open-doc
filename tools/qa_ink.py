@@ -86,6 +86,60 @@ def main():
                 in PdfReader(target).pages[0].extract_text()
             )
             print("QT_PDF_INK_RECOGNITION_EXPORT_OK", flush=True)
+            # End-to-end semantic selection in the distributed QtWebEngine.
+            window.evaluate_js(
+                "document.querySelector('[data-ink-mode=cursor]').click();"
+                "document.querySelector('.fixed-surface[data-page-index=\\\"0\\\"]').scrollIntoView();"
+            )
+            wait(window, "document.querySelector('.fixed-surface[data-page-index=\\\"0\\\"] .textLayer span')!==null")
+            selected = window.evaluate_js(
+                "(function(){"
+                "var node=document.querySelector('.fixed-surface[data-page-index=\\\"0\\\"] .textLayer span');"
+                "var range=document.createRange();range.selectNodeContents(node);"
+                "var selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);"
+                "document.querySelector('.fixed-scroll').dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));"
+                "return selection.toString().trim().length>0;"
+                "})()"
+            )
+            assert selected, "A seleção de texto não funcionou no QtWebEngine."
+            wait(
+                window,
+                "document.querySelector('.semantic-selection-menu')?.hidden===false",
+            )
+            window.evaluate_js(
+                "document.querySelector('.semantic-selection-menu button').click()"
+            )
+            wait(window, "document.querySelectorAll('.semantic-fragment').length>0")
+            window.evaluate_js(
+                "(function(){"
+                "var input=document.querySelector('.semantic-annotation-editor textarea');"
+                "input.value='Comentário testado no Qt';"
+                "input.dispatchEvent(new Event('change',{bubbles:true}));"
+                "})()"
+            )
+            saved_annotation = None
+            for _ in range(80):
+                updated = services().fixed_documents.get(note["id"])
+                annotations = updated["content"].get("annotations", [])
+                if annotations and annotations[0]["comment"] == "Comentário testado no Qt":
+                    saved_annotation = annotations[0]
+                    break
+                time.sleep(0.1)
+            assert saved_annotation, "Comentário sem persistência SQLite."
+            native = services().config.root / "native-semantic.pdf"
+            services().fixed_documents.export(
+                note["id"], updated["revision"], "pdf", native
+            )
+            marks = [
+                item.get_object()
+                for item in PdfReader(native).pages[0]["/Annots"]
+            ]
+            assert any(
+                item["/Subtype"] == "/Highlight"
+                and item["/Contents"] == "Comentário testado no Qt"
+                for item in marks
+            )
+            print("QT_PDF_SEMANTIC_ANNOTATION_EXPORT_OK", flush=True)
         except Exception as e:
             import traceback
 

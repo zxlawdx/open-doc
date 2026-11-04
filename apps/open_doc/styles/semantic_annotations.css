@@ -1,0 +1,31 @@
+/* Text selection annotations live below the selectable PDF text layer. */
+.semantic-overlays{position:absolute;inset:0;z-index:2;pointer-events:none}
+.semantic-fragment{position:absolute;box-sizing:border-box;pointer-events:none}
+.semantic-fragment.underline{border-bottom:2px solid}
+.semantic-fragment.strikeout::after{content:"";position:absolute;left:0;right:0;top:50%;border-top:2px solid; border-color:inherit}
+.semantic-selection-menu{
+  position:fixed;z-index:200;display:flex;align-items:center;flex-wrap:wrap;
+  gap:4px;max-width:min(440px,calc(100vw - 16px));padding:7px;
+  background:var(--color-panel);border:1px solid var(--color-border);
+  border-radius:8px;box-shadow:0 8px 25px #0004
+}
+.semantic-selection-menu[hidden]{display:none}
+.semantic-selection-menu button,.semantic-annotation-editor button{
+  border:1px solid var(--color-border);color:var(--color-text-primary);
+  background:var(--color-panel);border-radius:5px;padding:5px 7px;cursor:pointer
+}
+.semantic-selection-menu button:hover,.semantic-annotation-editor button:hover{
+  background:var(--color-workspace)
+}
+.semantic-selection-menu input[type=color]{width:32px;height:30px;padding:1px}
+.fixed-document{grid-template-columns:220px minmax(0,1fr)}
+.semantic-annotation-panel{border-top:1px solid var(--color-border);margin-top:8px;padding-top:8px;min-width:0}
+.semantic-annotation-panel h3{font-size:13px;font-weight:650;margin:0 0 8px}
+.semantic-annotation-list{display:flex;flex-direction:column;gap:5px;max-height:230px;overflow:auto}
+.semantic-annotation-list button{width:100%;min-width:0;text-align:left;overflow-wrap:anywhere;font-size:12px}
+.semantic-annotation-list button[aria-pressed=true]{background:var(--color-workspace)}
+.semantic-annotation-editor{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.semantic-annotation-editor p{font-size:12px;line-height:1.45;margin:0;overflow-wrap:anywhere}
+.semantic-annotation-editor label{display:flex;flex-direction:column;gap:5px;font-size:12px}
+.semantic-annotation-editor textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:72px;color:var(--color-text-primary);background:var(--color-panel);border:1px solid var(--color-border);border-radius:5px}
+.semantic-annotation-editor input[type=color]{width:40px;height:30px}

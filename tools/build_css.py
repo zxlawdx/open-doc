@@ -29,6 +29,7 @@ STYLE_ORDER = (
     "library.css",
     "statusbar.css",
     "ink.css",
+    "semantic_annotations.css",
     "states.css",
     "responsive.css",
     "utilities.css",

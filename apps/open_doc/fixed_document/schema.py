@@ -9,4 +9,5 @@ def create(kind, source_sha256, surfaces):
         "source_kind": kind,
         "source_sha256": source_sha256,
         "surfaces": surfaces,
+        "annotations": [],
     }
