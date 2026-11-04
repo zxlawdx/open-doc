@@ -55,7 +55,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  }
  assert.equal(result.hit,result.ellipseId,'Top SVG shape must be selectable');
  assert.equal(result.rect.fill,'#DAE2FD');
- assert.equal(result.ellipse.fill,'#F4B183');
+ assert.equal(result.ellipse.fill.toUpperCase(),'#F4B183');
  fs.mkdirSync(destination,{recursive:true});
  const png=await send('Page.captureScreenshot',{format:'png'});
  const file=path.join(destination,'slide-svg-shapes.png');
