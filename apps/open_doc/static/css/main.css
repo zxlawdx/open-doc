@@ -1147,6 +1147,16 @@ body {
 .semantic-annotation-editor textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:72px;color:var(--color-text-primary);background:var(--color-panel);border:1px solid var(--color-border);border-radius:5px}
 .semantic-annotation-editor input[type=color]{width:40px;height:30px}
 
+/* PDF review tools: selection notes, filters and an accessible side panel. */
+.semantic-annotation-tools{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;margin:10px 0}
+.semantic-annotation-tools input,.semantic-annotation-tools select{width:100%;min-width:0;border:1px solid var(--color-border);background:var(--color-panel);color:var(--color-text-primary);padding:8px;border-radius:9px}
+.semantic-annotation-tools .semantic-summary{border:1px solid var(--color-primary);color:var(--color-primary);border-radius:9px;padding:8px;background:var(--color-primary-soft);font-weight:600}
+.semantic-note-pin{position:absolute!important;z-index:12;display:grid;place-items:center;width:24px;height:24px;border-radius:8px 8px 8px 2px;border:1px solid rgba(0,0,0,.17);box-shadow:0 3px 9px rgba(0,0,0,.2);cursor:pointer;pointer-events:auto!important;color:#181b1f;font-size:16px}
+.semantic-note-pin:hover,.semantic-note-pin:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px;transform:scale(1.08)}
+.semantic-empty{padding:10px;margin:0;color:var(--color-text-secondary);font-size:12px}
+.semantic-annotation-editor input[type=range]{width:100%;accent-color:var(--color-primary)}
+.open-doc .fixed-controls button[aria-pressed=true]{color:var(--color-primary);background:var(--color-primary-soft)}
+
 /* Shared state vocabulary. A focus fallback also works without :focus-visible. */
 .open-doc button,
 .open-doc summary,
