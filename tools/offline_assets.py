@@ -11,14 +11,19 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
+# A execução "python tools/offline_assets.py prepare" não coloca a raiz do
+# repositório no sys.path. Use o mesmo bootstrap do manage.py/Vela.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from tools.build_css import STYLE_ORDER
 from tools.check_runtime_assets import check, source_hash, validate_vendor
-
-ROOT = Path(__file__).resolve().parents[1]
 METADATA = "open-doc-prebuilt.json"
 FORMAT = "open-doc-prebuilt-v1"
 MAX_TOTAL_BYTES = 180 * 1024 * 1024
