@@ -340,3 +340,35 @@ test('Shift selection supports batch alignment and one-step deletion without cha
  assert.equal(q.model().surfaces[0].elements.length,0);
  assert.equal(q.versions.length,before+2,'delete selected objects is one history step');
 });
+
+test('Inspector non-destructive picture crop preserves geometry, history and image source',t=>{
+ const q=setup(t);
+ const id=q.editor.commands.insertImage(0,{mime:'image/png',data:'YQ==',name:'Foto'});
+ q.editor._selectObject(id);q.editor.render();
+ const original=q.model().surfaces[0].elements[0],originalAsset=original.asset_id;
+ const before=q.versions.length;
+ const inputFor=(label)=>Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(el=>el.textContent.includes(label))?.querySelector('input');
+ const left=inputFor('Recorte esquerdo (%)');
+ assert.ok(left,'crop controls must appear only for selected pictures');
+ left.value='25';left.dispatchEvent(new q.w.Event('change'));
+ let obj=q.model().surfaces[0].elements[0];
+ assert.equal(obj.crop_left,.25);
+ assert.equal(q.versions.length,before+1);
+ assert.equal(obj.asset_id,originalAsset);
+ assert.equal(obj.width,original.width);
+ assert.equal(obj.height,original.height);
+ const crop=q.scroller.querySelector('.fixed-surface .slide-image-crop');
+ const picture=crop.querySelector('img');
+ assert.equal(crop.style.overflow,'hidden');
+ assert.ok(parseFloat(picture.style.width)>130);
+ assert.ok(parseFloat(picture.style.left)<-30,'crop moves original pixels behind viewport');
+ const right=inputFor('Recorte direito (%)');
+ right.value='90';right.dispatchEvent(new q.w.Event('change'));
+ obj=q.model().surfaces[0].elements[0];
+ assert.ok(Math.abs(obj.crop_right-.70)<.00001,'opposing crop is capped below 95%');
+ assert.ok(obj.crop_left+obj.crop_right<=.95000001);
+ assert.equal(q.versions.length,before+2);
+ assert.equal(q.scroller.querySelector('.fixed-surface .slide-image-crop img').src,
+   'data:image/png;base64,YQ==','original picture data remains intact');
+});
