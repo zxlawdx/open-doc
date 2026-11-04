@@ -43,9 +43,9 @@ def _incompatible_vela(cause: Exception | None = None) -> None:
         "vela-framework",
     )
     raise SystemExit(
-        "Vela Framework instalado é antigo ou incompatível com o Open Doc.\\n"
-        "O config/wsgi.py do projeto existe; não crie outro.\\n"
-        "Reinstale apenas a versão do Vela fixada no requirements.txt:\\n"
+        "Vela Framework instalado é antigo ou incompatível com o Open Doc.\n"
+        "O config/wsgi.py do projeto existe; não crie outro.\n"
+        "Reinstale apenas a versão do Vela fixada no requirements.txt:\n"
         f'python -m pip install --upgrade --force-reinstall --no-deps "{pin}"'
     ) from cause
 
