@@ -1,13 +1,76 @@
-<!-- ============ REAL RECENT DOCUMENTS ============ -->
+<!-- Real Open Doc library; Ofício-inspired cards, no fabricated cloud state. -->
 <main class="home" data-library hidden aria-labelledby="recent-title">
   <div class="home-inner">
-    <p class="home-product">OPEN DOC</p>
-    <h1 id="recent-title">O que vamos escrever hoje?</h1>
-    <p class="home-intro">Um espaço para suas ideias. Seus documentos ficam no seu computador.</p>
-    <div class="home-actions"><button class="primary-button" data-new>Novo documento</button><button data-import>Abrir / importar</button></div>
-    <div class="recent-heading"><h2>Recentes</h2><span>Armazenamento local</span></div>
-    <ul data-documents class="document-list" aria-label="Documentos recentes"></ul>
-    <div class="recent-heading"><h2>Arquivos importados</h2></div>
-    <ul data-files class="document-list" aria-label="Biblioteca local"></ul>
+    <div class="home-hero">
+      <div>
+        <p class="home-product">BIBLIOTECA DO OPEN DOC</p>
+        <h1 id="recent-title">Seus documentos, seu espaço.</h1>
+        <p class="home-intro">Escreva, leia e anote com seus arquivos armazenados neste dispositivo.</p>
+      </div>
+      <button type="button" data-new><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg> Novo documento</button>
+    </div>
+    <section class="home-status-banner" aria-label="Privacidade dos arquivos">
+      <span class="status-symbol"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#shield"></use></svg></span>
+      <div><strong>Armazenamento local e privado</strong><p>Seus documentos permanecem neste computador. Nenhuma sincronização em nuvem é necessária.</p></div>
+      <span class="home-status-badge">100% local</span>
+    </section>
+
+    <label class="home-search">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#search"></use></svg>
+      <span class="sr-only">Pesquisar na biblioteca de documentos</span>
+      <input type="search" data-library-search placeholder="Buscar documentos, apresentações ou notas…" autocomplete="off">
+      <button type="button" class="search-clear" data-search-clear aria-label="Limpar pesquisa" title="Limpar pesquisa"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#close"></use></svg></button>
+    </label>
+
+    <div class="home-filters" role="group" aria-label="Filtrar formatos dos documentos">
+      <button type="button" data-library-filter="all" aria-pressed="true">Todos <span data-library-count>0</span></button>
+      <button type="button" data-library-filter="docx" aria-pressed="false"><span class="format-dot"></span>DOCX / ODT</button>
+      <button type="button" data-library-filter="pdf" aria-pressed="false"><span class="format-dot"></span>PDF</button>
+      <button type="button" data-library-filter="pptx" aria-pressed="false"><span class="format-dot"></span>PPTX / ODP</button>
+      <button type="button" data-library-filter="md" aria-pressed="false"><span class="format-dot"></span>TXT / MD</button>
+    </div>
+
+    <section aria-labelledby="quick-create-title" class="home-create-section">
+      <div class="home-section-heading"><h2 id="quick-create-title">Criar e abrir</h2><span class="heading-note">Acesso rápido</span></div>
+      <div class="home-create-grid">
+        <button class="home-create-card" data-new>
+          <span class="home-card-icon"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#file-text"></use></svg></span>
+          <span><strong>Documento de texto</strong><small>Escrever artigos, relatórios e ofícios</small></span>
+        </button>
+        <button class="home-create-card" data-import>
+          <span class="home-card-icon pdf"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#pdf"></use></svg></span>
+          <span><strong>Anotar PDF</strong><small>Importar, ler, destacar e assinar com tinta</small></span>
+        </button>
+        <button class="home-create-card" data-import>
+          <span class="home-card-icon slides"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#slides"></use></svg></span>
+          <span><strong>Apresentações</strong><small>Importar e visualizar slides PPTX</small></span>
+        </button>
+        <button class="home-create-card" disabled title="Digitalização por câmera ainda não disponível neste aplicativo">
+          <span class="home-card-icon scan"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#scan"></use></svg></span>
+          <span><strong>Digitalizar documento</strong><small>Recurso planejado, ainda indisponível</small></span>
+        </button>
+      </div>
+    </section>
+
+    <section data-library-recent aria-labelledby="recent-files-title">
+      <div class="recent-heading"><h2 id="recent-files-title">Documentos recentes</h2><span>Disponíveis no dispositivo</span></div>
+      <ul data-documents class="document-list" aria-label="Documentos recentes"></ul>
+    </section>
+    <section data-library-imports aria-labelledby="imported-files-title">
+      <div class="recent-heading"><h2 id="imported-files-title">Arquivos importados</h2><span>Biblioteca local</span></div>
+      <ul data-files class="document-list" aria-label="Arquivos importados"></ul>
+    </section>
+    <p data-filter-empty class="library-empty" hidden role="status">Nenhum arquivo corresponde à pesquisa.</p>
   </div>
+  <nav class="home-bottom-nav" aria-label="Navegação da biblioteca">
+    <button type="button" data-library-nav="home" aria-current="page"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#home"></use></svg><span>Início</span></button>
+    <button type="button" data-library-nav="recent"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#clock"></use></svg><span>Recentes</span></button>
+    <button type="button" data-library-nav="files"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg><span>Arquivos</span></button>
+    <button type="button" data-action="theme"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#settings"></use></svg><span>Aparência</span></button>
+  </nav>
+  <div class="home-quick-menu" data-create-menu hidden role="menu" aria-label="Criar ou importar documento">
+    <button type="button" data-new role="menuitem"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#file-text"></use></svg> Novo documento</button>
+    <button type="button" data-import role="menuitem"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg> Abrir arquivo</button>
+  </div>
+  <button type="button" class="home-fab" data-create-trigger aria-expanded="false" aria-label="Ações rápidas de criação"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg></button>
 </main>
