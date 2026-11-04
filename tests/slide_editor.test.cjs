@@ -40,6 +40,13 @@ test('new slides support text and native shape objects with editable properties'
  clickLabel(q.controls,'Texto');clickLabel(q.controls,'Retângulo');clickLabel(q.controls,'Elipse');
  assert.equal(q.model().surfaces[0].elements.length,3);
  assert.equal(q.scroller.querySelectorAll('.slide-object').length,3);
+ const slide=q.scroller.querySelector('.fixed-surface');
+ const shape=q.scroller.querySelector('.slide-object-rect');
+ assert.equal(shape.parentElement,slide,'shapes must attach directly to slide');
+ assert.equal(shape.style.position,'absolute');
+ assert.equal(shape.style.left,'256px');
+ assert.equal(shape.style.width,'345.6px');
+ assert.equal(shape.style.zIndex,'3');
  const layer=q.scroller.querySelector('.slide-object-layer');
  assert.equal(layer.style.width,'100%','Windows Qt/Chromium 83 must have nonzero shape parent width');
  assert.equal(layer.style.height,'100%','Windows Qt/Chromium 83 must have nonzero shape parent height');
