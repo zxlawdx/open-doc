@@ -50,8 +50,9 @@
       }
       if(!quads.length)return hide();
       pending={index,text,quads};
-      const bounds=range.getBoundingClientRect(),width=menu.offsetWidth || 350;
+      const bounds=range.getBoundingClientRect();
       menu.hidden=false;
+      const width=menu.offsetWidth || 350;
       menu.style.left=Math.max(8,Math.min(window.innerWidth-width-8,bounds.left))+'px';
       menu.style.top=Math.max(8,Math.min(window.innerHeight-48,bounds.bottom+8))+'px';
     }
