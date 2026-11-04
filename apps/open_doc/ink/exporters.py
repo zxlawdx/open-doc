@@ -5,6 +5,7 @@ from fpdf import FPDF
 from pypdf import PdfReader, PdfWriter
 from .raster import render_layer
 from ..services.preferences_service import PROJECT_ROOT
+from ..fixed_document.annotations import add_native_annotations, rotation_transform
 
 
 def overlay_pdf(surface, fonts=None):
@@ -38,12 +39,15 @@ def overlay_pdf(surface, fonts=None):
 
 def export_pdf(source, model, destination, fonts=None):
     writer = PdfWriter(clone_from=source)
+    transforms = {}
     for index, page in enumerate(writer.pages):
-        # Normalize rotation into content before merging in visual coordinates.
-        if page.rotation:
-            page.transfer_rotation_to_content()
         surface = model["surfaces"][index]
         if surface.get("strokes") or surface.get("text_overlays"):
+            # Only flatten rotation for pages that need a raster/text overlay.
+            # Native annotations must follow the same transformation.
+            if page.rotation:
+                transforms[index] = rotation_transform(page)
+                page.transfer_rotation_to_content()
             overlay = PdfReader(BytesIO(overlay_pdf(surface, fonts))).pages[0]
             box = page.cropbox
             from pypdf import Transformation
@@ -51,6 +55,7 @@ def export_pdf(source, model, destination, fonts=None):
             page.merge_transformed_page(
                 overlay, Transformation().translate(float(box.left), float(box.bottom))
             )
+    add_native_annotations(writer, model, transforms)
     with destination.open("wb") as stream:
         writer.write(stream)
 
