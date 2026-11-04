@@ -6,7 +6,7 @@
   const clone=value=>JSON.parse(JSON.stringify(value));
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
-    round_rect:"Arredondado",line:"Linha",arrow:"Seta",
+    round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
     triangle:"Triângulo",diamond:"Losango"})[type]||"Objeto";
   const SVG_NS="http://www.w3.org/2000/svg";
   const ACTION_ICONS={
@@ -14,7 +14,7 @@
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
-    Triângulo:"shape-triangle",Losango:"shape-diamond",
+    Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
     Desfazer:"undo",Refazer:"redo"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
@@ -61,7 +61,7 @@
     constructor(getModel,commit){this.getModel=getModel;this.commit=commit;}
     apply(mutator){
       const next=clone(this.getModel());
-      mutator(next.surfaces);
+      mutator(next.surfaces,next);
       next.surfaces.forEach((s,index)=>s.index=index);
       this.commit(next);
       return next;
@@ -107,6 +107,27 @@
         font_size_pt:type==="text"?28:20,stroke_width:1.5,rotation:0};
       this.apply(slides=>slides[index].elements.push(obj));
       return obj.id;
+    }
+    insertImage(index,image){
+      const id=window.OpenDocModel.id();
+      this.apply((slides,deck)=>{
+        const elements=slides[index].elements;
+        if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
+        const assets=deck.assets||(deck.assets={});
+        let assetId=Object.keys(assets).find(key=>
+          assets[key].mime===image.mime&&assets[key].data===image.data);
+        if(!assetId){
+          if(Object.keys(assets).length>=128)throw Error("Limite de 128 imagens atingido.");
+          assetId=window.OpenDocModel.id();
+          assets[assetId]={mime:image.mime,data:image.data};
+        }
+        const offset=(elements.length%8)*.04;
+        elements.push({id,type:"image",asset_id:assetId,name:image.name||"Imagem",
+          x:.2+offset,y:.24+offset,width:.36,height:.30,text:"",
+          color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
+          font_family:"Inter",font_size_pt:20,stroke_width:1.5,rotation:0});
+      });
+      return id;
     }
     duplicateObject(index,id){
       const newId=window.OpenDocModel.id();
@@ -154,6 +175,14 @@
       this.active=false;this.selected=null;this.current=0;this.drag=null;
       this.pan=null;this.spacePressed=false;
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
+      this.imageInput=document.createElement("input");this.imageInput.type="file";
+      this.imageInput.accept="image/png,image/jpeg,image/webp";this.imageInput.hidden=true;
+      this.toolbar.append(this.imageInput);
+      this.imageInput.addEventListener("change",()=>{
+        const file=this.imageInput.files&&this.imageInput.files[0];
+        this.imageInput.value="";
+        this.importImage(file).catch(error=>this.status(error.message));
+      },{signal:this.signal});
       this.inspector=document.createElement("aside");this.inspector.className="slide-inspector";this.inspector.hidden=true;
       this.inspector.setAttribute("aria-label","Propriedades e camadas dos slides");
       host.append(this.inspector);controls.append(this.toolbar);
@@ -190,6 +219,7 @@
       this._button("Seta",()=>this.add("arrow"));
       this._button("Triângulo",()=>this.add("triangle"));
       this._button("Losango",()=>this.add("diamond"));
+      this._button("Imagem",()=>this.imageInput.click(),"Inserir PNG, JPEG ou WebP");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
     }
@@ -282,6 +312,27 @@
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
       const id=this.commands.insertObject(this.current,type);this.selected=id;this.render();
     }
+    async importImage(file){
+      if(!file||!this.active)return;
+      if(!["image/png","image/jpeg","image/webp"].includes(file.type))
+        throw Error("Selecione uma imagem PNG, JPEG ou WebP.");
+      if(!file.size||file.size>4*1024*1024)
+        throw Error("A imagem deve ter no máximo 4 MB.");
+      const encoded=await new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(String(reader.result||""));
+        reader.onerror=()=>reject(Error("Não foi possível ler a imagem."));
+        reader.readAsDataURL(file);
+      });
+      if(!this.active)return;
+      const prefix="data:"+file.type+";base64,";
+      if(!encoded.startsWith(prefix))throw Error("Formato de imagem inválido.");
+      const id=this.commands.insertImage(this.current,{
+        mime:file.type,data:encoded.slice(prefix.length),name:file.name.slice(0,80)
+      });
+      this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
+      this.selected=id;this.render();
+    }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
     _makeObject(obj,index,thumb=false){
       const node=document.createElement("div");node.className="slide-object slide-object-"+obj.type;
@@ -290,7 +341,17 @@
       this._styleObject(node,obj,index,thumb);
       const vector=this.shapeRenderer.create(obj);
       if(vector)node.append(vector);
-      if(obj.type==="text")node.textContent=obj.text||"";
+      if(obj.type==="image"){
+        const asset=(this.getModel().assets||{})[obj.asset_id];
+        if(asset){
+          const picture=document.createElement("img");picture.alt=obj.name||"Imagem";
+          picture.draggable=false;
+          picture.src="data:"+asset.mime+";base64,"+asset.data;
+          Object.assign(picture.style,{width:"100%",height:"100%",display:"block",
+            objectFit:"fill",pointerEvents:"none"});
+          node.append(picture);
+        }
+      }else if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
         const handle=document.createElement("span");handle.className="slide-resize-handle";handle.dataset.resize="true";
@@ -422,7 +483,7 @@
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
         if(selected.type==="text"||selected.text)
           this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));
-        if(selected.type!=="text"){
+        if(selected.type!=="text"&&selected.type!=="image"){
           if(selected.type!=="line"&&selected.type!=="arrow")
             this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
           this._property("Contorno",selected.stroke,"color",value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
