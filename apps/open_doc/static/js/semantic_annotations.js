@@ -1,0 +1,151 @@
+/* PDF text markup: selection geometry in PDF points, never zoom coordinates. */
+"use strict";
+(() => {
+  function create({host,scroller,sidebar,root,signal,getModel,getPage,getZoom,update,go,status}) {
+    const menu=document.createElement('div');
+    menu.className='semantic-selection-menu';menu.hidden=true;
+    menu.setAttribute('role','toolbar');menu.setAttribute('aria-label','Anotar texto selecionado');
+    host.append(menu);
+    const color=document.createElement('input');
+    color.type='color';color.value='#f5cc54';color.setAttribute('aria-label','Cor do destaque');
+    let pending=null,chosen=null,panel=null,list=null,editor=null;
+    const actions=[['highlight','Destacar'],['underline','Sublinhar'],['strikeout','Tachar']];
+    function hide(){menu.hidden=true;pending=null;}
+    function annotations(){return getModel()?.annotations || [];}
+    function replace(next){update(next);refresh();}
+    function makeButton(label,fn,container=menu){
+      const b=document.createElement('button');b.type='button';b.textContent=label;
+      b.addEventListener('click',fn,{signal});container.append(b);return b;
+    }
+    for(const [kind,label] of actions)makeButton(label,()=>add(kind));
+    makeButton('Comentar',()=>add('highlight',true));
+    makeButton('Copiar',()=>{if(pending){const txt=pending.text;navigator.clipboard?.writeText(txt).catch(()=>{});}hide();});
+    menu.append(color);
+    // Keep the selected range intact when clicking the contextual toolbar.
+    menu.addEventListener('mousedown',event=>{if(event.target!==color)event.preventDefault();},{signal});
+    function capture(){
+      if(host.hidden || root.dataset.sourceKind!=='pdf')return hide();
+      const sel=window.getSelection();
+      if(!sel || sel.isCollapsed || !sel.rangeCount)return hide();
+      const range=sel.getRangeAt(0),text=sel.toString().trim();
+      if(!text || text.length>20000)return hide();
+      const element=n=>n?.nodeType===1?n:n?.parentElement;
+      const start=element(range.startContainer)?.closest('.fixed-surface');
+      const end=element(range.endContainer)?.closest('.fixed-surface');
+      if(!start || start!==end || !start.querySelector('.textLayer'))return hide();
+      const index=Number(start.dataset.pageIndex),page=getPage(index);
+      if(!page)return hide();
+      const viewport=page.getViewport({scale:4/3*getZoom()});
+      const pageBox=start.getBoundingClientRect(),quads=[];
+      for(const rect of range.getClientRects()){
+        if(rect.width<=1 || rect.height<=1)continue;
+        // A selection may have small rounding overflows; clip only within one page.
+        const x1=Math.max(0,rect.left-pageBox.left),x2=Math.min(viewport.width,rect.right-pageBox.left);
+        const y1=Math.max(0,rect.top-pageBox.top),y2=Math.min(viewport.height,rect.bottom-pageBox.top);
+        if(x2<=x1 || y2<=y1)continue;
+        const tl=viewport.convertToPdfPoint(x1,y1),tr=viewport.convertToPdfPoint(x2,y1);
+        const bl=viewport.convertToPdfPoint(x1,y2),br=viewport.convertToPdfPoint(x2,y2);
+        quads.push([...tl,...tr,...bl,...br]);
+        if(quads.length>2048)return hide();
+      }
+      if(!quads.length)return hide();
+      pending={index,text,quads};
+      const bounds=range.getBoundingClientRect(),width=menu.offsetWidth || 350;
+      menu.hidden=false;
+      menu.style.left=Math.max(8,Math.min(window.innerWidth-width-8,bounds.left))+'px';
+      menu.style.top=Math.max(8,Math.min(window.innerHeight-48,bounds.bottom+8))+'px';
+    }
+    function add(kind,comment=false){
+      if(!pending)return;
+      const a={
+        id:window.OpenDocModel.id(),kind,page_index:pending.index,
+        selected_text:pending.text,quad_points:pending.quads,
+        color:color.value,opacity:0.35,comment:''
+      };
+      replace([...annotations(),a]);hide();window.getSelection()?.removeAllRanges();
+      select(a.id,comment);status('Trecho anotado; alterações em salvamento automático.');
+    }
+    function renderPage(index,page){
+      const surface=scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');
+      if(!surface || !page)return;
+      surface.querySelector('.semantic-overlays')?.remove();
+      const values=annotations().filter(a=>a.page_index===index);
+      if(!values.length)return;
+      const overlay=document.createElement('div');overlay.className='semantic-overlays';
+      const viewport=page.getViewport({scale:4/3*getZoom()});
+      for(const a of values)for(const quad of a.quad_points){
+        const points=[];
+        for(let i=0;i<8;i+=2)points.push(viewport.convertToViewportPoint(quad[i],quad[i+1]));
+        const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);
+        const left=Math.max(0,Math.min(...xs)),top=Math.max(0,Math.min(...ys));
+        const right=Math.min(viewport.width,Math.max(...xs)),bottom=Math.min(viewport.height,Math.max(...ys));
+        if(right<=left || bottom<=top)continue;
+        const fragment=document.createElement('div');fragment.className='semantic-fragment '+a.kind;
+        Object.assign(fragment.style,{left:left+'px',top:top+'px',width:(right-left)+'px',
+          height:(bottom-top)+'px',backgroundColor:a.kind==='highlight'?a.color:'transparent',
+          opacity:String(a.opacity??0.35),borderColor:a.color});
+        overlay.append(fragment);
+      }
+      surface.append(overlay);
+    }
+    function refresh(){
+      for(const node of scroller.querySelectorAll('.fixed-surface')){
+        const i=Number(node.dataset.pageIndex),page=getPage(i);
+        if(page)renderPage(i,page);
+        else node.querySelector('.semantic-overlays')?.remove();
+      }
+      redrawList();
+    }
+    function reset(){
+      hide();chosen=null;
+      panel?.remove();panel=document.createElement('section');panel.className='semantic-annotation-panel';
+      const heading=document.createElement('h3');heading.textContent='Anotações';
+      list=document.createElement('div');list.className='semantic-annotation-list';
+      editor=document.createElement('div');editor.className='semantic-annotation-editor';
+      panel.append(heading,list,editor);sidebar.append(panel);redrawList();
+    }
+    function redrawList(){
+      if(!list)return;
+      list.replaceChildren();
+      for(const a of annotations()){
+        const button=makeButton('P. '+(a.page_index+1)+' · '+a.selected_text.slice(0,75),()=>select(a.id),list);
+        button.title=a.comment || a.selected_text;
+        button.style.borderLeft='4px solid '+a.color;
+        button.setAttribute('aria-pressed',String(chosen===a.id));
+      }
+      if(chosen && !annotations().some(a=>a.id===chosen)){chosen=null;editor?.replaceChildren();}
+    }
+    function select(id,focus=false){
+      chosen=id;redrawList();
+      const a=annotations().find(item=>item.id===id);
+      if(!a || !editor)return;
+      editor.replaceChildren();
+      const quote=document.createElement('p');quote.textContent='“'+a.selected_text.slice(0,300)+'”';
+      const label=document.createElement('label');label.textContent='Comentário';
+      const textarea=document.createElement('textarea');
+      textarea.value=a.comment || '';textarea.rows=4;textarea.maxLength=20000;
+      textarea.setAttribute('aria-label','Comentário da anotação');
+      // One logical comment edit = one undo history entry on blur/change.
+      textarea.addEventListener('change',()=>{
+        const next=annotations().map(item=>item.id===id?{...item,comment:textarea.value}:item);
+        replace(next);
+      },{signal});
+      label.append(textarea);
+      const palette=document.createElement('input');palette.type='color';palette.value=a.color;
+      palette.setAttribute('aria-label','Alterar cor da anotação');
+      palette.addEventListener('change',()=>{
+        replace(annotations().map(item=>item.id===id?{...item,color:palette.value}:item));
+      },{signal});
+      makeButton('Excluir anotação',()=>{replace(annotations().filter(item=>item.id!==id));},editor);
+      editor.prepend(quote,label,palette);
+      if(a.page_index>=0)go(a.page_index);
+      if(focus)textarea.focus();
+    }
+    scroller.addEventListener('mouseup',()=>setTimeout(capture,0),{signal});
+    scroller.addEventListener('keyup',event=>{if(event.key==='Shift' || event.key.startsWith('Arrow'))setTimeout(capture,0);},{signal});
+    scroller.addEventListener('scroll',hide,{signal});
+    root.addEventListener('keydown',event=>{if(event.key==='Escape')hide();},{signal});
+    return {renderPage,refresh,reset,hide};
+  }
+  window.OpenDocSemanticAnnotations={create};
+})();
