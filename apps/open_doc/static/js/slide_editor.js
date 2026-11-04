@@ -98,6 +98,7 @@
     }
     insertObject(index,type){
       const count=this.getModel().surfaces[index].elements.length;
+      if(count>=500)throw Error("Limite de 500 objetos por slide atingido.");
       const offset=(count%8)*.04;
       const obj={id:window.OpenDocModel.id(),type,
         x:.2+offset,y:.24+offset,width:type==="text"?.5:.27,height:type==="text"?.19:.22,
