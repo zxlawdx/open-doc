@@ -154,7 +154,7 @@
     if(firstText===null)return;
     const lastText=window.prompt('Página final para extrair (1 a '+total+')',String(total));
     if(lastText===null)return;
-    const parse=value=>/^\\d+$/.test(String(value).trim())?Number(value):NaN;
+    const parse=value=>/^[0-9]+$/.test(String(value).trim())?Number(value):NaN;
     const first=parse(firstText),last=parse(lastText);
     if(!Number.isInteger(first)||!Number.isInteger(last)||first<1||last<first||last>total)
       throw Error('Informe um intervalo de páginas válido.');
