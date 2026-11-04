@@ -269,3 +269,31 @@ def test_native_jpeg_and_webp_export_with_editable_picture_shape(
     assert picture.image.ext == expected_ext
     assert picture.image.size == (5, 4)
     assert picture.name == "Imagem externa editável"
+
+
+def test_native_images_reject_non_hashable_metadata(tmp_path):
+    """Untrusted JSON arrays and dictionaries must raise ValueError, not TypeError."""
+    from io import BytesIO
+    import base64
+    from PIL import Image
+
+    ctx = configure(Config(tmp_path))
+    base = deepcopy(ctx.fixed_documents.create_presentation()["content"])
+    stream = BytesIO()
+    Image.new("RGB", (2, 2), "red").save(stream, "PNG")
+    base["assets"] = {"asset-1": {
+        "mime": "image/png", "data": base64.b64encode(stream.getvalue()).decode("ascii"),
+    }}
+    base["surfaces"][0]["elements"] = [{
+        **element("image-1", "image"), "asset_id": "asset-1", "text": "",
+    }]
+    for field, bad in [("type", []), ("asset_id", []), ("asset_id", {})]:
+        invalid = deepcopy(base)
+        invalid["surfaces"][0]["elements"][0][field] = bad
+        with pytest.raises(ValueError):
+            validate(invalid)
+
+    invalid = deepcopy(base)
+    invalid["assets"]["asset-1"]["mime"] = ["image/png"]
+    with pytest.raises(ValueError):
+        validate(invalid)
