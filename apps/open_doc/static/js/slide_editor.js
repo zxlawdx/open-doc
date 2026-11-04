@@ -82,8 +82,8 @@
   }
 
   class SlideStudio {
-    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo}){
-      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo});
+    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender}){
+      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender});
       this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
       this.active=false;this.selected=null;this.current=0;this.drag=null;
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
@@ -219,6 +219,7 @@
       });
       this.root.querySelector("[data-position]").textContent="Slide "+(this.current+1)+" de "+slides.length;
       this.root.querySelector("[data-count]").textContent=slides.length+" slides";
+      this.onRender?.(slides);
       this._properties();
     }
     _property(label,value,kind,onChange){
