@@ -319,9 +319,10 @@ test('Shift selection supports batch alignment and one-step deletion without cha
  const ids=q.model().surfaces[0].elements.map(o=>o.id);
  q.editor.commands.updateObject(0,ids[0],{x:.10,y:.13,width:.20,height:.17});
  q.editor.commands.updateObject(0,ids[1],{x:.48,y:.37,width:.30,height:.23});
- const shapes=q.scroller.querySelectorAll('.fixed-surface .slide-object');
- shapes[0].dispatchEvent(new q.w.MouseEvent('click',{bubbles:true}));
- shapes[1].dispatchEvent(new q.w.MouseEvent('click',{bubbles:true,shiftKey:true}));
+ q.scroller.querySelectorAll('.fixed-surface .slide-object')[0]
+   .dispatchEvent(new q.w.MouseEvent('click',{bubbles:true}));
+ q.scroller.querySelectorAll('.fixed-surface .slide-object')[1]
+   .dispatchEvent(new q.w.MouseEvent('click',{bubbles:true,shiftKey:true}));
  assert.equal(q.scroller.querySelectorAll('.fixed-surface [data-selected=true]').length,2);
  const findButton=(label)=>Array.from(q.host.querySelectorAll('.slide-inspector button')).find(b=>b.textContent===label);
  const align=findButton('Alinhar centros horizontalmente');
