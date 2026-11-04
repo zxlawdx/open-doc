@@ -240,11 +240,11 @@
       },{signal:this.signal});this.toolbar.append(button);return button;
     }
     _buildToolbar(){
-      this._button("+ Slide",()=>{this.commands.insert(this.current);this.current++;this.selected=null;this.go(this.current);});
-      this._button("Duplicar",()=>{this.commands.duplicate(this.current);this.current++;this.selected=null;this.go(this.current);});
-      this._button("Excluir slide",()=>{this.commands.remove(this.current);this.current=clamp(this.current,0,this.getModel().surfaces.length-1);this.selected=null;});
-      this._button("↑ Slide",()=>{this.commands.move(this.current,-1);this.current=clamp(this.current-1,0,this.getModel().surfaces.length-1);this.selected=null;});
-      this._button("↓ Slide",()=>{this.commands.move(this.current,1);this.current=clamp(this.current+1,0,this.getModel().surfaces.length-1);this.selected=null;});
+      this._button("+ Slide",()=>{this.commands.insert(this.current);this.current++;this._selectObject(null);this.go(this.current);});
+      this._button("Duplicar",()=>{this.commands.duplicate(this.current);this.current++;this._selectObject(null);this.go(this.current);});
+      this._button("Excluir slide",()=>{this.commands.remove(this.current);this.current=clamp(this.current,0,this.getModel().surfaces.length-1);this._selectObject(null);});
+      this._button("↑ Slide",()=>{this.commands.move(this.current,-1);this.current=clamp(this.current-1,0,this.getModel().surfaces.length-1);this._selectObject(null);});
+      this._button("↓ Slide",()=>{this.commands.move(this.current,1);this.current=clamp(this.current+1,0,this.getModel().surfaces.length-1);this._selectObject(null);});
       this._button("Texto",()=>this.add("text"));
       this._button("Retângulo",()=>this.add("rect"));
       this._button("Elipse",()=>this.add("ellipse"));
@@ -359,7 +359,7 @@
         }
         if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="d"){
           event.preventDefault();
-          this.selected=this.commands.duplicateObject(this.current,this.selected);this.render();return;
+          this._selectObject(this.commands.duplicateObject(this.current,this.selected));this.render();return;
         }
         if(event.key.startsWith("Arrow")){
           const obj=this.getModel().surfaces[this.current].elements.find(o=>o.id===this.selected);
@@ -634,10 +634,10 @@
           });
         });
         const actions=document.createElement("div");actions.className="slide-layer-actions";
-        for(const [label,task] of [["Duplicar objeto",()=>{this.selected=this.commands.duplicateObject(this.current,selected.id);this.render();}],
+        for(const [label,task] of [["Duplicar objeto",()=>{this._selectObject(this.commands.duplicateObject(this.current,selected.id));this.render();}],
           ["Subir camada",()=>this.commands.shiftLayer(this.current,selected.id,1)],
           ["Descer camada",()=>this.commands.shiftLayer(this.current,selected.id,-1)],
-          ["Excluir objeto",()=>{this.commands.deleteObject(this.current,selected.id);this.selected=null;this.render();}]]){
+          ["Excluir objeto",()=>{this.commands.deleteObject(this.current,selected.id);this._selectObject(null);this.render();}]]){
           const b=document.createElement("button");b.textContent=label;
           b.addEventListener("click",task,{signal:this.signal});actions.append(b);
         }this.inspector.append(actions);
