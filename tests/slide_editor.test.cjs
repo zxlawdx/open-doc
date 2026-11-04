@@ -144,6 +144,14 @@ test('local SVG toolbar icons, expanded shape catalog and editable layer names',
    .find(x=>x.textContent.startsWith('Nome')).querySelector('input');
  name.value='Formação regional';name.dispatchEvent(new q.w.Event('change'));
  assert.equal(q.model().surfaces[0].elements[4].name,'Formação regional');
+ const rotation=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(x=>x.textContent.startsWith('Rotação')).querySelector('input');
+ rotation.value='45';rotation.dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[4].rotation,45);
+ const strokeWidth=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(x=>x.textContent.startsWith('Espessura')).querySelector('input');
+ strokeWidth.value='3';strokeWidth.dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[4].stroke_width,3);
  assert.ok(q.host.querySelector('.slide-layer-list').textContent.includes('Formação regional'));
  const duplicate=Array.from(q.host.querySelectorAll('.slide-layer-actions button'))
    .find(b=>b.textContent==='Duplicar objeto');
