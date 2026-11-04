@@ -104,3 +104,22 @@ test('partial eraser preserves pressure, tool and handwritten flag of fragments'
  assert.ok(parts.every(p=>p.points.every(pt=>pt.pressure>=.2&&pt.pressure<=.9)));
  assert.ok(parts.every(p=>p.outline.flat().every(v=>Number.isFinite(v)&&v>=0&&v<=1)));
 });
+
+
+test('ink SVG remeasures when a formerly hidden document view becomes visible',async t=>{
+ const q=setup(t),page=q.root.querySelector('.document-page');
+ Object.defineProperty(page,'offsetWidth',{configurable:true,get:()=>0});
+ Object.defineProperty(page,'offsetHeight',{configurable:true,get:()=>0});
+ let displayedWidth=0,displayedHeight=0;
+ Object.defineProperty(page,'clientWidth',{configurable:true,get:()=>displayedWidth});
+ Object.defineProperty(page,'clientHeight',{configurable:true,get:()=>displayedHeight});
+ q.root.dispatchEvent(new q.w.Event('open-doc:layout'));
+ await new Promise(resolve=>setTimeout(resolve,12));
+ assert.equal(q.svg.style.width,'0px');
+ displayedWidth=794;displayedHeight=1123;
+ q.root.dataset.homeView='false';
+ q.root.dispatchEvent(new q.w.Event('open-doc:view-ready'));
+ await new Promise(resolve=>setTimeout(resolve,12));
+ assert.equal(q.svg.style.width,'794px');
+ assert.equal(q.svg.style.height,'1123px');
+});
