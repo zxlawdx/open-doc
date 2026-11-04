@@ -241,6 +241,11 @@
         surface.style.height=slide.height_pt*4/3*this.getZoom()+"px";
         surface.querySelector(".slide-object-layer")?.remove();
         const layer=document.createElement("div");layer.className="slide-object-layer";
+        // QtWebEngine on Windows embeds Chromium 83, where the CSS "inset"
+        // shorthand is ignored. Use explicit physical dimensions so that
+        // percentage-positioned SVG shapes never collapse to zero size.
+        Object.assign(layer.style,{position:"absolute",top:"0px",left:"0px",
+          right:"0px",bottom:"0px",width:"100%",height:"100%"});
         layer.style.backgroundColor=slide.background||"#FFFFFF";
         for(const obj of slide.elements||[])layer.append(this._makeObject(obj,index));
         surface.prepend(layer);
