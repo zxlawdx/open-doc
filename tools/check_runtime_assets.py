@@ -24,6 +24,20 @@ def source_hash(root: Path = ROOT) -> str:
     return hashlib.sha256(source + b"\0" + lock).hexdigest()
 
 
+def source_hashes(root: Path = ROOT) -> set[str]:
+    """Accept a genuinely built native-CRLF manifest OR the LF source build.
+
+    Node's builder hashes the raw checkout bytes. Windows can produce CRLF
+    output, while our checked-in assets were compiled using LF on Linux.
+    """
+    source = (root / "tools/build_vendor_js.mjs").read_bytes()
+    lock = (root / "package-lock.json").read_bytes()
+    return {
+        hashlib.sha256(source + b"\0" + lock).hexdigest(),
+        source_hash(root),
+    }
+
+
 def validate_vendor(root: Path = ROOT) -> dict:
     """Validate all prebuilt JS bytes; no Node executable is required."""
     vendor = root / "apps/open_doc/static/js/vendor"
@@ -31,7 +45,7 @@ def validate_vendor(root: Path = ROOT) -> dict:
         if (vendor / ".build-failed").exists():
             raise ValueError("O último build falhou ou foi interrompido.")
         manifest = json.loads((vendor / "vendor-manifest.json").read_text("utf-8"))
-        if manifest["source_hash"] != source_hash(root) or manifest["target"] != "chrome83":
+        if manifest["source_hash"] not in source_hashes(root) or manifest["target"] != "chrome83":
             raise ValueError("Manifesto de vendor desatualizado.")
         for name in BUNDLES:
             if (
