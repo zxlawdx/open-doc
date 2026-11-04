@@ -48,8 +48,8 @@
       if(mode==='continuous'){surface.replaceChildren();nodes.forEach(n=>surface.appendChild(n));surface.style.padding=[m.margin_top_pt,m.margin_right_pt,m.margin_bottom_pt,m.margin_left_pt].map(n=>n+'pt').join(' ');surface.style.minHeight=m.page_height_pt+'pt';status();if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent("open-doc:layout"));return;}
       surface.style.padding='0';surface.style.minHeight='0';
       let section=m,index=prefix.length,page,box,capacity;const documentModel=typeof model==='function'?model():model,blockMap=new Map((documentModel?.blocks || []).map(b=>[b.id,b]));let sectionIndex=0;
-      function next(){page=document.createElement('section');page.className='document-page';page.dataset.pageIndex=index++;page.dataset.widthPt=section.page_width_pt;page.dataset.heightPt=section.page_height_pt;page.style.width=section.page_width_pt+'pt';page.style.height=section.page_height_pt+'pt';page.style.padding=[section.margin_top_pt,section.margin_right_pt,section.margin_bottom_pt,section.margin_left_pt].map(n=>n+'pt').join(' ');box=document.createElement('div');box.dataset.pageContent='';box.className='page-content';page.appendChild(box);surface.appendChild(page);capacity=(section.page_height_pt-section.margin_top_pt-section.margin_bottom_pt)*4/3;}
-      function height(){return box.getBoundingClientRect().height || box.scrollHeight;}
+      function next(){page=document.createElement('section');page.className='document-page';page.dataset.pageIndex=index++;page.dataset.widthPt=section.page_width_pt;page.dataset.heightPt=section.page_height_pt;page.style.width=section.page_width_pt+'pt';page.style.height=section.page_height_pt+'pt';page.style.padding=[section.margin_top_pt,section.margin_right_pt,section.margin_bottom_pt,section.margin_left_pt].map(n=>n+'pt').join(' ');box=document.createElement('div');box.dataset.pageContent='';box.className='page-content';page.appendChild(box);surface.appendChild(page);const style=getComputedStyle(page);capacity=Math.max(1,page.clientHeight-(parseFloat(style.paddingTop)||0)-(parseFloat(style.paddingBottom)||0));}
+      function height(){return Math.max(box.scrollHeight,box.offsetHeight);}
       function overflow(){return height()>capacity+1;}
       next();
       for(let i=0;i<nodes.length;i++){
@@ -68,7 +68,15 @@
           const text=node.textContent,walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT),texts=[];let t;while((t=walker.nextNode()))texts.push(t);
           function point(offset){for(const t of texts){if(offset<=t.length)return [t,offset];offset-=t.length;}return [texts[texts.length-1],texts[texts.length-1].length];}
           const range=document.createRange();range.setStartBefore(node);let low=1,high=text.length-1,best=0;
-          while(low<=high){const mid=(low+high)>>1,[t,pos]=point(mid);range.setEnd(t,pos);const rects=Array.from(range.getClientRects());const bottom=Math.max(...rects.filter(r=>r.height>0 && r.height<capacity).map(r=>r.bottom));if(bottom<=box.getBoundingClientRect().top+capacity-(parseFloat(getComputedStyle(node).marginBottom)||0)-(parseFloat(getComputedStyle(node).lineHeight)||24)/2){best=mid;low=mid+1;}else high=mid-1;}
+          // getClientRects() is transformed by paper zoom; capacity and scrollHeight
+          // are layout pixels. Convert the threshold to the same visual coordinate
+          // space as the range, otherwise 50%/150% zoom changes page breaks.
+          const pageRect=page.getBoundingClientRect(),boxRect=box.getBoundingClientRect();
+          const scale=page.offsetHeight>0?pageRect.height/page.offsetHeight:1;
+          const nodeStyle=getComputedStyle(node);
+          const reserve=(parseFloat(nodeStyle.marginBottom)||0)+(parseFloat(nodeStyle.lineHeight)||24)/2;
+          const bottomLimit=boxRect.top+Math.max(1,capacity-reserve)*scale;
+          while(low<=high){const mid=(low+high)>>1,[t,pos]=point(mid);range.setEnd(t,pos);const rects=Array.from(range.getClientRects());const bottom=Math.max(...rects.filter(r=>r.height>0 && r.height<capacity).map(r=>r.bottom));if(Number.isFinite(bottom) && bottom<=bottomLimit){best=mid;low=mid+1;}else high=mid-1;}
           if(best>0 && best<text.length){const boundary=text.lastIndexOf(' ',best);if(boundary>best/2)best=boundary+1;const [t,pos]=point(best),split=document.createRange();split.setStart(t,pos);split.setEnd(node,node.childNodes.length);const rest=node.cloneNode(false);rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;rest.appendChild(split.extractContents());nodes.splice(i+1,0,rest);}
         }
         // Imported inline Word page breaks retain their OOXML nodes.
@@ -93,7 +101,7 @@
       const node=Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId || n.dataset.fragmentOf===blockId),page=node?.closest('[data-page-index]'),box=page?.querySelector('[data-page-content]');
       if(!box)return false;
       const style=getComputedStyle(page),capacity=page.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom);
-      const height=Math.max(box.scrollHeight,box.getBoundingClientRect().height);
+      const height=Math.max(box.scrollHeight,box.offsetHeight);
       // Existing fragments may need rebalancing even after deleting text.
       return capacity>0 && height<=capacity+1 && !surface.querySelector('[data-fragment-of="'+blockId+'"]');
     }
