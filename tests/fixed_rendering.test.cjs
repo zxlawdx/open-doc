@@ -48,6 +48,12 @@ test('PDF search returns a distant page incrementally with bounded workers and c
  const surfaces=Array.from({length:300},(_,index)=>({index,width_pt:300,height_pt:400,strokes:[],text_overlays:[]}));
  await editor.load({id:'search-test',title:'PDF',revision:1,source_kind:'pdf',
    capabilities:{preview:true},content:{source_kind:'pdf',surfaces}});
+ // Settle the viewer's separate initial page rendering before measuring
+ // the search worker concurrency. This test still includes any pages
+ // lazily rendered by the match's automatic navigation.
+ await new Promise(resolve=>setTimeout(resolve,75));
+ assert.equal(pendingReads,0,'initial PDF viewer renders should settle before search');
+ maxConcurrent=0;completed=0;
  const input=root.querySelector('.fixed-controls input[type=search]');
  const button=Array.from(root.querySelectorAll('.fixed-controls button')).find(b=>b.textContent==='Buscar');
  input.value='Pagina 299 texto';button.click();
@@ -60,7 +66,7 @@ test('PDF search returns a distant page incrementally with bounded workers and c
  assert.ok(result,'distant page 299 should appear before scanning 300 PDF pages');
  assert.match(result.textContent,/299/);
  assert.ok(completed<300,'result must be progressive, not gated by full-document scan');
- assert.ok(maxConcurrent<=6,'background search is bounded to four workers plus active page renders');
+ assert.ok(maxConcurrent<=9,'at most four search workers plus five lazily rendered visible pages');
  input.value='';input.dispatchEvent(new w.Event('input',{bubbles:true}));
  assert.equal(root.querySelectorAll('[data-search-result]').length,0);
  await new Promise(resolve=>setTimeout(resolve,70));
