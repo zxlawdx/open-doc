@@ -101,5 +101,22 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  assert.equal(cancelled.hidden,true,'Cancel should hide link dialog');
  assert.equal(cancelled.display,'none','Dialog should not remain on screen after Cancel');
  console.log('QT_DIALOG_CANCEL_POINTER_AND_VISIBILITY_OK');
+
+ const added=await evaluate("(()=>{const input=document.querySelector('.slide-studio-toolbar input[type=file]');if(!input)return false;const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGMUSTnxn4GBgYGJAQoAIXQCQ5eZzjUAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const file=new File([bytes],'qt-pixel.png',{type:'image/png'});Object.defineProperty(input,'files',{configurable:true,value:[file]});input.dispatchEvent(new Event('change',{bubbles:true}));return true;})()");
+ assert.ok(added,'Qt file input for slide images missing');
+ let decoded=false;
+ for(let attempt=0;attempt<40;attempt++){
+   decoded=await evaluate("(()=>{const img=document.querySelector('.slide-object-image img');return !!img&&img.complete&&img.naturalWidth===2&&img.naturalHeight===2;})()");
+   if(decoded)break;
+   await new Promise(resolve=>setTimeout(resolve,100));
+ }
+ assert.ok(decoded,'Qt did not decode slide image after FileReader input');
+ const imageGeometry=await evaluate("(()=>{const item=document.querySelector('.slide-object-image');const pic=item.querySelector('img');const box=pic.getBoundingClientRect();const x=box.left+box.width/2,y=box.top+box.height/2;return {x:box.x,y:box.y,width:box.width,height:box.height,hit:document.elementFromPoint(x,y)?.closest('[data-slide-element]')?.dataset.slideElement,imageId:item.dataset.slideElement,viewport:{width:innerWidth,height:innerHeight}};})()");
+ assert.ok(imageGeometry.width>20&&imageGeometry.height>20,'Qt slide image has zero size');
+ assert.equal(imageGeometry.hit,imageGeometry.imageId,'Qt slide image not selectable');
+ const imageShot=await send('Page.captureScreenshot',{format:'png'});
+ fs.writeFileSync(path.join(destination,'slide-native-image.png'),Buffer.from(imageShot.data,'base64'));
+ fs.writeFileSync(path.join(destination,'slide-native-image.json'),JSON.stringify(imageGeometry,null,2));
+ console.log('QT_SLIDE_NATIVE_IMAGE_VISIBLE_AND_SELECTABLE_OK');
  ws.close();
 })().catch(error=>{console.error(error);process.exit(1);});
