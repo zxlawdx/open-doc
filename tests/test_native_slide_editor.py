@@ -136,7 +136,8 @@ def test_extended_shapes_export_as_editable_powerpoint_objects(tmp_path):
     model = deepcopy(note["content"])
     kinds = ["round_rect", "line", "arrow", "triangle", "diamond"]
     model["surfaces"][0]["elements"] = [
-        {**element(f"shape-{i}", kind), "text": "", "name": f"Forma {i}"}
+        {**element(f"shape-{i}", kind), "text": "", "name": f"Forma {i}",
+         "stroke_width": 3, "rotation": 25}
         for i, kind in enumerate(kinds)
     ]
     validate(model)
