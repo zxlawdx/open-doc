@@ -206,3 +206,14 @@ test('legacy Qt keeps shape previews contained, while the canvas clips slide edg
    'rerender may not leave duplicate SVGs outside slide');
  assert.equal(q.scroller.querySelectorAll('.slide-object').length,1);
 });
+
+
+test('new slide insertions enforce the same 500-object limit as duplication',t=>{
+ const q=setup(t);clickLabel(q.controls,'Retângulo');
+ const slide=q.model().surfaces[0],first=slide.elements[0];
+ for(let i=1;i<500;i++)slide.elements.push({...first,id:'limit-'+i});
+ const before=q.versions.length;
+ clickLabel(q.controls,'Elipse');
+ assert.equal(slide.elements.length,500,'the rejected insertion must not mutate slide data');
+ assert.equal(q.versions.length,before,'a rejected insertion must not enter undo history');
+});
