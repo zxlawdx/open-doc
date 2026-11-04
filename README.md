@@ -8,7 +8,7 @@ busca local e ferramentas de formatação. Sem conta, nuvem ou CDN.
 
 ## Executar
 
-Requer Python 3.10+, Git, dependências Qt e uma sessão gráfica. No primeiro build do código-fonte, Node 22+ compila o CSS offline do shell Vela.
+Requer Python 3.10+, Git, dependências Qt e uma sessão gráfica. Para desenvolvimento a partir do código-fonte, Node 22+ e npm são pré-requisitos do pipeline de assets. O próprio `collectstatic` verifica as dependências locais do projeto e oferece executar `npm ci` quando necessário.
 
 ```powershell
 git clone https://github.com/zxlawdx/open-doc.git
@@ -16,8 +16,7 @@ cd open-doc
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-npm ci
-npm run build
+python manage.py collectstatic
 python manage.py runapp
 ```
 
@@ -25,6 +24,8 @@ Para atualizar um clone existente, use `git pull origin main` antes de instalar.
 No Linux/Mint, ative com `source .venv/bin/activate`. QtWebEngine precisa das
 bibliotecas gráficas do sistema (Xtst, NSS, X11, xkbcommon, EGL e áudio).
 `python main.py` usa o mesmo bootstrap oficial Vela.
+
+Se Node.js ou npm não estiverem instalados, `collectstatic` informa o pré-requisito e encerra sem tentar instalar pacotes do sistema. Se apenas `node_modules` estiver ausente ou inconsistente, o comando pede autorização antes de executar `npm ci`. Em CI ou automação não interativa use `python manage.py collectstatic --yes`; para proibir qualquer instalação automática use `--no-install`.
 
 ## Recursos reais
 
@@ -112,16 +113,15 @@ OpenDoc inteiro. A API é local e exige token para alterações.
 
 `config/wsgi.py` é o composition entrypoint: configura um `ApplicationContext` e então monta o `VelaApp`. `apps/open_doc/application/document_application.py` é a facade de casos de uso compartilhada por HTTP e WebView; `api.py` cuida apenas da boundary HTTP e `bridge.py` dos diálogos/capacidades nativas. Regras de documento ficam fora dessas boundaries.
 
-A estrutura segue `presentation -> application -> domain -> infrastructure`. O domínio não importa Vela/Bottle/WebView; política de filesystem fica em `infrastructure/workspace.py`. A compatibilidade temporária com o Vela atualmente fixado para body grande está isolada em `infrastructure/vela_compat.py`, não no domínio nem nos services.
+A estrutura segue `presentation -> application -> domain -> infrastructure`. O domínio não importa Vela/Bottle/WebView; política de filesystem fica em `infrastructure/workspace.py`. O Vela fixado pelo projeto honra `API.max_body_size` nativamente, então não há mais mutação de `Bottle.BaseRequest` no Open Doc.
 
-Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para o fluxo de dependências, boundaries e pontos de migração. O antigo `services.container` permanece como shim durante a migração incremental. `manage.py` usa diretamente o CommandRunner oficial; `launcher.py` entra no mesmo `config.wsgi.run()` de `main.py`. `collectstatic` continua sendo o coletor de assets.
+Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para o fluxo de dependências, boundaries e pontos de migração. O antigo `services.container` permanece como shim durante a migração incremental. `manage.py` usa diretamente o CommandRunner oficial e propaga seus exit codes; `launcher.py` entra no mesmo `config.wsgi.run()` de `main.py`. `collectstatic` é o único entrypoint de preparação de assets do código-fonte.
 
 ## Desenvolvimento e validação
 
 ```powershell
 python -m pip install -r requirements-dev.txt
-npm ci
-npm run build
+python manage.py collectstatic
 python -m pytest -q
 npm test
 python tools/audit_css.py
@@ -130,7 +130,7 @@ node --check apps/open_doc/static/js/app.js
 python manage.py runapp
 ```
 
-CSS e vendors do app estão versionados. O primeiro build do shell Vela exige Node; o runtime de uma distribuição já compilada usa apenas Python/Qt.
+Em CI use `python manage.py collectstatic --yes` para autorizar explicitamente a instalação local via `npm ci`. CSS e vendors do app permanecem locais/offline; o runtime de uma distribuição já compilada usa apenas Python/Qt.
 `python tools/qa_desktop.py` executa smoke test com workspace temporário e
 capturas reais pelo QtWebEngine; requer Node 22+ para CDP local. Nunca exponha
 a porta de debugging no uso normal. O script usa a janela criada pelo VelaApp.
@@ -146,8 +146,8 @@ registra o estado anterior.
 ## Styles
 
 Os fontes em `apps/open_doc/styles` separam tokens, layout, componentes, conteúdo,
-estados e política responsiva. Edite esses fontes e rode `python tools/build_css.py`
-seguido de `python manage.py collectstatic --no-tailwind`. O arquivo main.css é gerado.
+estados e política responsiva. Edite esses fontes e rode `python manage.py collectstatic`.
+O hook `tools.build_css:main` recompila Tailwind e combina o bundle com os estilos escritos à mão antes da coleta. O arquivo `main.css` é gerado.
 A toolbar usa grupos e scroll horizontal nas janelas menores; as páginas preservam
 as dimensões lógicas. `python tools/qa_styles.py` captura a matriz visual no Qt real.
 

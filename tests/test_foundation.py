@@ -96,7 +96,7 @@ def test_symlink_rejected(tmp_path: Path) -> None:
 def test_vela_application_lifecycle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Executa VelaApp.run com janela substituída e servidor HTTP real."""
+    """Executa VelaApp.run e verifica HTTP enquanto o lifecycle está running."""
     from vela.core.app import VelaApp
     from vela.core.bridge import BaseBridge
     import vela.core.app as runtime
@@ -105,14 +105,23 @@ def test_vela_application_lifecycle(
     captured = {}
 
     class Window:
-        """Captura parâmetros entregues à janela pelo VelaApp."""
+        """Captura parâmetros e testa o servidor antes de a janela encerrar."""
 
         def __init__(self, **kwargs: object) -> None:
             captured.update(kwargs)
 
         def run(self) -> None:
-            """Substitui apenas a janela gráfica no teste."""
             captured["ran"] = True
+            base = f"http://{captured['host']}:{captured['port']}"
+            with urlopen(base + "/__vela__/shell", timeout=5) as response:
+                shell = response.read().decode()
+                assert "cdn.tailwindcss.com" not in shell
+                assert "fonts.googleapis.com" not in shell
+            with urlopen(
+                base + "/__vela__/static/open_doc/js/editor.js", timeout=5
+            ) as response:
+                assert response.status == HTTP_OK
+            captured["http_checked_while_running"] = True
 
     monkeypatch.chdir(Path(__file__).resolve().parents[1])
     monkeypatch.setattr(runtime, "DesktopWindow", Window)
@@ -121,6 +130,7 @@ def test_vela_application_lifecycle(
     assert isinstance(application.bridge, BaseBridge)
     application.run()
     assert captured["ran"] is True
+    assert captured["http_checked_while_running"] is True
     assert captured["shell_mode"] == "http"
     assert captured["entry_route"] == "/"
     result = application.bridge.navigate("/")
@@ -129,16 +139,9 @@ def test_vela_application_lifecycle(
     assert "{{" not in result["html"]
     assert "/__vela__/static/open_doc/js/app.js" in result["html"]
 
-    base = f"http://127.0.0.1:{application.api_server.port}"
-    with urlopen(base + "/__vela__/shell", timeout=5) as response:
-        shell = response.read().decode()
-        assert "cdn.tailwindcss.com" not in shell
-        assert "fonts.googleapis.com" not in shell
-    with urlopen(
-        base + "/__vela__/static/open_doc/js/editor.js", timeout=5
-    ) as response:
-        assert response.status == HTTP_OK
-
+    # VelaApp.run() deterministically shuts the HTTP thread down after the
+    # desktop window returns. In-memory Bottle dispatch remains useful for
+    # exercising the registered application routes without reopening a server.
     client = TestApp(application.api_server.app)
     client.post_json(
         "/api/open_doc/document/new", {"title": "Negado"}, status=HTTP_FORBIDDEN
@@ -172,7 +175,8 @@ def test_vela_application_lifecycle(
         assert Path(exported["path"]).is_relative_to(tmp_path / "exports")
         assert Path(exported["path"]).stat().st_size > 0
 
-    # Structured OOXML is larger than Bottle's default 100 KiB JSON ceiling.
+    # Structured OOXML is larger than Bottle's historical 100 KiB JSON ceiling.
+    # The current Vela runtime enforces the configured API.max_body_size instead.
     from dataclasses import asdict
     from apps.open_doc.document_model.schema import RichDocument, Paragraph, TextRun
 

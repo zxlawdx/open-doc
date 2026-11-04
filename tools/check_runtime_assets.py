@@ -38,7 +38,7 @@ def check(root=ROOT):
         return manifest
     except (KeyError, ValueError, OSError) as exc:
         raise RuntimeError(
-            "Assets locais indisponíveis. Execute npm ci e npm run build. " + str(exc)
+            "Assets locais indisponíveis. Execute `python manage.py collectstatic`. " + str(exc)
         ) from exc
 
 
