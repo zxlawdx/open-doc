@@ -217,3 +217,38 @@ test('new slide insertions enforce the same 500-object limit as duplication',t=>
  assert.equal(slide.elements.length,500,'the rejected insertion must not mutate slide data');
  assert.equal(q.versions.length,before,'a rejected insertion must not enter undo history');
 });
+
+
+test('file image insertion renders editable slide picture and reuses one stored asset',async t=>{
+ const q=setup(t);
+ const button=Array.from(q.controls.querySelectorAll('.slide-studio-toolbar button'))
+   .find(b=>b.textContent==='Imagem');
+ assert.ok(button&&button.querySelector('svg use'),'picture button has local SVG icon');
+ const input=q.controls.querySelector('input[type="file"]');
+ assert.equal(input.accept,'image/png,image/jpeg,image/webp');
+ const data=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGMUSTnxn4GBgYGJAQoAIXQCQ5eZzjUAAAAASUVORK5CYII=','base64');
+ const file=new q.w.File([data],'pesquisa.png',{type:'image/png'});
+ Object.defineProperty(input,'files',{configurable:true,value:[file]});
+ input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ await new Promise((resolve,reject)=>{
+   const start=Date.now();
+   const check=()=>{
+     if(q.model().surfaces[0].elements.length)return resolve();
+     if(Date.now()-start>1500)return reject(Error('FileReader did not insert image'));
+     setTimeout(check,10);
+   };
+   check();
+ });
+ const item=q.model().surfaces[0].elements[0];
+ assert.equal(item.type,'image');
+ const asset=q.model().assets[item.asset_id];
+ assert.equal(asset.mime,'image/png');
+ assert.equal(asset.data,data.toString('base64'));
+ assert.ok(q.scroller.querySelector('.slide-object-image img'));
+ assert.ok(q.sidebar.querySelector('.slide-thumb-preview img'));
+ const second=q.editor.commands.insertImage(0,{mime:asset.mime,data:asset.data,name:'Cópia'});
+ assert.notEqual(second,item.id);
+ assert.equal(Object.keys(q.model().assets).length,1,'identical pictures share one deck asset');
+ q.editor.render();
+ assert.equal(q.scroller.querySelectorAll('.slide-object-image img').length,2);
+});
