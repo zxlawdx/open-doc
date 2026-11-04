@@ -12,7 +12,109 @@
   }return points.filter((_,i)=>keep.has(i));
  }
  function path(stroke){return (stroke.outline || []).map((p,i)=>(i?'L':'M')+p[0]+','+p[1]).join(' ')+' Z';}
- function shouldErase(mode){return mode==='eraser';}
+ function shouldErase(mode){return mode==='eraser' || mode==='eraser-partial';}
+ // Eraser geometry is measured in the visible page's CSS pixels, not in
+ // normalized coordinates; that keeps the brush round on A4, PDFs and slides.
+ const square=x=>x*x;
+ function distanceToSegment(x,y,a,b,rect){
+  const ax=a.x*rect.width,ay=a.y*rect.height,bx=b.x*rect.width,by=b.y*rect.height;
+  const dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy;
+  const t=den?Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/den)):0;
+  return square(x-ax-t*dx)+square(y-ay-t*dy);
+ }
+ function underEraser(point,eraser,rect,radius){
+  const x=point.x*rect.width,y=point.y*rect.height,limit=radius*radius;
+  if(eraser.length===1)return distanceToSegment(x,y,eraser[0],eraser[0],rect)<=limit;
+  for(let i=1;i<eraser.length;i++)if(distanceToSegment(x,y,eraser[i-1],eraser[i],rect)<=limit)return true;
+  return false;
+ }
+ function interpolatePoint(a,b,t){
+  const p={...a};for(const k of ['x','y','pressure','tilt_x','tilt_y','timestamp_ms'])
+   p[k]=(a[k]??0)+((b[k]??0)-(a[k]??0))*t;
+  return p;
+ }
+ function denseStrokePoints(points,rect,radius){
+  if(!points?.length)return [];
+  const result=[points[0]],step=Math.max(2,radius/3);
+  // Typical pen sampling is already dense. Only interpolate long segments
+  // so that a fast eraser crossing can cut a line with just two saved points.
+  for(let i=1;i<points.length;i++){
+   const a=points[i-1],b=points[i];
+   const length=Math.hypot((b.x-a.x)*rect.width,(b.y-a.y)*rect.height);
+   const count=Math.max(1,Math.ceil(length/step));
+   for(let j=1;j<=count;j++)result.push(interpolatePoint(a,b,j/count));
+  }
+  return result;
+ }
+ function fragmentStroke(stroke,points,dimensions,first){
+  // Recompute the outline: reusing the original outline would visibly
+  // reconnect the erased gap and would export the old (untrimmed) polygon.
+  const w=dimensions.width_pt,h=dimensions.height_pt;
+  const retained=simplify(points,.00015);
+  const outline=window.OpenDocFreehand.getStroke(
+   retained.map(p=>[p.x*w,p.y*h,p.pressure]),
+   {size:stroke.size,simulatePressure:false,thinning:.5}
+  ).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);
+  return {...stroke,id:first?stroke.id:window.OpenDocModel.id(),points:retained,outline};
+ }
+ function nearStroke(stroke,eraser,rect,threshold){
+  const points=stroke.points || [];
+  if(!points.length||!eraser.length)return false;
+  let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity;
+  for(const p of eraser){const x=p.x*rect.width,y=p.y*rect.height;left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+  left-=threshold;right+=threshold;top-=threshold;bottom+=threshold;
+  // Bounding the original control points is sufficient for the full line:
+  // all interpolated points lie inside their stroke's bounding rectangle.
+  let sx=Infinity,ex=-Infinity,sy=Infinity,ey=-Infinity;
+  for(const p of points){const x=p.x*rect.width,y=p.y*rect.height;sx=Math.min(sx,x);ex=Math.max(ex,x);sy=Math.min(sy,y);ey=Math.max(ey,y);}
+  return ex>=left&&sx<=right&&ey>=top&&sy<=bottom;
+ }
+ function erasePartialStroke(stroke,eraser,rect,dimensions,radius){
+  const width=(stroke.size||2)*rect.width/(dimensions.width_pt||rect.width);
+  const threshold=radius+Math.min(6,width/2);
+  if(!nearStroke(stroke,eraser,rect,threshold))return {changed:false,fragments:[stroke]};
+  const points=denseStrokePoints(stroke.points,rect,radius);
+  if(!points.length)return {changed:false,fragments:[stroke]};
+  // Quick rectangle rejection for distant strokes, avoiding processing all
+  // saved points on every move when writing over a long document.
+  const xs=eraser.map(p=>p.x*rect.width),ys=eraser.map(p=>p.y*rect.height);
+  const minX=Math.min(...xs)-threshold,maxX=Math.max(...xs)+threshold;
+  const minY=Math.min(...ys)-threshold,maxY=Math.max(...ys)+threshold;
+  if(!points.some(p=>p.x*rect.width>=minX&&p.x*rect.width<=maxX&&p.y*rect.height>=minY&&p.y*rect.height<=maxY))
+   return {changed:false,fragments:[stroke]};
+  const kept=[],fragments=[];let changed=false;
+  function finish(){
+   if(kept.length)fragments.push(fragmentStroke(stroke,kept,dimensions,fragments.length===0));
+   kept.length=0;
+  }
+  for(const p of points){
+   if(underEraser(p,eraser,rect,threshold)){changed=true;finish();}
+   else kept.push(p);
+  }
+  finish();
+  return {changed,fragments:changed?fragments:[stroke]};
+ }
+ function touchesStroke(stroke,eraser,rect,dimensions,radius){
+  const width=(stroke.size||2)*rect.width/(dimensions.width_pt||rect.width);
+  const threshold=radius+Math.min(6,width/2);
+  if(!nearStroke(stroke,eraser,rect,threshold))return false;
+  const pts=denseStrokePoints(stroke.points,rect,radius);
+  return pts.some(p=>underEraser(p,eraser,rect,threshold));
+ }
+ function eraseStrokes(strokes,eraser,rect,dimensions,radius,whole){
+  const result=[];let changed=false;
+  for(const stroke of strokes){
+   if(whole){
+    if(touchesStroke(stroke,eraser,rect,dimensions,radius)){changed=true;continue;}
+    result.push(stroke);
+   }else{
+    const cut=erasePartialStroke(stroke,eraser,rect,dimensions,radius);
+    if(cut.changed)changed=true;
+    result.push(...cut.fragments);
+   }
+  }
+  return {strokes:result,changed};
+ }
  function create({root,editor,status,signal}){
   let mode='cursor',color='#202124',size=2,active=null,scheduled=false,conversion=false,suppressClickUntil=0,phase='idle',capable=false;
   const debugPointer=event=>{if(!window.OpenDocDebug.ink)return;console.debug('[OpenDoc ink]',{type:event.type,pointerId:event.pointerId ?? null,pointerType:event.pointerType || null,button:Number.isFinite(event.button)?event.button:null,buttons:Number.isFinite(event.buttons)?event.buttons:null,pressure:Number.isFinite(event.pressure)?event.pressure:null,tiltX:Number.isFinite(event.tiltX)?event.tiltX:null,tiltY:Number.isFinite(event.tiltY)?event.tiltY:null,twist:Number.isFinite(event.twist)?event.twist:null,width:Number.isFinite(event.width)?event.width:null,height:Number.isFinite(event.height)?event.height:null,isPrimary:event.isPrimary ?? null,timestamp:event.timeStamp});};
@@ -21,7 +123,7 @@
   function suppressSyntheticClick(event,force=false){if(mode==='cursor' || (!force && performance.now()>=suppressClickUntil))return;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();}
   function releaseCapture(svg,pointerId){try{if(svg.hasPointerCapture?.(pointerId)===false)return;svg.releasePointerCapture?.(pointerId);}catch{}}
   const bar=document.createElement('div');bar.className='ink-toolbar';bar.setAttribute('role','toolbar');bar.setAttribute('aria-label','Tinta e escrita');
-  for(const [value,label] of [['cursor','Selecionar'],['pen','Caneta'],['highlighter','Marca-texto'],['eraser','Borracha'],['handwriting','Escrita']]){const b=document.createElement('button');b.textContent=label;b.dataset.inkMode=value;b.setAttribute('aria-pressed',String(value===mode));b.addEventListener('click',()=>setMode(value),{signal});bar.append(b);}
+  for(const [value,label] of [['cursor','Selecionar'],['pen','Caneta'],['highlighter','Marca-texto'],['eraser-partial','Borracha parcial'],['eraser','Apagar traço'],['handwriting','Escrita']]){const b=document.createElement('button');b.textContent=label;b.dataset.inkMode=value;b.title=value==='eraser-partial'?'Apaga somente a área percorrida, preservando o restante do traço':value==='eraser'?'Apaga o traço inteiro ao tocá-lo':'';b.setAttribute('aria-pressed',String(value===mode));b.addEventListener('click',()=>setMode(value),{signal});bar.append(b);}
   const c=document.createElement('input');c.type='color';c.value=color;c.setAttribute('aria-label','Cor da tinta');c.oninput=()=>{color=c.value;};bar.append(c);
   const s=document.createElement('input');s.type='number';s.min='.5';s.max='30';s.step='.5';s.value=size;s.setAttribute('aria-label','Espessura em pontos');s.onchange=()=>{size=Math.max(.5,Math.min(30,Number(s.value)||2));};bar.append(s);
   for(const [label,action] of [['Desfazer',()=>editor.format('undo')],['Refazer',()=>editor.format('redo')],['Converter escrita',convert]]){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',action,{signal});bar.append(b);}
@@ -49,6 +151,12 @@
    const index=Number(surface.dataset.pageIndex),layer=values.find(l=>l.surface_index===index);let svg=surface.querySelector(':scope > .ink-overlay');
    if(!svg){svg=document.createElementNS(NS,'svg');svg.classList.add('ink-overlay');svg.setAttribute('contenteditable','false');svg.setAttribute('focusable','false');svg.setAttribute('viewBox','0 0 1 1');svg.setAttribute('preserveAspectRatio','none');svg.setAttribute('aria-label','Camada de tinta');surface.append(svg);svg.addEventListener('pointerdown',e=>down(e,surface),{signal});svg.addEventListener('pointermove',move,{signal});svg.addEventListener('pointerup',up,{signal});svg.addEventListener('pointercancel',cancel,{signal});svg.addEventListener('lostpointercapture',e=>{debugPointer(e);if(active?.id===e.pointerId && phase==='drawing')cancel(e);},{signal});
     for(const type of ['click','auxclick','contextmenu'])svg.addEventListener(type,e=>{debugPointer(e);if(mode!=='cursor' && (performance.now()<suppressClickUntil || type==='contextmenu'))suppressSyntheticClick(e,type==='contextmenu');},{capture:true,signal});}
+   // Absolutely positioned SVG percentages can include the page's padding
+   // differently across QtWebEngine/Chromium versions. Bind the ink viewport
+   // to the physical page border box, not to the writable text inset.
+   // offsetWidth/Height stay in layout pixels when the page is zoomed.
+   svg.style.left='0px';svg.style.top='0px';svg.style.right='auto';svg.style.bottom='auto';
+   svg.style.width=surface.clientWidth+'px';svg.style.height=surface.clientHeight+'px';
    svg.style.pointerEvents=mode==='cursor'?'none':'auto';
    if(active?.svg===svg)continue;
    svg.replaceChildren();for(const stroke of layer?.strokes || []){const p=document.createElementNS(NS,'path');p.setAttribute('d',path(stroke));p.setAttribute('fill',stroke.color);p.setAttribute('opacity',stroke.opacity);svg.append(p);}
@@ -58,10 +166,31 @@
   function down(e,surface){debugPointer(e);if(active && e.pointerType==='touch'){stopInkEvent(e);return;}if(root.dataset.readerState==='error' && root.dataset.documentKind==='fixed')return;
    if(root.querySelector('[data-title]')?.disabled || root.dataset.homeView==='true' || mode==='cursor' || active || e.pointerType==='touch' || (e.button!==0 && e.button!==2 && e.button!==5))return;stopInkEvent(e);const svg=e.currentTarget,rect=svg.getBoundingClientRect(),index=Number(surface.dataset.pageIndex),layer=window.OpenDocCompat.cloneJson(layers().find(l=>l.surface_index===index) || {surface_index:index,width_pt:Number(surface.dataset.widthPt)||rect.width*.75,height_pt:Number(surface.dataset.heightPt)||rect.height*.75,strokes:[],text_overlays:[],anchor_block_id:surface.querySelector('[data-node-id]')?.dataset.nodeId});
    if(rect.width<=0 || rect.height<=0)return;
-   phase='drawing';active={svg,rect,layer,id:e.pointerId,erase:shouldErase(mode),points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};try{svg.setPointerCapture(e.pointerId);}catch{};active.preview=document.createElementNS(NS,'path');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
-  function draw(){if(!active || active.erase)return;const a=active,w=a.layer.width_pt,h=a.layer.height_pt;a.stroke.outline=window.OpenDocFreehand.getStroke(a.points.map(p=>[p.x*w,p.y*h,p.pressure]),{size:a.stroke.size,simulatePressure:false,thinning:.5}).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);a.preview.setAttribute('d',path(a.stroke));}
+   phase='drawing';active={svg,rect,layer,id:e.pointerId,erase:shouldErase(mode),eraseWhole:mode==='eraser',eraseProcessed:0,eraseChanged:false,points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};try{svg.setPointerCapture(e.pointerId);}catch{};active.preview=document.createElementNS(NS,'path');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
+  function draw(){
+   if(!active)return;
+   const a=active;
+   if(a.erase){
+    const pathPoints=a.points.slice(Math.max(0,a.eraseProcessed-1));
+    a.eraseProcessed=a.points.length;
+    const result=eraseStrokes(a.layer.strokes,pathPoints,a.rect,a.layer,12,a.eraseWhole);
+    if(!result.changed)return;
+    a.eraseChanged=true;
+    a.layer.strokes=result.strokes;
+    a.svg.replaceChildren();
+    for(const stroke of a.layer.strokes){
+     const node=document.createElementNS(NS,'path');
+     node.setAttribute('d',path(stroke));node.setAttribute('fill',stroke.color);
+     node.setAttribute('opacity',stroke.opacity);a.svg.append(node);
+    }
+    return;
+   }
+   const w=a.layer.width_pt,h=a.layer.height_pt;
+   a.stroke.outline=window.OpenDocFreehand.getStroke(a.points.map(p=>[p.x*w,p.y*h,p.pressure]),{size:a.stroke.size,simulatePressure:false,thinning:.5}).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);
+   a.preview.setAttribute('d',path(a.stroke));
+  }
   function move(e){debugPointer(e);if(!active || active.id!==e.pointerId)return;stopInkEvent(e);const coalesced=e.getCoalescedEvents?.();for(const v of coalesced?.length?coalesced:[e])if(active.points.length<20000)active.points.push(sample(v,active.rect));draw();}
-  function up(e){debugPointer(e);if(!active || active.id!==e.pointerId)return;move(e);const a=active;phase='committing';active=null;suppressClickUntil=performance.now()+350;releaseCapture(a.svg,e.pointerId);if(a.erase){const p=a.points.at(-1),r=12/a.rect.width;a.layer.strokes=a.layer.strokes.filter(s=>!s.points.some(q=>a.points.some(p=>(q.x-p.x)**2+(q.y-p.y)**2<r*r)));}else{a.stroke.points=simplify(a.points);a.layer.strokes.push(a.stroke);}commit(a.layer);phase='committed';}
+  function up(e){debugPointer(e);if(!active || active.id!==e.pointerId)return;move(e);const a=active;phase='committing';active=null;suppressClickUntil=performance.now()+350;releaseCapture(a.svg,e.pointerId);if(a.erase){if(a.eraseChanged)commit(a.layer);else refresh();}else{a.stroke.points=simplify(a.points);a.layer.strokes.push(a.stroke);commit(a.layer);}phase='committed';}
   function cancel(e){if(e)debugPointer(e);if(!active || (e?.pointerId!=null && active.id!==e.pointerId))return;const a=active;phase='cancelled';active=null;releaseCapture(a.svg,a.id);refresh();phase='idle';}
   async function convert(){if(conversion || !capable){if(!capable)status(convertButton.title);return;}const layer=layers().findLast?.(l=>l.strokes.some(s=>s.handwriting)) || layers().slice().reverse().find(l=>l.strokes.some(s=>s.handwriting));if(!layer){status('Use Escrita para escrever antes de converter.');return;}const strokes=layer.strokes.filter(s=>s.handwriting),note=editor.snapshot();conversion=true;status('Reconhecendo escrita localmente…');try{const result=await window.pywebview.api.recognize_handwriting(strokes,'pt-BR');if(result.error)throw Error(result.error);if(!result.text?.trim())throw Error('O reconhecedor não retornou texto. Sua tinta foi mantida.');if(editor.snapshot().id!==note.id)throw Error('O documento mudou. A tinta foi mantida.');
     const backdrop=document.createElement('div');backdrop.className='modal-backdrop';const box=document.createElement('section');box.className='dialog';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');const title=document.createElement('h2');title.textContent='Revisar escrita reconhecida';const text=document.createElement('textarea');text.value=result.text;text.setAttribute('aria-label','Texto reconhecido, editável');const info=document.createElement('p');info.textContent=result.backend+(result.confidence==null?' · confiança não informada':' · confiança '+Math.round(result.confidence*100)+'%');box.append(title,info,text);
@@ -73,5 +202,5 @@
   root.addEventListener('open-doc:ink-changed',queue,{signal});
   root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});root.addEventListener('open-doc:changed',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
- window.OpenDocInk={create,simplify,path,shouldErase};
+ window.OpenDocInk={create,simplify,path,shouldErase,eraseStrokes,erasePartialStroke};
 })();

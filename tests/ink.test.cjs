@@ -23,3 +23,84 @@ test('pen_never_becomes_eraser_from_button_flags',t=>{const s=setup(t);s.root.qu
 test('pen_curve_with_eraser_bit_does_not_delete_previous_strokes',t=>{const s=setup(t);s.root.querySelector('[data-ink-mode=pen]').click();s.event('pointerdown',420,420);s.event('pointermove',460,420);s.event('pointerup',500,420);const before=s.layers()[0].strokes[0].id;s.event('pointerdown',420,420,{buttons:32});for(const [x,y] of [[450,390],[480,420],[450,450],[420,420],[450,360]])s.event('pointermove',x,y,{buttons:32});s.event('pointerup',450,360,{buttons:0});assert.equal(s.layers()[0].strokes.length,2);assert.equal(s.layers()[0].strokes[0].id,before);});
 
 test('pointercancel_from_another_pointer_does_not_cancel_active_pen',t=>{const s=setup(t);s.root.querySelector('[data-ink-mode=pen]').click();s.event('pointerdown',20,20,{pointerId:7});s.event('pointercancel',30,30,{pointerId:8});s.event('pointermove',100,100,{pointerId:7});s.event('pointerup',160,160,{pointerId:7});assert.equal(s.layers()[0].strokes.length,1);});
+
+test('ink overlay tracks the page border box and not padded text content',async t=>{
+ const context=setup(t),page=context.root.querySelector('.document-page');
+ Object.defineProperty(page,'clientWidth',{configurable:true,get:()=>794});
+ Object.defineProperty(page,'clientHeight',{configurable:true,get:()=>1123});
+ context.root.dispatchEvent(new context.w.Event('open-doc:layout'));
+ await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(context.svg.style.left,'0px');
+ assert.equal(context.svg.style.top,'0px');
+ assert.equal(context.svg.style.width,'794px');
+ assert.equal(context.svg.style.height,'1123px');
+ context.root.querySelector('[data-ink-mode=pen]').click();
+ context.event('pointerdown',400,600);
+ context.event('pointermove',1500,1600);
+ context.event('pointerup',1700,1800);
+ const stroke=context.layers()[0].strokes[0];
+ assert.ok(stroke.points.every(p=>p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1));
+ assert.ok(stroke.outline.flat().every(value=>value>=0&&value<=1));
+});
+
+test('partial eraser cuts only the crossed part of a long, sparsely sampled line',t=>{
+ const q=setup(t);
+ q.root.querySelector('[data-ink-mode=pen]').click();
+ q.event('pointerdown',100,600);q.event('pointermove',800,600);q.event('pointerup',800,600);
+ const before=q.layers()[0].strokes[0],writes=q.writes();
+ assert.equal(before.points.length,2);
+ q.root.querySelector('[data-ink-mode=eraser-partial]').click();
+ assert.equal(q.root.dataset.inkMode,'eraser-partial');
+ q.event('pointerdown',450,560);q.event('pointermove',450,640);
+ assert.equal(q.svg.querySelectorAll('path').length,2,'preview shows both preserved fragments while dragging');
+ assert.equal(q.writes(),writes,'one history entry only at pointerup');
+ q.event('pointerup',450,640);
+ const parts=q.layers()[0].strokes;
+ assert.equal(q.writes(),writes+1);
+ assert.equal(parts.length,2,'the two visible pieces survive');
+ assert.equal(parts[0].id,before.id);
+ assert.notEqual(parts[1].id,parts[0].id);
+ assert.equal(parts[0].color,before.color);assert.equal(parts[1].color,before.color);
+ assert.ok(parts.every(p=>p.outline.length>=3 && p.points.length>1));
+ assert.ok(parts[0].points.every(p=>p.x*900<450));
+ assert.ok(parts[1].points.every(p=>p.x*900>450));
+});
+
+test('whole-stroke eraser deletes the entire line after a single touch',t=>{
+ const q=setup(t);
+ q.root.querySelector('[data-ink-mode=pen]').click();
+ q.event('pointerdown',90,240);q.event('pointermove',810,240);q.event('pointerup',810,240);
+ assert.equal(q.layers()[0].strokes.length,1);
+ q.root.querySelector('[data-ink-mode=eraser]').click();
+ assert.equal(q.w.OpenDocInk.shouldErase('eraser'),true);
+ assert.equal(q.w.OpenDocInk.shouldErase('eraser-partial'),true);
+ q.event('pointerdown',450,240);q.event('pointerup',450,240);
+ assert.equal(q.layers()[0].strokes.length,0);
+});
+
+test('partial eraser does not alter remote ink or create undo entries without a hit',t=>{
+ const q=setup(t);
+ q.root.querySelector('[data-ink-mode=pen]').click();
+ q.event('pointerdown',90,200);q.event('pointermove',810,200);q.event('pointerup',810,200);
+ const before=JSON.stringify(q.layers()),writes=q.writes();
+ q.root.querySelector('[data-ink-mode=eraser-partial]').click();
+ q.event('pointerdown',450,700);q.event('pointermove',550,800);q.event('pointerup',550,800);
+ assert.equal(JSON.stringify(q.layers()),before);
+ assert.equal(q.writes(),writes);
+});
+
+test('partial eraser preserves pressure, tool and handwritten flag of fragments',t=>{
+ const q=setup(t);
+ q.root.querySelector('[data-ink-mode=handwriting]').click();
+ q.event('pointerdown',90,450,{pressure:.2});
+ q.event('pointermove',450,450,{pressure:.7});
+ q.event('pointermove',810,450,{pressure:.9});
+ q.event('pointerup',810,450,{pressure:.9});
+ q.root.querySelector('[data-ink-mode=eraser-partial]').click();
+ q.event('pointerdown',450,400);q.event('pointermove',450,500);q.event('pointerup',450,500);
+ const parts=q.layers()[0].strokes;
+ assert.equal(parts.length,2);
+ assert.ok(parts.every(p=>p.handwriting && p.tool==='pen'));
+ assert.ok(parts.every(p=>p.points.every(pt=>pt.pressure>=.2&&pt.pressure<=.9)));
+ assert.ok(parts.every(p=>p.outline.flat().every(v=>Number.isFinite(v)&&v>=0&&v<=1)));
+});
