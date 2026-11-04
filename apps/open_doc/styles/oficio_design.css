@@ -262,3 +262,23 @@
 .open-doc .home-quick-menu button { width: 100%; display: flex; gap: 10px; align-items: center; text-align: left; padding: 11px; border-radius: 9px; }
 .open-doc .home-quick-menu svg { color: var(--color-primary); }
 .open-doc .home [hidden],.open-doc .home-quick-menu[hidden] { display: none !important; }
+
+/* State is explicit; HTML hidden always wins over layout declarations. */
+.open-doc[data-home-view="true"] .menubar,
+.open-doc[data-home-view="true"] .toolbar,
+.open-doc[data-home-view="true"] .document-quickbar { display: none; }
+.open-doc[data-home-view="true"] .app-header input[data-title],
+.open-doc[data-home-view="true"] .app-header .save-status,
+.open-doc[data-home-view="true"] .header-divider { display: none; }
+.open-doc .document-quickbar .quickbar-rich { display: inline-flex; align-items: center; gap: 4px; }
+.open-doc .document-quickbar .quickbar-rich[hidden],
+.open-doc .document-quickbar [hidden],
+.open-doc .library-row[hidden],
+.open-doc [data-filter-empty][hidden] { display: none !important; }
+.open-doc .document-quickbar .quickbar-local { margin-left: auto; font-size: 11px; color: var(--color-text-secondary); white-space: nowrap; }
+.open-doc .home-quick-menu button:hover { background: var(--color-hover); }
+.open-doc .home-filters button:focus-visible,.open-doc .home-create-card:focus-visible { outline-offset: 2px; }
+.open-doc .home .library-empty { background: var(--color-panel); border-radius: 12px; padding: 16px; margin: 12px 0; }
+.open-doc .document-quickbar button:disabled { opacity: .4; }
+.open-doc .toolbar [data-command="underline"],.open-doc .toolbar [data-command="strike"] { font-size: 17px; }
+.open-doc .fixed-controls input[type="search"] { width: min(220px, 28vw); }
