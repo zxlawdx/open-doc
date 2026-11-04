@@ -323,6 +323,11 @@
     _thumb(button,surface,index){
       button.replaceChildren();
       const preview=document.createElement("span");preview.className="slide-thumb-preview";
+      // Chromium 83 predates aspect-ratio support. Without an explicit
+      // minimum height, the absolutely positioned preview shapes escape the
+      // thumbnail's intended layout and may render as oversized ghosts.
+      Object.assign(preview.style,{display:"block",position:"relative",
+        overflow:"hidden",width:"100%",minHeight:"62px"});
       preview.style.backgroundColor=surface.background||"#FFFFFF";
       for(const obj of surface.elements||[])preview.append(this._makeObject(obj,index,true));
       const title=document.createElement("span");title.textContent="Slide "+(index+1);
@@ -333,6 +338,11 @@
     render(){
       if(!this.active)return;
       const slides=this.getModel().surfaces;
+      // Remove detached drawing nodes outside pages left by an interrupted
+      // render/zoom transition before painting the current slide.
+      this.scroller.querySelectorAll(".slide-object").forEach(node=>{
+        if(!node.closest(".fixed-surface"))node.remove();
+      });
       // After reordering/adding slides, use the existing physical surface
       // containers, not a second canvas or document lifecycle.
       const containers=Array.from(this.scroller.querySelectorAll(".fixed-surface"));
@@ -349,6 +359,9 @@
         surface.dataset.widthPt=String(slide.width_pt);surface.dataset.heightPt=String(slide.height_pt);
         surface.style.width=slide.width_pt*4/3*this.getZoom()+"px";
         surface.style.height=slide.height_pt*4/3*this.getZoom()+"px";
+        surface.style.position="relative";
+        surface.style.overflow="hidden";
+        surface.style.isolation="isolate";
         surface.querySelector(".slide-object-layer")?.remove();
         const layer=document.createElement("div");layer.className="slide-object-layer";
         // QtWebEngine on Windows embeds Chromium 83, where the CSS "inset"
