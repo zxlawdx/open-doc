@@ -330,3 +330,67 @@ def test_native_image_mirror_flags_export_as_editable_ooxml_transform(tmp_path):
         changed["surfaces"][0]["elements"][0]["flip_h"] = invalid
         with pytest.raises(ValueError, match="Espelhamento"):
             validate(changed)
+
+
+def test_native_image_crop_is_persisted_and_stays_editable_in_powerpoint(tmp_path):
+    """The preview crop is recorded as OOXML a:srcRect, never flattened or destructive."""
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    stream = BytesIO()
+    picture_source = Image.new("RGB", (8, 4), (255, 0, 0))
+    for x in range(4, 8):
+        for y in range(4):
+            picture_source.putpixel((x, y), (0, 0, 255))
+    picture_source.save(stream, "PNG")
+    payload = stream.getvalue()
+    model["assets"] = {"photo-1": {
+        "mime": "image/png", "data": base64.b64encode(payload).decode("ascii")
+    }}
+    model["surfaces"][0]["elements"] = [{
+        **element("crop-1", "image"),
+        "text": "", "asset_id": "photo-1", "name": "Recorte não destrutivo",
+        "crop_left": .25, "crop_right": .20,
+        "crop_top": .10, "crop_bottom": .15,
+        "flip_h": True, "x": .14, "width": .42,
+    }]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    assert ctx.fixed_documents.get(note["id"])["content"] == model
+    result = tmp_path / "crop-editable.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", result)
+    exported = Presentation(result)
+    picture = exported.slides[0].shapes[0]
+    assert picture.shape_type == MSO_SHAPE_TYPE.PICTURE
+    assert picture.name == "Recorte não destrutivo"
+    for attr, value in [
+        ("crop_left", .25), ("crop_right", .20),
+        ("crop_top", .10), ("crop_bottom", .15)
+    ]:
+        assert getattr(picture, attr) == pytest.approx(value, abs=1e-5)
+    assert picture.image.blob == payload, "Crop must not alter embedded pixels"
+    assert picture._pic.spPr.xfrm.flipH is True
+
+    reopened_path = tmp_path / "crop-resaved-in-powerpoint-format.pptx"
+    exported.save(reopened_path)
+    reopened = Presentation(reopened_path).slides[0].shapes[0]
+    assert reopened.crop_left == pytest.approx(.25, abs=1e-5)
+    assert reopened.crop_bottom == pytest.approx(.15, abs=1e-5)
+    assert reopened.image.blob == payload
+
+    for patch in [
+        {"crop_left": .80, "crop_right": .25},
+        {"crop_top": .51, "crop_bottom": .50},
+        {"crop_left": -.01},
+        {"crop_bottom": 1.0},
+        {"crop_left": "20%"},
+    ]:
+        invalid = deepcopy(model)
+        invalid["surfaces"][0]["elements"][0].update(patch)
+        with pytest.raises(ValueError):
+            validate(invalid)

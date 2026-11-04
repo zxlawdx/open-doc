@@ -51,6 +51,12 @@ class SlideDeckExporter:
                     raster.seek(0)
                     picture_data = raster
             shape = slide.shapes.add_picture(picture_data, left, top, w, h)
+            # Native OOXML a:srcRect is non-destructive: the full image is
+            # preserved in the presentation and crop can be readjusted later.
+            shape.crop_left = obj.get("crop_left", 0)
+            shape.crop_right = obj.get("crop_right", 0)
+            shape.crop_top = obj.get("crop_top", 0)
+            shape.crop_bottom = obj.get("crop_bottom", 0)
             # python-pptx exposes picture transforms via its OOXML shape properties.
             xfrm = shape._pic.spPr.get_or_add_xfrm()
             xfrm.flipH = obj.get("flip_h", False)
