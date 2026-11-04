@@ -32,6 +32,7 @@ def validate_annotations(model: dict) -> list[dict]:
 
     surfaces = model["surfaces"]
     seen = set()
+    total_quads = 0
     for annotation in annotations:
         if not isinstance(annotation, dict):
             raise ValueError("Anotação PDF inválida.")
