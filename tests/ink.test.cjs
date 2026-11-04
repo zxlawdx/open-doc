@@ -52,6 +52,7 @@ test('partial eraser cuts only the crossed part of a long, sparsely sampled line
  q.root.querySelector('[data-ink-mode=eraser-partial]').click();
  assert.equal(q.root.dataset.inkMode,'eraser-partial');
  q.event('pointerdown',450,560);q.event('pointermove',450,640);
+ assert.equal(q.svg.querySelectorAll('path').length,2,'preview shows both preserved fragments while dragging');
  assert.equal(q.writes(),writes,'one history entry only at pointerup');
  q.event('pointerup',450,640);
  const parts=q.layers()[0].strokes;
