@@ -144,7 +144,10 @@
     }
     load(){
       this.active=true;this.host.dataset.slideEditor="true";this.toolbar.hidden=false;this.inspector.hidden=false;
-      this.current=0;this.selected=null;this.render();
+      this.current=0;this.selected=null;
+      // An ink tool left active in PDF must never intercept slide selection.
+      this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
+      this.render();
     }
     deactivate(){
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
@@ -155,6 +158,9 @@
       if(this.active)this._properties();
     }
     add(type){
+      // Insertions activate selection; otherwise the full-page ink SVG wins
+      // hit-testing when the user previously selected Pen/Highlighter.
+      this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
       const id=this.commands.insertObject(this.current,type);this.selected=id;this.render();
     }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
@@ -163,6 +169,26 @@
       node.dataset.slideElement=obj.id;node.dataset.kind=obj.type;
       if(!thumb&&this.selected===obj.id&&index===this.current)node.dataset.selected="true";
       this._styleObject(node,obj,thumb);
+      if(obj.type==="rect"||obj.type==="ellipse"){
+        // Use SVG primitives rather than relying on CSS-only shape painting.
+        const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+        svg.classList.add("slide-vector-shape");
+        svg.setAttribute("viewBox","0 0 100 100");
+        svg.setAttribute("preserveAspectRatio","none");
+        svg.setAttribute("aria-hidden","true");
+        const shape=document.createElementNS(
+          "http://www.w3.org/2000/svg",obj.type==="rect"?"rect":"ellipse");
+        if(obj.type==="rect"){
+          for(const [key,value] of [["x","0.5"],["y","0.5"],["width","99"],["height","99"]])shape.setAttribute(key,value);
+        }else{
+          for(const [key,value] of [["cx","50"],["cy","50"],["rx","49.5"],["ry","49.5"]])shape.setAttribute(key,value);
+        }
+        shape.setAttribute("fill",obj.fill);
+        shape.setAttribute("stroke",obj.stroke);
+        shape.setAttribute("stroke-width","1.5");
+        shape.setAttribute("vector-effect","non-scaling-stroke");
+        svg.append(shape);node.append(svg);
+      }
       if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
@@ -175,8 +201,8 @@
       const zoom=thumb?1:this.getZoom();
       Object.assign(node.style,{
         left:obj.x*100+"%",top:obj.y*100+"%",width:obj.width*100+"%",height:obj.height*100+"%",
-        color:obj.color,backgroundColor:obj.type==="text"?"transparent":obj.fill,
-        borderColor:obj.type==="text"?"transparent":obj.stroke,
+        color:obj.color,backgroundColor:"transparent",
+        borderColor:"transparent",
         fontSize:(obj.font_size_pt||28)*4/3*zoom*(thumb?.16:1)+"px",
         fontFamily:JSON.stringify(obj.font_family||"Inter")+",sans-serif"
       });
@@ -251,12 +277,14 @@
       if(selected){
         const heading=document.createElement("h4");heading.textContent="Editar "+labelFor(selected.type);this.inspector.append(heading);
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
-        this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));
+        if(selected.type==="text"||selected.text)
+          this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));
         if(selected.type!=="text"){
           this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
           this._property("Contorno",selected.stroke,"color",value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
         }
-        this._property("Fonte (pt)",selected.font_size_pt||28,"number",value=>this.commands.updateObject(this.current,selected.id,{font_size_pt:clamp(Number(value)||28,6,144)}));
+        if(selected.type==="text"||selected.text)
+          this._property("Fonte (pt)",selected.font_size_pt||28,"number",value=>this.commands.updateObject(this.current,selected.id,{font_size_pt:clamp(Number(value)||28,6,144)}));
         for(const [key,label] of fields)this._property(label,Math.round(selected[key]*100),"number",value=>{
           const amount=clamp(Number(value)/100,0,key==="x"||key==="y"?1:1);
           const patch={[key]:amount};
@@ -312,7 +340,7 @@
     _finish(event){
       const drag=this.drag;if(!drag)return;
       this.drag=null;
-      if(!drag.value)return;
+      if(!drag.value){this.render();return;}
       const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,height:drag.value.height};
       if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,width:drag.initial.width,height:drag.initial.height}))return;
       this.commands.updateObject(drag.index,drag.id,patch);
