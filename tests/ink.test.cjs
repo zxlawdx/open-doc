@@ -23,3 +23,22 @@ test('pen_never_becomes_eraser_from_button_flags',t=>{const s=setup(t);s.root.qu
 test('pen_curve_with_eraser_bit_does_not_delete_previous_strokes',t=>{const s=setup(t);s.root.querySelector('[data-ink-mode=pen]').click();s.event('pointerdown',420,420);s.event('pointermove',460,420);s.event('pointerup',500,420);const before=s.layers()[0].strokes[0].id;s.event('pointerdown',420,420,{buttons:32});for(const [x,y] of [[450,390],[480,420],[450,450],[420,420],[450,360]])s.event('pointermove',x,y,{buttons:32});s.event('pointerup',450,360,{buttons:0});assert.equal(s.layers()[0].strokes.length,2);assert.equal(s.layers()[0].strokes[0].id,before);});
 
 test('pointercancel_from_another_pointer_does_not_cancel_active_pen',t=>{const s=setup(t);s.root.querySelector('[data-ink-mode=pen]').click();s.event('pointerdown',20,20,{pointerId:7});s.event('pointercancel',30,30,{pointerId:8});s.event('pointermove',100,100,{pointerId:7});s.event('pointerup',160,160,{pointerId:7});assert.equal(s.layers()[0].strokes.length,1);});
+
+test('ink overlay tracks the page border box and not padded text content',async t=>{
+ const context=setup(t),page=context.root.querySelector('.document-page');
+ Object.defineProperty(page,'clientWidth',{configurable:true,get:()=>794});
+ Object.defineProperty(page,'clientHeight',{configurable:true,get:()=>1123});
+ context.root.dispatchEvent(new context.w.Event('open-doc:layout'));
+ await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(context.svg.style.left,'0px');
+ assert.equal(context.svg.style.top,'0px');
+ assert.equal(context.svg.style.width,'794px');
+ assert.equal(context.svg.style.height,'1123px');
+ context.root.querySelector('[data-ink-mode=pen]').click();
+ context.event('pointerdown',400,600);
+ context.event('pointermove',1500,1600);
+ context.event('pointerup',1700,1800);
+ const stroke=context.layers()[0].strokes[0];
+ assert.ok(stroke.points.every(p=>p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1));
+ assert.ok(stroke.outline.flat().every(value=>value>=0&&value<=1));
+});
