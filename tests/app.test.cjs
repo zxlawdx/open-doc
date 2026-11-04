@@ -128,3 +128,25 @@ test('link dialog preserves selected text while pending pagination moves nodes',
   click('[data-dialog-confirm]');await new Promise(resolve=>setTimeout(resolve,10));
   assert.match(root.querySelector('[data-source]').value,/\[Texto selecionado\]\(https:\/\/example.com\)/);
 });
+
+
+test('link modal Cancel and Escape always close and preserve document', async t => {
+  const {w,root,click,select}=await mount(t);
+  const modal=root.querySelector('[data-dialog]');
+  const source=root.querySelector('[data-source]');
+  const initial=source.value;
+  for(const mode of ['cancel','escape']){
+    select();click('.toolbar [data-action=link]');
+    await new Promise(resolve=>setTimeout(resolve,15));
+    assert.equal(modal.hidden,false,'dialog opens in '+mode+' mode');
+    assert.equal(modal.style.display,'grid');
+    assert.equal(w.document.activeElement,root.querySelector('[data-dialog-input]'));
+    if(mode==='cancel')click('[data-dialog-cancel]');
+    else root.querySelector('[data-dialog-input]').dispatchEvent(
+      new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+    assert.equal(modal.hidden,true,'dialog must be closed by '+mode);
+    assert.equal(modal.style.display,'none','the legacy Qt display fallback hides the modal');
+    await new Promise(resolve=>setTimeout(resolve,10));
+    assert.equal(source.value,initial,'cancel must not modify the document');
+  }
+});
