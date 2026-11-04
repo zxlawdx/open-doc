@@ -42,7 +42,19 @@ const destination = path.resolve(__dirname, '../docs/images/stabilization');
   await pause();await evaluate('__fullRenders=0;__layouts=0');
   await click('[data-ink-mode=pen]');
   for(let i=0;i<20;i++)await evaluate(`(() => {const svg=document.querySelector('.document-page .ink-overlay'),r=svg.getBoundingClientRect();svg.setPointerCapture=()=>{};for(const [type,x] of [['pointerdown',.15],['pointermove',.2],['pointerup',.25]])svg.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:77,pointerType:'pen',button:0,buttons:1,pressure:.5,clientX:r.left+r.width*x,clientY:r.top+r.height*(.1+${i}*.02)}));})()`);
-  await pause();assert.equal(await evaluate('OpenDocApp.editor().inkLayers()[0].strokes.length'),20);assert.equal(await evaluate('__fullRenders'),0);assert.equal(await evaluate('__layouts'),0);assert.equal(await evaluate("document.querySelector('.document-page')===__firstPage"),true);
+  await pause();
+  const inkDiagnostics=await evaluate(`(()=>{
+    const root=document.querySelector('[data-app]'),page=document.querySelector('.document-page'),
+          svg=page?.querySelector('.ink-overlay'),rect=svg?.getBoundingClientRect();
+    return {mode:root.dataset.inkMode,home:root.dataset.homeView,kind:root.dataset.documentKind,
+      titleDisabled:document.querySelector('[data-title]')?.disabled,
+      pageSize:[page?.offsetWidth,page?.offsetHeight],
+      inkSize:[rect?.width,rect?.height],
+      pointerEvents:svg?getComputedStyle(svg).pointerEvents:null,
+      layers:OpenDocApp.editor().inkLayers().map(l=>({index:l.surface_index,strokes:l.strokes.length}))};
+  })()`);
+  console.log('QT_DOCX_INK_DIAGNOSTIC',JSON.stringify(inkDiagnostics));
+  assert.equal(inkDiagnostics.layers[0]?.strokes,20,'DOCX ink geometry: '+JSON.stringify(inkDiagnostics));assert.equal(await evaluate('__fullRenders'),0);assert.equal(await evaluate('__layouts'),0);assert.equal(await evaluate("document.querySelector('.document-page')===__firstPage"),true);
   await evaluate("OpenDocApp.editor().format('undo')");await pause();assert.equal(await evaluate('OpenDocApp.editor().inkLayers()[0].strokes.length'),19);assert.equal(await evaluate('__fullRenders'),0);assert.equal(await evaluate('__layouts'),0);
   await evaluate("OpenDocApp.editor().format('redo')");await evaluate('OpenDocApp.editor().flush()');
   await evaluate(`(async()=>{const s=OpenDocApp.editor().snapshot();const result=await fetch('/api/open_doc/document/open',{method:'POST',headers:{'Content-Type':'application/json','X-Open-Doc-Token':(await pywebview.api.get_bootstrap()).token},body:JSON.stringify({id:s.id})});OpenDocApp.editor().load(await result.json());})()`);
