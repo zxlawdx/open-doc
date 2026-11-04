@@ -67,7 +67,63 @@
   }
   function lazy(){if((!pdf && !pptx) || !active)return;const viewport=scroller.getBoundingClientRect();let first=pageNodes.findIndex(n=>n.getBoundingClientRect().bottom>viewport.top);first=Math.max(0,first);pageField.value=first+1;root.querySelector('[data-position]').textContent='Página '+(first+1)+' de '+pageNodes.length;for(let i=0;i<pageNodes.length;i++){if(Math.abs(i-first)<=2)render(i,epoch).catch(e=>status(e.message));else if(Math.abs(i-first)>4){renderTasks.get(i)?.cancel();pageNodes[i].querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content').forEach(n=>n.remove());if(!rendering.has(i) && renderedPages.has(i)){renderedPages.get(i).cleanup();renderedPages.delete(i);}}}}
   async function destination(dest){if(typeof dest==='string')dest=await pdf.getDestination(dest);if(!dest)return;go(typeof dest[0]==='number'?dest[0]:await pdf.getPageIndex(dest[0]));}
-  async function find(){if(pptx){const matches=pptx.find(search.value);status(matches.length+' slides com resultados.');if(matches.length)go(matches[0]);return;}if(!pdf || !search.value.trim())return;const generation=++searchEpoch,q=search.value.toLocaleLowerCase(),matches=[];for(let i=0;i<pdf.numPages;i++){if(generation!==searchEpoch || !active)return;const page=await pdf.getPage(i+1),text=(await page.getTextContent()).items.map(i=>i.str || '').join(' ');if(text.toLocaleLowerCase().includes(q))matches.push(i);if(i%10===0)await new Promise(r=>setTimeout(r,0));}status(matches.length+' páginas com resultados.');if(matches.length)go(matches[0]);sidebar.querySelectorAll('[data-search-result]').forEach(n=>n.remove());for(const i of matches){const b=document.createElement('button');b.dataset.searchResult='';b.textContent='Resultado · página '+(i+1);b.onclick=()=>go(i);sidebar.append(b);}}
+  async function find(){
+    if(pptx){const matches=pptx.find(search.value);status(matches.length+' slides com resultados.');if(matches.length)go(matches[0]);return;}
+    const query=search.value.trim();
+    if(!pdf || !query)return;
+    const generation=++searchEpoch,q=query.toLocaleLowerCase(),matches=[];
+    const total=pdf.numPages;
+    sidebar.querySelectorAll('[data-search-result]').forEach(node=>node.remove());
+    status('Pesquisando em '+total+' páginas…');
+    // Search from both ends so a distant match is not withheld behind hundreds
+    // of sequential PDF.js text extractions. Limit concurrent worker tasks.
+    const order=[];
+    for(let first=0,last=total-1;first<=last;first++,last--){
+      order.push(first);
+      if(first!==last)order.push(last);
+    }
+    let cursor=0,failures=0,navigated=false;
+    const valid=()=>generation===searchEpoch && active;
+    const worker=async()=>{
+      while(valid()){
+        const slot=cursor++;
+        if(slot>=order.length)return;
+        const index=order[slot];
+        try{
+          const page=await pdf.getPage(index+1);
+          if(!valid())return;
+          const items=(await page.getTextContent()).items;
+          if(!valid())return;
+          const text=items.map(item=>item.str||'').join(' ').toLocaleLowerCase();
+          if(!text.includes(q))continue;
+          matches.push(index);
+          const button=document.createElement('button');
+          button.dataset.searchResult='';
+          button.dataset.searchPage=String(index);
+          button.textContent='Resultado · página '+(index+1);
+          button.onclick=()=>go(index);
+          const successor=Array.from(sidebar.querySelectorAll('[data-search-result]'))
+            .find(node=>Number(node.dataset.searchPage)>index);
+          if(successor)sidebar.insertBefore(button,successor);
+          else sidebar.append(button);
+          if(!navigated){navigated=true;go(index);}
+          status(matches.length+' páginas com resultados (pesquisando…).');
+        }catch(error){
+          if(!valid())return;
+          failures++;
+          console.error('Open Doc: falha ao pesquisar página '+(index+1),error);
+        }
+      }
+    };
+    await Promise.all(Array.from({length:Math.min(4,total)},()=>worker()));
+    if(!valid())return;
+    if(matches.length)go(Math.min(...matches));
+    status(matches.length+' páginas com resultados.'+(failures?' '+failures+' páginas não puderam ser examinadas.':''));
+  }
+  search.addEventListener('input',()=>{
+    searchEpoch++;
+    sidebar.querySelectorAll('[data-search-result]').forEach(node=>node.remove());
+  },{signal});
   async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
    for(const s of model.surfaces){const node=document.createElement('div');node.className='fixed-surface';node.dataset.pageIndex=s.index;node.dataset.widthPt=s.width_pt;node.dataset.heightPt=s.height_pt;node.style.width=s.width_pt*4/3+'px';node.style.height=s.height_pt*4/3+'px';scroller.append(node);pageNodes.push(node);const b=document.createElement('button');b.textContent='Página '+(s.index+1);b.dataset.thumbnailIndex=s.index;b.onclick=()=>go(s.index);sidebar.append(b);}
