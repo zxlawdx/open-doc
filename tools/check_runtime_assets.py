@@ -7,9 +7,11 @@ the two text inputs to CRLF, which must not invalidate identical source files.
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
+        else Path(__file__).resolve().parents[1])
 BUNDLES = (
     "pdf.bundle.js",
     "pdf.worker.bundle.js",
@@ -90,7 +92,11 @@ def validate_vendor(root: Path = ROOT) -> dict:
         if (vendor / ".build-failed").exists():
             raise ValueError("O último build falhou ou foi interrompido.")
         manifest = json.loads((vendor / "vendor-manifest.json").read_text("utf-8"))
-        if manifest["source_hash"] not in source_hashes(root) or manifest["target"] != "chrome83":
+        if manifest["target"] != "chrome83":
+            raise ValueError("Target de vendor incompatível.")
+        # Source files are build-only inputs and are intentionally excluded
+        # from a frozen PyInstaller distribution. Verify them at build time.
+        if not getattr(sys, "frozen", False) and manifest["source_hash"] not in source_hashes(root):
             raise ValueError("Manifesto de vendor desatualizado.")
         for name in BUNDLES:
             if (
