@@ -52,6 +52,8 @@ jobs:
       - name: Actual Vela PyQt QtWebEngine
         shell: pwsh
         run: |
+          python -u tools/qa_pdf_native.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_windows_ink.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_input.py
@@ -110,6 +112,7 @@ jobs:
           npm test
       - name: Actual Vela PyQt QtWebEngine
         run: |
+          python -u tools/qa_pdf_native.py
           python -u tools/qa_windows_ink.py
           python -u tools/qa_input.py
           python -u tools/qa_stabilization.py

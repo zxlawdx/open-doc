@@ -301,7 +301,7 @@ test('PDF inline editor sends a real native replacement command and respects Sav
    getViewport:()=>({width:400,height:500,scale:1}),
    render:()=>({promise:Promise.resolve(),cancel(){}}),
    getAnnotations:async()=>[],cleanup(){},
-   getTextContent:async()=>({items:[{str:'atividade'}]})
+   getTextContent:async()=>({items:[{str:'Relatorio de atividade'}]})
  };
  w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',
    getDocument:()=>({promise:Promise.resolve({
@@ -310,7 +310,7 @@ test('PDF inline editor sends a real native replacement command and respects Sav
    TextLayer:class{
      constructor({container}){this.container=container;}
      render(){const span=w.document.createElement('span');
-       span.textContent='atividade';this.container.append(span);return Promise.resolve();}
+       span.textContent='Relatorio de atividade';this.container.append(span);return Promise.resolve();}
    }
  };
  w.eval(source('fixed_document.js'));
@@ -335,8 +335,8 @@ test('PDF inline editor sends a real native replacement command and respects Sav
  const panel=root.querySelector('.pdf-native-editor');
  assert.ok(panel,'direct in-page input must open, not a text annotation panel');
  const field=panel.querySelector('input[type=text]');
- assert.equal(field.value,'atividade');
- field.value='atividades';
+ assert.equal(field.value,'Relatorio de atividade');
+ field.value='Relatorio de atividades';
  panel.querySelector('input[type=checkbox]').checked=true;
  panel.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  for(let i=0;i<30&&!calls.length;i++)
@@ -345,7 +345,7 @@ test('PDF inline editor sends a real native replacement command and respects Sav
  assert.equal(calls[0][0],'pdf-native');
  assert.equal(calls[0][1],1);
  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][2])),{
-   kind:'replace_text',page:0,old:'atividade',new:'atividades',allow_expansion:true
+   kind:'replace_text',page:0,old:'Relatorio de atividade',new:'Relatorio de atividades',allow_expansion:true
  });
  assert.ok(root.querySelector('.pdf-native-editor'),
    'cancelling native Save As does not remove the unsaved proposal');

@@ -71,9 +71,12 @@
     const word=event.target.closest?.('.textLayer span');
     const surface=word?.closest('.fixed-surface');
     if(!surface)return;
-    const selection=window.getSelection()?.toString()?.trim()||'';
-    const old=selection||word.textContent.trim();
-    if(!old||old.length>180||/[\\r\\n]/.test(old)){
+    const selection=window.getSelection();
+    const selected=selection&&!selection.isCollapsed&&
+      surface.contains(selection.anchorNode)&&surface.contains(selection.focusNode)
+      ?selection.toString().trim():'';
+    const old=selected||word.textContent.trim();
+    if(!old||old.length>180||/[\r\n]/.test(old)){
       status('Selecione uma palavra ou frase curta em uma única linha.');return;
     }
     host.querySelector('.pdf-native-editor')?.remove();
