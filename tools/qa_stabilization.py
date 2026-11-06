@@ -182,6 +182,22 @@ def main():
             print(
                 "QT_QTEST_CTRL_O_MD_TXT_PDF_PPTX_DOCX_HOME_NEW_LIFECYCLE_OK", flush=True
             )
+            # Independent real QtWebEngine stress scenarios in a fresh DOCX
+            # editor. A CDP watchdog fails on a hung renderer/white screen.
+            stress = subprocess.run(
+                [
+                    "node",
+                    str(ROOT / "tools/qa_docx_stress_capture.cjs"),
+                    os.environ["QTWEBENGINE_REMOTE_DEBUGGING"],
+                ],
+                capture_output=True,
+                text=True,
+                timeout=220,
+            )
+            print(stress.stdout, stress.stderr, flush=True)
+            assert stress.returncode == 0, (
+                "DOCX Enter/Backspace 100/500/1000 Qt stress or screenshots failed"
+            )
             note = services().editor.get(fixture_id)
             assert sum(len(l["strokes"]) for l in note["content"]["ink_layers"]) == 20
             print("QT_DOCX_INK_PERSISTENCE_AND_INCREMENTAL_UNDO_OK", flush=True)
