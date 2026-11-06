@@ -143,6 +143,8 @@ class Table:
     alignment: str | None = None
     layout: str | None = None
     style_id: str | None = None
+    style_preset: str | None = None
+    cell_spacing_pt: float | None = None
     column_widths_pt: list[float] = field(default_factory=list)
     borders: dict[str, Any] = field(default_factory=dict)
 

@@ -72,3 +72,160 @@
 .open-doc .slide-layer-list button{
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
+
+
+/* Ribbon organized by user task, not an endless mixed PDF/PPTX command row. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  flex-wrap:wrap;overflow-x:hidden;overflow-y:visible;
+  row-gap:9px;column-gap:9px;padding:10px 12px;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{
+  order:2;flex:1 1 100%;display:flex;flex-direction:column;
+  align-items:stretch;gap:8px;padding:0;margin:2px 0 0;
+  border:0;overflow:visible;
+}
+.open-doc .slide-ribbon-tabs{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--color-border-soft);min-height:36px}
+.open-doc .slide-ribbon-tab{
+  border-radius:8px 8px 0 0!important;padding:8px 16px!important;
+  background:transparent!important;min-height:34px;font-weight:600;
+}
+.open-doc .slide-ribbon-tab[aria-selected=true]{
+  color:var(--color-primary)!important;border-bottom:3px solid var(--color-primary)!important;
+}
+.open-doc .slide-ribbon-body{display:flex;min-width:0;max-width:100%}
+.open-doc .slide-ribbon-group{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  min-height:40px;max-width:100%;padding-bottom:2px;
+}
+.open-doc .slide-ribbon-group[hidden]{display:none!important}
+.open-doc .slide-ribbon-group button{
+  min-height:37px;padding:7px 12px;white-space:nowrap;
+  border-radius:9px;border:1px solid var(--color-border-soft);
+}
+.open-doc .slide-paint-selector{
+  display:inline-flex;align-items:center;gap:8px;padding:3px 11px;
+  border:1px solid var(--color-border-soft);border-radius:9px;
+  color:var(--color-text-secondary);font-size:12px;
+}
+.open-doc .slide-paint-selector input{width:38px;height:30px;border:0;cursor:pointer}
+.open-doc .slide-ribbon-group button[aria-pressed=true]{
+  background:var(--color-primary-soft)!important;
+  border-color:var(--color-primary);color:var(--color-primary)!important;
+}
+.open-doc .slide-inspector{gap:14px;padding:20px 18px}
+.open-doc .slide-inspector h4{font-size:13px;margin-top:15px}
+.open-doc .slide-inspector label{gap:7px;font-size:13px}
+.open-doc .slide-inspector label input,.open-doc .slide-inspector label textarea{
+  padding:10px 12px;min-height:39px;
+}
+.open-doc .slide-layer-list,.open-doc .slide-layer-actions{gap:9px}
+.open-doc .slide-layer-list button,.open-doc .slide-layer-actions button{
+  min-height:40px;padding:10px 12px;font-size:13px;
+}
+
+/* All eight editing handles and one rotation control remain accessible. */
+.open-doc .slide-object[data-selected=true]{overflow:visible}
+.open-doc .slide-resize-handle{
+  position:absolute;box-sizing:border-box;
+  width:12px;height:12px;z-index:6;
+  border:2px solid white;border-radius:3px;background:var(--color-primary);
+  touch-action:none;transform:translate(-50%,-50%);
+}
+.open-doc .slide-handle-nw{left:0;top:0;cursor:nwse-resize}
+.open-doc .slide-handle-n{left:50%;top:0;cursor:ns-resize}
+.open-doc .slide-handle-ne{left:100%;top:0;cursor:nesw-resize}
+.open-doc .slide-handle-e{left:100%;top:50%;cursor:ew-resize}
+.open-doc .slide-handle-se{left:100%;top:100%;cursor:nwse-resize}
+.open-doc .slide-handle-s{left:50%;top:100%;cursor:ns-resize}
+.open-doc .slide-handle-sw{left:0;top:100%;cursor:nesw-resize}
+.open-doc .slide-handle-w{left:0;top:50%;cursor:ew-resize}
+.open-doc .slide-rotate-handle{
+  position:absolute;left:50%;top:-34px;transform:translateX(-50%);
+  z-index:8;width:21px;height:21px;box-sizing:border-box;
+  border:2px solid var(--color-primary);border-radius:50%;
+  background:white;cursor:grab;touch-action:none;
+}
+.open-doc .slide-rotate-handle::after{
+  content:"";position:absolute;left:50%;top:19px;height:13px;
+  border-left:1.5px solid var(--color-primary);
+}
+.open-doc .slide-inline-editor{
+  position:absolute;z-index:9;box-sizing:border-box;top:0;left:0;right:0;bottom:0;
+  width:100%;height:100%;resize:none;overflow:auto;
+  background:rgba(255,255,255,.96);border:1px solid var(--color-primary);
+  outline:2px solid var(--color-primary);border-radius:2px;
+  padding:6px;color:inherit;font:inherit;line-height:inherit;
+  white-space:pre-wrap;word-break:break-word;
+}
+
+/* Visual preview only. Native PPTX export writes p:transition OOXML separately. */
+@keyframes open-doc-transition-fade{
+  from{opacity:0}to{opacity:1}
+}
+@keyframes open-doc-transition-push-left{
+  from{opacity:.2;transform:translateX(22%)}to{opacity:1;transform:translateX(0)}
+}
+@keyframes open-doc-transition-push-right{
+  from{opacity:.2;transform:translateX(-22%)}to{opacity:1;transform:translateX(0)}
+}
+@keyframes open-doc-transition-wipe-left{
+  from{clip-path:inset(0 0 0 100%)}to{clip-path:inset(0)}
+}
+@keyframes open-doc-transition-wipe-right{
+  from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0)}
+}
+.open-doc .slide-inspector select{
+  display:block;box-sizing:border-box;min-height:39px;width:100%;
+  border:1px solid var(--color-border);border-radius:9px;
+  color:var(--color-text-primary);background:var(--of-surface-low);
+  padding:8px 12px
+}
+
+
+/* Editable native chart preview and its row-based data source. */
+.open-doc .slide-object-chart{background:#fff;overflow:hidden}
+.open-doc .slide-chart-preview{
+  position:absolute;left:0;top:0;display:block;
+  box-sizing:border-box;width:100%;height:100%;pointer-events:none;
+  border:1px solid #CBD5E1;border-radius:5px;background:#fff;
+}
+.open-doc .slide-chart-data{
+  display:flex;flex-direction:column;gap:13px;margin-top:17px;
+  padding:15px 0;border-top:1px solid var(--color-border);
+}
+.open-doc .slide-chart-data h4{margin:0;font-size:14px}
+.open-doc .slide-chart-options{display:grid;grid-template-columns:1fr;gap:11px}
+.open-doc .slide-chart-options label{
+  display:flex;flex-direction:column;gap:7px;
+  font-size:12px;color:var(--color-text-secondary)
+}
+.open-doc .slide-chart-options select,.open-doc .slide-chart-options input{
+  min-height:39px;box-sizing:border-box;border:1px solid var(--color-border);
+  border-radius:8px;background:var(--of-surface-low);
+  color:var(--color-text-primary);padding:8px 10px;width:100%
+}
+.open-doc .slide-chart-hint{font-size:12px;line-height:1.6;margin:0}
+.open-doc .slide-chart-grid{
+  border-collapse:separate;border-spacing:0;width:100%;
+  max-width:100%;font-size:12px
+}
+.open-doc .slide-chart-grid th{
+  text-align:left;padding:8px 4px;color:var(--color-text-secondary);
+  font-size:11px;border-bottom:1px solid var(--color-border)
+}
+.open-doc .slide-chart-grid td{padding:5px 2px;min-width:0}
+.open-doc .slide-chart-grid td:first-child{width:48%}
+.open-doc .slide-chart-grid td:nth-child(2){width:39%}
+.open-doc .slide-chart-grid input{
+  width:100%;min-width:0;box-sizing:border-box;padding:7px 6px;
+  border:1px solid var(--color-border);border-radius:7px;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  font-size:12px;min-height:35px
+}
+.open-doc .slide-chart-grid button{min-width:26px;min-height:35px;
+  color:var(--color-text-primary);border-radius:7px}
+.open-doc .slide-chart-data>button{
+  padding:9px;border:1px solid var(--color-border);border-radius:8px;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  min-height:37px;text-align:left
+}
