@@ -530,7 +530,13 @@
 
     // One command contract for both keyboard and beforeinput deletion.
     // The model is the authority; page sections are disposable layout only.
+    function traceDeletion(stage,details=null){
+      if(window.OpenDocDebug?.traceDelete)
+        console.warn('OPEN_DOC_DELETE_TRACE',stage,
+          details?JSON.stringify(details):'');
+    }
     function applyLogicalDeletion(event,inputType){
+      traceDeletion('received',{type:event.type,inputType,cancelled:event.defaultPrevented});
       if(mode!=='rich'||lockedState||!model||root.dataset.documentKind==='fixed'
         ||event.defaultPrevented || window.getSelection()?.isComposing)return false;
       const transactions=window.OpenDocLogicalTransactions;
@@ -557,8 +563,10 @@
       }
       if(inputType!=='deleteContentBackward'||!selection?.isCollapsed)return false;
       const boundary=transactions.inspectBackspace(rich,selection,model);
+      traceDeletion('inspected',boundary||{matched:false,blocks:model.blocks.length});
       if(!boundary)return false;
       event.preventDefault();
+      traceDeletion('cancelled-native');
       const op=transactions.joinBackward(model,boundary.currentId);
       if(!op){
         status('Não é possível unir estes blocos sem alterar a estrutura do documento.');
@@ -566,13 +574,16 @@
       }
       beforeInputCrossPage=true;
       beforeInputBlockId=op.caret.blockId;
+      traceDeletion('before-commit',{blocks:op.model.blocks.length});
       commitModel(op.model,'transaction',op.caret);
+      traceDeletion('after-commit');
       beforeInputCrossPage=false;
       root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
         {detail:{blockId:op.caret.blockId,reason:'typing',structural:true,full:true}}));
       return true;
     }
     rich.addEventListener('keydown',event=>{
+      if(event.key==='Backspace')traceDeletion('keydown-entry');
       if(event.key!=='Backspace'&&event.key!=='Delete')return;
       if(event.ctrlKey||event.altKey||event.metaKey||event.isComposing)return;
       applyLogicalDeletion(event,event.key==='Backspace'
