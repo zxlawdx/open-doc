@@ -514,6 +514,19 @@
       this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.scroller.style.cursor="";this.inspector.replaceChildren();
     }
+    selectSearchResult(index,id){
+      if(!this.active)return;
+      const slide=this.getModel().surfaces[index];
+      if(!slide?.elements?.some(object=>object.id===id))return;
+      this.current=index;
+      this._selectObject(id);
+      this.render();
+      const object=this._surface(index)?.querySelector('[data-slide-element="'+id+'"]');
+      if(object){
+        object.classList.add("slide-search-match");
+        object.scrollIntoView?.({block:"center",inline:"nearest"});
+      }
+    }
     onPageChange(index){
       if(index!==this.current)this._selectObject(null);
       this.current=index;
