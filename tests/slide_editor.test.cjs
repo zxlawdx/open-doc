@@ -202,7 +202,7 @@ test('legacy Qt keeps shape previews contained, while the canvas clips slide edg
  assert.equal(page.style.overflow,'hidden','slide objects must be clipped to page bounds');
  assert.equal(page.style.position,'relative');
  assert.equal(page.style.isolation,'isolate');
- assert.ok(parseFloat(thumb.style.height)>60,'explicit thumbnail height supports legacy Qt without aspect-ratio');
+ assert.ok(parseFloat(thumb.style.height)>50,'explicit 16:9 thumbnail height supports legacy Qt without aspect-ratio');
  assert.equal(thumb.style.overflow,'hidden');
  assert.equal(thumb.style.position,'relative');
  assert.equal(page.querySelectorAll(':scope > .slide-object').length,1);
@@ -418,6 +418,9 @@ test('shape grips resize on all edges and rotation control commits one change',t
  assert.ok(Math.abs(shape.x-.10)<.001);
  assert.ok(Math.abs(shape.width-.37)<.001);
  assert.equal(q.versions.length,before+1);
+ // The active surface is replaced after a committed resize. Measure its
+ // new physical node rather than continuing to use the detached old page.
+ q.scroller.querySelector('.fixed-surface').getBoundingClientRect=()=>({left:10,top:20,width:600,height:300,right:610,bottom:320});
  node=q.scroller.querySelector('.slide-object-rect');
  const centerX=10+(shape.x+shape.width/2)*600;
  const centerY=20+(shape.y+shape.height/2)*300;
