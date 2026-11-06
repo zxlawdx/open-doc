@@ -14,6 +14,12 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
  let seq=0;const pending=new Map();
  ws.onmessage=event=>{
    const data=JSON.parse(event.data);
+   if(data.method==='Runtime.consoleAPICalled'){
+     const words=(data.params.args||[]).map(x=>x.value===undefined?x.description:x.value);
+     if(words.some(x=>String(x).includes('OPEN_DOC_DELETE_TRACE')))
+       console.log('QT_DOCX_DELETE_DIAGNOSTIC',words.join(' '));
+     return;
+   }
    if(!pending.has(data.id))return;
    const {resolve,reject,alarm}=pending.get(data.id);
    clearTimeout(alarm);pending.delete(data.id);
@@ -49,6 +55,8 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
      __docxStressErrors.push(String(event.reason)));
    return true;
  })()`);
+ await send('Runtime.enable');
+ await evaluate('window.OpenDocDebug.traceDelete=true');
  await send('Performance.enable');
  for(const total of [100,500,1000]){
    console.log('QT_DOCX_STRESS_BEGIN',total);
