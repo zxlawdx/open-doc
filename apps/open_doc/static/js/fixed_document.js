@@ -11,6 +11,13 @@
   const slidesEditor=window.OpenDocSlidesEditor?.create({
     host,root,controls,scroller,sidebar,signal,getModel:()=>model,getZoom:()=>zoom,status,
     update:next=>{model=next;changed();},go,undo:()=>format('undo'),redo:()=>format('redo'),
+    exportSlide:async index=>{
+      if(!model?.editable_deck)throw Error('Abra uma apresentação editável.');
+      await flush();
+      const result=await window.pywebview.api.export_slide(note.id,note.revision,index);
+      if(result.error)throw Error(result.error);
+      if(!result.cancelled){status('Salvo em: '+result.path);return result;}
+    },
     onRender:()=>{pageNodes=Array.from(scroller.querySelectorAll('.fixed-surface'));pageField.max=pageNodes.length;}
   });
   const pageField=document.createElement('input');pageField.type='number';pageField.min='1';pageField.value='1';pageField.setAttribute('aria-label','Ir para página');
