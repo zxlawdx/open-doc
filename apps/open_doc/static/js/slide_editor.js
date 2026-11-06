@@ -17,6 +17,7 @@
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
+    Balde:"paint-bucket","Pintar seleção":"palette",Prévia:"play",
     Desfazer:"undo",Refazer:"redo"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
@@ -256,7 +257,12 @@
       }
       button.title=title;button.addEventListener("click",()=>{
         if(!this.active)return;
-        try{action();}catch(error){this.status(error.message);}
+        try{
+          if(this.paintActive&&label!=="Balde"&&this.paintButton){
+            this.paintActive=false;this.paintButton.setAttribute("aria-pressed","false");
+          }
+          action();
+        }catch(error){this.status(error.message);}
       },{signal:this.signal});this.toolbar.append(button);return button;
     }
     _buildToolbar(){
@@ -288,6 +294,7 @@
       this.paintButton=this._button("Balde",()=>{
         this.paintActive=!this.paintActive;
         this.paintButton.setAttribute("aria-pressed",String(this.paintActive));
+        if(this.paintActive)this.paintColor.click();
         this.status(this.paintActive
           ?"Balde ativo: clique em uma forma para aplicar a cor."
           :"Balde desativado.");
@@ -353,6 +360,8 @@
       const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
       this.commands.updateObject(index,id,{[property]:this.paintColor.value});
       this._selectObject(id);
+      this.paintActive=false;
+      this.paintButton.setAttribute("aria-pressed","false");
       this.status("Cor aplicada a "+(obj.name||labelFor(obj.type))+".");
     }
     _transferImage(data){
