@@ -381,7 +381,7 @@
       const confirmation=root.querySelector("[data-export-result]");
       confirmation.replaceChildren();
       const message=document.createElement("span");
-      message.textContent="Exportação concluída · Salvo em: "+result.path+
+      message.textContent="Salvo em: "+result.path+
         (result.lossy?" · Verifique a formatação no programa de destino.":"");
       const dismiss=document.createElement("button");dismiss.type="button";
       dismiss.textContent="Fechar";dismiss.setAttribute("aria-label","Fechar confirmação de exportação");
