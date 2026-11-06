@@ -275,7 +275,15 @@ test('DOCX empty Enter paragraphs restore a caret inside the logical block, neve
    {runScripts:'outside-only'});
  const w=dom.window;t.after(()=>dom.window.close());
  w.eval(fs.readFileSync(path.join(rootPath,'apps/open_doc/static/js/editor_commands.js'),'utf8'));
- const rich=w.document.querySelector('[data-rich]'),last=rich.querySelector('[data-node-id="p3"]');
+ const rich=w.document.querySelector('[data-rich]');
+ const secondPage=rich.querySelector('[data-page-index="1"] [data-page-content]');
+ for(let i=4;i<100;i++){
+   const paragraph=w.document.createElement('p');
+   paragraph.dataset.nodeId='p'+i;
+   paragraph.appendChild(w.document.createElement('br'));
+   secondPage.appendChild(paragraph);
+ }
+ const last=rich.querySelector('[data-node-id="p99"]');
  const abort=new w.AbortController();
  t.after(()=>abort.abort());
  const adapter=w.OpenDocCommands.create(rich,()=>{},abort.signal);
@@ -283,8 +291,8 @@ test('DOCX empty Enter paragraphs restore a caret inside the logical block, neve
  range.selectNodeContents(last);range.collapse(false);
  sel.removeAllRanges();sel.addRange(range);
  adapter.capture();const mark=adapter.bookmark();
- assert.equal(mark.blockIndex,3,'empty paragraphs need unique logical positions');
- assert.equal(mark.blockId,'p3');
+ assert.equal(mark.blockIndex,99,'100 empty paragraphs need unique logical positions');
+ assert.equal(mark.blockId,'p99');
  // Recreate document pages as happens during DOCX reflow. The stored DOM
  // Range is detached, while a block-index bookmark must survive.
  const page1=rich.querySelector('[data-page-index="1"]');
@@ -295,6 +303,6 @@ test('DOCX empty Enter paragraphs restore a caret inside the logical block, neve
  adapter.restoreBookmark(mark);
  const node=w.getSelection().anchorNode;
  const element=node.nodeType===3?node.parentElement:node;
- assert.equal(element.closest('[data-node-id]')?.dataset.nodeId,'p3');
+ assert.equal(element.closest('[data-node-id]')?.dataset.nodeId,'p99');
  assert.notEqual(node,rich,'Backspace would otherwise delete physical page shells');
 });
