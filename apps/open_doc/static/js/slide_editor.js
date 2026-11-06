@@ -32,13 +32,13 @@
       if(!tag)return null;
       const shape=document.createElementNS(SVG_NS,tag);
       const geometry=({
-        rect:{x:1,y:1,width:98,height:98},
-        round_rect:{x:1,y:1,width:98,height:98,rx:16,ry:16},
-        ellipse:{cx:50,cy:50,rx:49,ry:49},
-        line:{x1:5,y1:95,x2:95,y2:5},
+        rect:{x:0,y:0,width:100,height:100},
+        round_rect:{x:0,y:0,width:100,height:100,rx:16,ry:16},
+        ellipse:{cx:50,cy:50,rx:50,ry:50},
+        line:{x1:0,y1:100,x2:100,y2:0},
         arrow:{points:"4,38 62,38 62,14 98,50 62,86 62,62 4,62"},
-        triangle:{points:"50,2 98,98 2,98"},
-        diamond:{points:"50,2 98,50 50,98 2,50"}
+        triangle:{points:"50,0 100,100 0,100"},
+        diamond:{points:"50,0 100,50 50,100 0,50"}
       })[obj.type];
       for(const [key,value] of Object.entries(geometry))
         shape.setAttribute(key,String(value));
