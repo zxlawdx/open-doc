@@ -157,3 +157,26 @@
   padding:6px;color:inherit;font:inherit;line-height:inherit;
   white-space:pre-wrap;word-break:break-word;
 }
+
+/* Visual preview only. Native PPTX export writes p:transition OOXML separately. */
+@keyframes open-doc-transition-fade{
+  from{opacity:0}to{opacity:1}
+}
+@keyframes open-doc-transition-push-left{
+  from{opacity:.2;transform:translateX(22%)}to{opacity:1;transform:translateX(0)}
+}
+@keyframes open-doc-transition-push-right{
+  from{opacity:.2;transform:translateX(-22%)}to{opacity:1;transform:translateX(0)}
+}
+@keyframes open-doc-transition-wipe-left{
+  from{clip-path:inset(0 0 0 100%)}to{clip-path:inset(0)}
+}
+@keyframes open-doc-transition-wipe-right{
+  from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0)}
+}
+.open-doc .slide-inspector select{
+  display:block;box-sizing:border-box;min-height:39px;width:100%;
+  border:1px solid var(--color-border);border-radius:9px;
+  color:var(--color-text-primary);background:var(--of-surface-low);
+  padding:8px 12px
+}
