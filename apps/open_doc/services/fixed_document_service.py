@@ -365,7 +365,18 @@ class FixedDocumentService:
             else:
                 from ..ink.exporters import export_pdf
 
-                export_pdf(source, note["content"], temporary, self.fonts)
+                edits = note["content"].get("pdf_edits", [])
+                if edits:
+                    from ..readers.pdf.editing import apply_native_pdf_edits
+                    with tempfile.TemporaryDirectory(prefix=".pdf-edits-",dir=self.directory(identifier)) as work:
+                        amended = Path(work) / "edited.pdf"
+                        apply_native_pdf_edits(
+                            source, edits, amended,
+                            asset_directory=self.directory(identifier) / "pdf_assets",
+                        )
+                        export_pdf(amended, note["content"], temporary, self.fonts)
+                else:
+                    export_pdf(source, note["content"], temporary, self.fonts)
             os.replace(temporary, destination)
         finally:
             temporary.unlink(missing_ok=True)
@@ -380,6 +391,42 @@ class FixedDocumentService:
                 else []
             ),
         }
+
+    def prepare_pdf_preview(self, identifier, revision):
+        """Render persisted native edits for the PDF.js reader; keep source immutable."""
+        note = self.get(identifier)
+        if note["source_kind"] != "pdf":
+            raise ValueError("Documento não é PDF.")
+        if not note["content"].get("pdf_edits"):
+            return {"preview": False, "revision": revision}
+        if revision != note["revision"]:
+            raise RevisionConflict("Salve o documento antes de atualizar a prévia.")
+        destination = self.directory(identifier) / "preview.pdf"
+        result = self.export(identifier, revision, "pdf", destination)
+        return {"preview": True, "revision": revision, "path": result["path"]}
+
+    def store_pdf_image(self, identifier, revision, path):
+        """Stage a user-picked replacement image into the document's private folder."""
+        from PIL import Image, ImageOps
+
+        note = self.get(identifier)
+        if note["source_kind"] != "pdf":
+            raise ValueError("Documento não é PDF.")
+        if note["revision"] != revision:
+            raise RevisionConflict("Salve o PDF antes de selecionar a imagem.")
+        path = Path(path)
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 10*1024*1024:
+            raise ValueError("Imagem inválida ou excede 10 MB.")
+        destination_dir = self.directory(identifier) / "pdf_assets"
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        name = uuid4().hex + ".png"
+        destination = destination_dir / name
+        with Image.open(path) as uploaded:
+            image = ImageOps.exif_transpose(uploaded).convert("RGBA")
+            if max(image.size) > 4096 or image.width*image.height>20_000_000:
+                raise ValueError("A imagem excede os limites de resolução.")
+            image.save(destination, format="PNG")
+        return {"asset": name}
 
     def export_selected_slide(self, identifier, revision, slide_index, destination):
         """Export exactly one editable slide as an independently editable PPTX.
