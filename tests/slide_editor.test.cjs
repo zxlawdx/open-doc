@@ -15,6 +15,7 @@ function setup(t){
   {url:'http://localhost',runScripts:'outside-only'});
  const w=dom.window;t.after(()=>w.close());
  w.OpenDocModel={id:(()=>{let x=0;return()=>'slide-node-'+(++x);})()};
+ w.eval(chartScript);
  w.eval(script);
  const root=w.document.querySelector('#root'),host=w.document.querySelector('#host'),
    controls=w.document.querySelector('#controls'),scroller=w.document.querySelector('#scroll'),
