@@ -232,7 +232,11 @@
   },{signal});
   title.addEventListener('input',()=>{if(active)changed();},{signal});scroller.addEventListener('scroll',lazy,{signal});
   function format(command){if(locked)return;if(command==='undo' || command==='redo'){const value=history[command]();if(value){model=clone(value.content);title.value=value.title;clearTimeout(timer);timer=setTimeout(()=>flush().catch(e=>status(e.message)),800);texts();semantic?.refresh();slidesEditor?.render();root.dispatchEvent(new CustomEvent('open-doc:content'));}}}
-  window.addEventListener('keydown',e=>{if(!active || !(e.ctrlKey || e.metaKey))return;if(e.key.toLowerCase()==='s'){e.preventDefault();flush().catch(e=>status(e.message));}if(['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
+  window.addEventListener('keydown',e=>{if(!active || !(e.ctrlKey || e.metaKey))return;
+    if(e.key.toLowerCase()==='f' && note?.source_kind==='pdf'){
+      e.preventDefault();search.focus();search.select();return;
+    }
+    if(e.key.toLowerCase()==='s'){e.preventDefault();flush().catch(e=>status(e.message));}if(['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
   window.addEventListener('beforeunload',e=>{if(active && signature()!==saved){request('document/recovery',snapshot()).catch(()=>{});e.preventDefault();e.returnValue='';}},{signal});
   signal.addEventListener('abort',()=>{clearTimeout(timer);clearTimeout(recoveryTimer);epoch++;thumbObserver?.disconnect();pdf?.destroy();pptx?.destroy();host.remove();},{once:true});
   return {load,flush,snapshot,inkLayers,setInkLayers,insertRecognized,format,export:exportDocument,isClean:()=>!note || signature()===saved,setLocked:v=>{locked=v;title.disabled=v;},setMode:()=>{},capture:()=>{},refresh:lazy,style:()=>{},textState:()=>({}),commandState:()=>false,pagination:()=>null,pageView:()=>{},copy:async()=>{await flush();const duplicate=await request('document/duplicate',{id:note.id});load(duplicate);return duplicate;},deactivate:()=>{slidesEditor?.deactivate();active=false;epoch++;searchEpoch++;clearTimeout(timer);clearTimeout(recoveryTimer);thumbObserver?.disconnect();for(const task of renderTasks.values())task.cancel();renderTasks.clear();renderedPages.clear();rendering.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;pageNodes=[];scroller.replaceChildren();host.hidden=true;},find:()=>search.focus()};
