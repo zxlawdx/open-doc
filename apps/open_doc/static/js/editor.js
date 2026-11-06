@@ -378,8 +378,16 @@
       const result = await bridge.export_document(documentState.id, documentState.revision, extension);
       if (result.cancelled) { status("Exportação cancelada."); return result; }
       if (result.error) throw Error(result.error);
-      root.querySelector("[data-export-result]").textContent = "Salvo em: " + result.path;
-      status(result.lossy ? "Arquivo exportado com avisos de compatibilidade." : "Arquivo exportado.");
+      const confirmation=root.querySelector("[data-export-result]");
+      confirmation.replaceChildren();
+      const message=document.createElement("span");
+      message.textContent="Salvo em: "+result.path+
+        (result.lossy?" · Verifique a formatação no programa de destino.":"");
+      const dismiss=document.createElement("button");dismiss.type="button";
+      dismiss.textContent="";dismiss.setAttribute("aria-label","Fechar confirmação de exportação");
+      dismiss.addEventListener("click",()=>confirmation.replaceChildren());
+      confirmation.append(message,dismiss);
+      status(result.lossy?"Exportação concluída com avisos.":"Exportação concluída: "+(result.name||extension.toUpperCase()));
       return result;
     }
 
