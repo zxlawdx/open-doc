@@ -150,7 +150,7 @@
   }
   function closeDialog(value = null) {
     const backdrop = root.querySelector('[data-dialog]');
-    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help');
+    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help','dialog-equation');
     // QtWebEngine (Chromium 83) must not rely solely on the [hidden]
     // attribute when a component stylesheet sets display:grid.
     backdrop.hidden = true;
