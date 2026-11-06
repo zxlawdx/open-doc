@@ -265,3 +265,36 @@ test("bloco pre nativo permanece código no Markdown e na reabertura", t => {
   editor.setMode('markdown'); editor.setMode('rich');
   assert.equal(root.querySelector('[data-rich] pre code').textContent.trim(), 'linha `simples` e ``` interna\nsegunda linha');
 });
+
+test('DOCX empty Enter paragraphs restore a caret inside the logical block, never at page shell',t=>{
+ const dom=new JSDOM('<div data-rich contenteditable="true">'+
+   '<section data-page-index="0"><div data-page-content><p data-node-id="p0"><br></p>'+
+   '<p data-node-id="p1"><br></p></div></section>'+
+   '<section data-page-index="1"><div data-page-content><p data-node-id="p2"><br></p>'+
+   '<p data-node-id="p3"><br></p></div></section></div>',
+   {runScripts:'outside-only'});
+ const w=dom.window;t.after(()=>dom.window.close());
+ w.eval(fs.readFileSync(path.join(rootPath,'apps/open_doc/static/js/editor_commands.js'),'utf8'));
+ const rich=w.document.querySelector('[data-rich]'),last=rich.querySelector('[data-node-id="p3"]');
+ const abort=new w.AbortController();
+ t.after(()=>abort.abort());
+ const adapter=w.OpenDocCommands.create(rich,()=>{},abort.signal);
+ const sel=w.getSelection(),range=w.document.createRange();
+ range.selectNodeContents(last);range.collapse(false);
+ sel.removeAllRanges();sel.addRange(range);
+ adapter.capture();const mark=adapter.bookmark();
+ assert.equal(mark.blockIndex,3,'empty paragraphs need unique logical positions');
+ assert.equal(mark.blockId,'p3');
+ // Recreate document pages as happens during DOCX reflow. The stored DOM
+ // Range is detached, while a block-index bookmark must survive.
+ const page1=rich.querySelector('[data-page-index="1"]');
+ const rebuilt=w.document.createElement('section');rebuilt.dataset.pageIndex='1';
+ const box=w.document.createElement('div');box.dataset.pageContent='';
+ for(const el of [...page1.querySelectorAll('p')])box.appendChild(el.cloneNode(true));
+ rebuilt.appendChild(box);page1.replaceWith(rebuilt);
+ adapter.restoreBookmark(mark);
+ const node=w.getSelection().anchorNode;
+ const element=node.nodeType===3?node.parentElement:node;
+ assert.equal(element.closest('[data-node-id]')?.dataset.nodeId,'p3');
+ assert.notEqual(node,rich,'Backspace would otherwise delete physical page shells');
+});
