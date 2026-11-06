@@ -591,18 +591,18 @@ test('F5 presents slides in a scaled overlay with keyboard navigation and Escape
  assert.ok(overlay,'slide presentation should open on F5');
  assert.equal(overlay.getAttribute('role'),'dialog');
  assert.equal(overlay.getAttribute('aria-modal'),'true');
- assert.match(overlay.querySelector('output').textContent,/1 \\/ 2/);
+ assert.equal(overlay.querySelector('output').textContent,'1 / 2');
  overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
    {key:'ArrowRight',bubbles:true,cancelable:true}));
- assert.match(overlay.querySelector('output').textContent,/2 \\/ 2/);
+ assert.equal(overlay.querySelector('output').textContent,'2 / 2');
  assert.ok(overlay.querySelector('.slide-object-rect'),'presentation reuses editable slide source rendering');
  assert.equal(overlay.querySelector('.slide-resize-handle'),null,'authoring handles must be hidden');
  overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
    {key:'ArrowLeft',bubbles:true,cancelable:true}));
- assert.match(overlay.querySelector('output').textContent,/1 \\/ 2/);
+ assert.equal(overlay.querySelector('output').textContent,'1 / 2');
  overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
    {key:'End',bubbles:true,cancelable:true}));
- assert.match(overlay.querySelector('output').textContent,/2 \\/ 2/);
+ assert.equal(overlay.querySelector('output').textContent,'2 / 2');
  overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
    {key:'Escape',bubbles:true,cancelable:true}));
  assert.equal(q.root.querySelector('.slide-presentation'),null,'Escape closes the slide show');
@@ -654,7 +654,7 @@ test('slide transition animates the incoming slide and cancels safely on fast na
  assert.match(incoming.style.transition,/transform/);
  assert.equal(overlay.querySelector('.slide-presentation-stage').children.length,2);
  overlay.querySelector('[aria-label^="Slide anterior"]').click();
- assert.match(overlay.querySelector('output').textContent,/1 \\/ 2/);
+ assert.equal(overlay.querySelector('output').textContent,'1 / 2');
  assert.ok(overlay.querySelector('.slide-presentation-stage').children.length<=2,
    'interrupting an effect must not leave duplicate frames');
  q.editor.stopPresentation();
