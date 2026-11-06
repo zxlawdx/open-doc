@@ -434,3 +434,89 @@ def test_native_pptx_transition_roundtrip_and_validation(tmp_path):
         bad["surfaces"][0].update(patch)
         with pytest.raises(ValueError, match="Transição|Velocidade"):
             validate(bad)
+
+
+def test_exported_native_pptx_can_be_reimported_and_edited_in_open_doc(tmp_path):
+    """Closing/exporting/reimporting must not switch to stacked read-only pages."""
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation("Apresentação editável")
+    model = deepcopy(note["content"])
+    model["surfaces"][0]["background"] = "#22CCEE"
+    model["surfaces"][0]["notes"] = "Notas de campo"
+    model["surfaces"][0]["transition"] = "push-left"
+    model["surfaces"][0]["transition_speed"] = "slow"
+    model["surfaces"][0]["elements"] = [
+        element("title-1", "text"),
+        {**element("shape-1", "rect"), "text": "", "fill": "#F4B183"},
+        {**element("shape-2", "ellipse"), "text": "", "fill": "#AA77FF"},
+        {**element("chart-1", "chart"), "text": "", "rotation": 0,
+         "chart_type": "bar", "chart_title": "Resultados", "chart_palette": "blue",
+         "chart_categories": ["2024", "2025", "2026"],
+         "chart_values": [15, 27, 34]},
+    ]
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    exported = tmp_path / "open-doc-editable-roundtrip.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", exported)
+    original = Presentation(exported)
+    assert "OpenDoc:EditableSlide-v1" in original.core_properties.keywords
+    assert len(original.slides[0].shapes) == 4
+    assert original.slides[0].shapes[0].has_text_frame
+    assert original.slides[0].shapes[1].shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE
+    assert original.slides[0].shapes[3].has_chart
+
+    imported = ctx.fixed_documents.import_pptx(exported)
+    assert imported["capabilities"]["edit_slides"] is True
+    assert imported["content"]["editable_deck"] is True
+    slide = imported["content"]["surfaces"][0]
+    assert slide["background"] == "#22CCEE"
+    assert slide["transition"] == "push-left"
+    assert len(slide["elements"]) == 4
+    assert [x["type"] for x in slide["elements"]] == ["text", "rect", "ellipse", "chart"]
+    assert slide["elements"][3]["chart_values"] == [15, 27, 34]
+
+    changed = deepcopy(imported["content"])
+    changed["surfaces"][0]["elements"][0]["text"] = "Texto alterado após reimportar"
+    saved_again = ctx.fixed_documents.save(
+        imported["id"], imported["title"], changed, imported["revision"]
+    )
+    reexported = tmp_path / "edited-after-import.pptx"
+    ctx.fixed_documents.export(imported["id"], saved_again["revision"], "pptx", reexported)
+    verified = Presentation(reexported)
+    assert verified.slides[0].shapes[0].text == "Texto alterado após reimportar"
+    assert verified.slides[0].shapes[1].fill.fore_color.rgb == original.slides[0].shapes[1].fill.fore_color.rgb
+
+
+def test_pptx_external_text_edits_survive_reimport_roundtrip(tmp_path):
+    """python-pptx stands in for OOXML edits by external compatible editors.
+
+    A real PowerPoint/LibreOffice UI run is an additional manual acceptance gate.
+    """
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    model["surfaces"][0]["elements"] = [element()]
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    exported = tmp_path / "external-edit.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", exported)
+    external = Presentation(exported)
+    external.slides[0].shapes[0].text = "Editado externamente"
+    external.save(exported)
+    reopened = ctx.fixed_documents.import_pptx(exported)
+    assert reopened["content"]["editable_deck"] is True
+    assert reopened["content"]["surfaces"][0]["elements"][0]["text"] == "Editado externamente"
+
+
+def test_non_open_doc_pptx_does_not_silently_discard_unsupported_shapes(tmp_path):
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 100000, 100000, 500000, 350000)
+    source = tmp_path / "unmarked.pptx"
+    deck.save(source)
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["content"].get("editable_deck") is not True
+    assert imported["capabilities"]["edit_slides"] is False
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
