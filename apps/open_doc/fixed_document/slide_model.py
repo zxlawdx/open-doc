@@ -82,6 +82,12 @@ class SlideModelValidator:
             if not isinstance(elements, list) or len(elements) > MAX_ELEMENTS:
                 raise ValueError("Quantidade de elementos de slide inválida.")
             self._color(slide.get("background", "#FFFFFF"), "fundo do slide")
+            effect=slide.get("transition", "none")
+            if effect not in ("none","fade","push-left","push-right","wipe-left","wipe-right"):
+                raise ValueError("Transição de slide inválida.")
+            speed=slide.get("transition_speed", "med")
+            if speed not in ("slow","med","fast"):
+                raise ValueError("Velocidade da transição inválida.")
             notes = slide.get("notes", "")
             if not isinstance(notes, str) or len(notes) > 5000:
                 raise ValueError("Notas do apresentador inválidas.")
