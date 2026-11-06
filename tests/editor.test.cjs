@@ -21,10 +21,10 @@ function setup(t, options = {}) {
   window.addEventListener('unhandledrejection',event=>{
     javascriptErrors.push(String(event.reason?.stack||event.reason));
   });
-  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "document_model.js", "rich_serializer.js", "rich_renderer.js", "editor_commands.js", "history.js", "recovery.js", "pagination.js", "logical_transactions.js", "editor.js"]) {
+  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "document_model.js", "editor_commands.js", "history.js", "recovery.js", "pagination.js", "logical_transactions.js", "editor.js"]) {
     window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js", file), "utf8"));
   }
-  for(const moduleName of ['OpenDocModel','OpenDocRichSerializer','OpenDocPagination','OpenDocLogicalTransactions','OpenDocEditor'])
+  for(const moduleName of ['OpenDocModel','OpenDocPagination','OpenDocLogicalTransactions','OpenDocEditor'])
     assert.ok(window[moduleName],moduleName+' must be loaded before editor tests');
   const intervals = [];
   window.setInterval = (callback, delay) => { intervals.push({callback, delay}); return intervals.length; };
