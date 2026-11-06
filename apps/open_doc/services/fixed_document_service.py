@@ -381,6 +381,57 @@ class FixedDocumentService:
             ),
         }
 
+    def export_selected_slide(self, identifier, revision, slide_index, destination):
+        """Export exactly one editable slide as an independently editable PPTX.
+
+        The user-selected index is zero-based, validated before filesystem work.
+        Never modifies the source presentation, source model or active session.
+        """
+        from copy import deepcopy
+        from ..readers.pptx.exporter import export_pptx
+
+        note = self.get(identifier)
+        if note["source_kind"] != "pptx" or not note["content"].get("editable_deck"):
+            raise ValueError("Exporte slides isolados de uma apresentação editável.")
+        if type(revision) is not int or revision != note["revision"]:
+            raise RevisionConflict("Salve a apresentação antes de exportar um slide.")
+        surfaces = note["content"]["surfaces"]
+        if type(slide_index) is not int or not 0 <= slide_index < len(surfaces):
+            raise ValueError("Slide selecionado inválido.")
+        destination = Path(destination).with_suffix(".pptx")
+        source = self.source(identifier)
+        if (
+            destination.is_symlink()
+            or destination.resolve() == source.resolve()
+            or not destination.parent.is_dir()
+        ):
+            raise ValueError("Escolha um destino válido, diferente do original.")
+        model = deepcopy(note["content"])
+        model["surfaces"] = [deepcopy(surfaces[slide_index])]
+        model["surfaces"][0]["index"] = 0
+        # Preserve native shapes, charts, workbook, images and transitions.
+        fd, name = tempfile.mkstemp(
+            prefix=".opendoc-slide-", suffix=".pptx", dir=destination.parent
+        )
+        os.close(fd)
+        temporary = Path(name)
+        try:
+            export_pptx(source, model, temporary)
+            if not temporary.is_file() or temporary.stat().st_size == 0:
+                raise ValueError("Falha ao criar a apresentação do slide.")
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return {
+            "path": str(destination),
+            "name": destination.name,
+            "revision": revision,
+            "slide_index": slide_index,
+            "slides": 1,
+            "lossy": False,
+            "warnings": [],
+        }
+
     def extract_pages(self, identifier, revision, first_page, last_page, destination):
         """Extract an inclusive PDF page interval with existing ink/annotations.
 
