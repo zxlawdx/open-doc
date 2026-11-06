@@ -51,6 +51,7 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
  })()`);
  await send('Performance.enable');
  for(const total of [100,500,1000]){
+   console.log('QT_DOCX_STRESS_BEGIN',total);
    const initial=await evaluate(`(()=>{
      const rich=document.querySelector('[data-rich]');
      if(!rich||!rich.isContentEditable)throw Error('DOCX contenteditable missing');
@@ -73,6 +74,7 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
      assert.equal(result,count,'Native Chromium rejected Enter editing command');
      await pause(8);
    }
+   console.log('QT_DOCX_STRESS_ENTERS_DISPATCHED',total);
    await pause(650);
    const writing=await evaluate(`(()=>{
      const pages=document.querySelectorAll('.document-page');
@@ -87,8 +89,10 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    assert.ok(writing.blocks>0,'The model lost all blocks');
    assert.deepEqual(writing.errors,[],'Unexpected errors during DOCX insertion');
    await capture('docx-stress-'+total+'-enters');
+   console.log('QT_DOCX_STRESS_ENTER_METRICS',JSON.stringify(writing));
    // Real native keyboard Backspace (not a synthetic event with no default action).
    for(let i=0;i<total;i++){
+     if(i%25===0)console.log('QT_DOCX_STRESS_BACKSPACE_PROGRESS',total,i);
      await key('Backspace','Backspace',8);
      if(i%50===49)await pause(6);
    }
