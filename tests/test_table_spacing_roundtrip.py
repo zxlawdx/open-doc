@@ -49,8 +49,12 @@ def test_editable_matrix_roundtrip_to_docx_with_cell_spacing(tmp_path):
 def test_matrix_invalid_spacing_rejected(value):
     model = editable_matrix()
     model["blocks"][0]["cell_spacing_pt"] = value
-    with pytest.raises(ValueError, match="Espaçamento"):
+    with pytest.raises(ValueError) as error:
         validate_rich_document(model)
+    # The JSON boundary rejects NaN/Infinity before model-specific bounds;
+    # either rejection path is intentional and must remain strict.
+    assert ("Espaçamento" in str(error.value)
+            or "Out of range float values" in str(error.value))
 
 
 def test_invalid_template_rejected():
