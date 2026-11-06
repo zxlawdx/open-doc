@@ -121,7 +121,7 @@ test('Ctrl+click markup opens an editable floating comment without navigating aw
  const mark=surface.querySelector('.semantic-fragment');
  assert.equal(mark.dataset.annotationId,'a-1');
  const click=new w.MouseEvent('click',{bubbles:true,cancelable:true,ctrlKey:true,
-   clientX:170,clientY:90});
+   clientX:170,clientY:110});
  surface.querySelector('span').dispatchEvent(click);
  const balloon=host.querySelector('.semantic-note-balloon');
  assert.equal(balloon.hidden,false);
