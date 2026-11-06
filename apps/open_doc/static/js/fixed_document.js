@@ -5,7 +5,7 @@
  function create({root,request,status,token,asset,signal}){
   const host=document.createElement('section');host.className='fixed-document';host.hidden=true;root.querySelector('[data-document-body]').after(host);
   const controls=document.createElement('div');controls.className='fixed-controls';const sidebar=document.createElement('aside');sidebar.className='fixed-sidebar';sidebar.setAttribute('aria-label','Páginas e marcadores');const scroller=document.createElement('div');scroller.className='fixed-scroll';scroller.tabIndex=0;host.append(controls,sidebar,scroller);
-  let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,searchTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),searchingPages=new Set(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null,slideFitMode=null;
+  let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,searchTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),searchingPages=new Set(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null,slideFitMode=null,pptxPreviewIndex=0;
   const history=window.OpenDocHistory.create(),title=root.querySelector('[data-title]');
   const semantic=window.OpenDocSemanticAnnotations?.create({host,root,scroller,sidebar,signal,getModel:()=>model,getPage:index=>renderedPages.get(index),getZoom:()=>zoom,go,status,update:items=>{model=clone(model);model.annotations=items;changed();}});
   const slidesEditor=window.OpenDocSlidesEditor?.create({
@@ -50,6 +50,10 @@
     if(model?.editable_deck){
       slidesEditor?.goTo(index);
       scroller.scrollLeft=0;scroller.scrollTop=0;
+      return;
+    }
+    if(note?.source_kind==='pptx' && pptx){
+      pptxPreviewIndex=index;showImportedSlide(index);
       return;
     }
     pageNodes[index]?.scrollIntoView({block:'start'});
@@ -100,6 +104,11 @@
     if(model?.editable_deck&&!keepFit)slideFitMode=null;
     root.querySelector('[data-zoom]').value=Math.round(zoom*100);
     root.querySelector('[data-zoom-value]').textContent=Math.round(zoom*100)+'%';
+    if(note?.source_kind==='pptx' && pptx && !model?.editable_deck){
+      showImportedSlide(pptxPreviewIndex);
+      root.dispatchEvent(new CustomEvent('open-doc:layout'));
+      return;
+    }
     if(model?.editable_deck){
       slidesEditor?.render();
       root.dispatchEvent(new CustomEvent('open-doc:layout'));
@@ -157,7 +166,7 @@
     }catch(error){if(canvas?.dataset.renderComplete!=='true')canvas?.remove();if(error.name!=='RenderingCancelledException' && generation===epoch)pageError(node,index,'canvas',error);}
     finally{rendering.delete(index);renderTasks.delete(index);if(page && !node.querySelector('canvas') && !searchingPages.has(index)){page.cleanup();if(renderedPages.get(index)===page)renderedPages.delete(index);}}
   }
-  function lazy(){if((!pdf && !pptx) || !active)return;const viewport=scroller.getBoundingClientRect();let first=pageNodes.findIndex(n=>n.getBoundingClientRect().bottom>viewport.top);first=Math.max(0,first);pageField.value=first+1;root.querySelector('[data-position]').textContent='Página '+(first+1)+' de '+pageNodes.length;for(let i=0;i<pageNodes.length;i++){if(Math.abs(i-first)<=2)render(i,epoch).catch(e=>status(e.message));else if(Math.abs(i-first)>4){renderTasks.get(i)?.cancel();pageNodes[i].querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content').forEach(n=>n.remove());if(!rendering.has(i) && !searchingPages.has(i) && renderedPages.has(i)){renderedPages.get(i).cleanup();renderedPages.delete(i);}}}}
+  function lazy(){if((!pdf && !pptx) || !active || (pptx && note?.source_kind==='pptx'))return;const viewport=scroller.getBoundingClientRect();let first=pageNodes.findIndex(n=>n.getBoundingClientRect().bottom>viewport.top);first=Math.max(0,first);pageField.value=first+1;root.querySelector('[data-position]').textContent='Página '+(first+1)+' de '+pageNodes.length;for(let i=0;i<pageNodes.length;i++){if(Math.abs(i-first)<=2)render(i,epoch).catch(e=>status(e.message));else if(Math.abs(i-first)>4){renderTasks.get(i)?.cancel();pageNodes[i].querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content').forEach(n=>n.remove());if(!rendering.has(i) && !searchingPages.has(i) && renderedPages.has(i)){renderedPages.get(i).cleanup();renderedPages.delete(i);}}}}
   async function destination(dest){if(typeof dest==='string')dest=await pdf.getDestination(dest);if(!dest)return;go(typeof dest[0]==='number'?dest[0]:await pdf.getPageIndex(dest[0]));}
   async function find(){
     if(model?.editable_deck){
@@ -263,7 +272,42 @@
       find().catch(error=>status(error.message));
     }
   },{signal});
-  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
+
+  function showImportedSlide(index){
+    if(!pptx || !model || !model.surfaces[index])return;
+    // Imported PPTX is read-only if unsupported constructs were detected, but
+    // never becomes a PDF-style stack of physical pages.
+    const slide=model.surfaces[index];
+    const width=slide.width_pt*4/3*zoom,height=slide.height_pt*4/3*zoom;
+    const workspace=document.createElement('div');
+    workspace.className='slide-active-workspace pptx-preview-workspace';
+    const surface=document.createElement('div');
+    surface.className='fixed-surface pptx-preview-canvas';
+    surface.dataset.pageIndex=String(index);
+    surface.dataset.widthPt=String(slide.width_pt);
+    surface.dataset.heightPt=String(slide.height_pt);
+    Object.assign(surface.style,{width:width+'px',height:height+'px',
+      position:'relative',overflow:'hidden',background:'#FFFFFF'});
+    workspace.append(surface);
+    scroller.replaceChildren(workspace);
+    Object.assign(workspace.style,{boxSizing:'border-box',display:'flex',
+      alignItems:'center',justifyContent:'center',padding:'32px',
+      width:Math.max(scroller.clientWidth,width+64)+'px',
+      height:Math.max(scroller.clientHeight,height+64)+'px'});
+    pageNodes=[surface];
+    pageField.value=String(index+1);
+    pageField.max=String(model.surfaces.length);
+    pptx.render(index,surface,width,height);
+    texts();
+    sidebar.querySelectorAll('[data-thumbnail-index]').forEach(b=>
+      b.setAttribute('aria-current',String(Number(b.dataset.thumbnailIndex)===index)));
+    root.querySelector('[data-position]').textContent=
+      'Slide '+(index+1)+' de '+model.surfaces.length;
+    scroller.scrollTop=0;scroller.scrollLeft=0;
+    root.dispatchEvent(new CustomEvent('open-doc:layout'));
+  }
+
+  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
    if(note.source_kind==='pptx' && model.editable_deck){
      root.dataset.readerState='ready';
@@ -273,12 +317,48 @@
      root.dispatchEvent(new CustomEvent('open-doc:content'));
      return;
    }
+
+   if(note.source_kind==='pptx'){
+     try{
+       const loaded=await window.OpenDocPptx.load(note.id,token);
+       if(generation!==epoch){loaded.destroy();return;}
+       pptx=loaded;
+       if(pptx.count!==model.surfaces.length)
+         throw Error('Quantidade de slides difere da origem.');
+       host.dataset.pptxPreview='true';
+       root.dataset.readerState='ready';
+       for(const s of model.surfaces){
+         const b=document.createElement('button');
+         b.textContent='Slide '+(s.index+1);
+         b.dataset.thumbnailIndex=String(s.index);
+         b.onclick=()=>go(s.index);
+         sidebar.append(b);
+       }
+       root.querySelector('[data-mode-label]').textContent='Apresentação';
+       root.querySelector('[data-count]').textContent=model.surfaces.length+' slides';
+       showImportedSlide(0);
+       if(scroller.clientWidth>80&&scroller.clientHeight>80)fit(true);
+       thumbObserver=new IntersectionObserver(entries=>{
+         for(const entry of entries){
+           if(!entry.isIntersecting || entry.target.querySelector('.pptx-thumbnail'))continue;
+           const index=Number(entry.target.dataset.thumbnailIndex),
+             slide=model.surfaces[index];
+           pptx.render(index,entry.target,110,110*slide.height_pt/slide.width_pt,true);
+         }
+       },{root:sidebar,rootMargin:'100px'});
+       sidebar.querySelectorAll('[data-thumbnail-index]').forEach(b=>thumbObserver.observe(b));
+       status('Apresentação importada no modo de visualização. Objetos não editáveis não serão descartados.');
+     }catch(error){
+       console.error('Open Doc PPTX',error);root.dataset.readerState='error';
+       const warning=document.createElement('p');warning.className='fixed-load-error';
+       warning.setAttribute('role','alert');
+       warning.textContent='Não foi possível inicializar o leitor PPTX: '+error.message;
+       scroller.prepend(warning);status(warning.textContent);
+     }
+     return;
+   }
    for(const s of model.surfaces){const node=document.createElement('div');node.className='fixed-surface';node.dataset.pageIndex=s.index;node.dataset.widthPt=s.width_pt;node.dataset.heightPt=s.height_pt;node.style.width=s.width_pt*4/3+'px';node.style.height=s.height_pt*4/3+'px';scroller.append(node);pageNodes.push(node);const b=document.createElement('button');b.textContent='Página '+(s.index+1);b.dataset.thumbnailIndex=s.index;b.onclick=()=>go(s.index);sidebar.append(b);}
    root.querySelector('[data-mode-label]').textContent=note.source_kind==='pdf'?'Leitor PDF':'Apresentação';root.querySelector('[data-count]').textContent=model.surfaces.length+' páginas';texts();root.dispatchEvent(new CustomEvent('open-doc:content'));
-   if(note.source_kind==='pptx'){
-     try{const loaded=await window.OpenDocPptx.load(note.id,token);if(generation!==epoch){loaded.destroy();return;}pptx=loaded;if(pptx.count!==model.surfaces.length)throw Error('Quantidade de slides difere da origem.');root.dataset.readerState='ready';const warning=document.createElement('p');warning.className='pptx-fidelity-warning';warning.textContent='Prévia local PPTX: fontes, animações, mídia e efeitos avançados podem diferir do PowerPoint.';scroller.prepend(warning);fit(false);lazy();thumbObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(!entry.isIntersecting || entry.target.querySelector('.pptx-thumbnail'))continue;const index=Number(entry.target.dataset.thumbnailIndex),surface=model.surfaces[index];pptx.render(index,entry.target,110,110*surface.height_pt/surface.width_pt,true);}},{root:sidebar,rootMargin:'100px'});sidebar.querySelectorAll('[data-thumbnail-index]').forEach(b=>thumbObserver.observe(b));}
-     catch(error){console.error('Open Doc PPTX',error);root.dataset.readerState='error';note.capabilities.preview=false;note.capabilities.ink=false;const warning=document.createElement('p');warning.className='fixed-load-error';warning.textContent='Não foi possível inicializar o leitor PPTX: '+error.message;warning.setAttribute('role','alert');scroller.prepend(warning);status(warning.textContent);}return;
-   }
    try{window.OpenDocPdf.GlobalWorkerOptions.workerSrc=asset('vendor/pdf.worker.bundle.js');const task=window.OpenDocPdf.getDocument({url:'/api/open_doc/artifact/content?id='+encodeURIComponent(note.id)+(note.source_kind==='pptx'?'&preview=1':''),httpHeaders:{'X-Open-Doc-Token':token},standardFontDataUrl:asset('../pdfjs/standard_fonts/'),cMapUrl:asset('../pdfjs/cmaps/'),cMapPacked:true,useSystemFonts:false,isEvalSupported:false,disableAutoFetch:true,disableStream:true});const loaded=await task.promise;if(generation!==epoch){loaded.destroy();return;}pdf=loaded;root.dataset.readerState='ready';console.info('Open Doc PDF carregado',{version:window.OpenDocPdf.version,id:note.id,pages:pdf.numPages});if(pdf.numPages!==model.surfaces.length)throw Error('Quantidade de páginas difere da origem.');const outline=await pdf.getOutline();function bookmarks(items,depth=0){for(const item of items || []){const b=document.createElement('button');b.textContent='  '.repeat(depth)+item.title;b.onclick=()=>destination(item.dest);sidebar.prepend(b);bookmarks(item.items,depth+1);}}bookmarks(outline);
     thumbObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting && !entry.target.querySelector('canvas')){const index=Number(entry.target.dataset.thumbnailIndex);thumbnail(index,entry.target,generation).catch(()=>{});}},{root:sidebar,rootMargin:'100px'});sidebar.querySelectorAll('[data-thumbnail-index]').forEach(b=>thumbObserver.observe(b));fit(false);lazy();}catch(e){if(generation===epoch){root.dataset.readerState='error';console.error('Open Doc: falha no leitor PDF',e);const warning=document.createElement('p');warning.className='fixed-load-error';warning.setAttribute('role','alert');warning.textContent='Não foi possível inicializar o leitor PDF: '+e.message;scroller.prepend(warning);status(warning.textContent);}}
   }
