@@ -38,7 +38,7 @@ test('calculator rejects code, division by zero and nonfinite results',t=>{
  const calc=setup(t).w.OpenDocEquationAssistant.ArithmeticCalculator.compute;
  for(const unsafe of ['globalThis','process.exit(0)','1/0','0/0','(2+3',
    '1e309','3*','2**3','1 '.repeat(300)]){
-   assert.throws(()=>calc(unsafe),Error,unsafe);
+   assert.throws(()=>calc(unsafe),/números|zero|parênteses|Número|limite|fora de ordem|complexa|expressão|finito/,unsafe);
  }
 });
 
