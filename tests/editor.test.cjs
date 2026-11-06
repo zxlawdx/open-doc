@@ -14,9 +14,18 @@ function setup(t, options = {}) {
     {url: "http://127.0.0.1:8000", runScripts: "outside-only"}
   );
   const window = dom.window;
-  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "editor_commands.js", "history.js", "recovery.js", "editor.js"]) {
+  const javascriptErrors=[];
+  window.addEventListener('error',event=>{
+    javascriptErrors.push(event.error?.stack||event.message||'Uncaught JavaScript error');
+  });
+  window.addEventListener('unhandledrejection',event=>{
+    javascriptErrors.push(String(event.reason?.stack||event.reason));
+  });
+  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "editor_commands.js", "history.js", "recovery.js", "pagination.js", "logical_transactions.js", "editor.js"]) {
     window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js", file), "utf8"));
   }
+  for(const moduleName of ['OpenDocPagination','OpenDocLogicalTransactions','OpenDocEditor'])
+    assert.ok(window[moduleName],moduleName+' must be loaded before editor tests');
   const intervals = [];
   window.setInterval = (callback, delay) => { intervals.push({callback, delay}); return intervals.length; };
   window.clearInterval = () => {};
@@ -33,7 +42,11 @@ function setup(t, options = {}) {
   });
   editor.setMode("markdown");
   root.querySelectorAll("[data-mode]").forEach(button => button.addEventListener("click", () => editor.setMode(button.dataset.mode)));
-  t.after(() => { editor.destroy(); dom.window.close(); });
+  t.after(() => {
+    try{ editor.destroy(); assert.deepEqual(javascriptErrors,[],
+      'JavaScript runtime exceptions must fail the test, even if JSDOM logs them'); }
+    finally{dom.window.close();}
+  });
   const source = root.querySelector("[data-source]");
   function input(text) {
     source.value = text;
@@ -207,7 +220,8 @@ test("zoom modifica medidas reais e limites da folha", t => {
   const layout = window.OpenDocPaperLayout.create(root, {zoom: 100}, async () => {}, controller.signal);
   layout.set(120);
   assert.equal(root.querySelector('[data-surface]').style.transform, 'scale(1.2)');
-  assert.equal(parseFloat(root.querySelector('[data-paper-layout]').style.width), 952.8);
+  assert.ok(Math.abs(parseFloat(root.querySelector('[data-paper-layout]').style.width)
+     -595.28*4/3*1.2)<0.01,'A4 width must scale from exact points');
   layout.set(999); assert.equal(layout.value(), 150);
   controller.abort();
 });
@@ -264,4 +278,79 @@ test("bloco pre nativo permanece código no Markdown e na reabertura", t => {
   assert.match(source.value, /^````\nlinha/);
   editor.setMode('markdown'); editor.setMode('rich');
   assert.equal(root.querySelector('[data-rich] pre code').textContent.trim(), 'linha `simples` e ``` interna\nsegunda linha');
+});
+
+test('DOCX empty Enter paragraphs restore a caret inside the logical block, never at page shell',t=>{
+ const dom=new JSDOM('<div data-rich contenteditable="true">'+
+   '<section data-page-index="0"><div data-page-content><p data-node-id="p0"><br></p>'+
+   '<p data-node-id="p1"><br></p></div></section>'+
+   '<section data-page-index="1"><div data-page-content><p data-node-id="p2"><br></p>'+
+   '<p data-node-id="p3"><br></p></div></section></div>',
+   {runScripts:'outside-only'});
+ const w=dom.window;t.after(()=>dom.window.close());
+ w.eval(fs.readFileSync(path.join(rootPath,'apps/open_doc/static/js/editor_commands.js'),'utf8'));
+ const rich=w.document.querySelector('[data-rich]');
+ const secondPage=rich.querySelector('[data-page-index="1"] [data-page-content]');
+ for(let i=4;i<100;i++){
+   const paragraph=w.document.createElement('p');
+   paragraph.dataset.nodeId='p'+i;
+   paragraph.appendChild(w.document.createElement('br'));
+   secondPage.appendChild(paragraph);
+ }
+ const last=rich.querySelector('[data-node-id="p99"]');
+ const abort=new w.AbortController();
+ t.after(()=>abort.abort());
+ const adapter=w.OpenDocCommands.create(rich,()=>{},abort.signal);
+ const sel=w.getSelection(),range=w.document.createRange();
+ range.selectNodeContents(last);range.collapse(false);
+ sel.removeAllRanges();sel.addRange(range);
+ adapter.capture();const mark=adapter.bookmark();
+ assert.equal(mark.blockIndex,99,'100 empty paragraphs need unique logical positions');
+ assert.equal(mark.blockId,'p99');
+ // Recreate document pages as happens during DOCX reflow. The stored DOM
+ // Range is detached, while a block-index bookmark must survive.
+ const page1=rich.querySelector('[data-page-index="1"]');
+ const rebuilt=w.document.createElement('section');rebuilt.dataset.pageIndex='1';
+ const box=w.document.createElement('div');box.dataset.pageContent='';
+ for(const el of [...page1.querySelectorAll('p')])box.appendChild(el.cloneNode(true));
+ rebuilt.appendChild(box);page1.replaceWith(rebuilt);
+ adapter.restoreBookmark(mark);
+ const node=w.getSelection().anchorNode;
+ const element=node.nodeType===3?node.parentElement:node;
+ assert.equal(element.closest('[data-node-id]')?.dataset.nodeId,'p99');
+ assert.notEqual(node,rich,'Backspace would otherwise delete physical page shells');
+});
+
+test('model-first backspace joins paragraphs without editing page wrappers',t=>{
+ const q=setup(t);q.editor.setMode('rich');
+ const rich=q.root.querySelector('[data-rich]');
+ // Build two pages with stable model IDs, then reproduce a collapsed caret
+ // at the first block of the second physical page.
+ rich.innerHTML='<section class="document-page" data-page-index="0">'+
+   '<div data-page-content><p data-node-id="last-of-first"><br></p></div></section>'+
+   '<section class="document-page" data-page-index="1">'+
+   '<div data-page-content><p data-node-id="first-of-second"><br></p></div></section>';
+ q.window.eval(fs.readFileSync(path.join(rootPath,'apps/open_doc/static/js/document_model.js'),'utf8'));
+ const previous=q.window.OpenDocModel.empty();
+ previous.blocks=[
+   {id:'last-of-first',type:'paragraph',style:{},children:[],
+    raw_xml:'<w:p><w:pPr/></w:p>'},
+   {id:'first-of-second',type:'paragraph',style:{},
+    children:[{id:'imported-run',type:'text',text:'Importado',style:{}}],
+    raw_xml:'<w:p><w:r><w:t>Importado</w:t></w:r></w:p>'}
+ ];
+ const tx=q.window.OpenDocLogicalTransactions;
+ const second=rich.querySelector('[data-node-id="first-of-second"]');
+ const selection=q.window.getSelection(),range=q.window.document.createRange();
+ range.setStart(second,0);range.collapse(true);
+ selection.removeAllRanges();selection.addRange(range);
+ const boundary=tx.inspectBackspace(rich,selection,previous);
+ assert.equal(boundary.currentId,'first-of-second');
+ const op=tx.joinBackward(previous,boundary.currentId);
+ assert.equal(op.model.blocks.length,1);
+ assert.equal(op.model.blocks[0].id,'last-of-first');
+ assert.equal(op.caret.blockId,'last-of-first');
+ assert.equal(op.model.blocks[0].raw_xml,previous.blocks[0].raw_xml);
+ assert.equal(op.model.blocks[0].children[0].text,'Importado');
+ assert.equal(previous.blocks.length,2,'transaction must not mutate original state');
 });

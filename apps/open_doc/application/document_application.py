@@ -214,6 +214,16 @@ class DocumentApplication:
         )
         return service.export(document_id, revision, file_format, Path(destination))
 
+    def export_native_pdf_edit(
+        self, document_id: str, revision: int, operation: dict, destination: Path
+    ) -> dict[str, Any]:
+        """Native PDF edit use case; never use the annotation overlay exporter."""
+        if not self.context.fixed_documents.exists(document_id):
+            raise ValueError("Selecione primeiro um documento PDF importado.")
+        return self.context.fixed_documents.export_native_pdf_edit(
+            document_id, revision, operation, Path(destination)
+        )
+
     def export_selected_slide(
         self, document_id: str, revision: int, slide_index: int, destination: Path
     ) -> dict[str, Any]:

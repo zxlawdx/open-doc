@@ -33,12 +33,18 @@
   function logical(surface){const container=document.createElement('div');contents(surface,true).forEach(n=>container.appendChild(n));return container;}
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
-    let mode='pages',timer=null,frame=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false;
+    let mode='pages',timer=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false,runCount=0,lastRunMs=0,reflowing=false,lastError=null,abortedPasses=0,workUnits=0;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
     function paginate(){
-      if(destroyed || root.dataset.documentKind==='fixed')return;if(composing){pendingComposition=true;return;}const m=metrics(),key=JSON.stringify(m)+mode;
+      if(destroyed || root.dataset.documentKind==='fixed')return;if(composing){pendingComposition=true;return;}
+      let work=0;
+      const maxWork=Math.max(700,surface.querySelectorAll('[data-node-id]').length*36);
+      const tick=()=>{workUnits++;if(++work>maxWork)
+        throw Error('Reflow abortado: limite de operações excedido.');};
+      const started=Date.now();runCount++;
+      const m=metrics(),key=JSON.stringify(m)+mode;
       if(signature!==key)dirtyPage=0;signature=key;
       const selected=surface.contains(getSelection()?.anchorNode),saved=selected && capture?capture():null;
       // Preserve the unchanged prefix; reflow starts at the first edited page.
@@ -53,6 +59,7 @@
       function overflow(){return height()>capacity+1;}
       next();
       for(let i=0;i<nodes.length;i++){
+        tick();
         let node=nodes[i];
         if(node.dataset.nodeType==='page_break') {box.appendChild(node);next();continue;}
         if(node.style.breakBefore==='page' && box.children.length)next();
@@ -61,7 +68,7 @@
         if(overflow() && box.children.length>1){node.remove();next();box.appendChild(node);}
         if(overflow() && node.tagName==='TABLE' && node.rows.length>1 && !node.querySelector('[rowspan]:not([rowspan="1"])')){
           const rest=node.cloneNode(false),body=document.createElement('tbody');rest.appendChild(body);rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
-          while(overflow() && node.rows.length>1)body.insertBefore(node.rows[node.rows.length-1],body.firstChild);
+          while(overflow() && node.rows.length>1 && (tick(),true))body.insertBefore(node.rows[node.rows.length-1],body.firstChild);
           if(body.children.length)nodes.splice(i+1,0,rest);
         }else if(overflow() && /^(P|DIV|BLOCKQUOTE|PRE)$/.test(node.tagName)
           && !node.textContent.trim()
@@ -72,7 +79,7 @@
           rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
           // Move chunks, not individual BRs. Re-measuring layout once per
           // empty line was quadratic and froze Qt for large Enter sequences.
-          while(overflow()){
+          while(overflow() && (tick(),true)){
             const breaks=Array.from(node.children).filter(child=>child.tagName==='BR');
             if(breaks.length<=1)break;
             const count=Math.max(1,Math.floor(breaks.length/2));
@@ -101,7 +108,34 @@
         const value=blockMap.get(node.dataset.nodeId);
         if(value?.section_end_id){sectionIndex++;section={...defaults,...documentModel.sections[sectionIndex]};next();}
       }
-      host.style.width=Math.max(...Array.from(surface.querySelectorAll('[data-page-index]')).map(p=>parseFloat(p.style.width)*4/3))+'px';last=page;dirtyPage=Math.max(0,index-1);status();if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));if(preservedScroll){const canvas=root.querySelector('[data-canvas]');canvas.scrollTop=preservedScroll.top;canvas.scrollLeft=preservedScroll.left;preservedScroll=null;}
+      const widths=Array.from(surface.querySelectorAll('[data-page-index]')).map(p=>parseFloat(p.style.width)*4/3).filter(Number.isFinite);
+      host.style.width=(widths.length?Math.max(...widths):m.page_width_pt*4/3)+'px';
+      last=page;dirtyPage=Math.max(0,index-1);status();lastRunMs=Date.now()-started;if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));if(preservedScroll){const canvas=root.querySelector('[data-canvas]');canvas.scrollTop=preservedScroll.top;canvas.scrollLeft=preservedScroll.left;preservedScroll=null;}
+    }
+    function safePaginate(){
+      if(reflowing || destroyed)return;
+      reflowing=true;
+      const documentModel=typeof model==='function'?model():model;
+      try{
+        paginate();
+        lastError=null;
+      }catch(error){
+        abortedPasses++;lastError=String(error.message||error);
+        console.error('Open Doc: repaginação abortada',error);
+        // The document model is the last committed state. Recover it instead
+        // of leaving partly moved DOM fragments or triggering another reflow.
+        try{
+          mode='continuous';root.dataset.pageMode='continuous';
+          if(documentModel?.blocks && window.OpenDocRichRenderer)
+            window.OpenDocRichRenderer.render(documentModel,surface,()=>Promise.resolve(''));
+          else{
+            const holder=logical(surface);surface.replaceChildren(...Array.from(holder.childNodes));
+          }
+        }catch(recoveryError){console.error('Falha de recuperação de layout',recoveryError);}
+        root.dispatchEvent(new CustomEvent('open-doc:layout-error',
+          {detail:{message:'Paginação interrompida para preservar o documento. Visualização contínua ativada.',
+            error:lastError}}));
+      }finally{reflowing=false;}
     }
     function invalidate(blockId,options={}){
       if(options.preserveScroll){const canvas=root.querySelector('[data-canvas]');preservedScroll={top:canvas.scrollTop,left:canvas.scrollLeft};}
@@ -112,21 +146,13 @@
       dirtyPage=Math.min(dirtyPage,index);
       clearTimeout(timer);
       const generation=++epoch;
-      if(frame!==null){
-        (window.cancelAnimationFrame || window.clearTimeout)(frame);
-        frame=null;
-      }
       if(composing){pendingComposition=true;return;}
+      // QtWebEngine can suspend animation frames while the native window
+      // is offscreen or the compositor is backlogged. Document layout still
+      // has to finish so the next edit targets the current physical pages.
       timer=setTimeout(()=>{
-        frame=(window.requestAnimationFrame || window.setTimeout)(()=>{
-          frame=null;
-          if(destroyed||generation!==epoch)return;
-          try{paginate();}catch(error){
-            console.error('Open Doc: falha na paginação',error);
-            root.dispatchEvent(new CustomEvent('open-doc:layout-error',
-              {detail:{message:'Erro ao paginar. O documento continua disponível para recuperação.'}}));
-          }
-        });
+        if(destroyed||generation!==epoch)return;
+        safePaginate();
       },options.reason==='typing'?450:120);
     }
     function fits(blockId){
@@ -139,17 +165,23 @@
     }
     function setMode(value){
       clearTimeout(timer);epoch++;
-      if(frame!==null){(window.cancelAnimationFrame || window.clearTimeout)(frame);frame=null;}
-      mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;paginate();
+      mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;safePaginate();
     }
-    const change=event=>{const {blockId,reason,structural}=event.detail || {};if(reason==='typing' && !structural && blockId && fits(blockId))return;invalidate(blockId,{reason,preserveScroll:true});};
+    const change=event=>{
+      const {blockId,reason,structural,full}=event.detail || {};
+      if(reason==='typing' && !full && !structural && blockId && fits(blockId))return;
+      invalidate(blockId,{reason,full:Boolean(full),preserveScroll:true});
+    };
     const startComposition=()=>{composing=true;clearTimeout(timer);};
     const endComposition=()=>{composing=false;if(pendingComposition){pendingComposition=false;change({detail:{reason:'typing'}});}};
     surface.addEventListener('compositionstart',startComposition);surface.addEventListener('compositionend',endComposition);
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
     document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
-    function destroy(){destroyed=true;clearTimeout(timer);epoch++;(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
-    return {paginate,invalidate,fits,destroy,setMode,active,metrics,logical:()=>logical(surface)};
+    function destroy(){destroyed=true;clearTimeout(timer);epoch++;canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
+    return {paginate:safePaginate,invalidate,fits,destroy,setMode,active,metrics,
+      diagnostics:()=>({runCount,lastRunMs,abortedPasses,workUnits,lastError,
+        pages:surface.querySelectorAll('[data-page-index]').length}),
+      logical:()=>logical(surface)};
   }
   window.OpenDocPagination={create,logical,contents,normalize,defaults};
 })();

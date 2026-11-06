@@ -29,6 +29,38 @@ class OpenDocBridge(BaseBridge):
         self._window = window
         window.confirm_close = False
 
+    def get_runtime_diagnostics(self) -> dict[str, Any]:
+        """Reveal which executable/framework/assets are actually running.
+
+        A passing repository CI cannot prove a locally installed Open Doc EXE
+        was rebuilt. Return physical installation paths and a hash of the
+        active slide editor asset for user-supported provenance checks.
+        """
+        import hashlib
+        import importlib.metadata
+        import sys
+        import vela
+
+        asset_path = Path(__file__).parent / "static" / "js" / "slide_editor.js"
+        try:
+            digest = hashlib.sha256(asset_path.read_bytes()).hexdigest()
+        except OSError:
+            digest = None
+        try:
+            pywebview_version = importlib.metadata.version("pywebview")
+        except importlib.metadata.PackageNotFoundError:
+            pywebview_version = None
+        return {
+            "python_executable": str(sys.executable),
+            "frozen": bool(getattr(sys, "frozen", False)),
+            "vela_version": getattr(vela, "__version__", None),
+            "vela_path": str(Path(vela.__file__).resolve()),
+            "app_path": str(Path(__file__).resolve()),
+            "slide_editor_sha256": digest,
+            "pywebview_version": pywebview_version,
+            "window": self.window_get_state(),
+        }
+
     def get_bootstrap(self) -> dict[str, Any]:
         try:
             return self._documents.bootstrap()
@@ -111,11 +143,7 @@ class OpenDocBridge(BaseBridge):
             return {"error": "Essa ferramenta visual ainda não suporta esta operação PDF."}
         try:
             fixed = self._documents.context.fixed_documents
-            note = fixed.get(document_id)
-            if note["source_kind"] != "pdf":
-                raise ValueError("Abra primeiro um PDF.")
-            if type(revision) is not int or revision != note["revision"]:
-                raise RevisionConflict("O PDF mudou; salve e reabra antes de exportar.")
+            note = fixed.require_native_pdf_edit(document_id, revision)
             values = {
                 "kind": operation["kind"],
                 "page": operation.get("page"),
@@ -151,6 +179,40 @@ class OpenDocBridge(BaseBridge):
         except Exception:
             LOGGER.exception("Erro ao exportar edição nativa PDF")
             return {"error": "Falha ao alterar o conteúdo do PDF; o original foi preservado."}
+
+    def edit_pdf_native(self, document_id, revision, operation):
+        """Native save dialog for a REAL content-stream edit (not annotations)."""
+        import webview
+        from apps.open_doc.readers.pdf.native_edit import PdfNativeEditError
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        if not isinstance(operation, dict):
+            return {"error": "Operação de edição inválida."}
+        try:
+            descriptor = self._documents.export_descriptor(document_id, "pdf")
+            stem = Path(descriptor["filename"]).stem
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(descriptor["directory"]),
+                save_filename=f"{stem} - corrigido.pdf",
+                file_types=("Documento PDF (*.pdf)",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            destination = paths if isinstance(paths, str) else paths[0]
+            saved = self._documents.export_native_pdf_edit(
+                document_id, revision, operation, Path(destination)
+            )
+            # Reimport as an independent document so that the original and
+            # its revision/history are never silently overwritten.
+            result = self._documents.import_path(Path(saved["path"]))
+            return {**saved, "document": result["document"], "opened": True}
+        except (PdfNativeEditError, ValueError, RevisionConflict) as exc:
+            return {"error": str(exc)}
+        except Exception:
+            LOGGER.exception("Falha na edição nativa do PDF")
+            return {"error": "A edição nativa não pôde ser aplicada. O original foi preservado."}
 
     def export_slide(self, document_id, revision, slide_index):
         """Native Save dialog; the application exports one editable PPTX slide."""
