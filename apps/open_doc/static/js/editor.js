@@ -516,6 +516,7 @@
     }
 
     function destroy() {
+      finishLogicalTransaction();
       cache();
       pagination?.destroy();
       clearInterval(timer);
@@ -534,6 +535,39 @@
       if(window.OpenDocDebug?.traceDelete)
         console.warn('OPEN_DOC_DELETE_TRACE',stage,
           details?JSON.stringify(details):'');
+    }
+    // Logical transactions update the model immediately; DOM presentation is
+    // committed in the next task, *after* Chromium finishes dispatching the
+    // native keyboard event. Replacing the selected DOM subtree synchronously
+    // inside keydown causes QtWebEngine 5.15 to stall on repeated Backspace.
+    let pendingLogicalCaret=null,logicalRenderTimer=null;
+    function finishLogicalTransaction(){
+      if(!pendingLogicalCaret)return;
+      const caret=pendingLogicalCaret;
+      pendingLogicalCaret=null;
+      clearTimeout(logicalRenderTimer);logicalRenderTimer=null;
+      traceDeletion('render-start');
+      renderRich();
+      restoreLogicalCaret(caret);
+      cache();scheduleRecovery();render();
+      root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
+        {detail:{blockId:caret.blockId,reason:'typing',structural:true,full:true}}));
+      traceDeletion('render-complete');
+    }
+    function commitLogicalTransaction(op){
+      history.checkpoint(buffer());
+      model=op.model;
+      source.value=window.OpenDocModel.markdown(model);
+      markdownStale=false;source.readOnly=true;
+      pendingLogicalCaret=op.caret;
+      const snapshot=buffer();
+      snapshot.selection={start:0,length:0,blockIndex:op.caret.blockIndex,
+        blockId:op.caret.blockId,blockOffset:op.caret.textOffset};
+      history.record(snapshot,'transaction',
+        {blockIds:op.changedIds||[],structural:true});
+      clearTimeout(logicalRenderTimer);
+      logicalRenderTimer=setTimeout(finishLogicalTransaction,32);
+      root.dataset.dirty='true';status('Alterações não salvas');
     }
     function applyLogicalDeletion(event,inputType){
       traceDeletion('received',{type:event.type,inputType,cancelled:event.defaultPrevented});
@@ -562,24 +596,26 @@
         }
       }
       if(inputType!=='deleteContentBackward'||!selection?.isCollapsed)return false;
-      const boundary=transactions.inspectBackspace(rich,selection,model);
+      const boundary=pendingLogicalCaret
+        ?{currentId:pendingLogicalCaret.blockId,fromPage:null,toPage:null}
+        :transactions.inspectBackspace(rich,selection,model);
       traceDeletion('inspected',boundary||{matched:false,blocks:model.blocks.length});
       if(!boundary)return false;
       event.preventDefault();
       traceDeletion('cancelled-native');
       const op=transactions.joinBackward(model,boundary.currentId);
       if(!op){
+        // At the start of the first logical block no deletion is possible.
+        // Prevent the browser from deleting the physical page wrapper.
         status('Não é possível unir estes blocos sem alterar a estrutura do documento.');
         return true;
       }
       beforeInputCrossPage=true;
       beforeInputBlockId=op.caret.blockId;
       traceDeletion('before-commit',{blocks:op.model.blocks.length});
-      commitModel(op.model,'transaction',op.caret);
+      commitLogicalTransaction(op);
       traceDeletion('after-commit');
       beforeInputCrossPage=false;
-      root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
-        {detail:{blockId:op.caret.blockId,reason:'typing',structural:true,full:true}}));
       return true;
     }
     rich.addEventListener('keydown',event=>{
