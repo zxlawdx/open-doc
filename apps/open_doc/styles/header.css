@@ -44,3 +44,13 @@
 .open-doc .header-search {
     margin-left: auto;
 }
+
+/* Brand mark and title must not visually collide in native Qt scaling. */
+.open-doc .app-header .product{gap:12px;padding-inline:5px}
+.open-doc .app-header .product .brand-mark{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 35px;width:35px;height:35px;box-sizing:border-box
+}
+.open-doc .app-header .product .brand-mark svg{width:20px;height:20px;display:block}
+.open-doc .app-header .header-divider{margin-inline:5px}
+.open-doc .app-header input[data-title]{margin-left:3px}
