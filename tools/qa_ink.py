@@ -191,7 +191,7 @@ def main():
             # Vela's requested/intended fullscreen flag.
             native = window.gui.BrowserView.instances.get(window.uid)
             assert native is not None, "Qt native browser window missing"
-            state_before = window.js_api.window_get_state()
+            state_before = window._js_api.window_get_state()
             assert state_before.get("verified") is True
             assert state_before.get("native_fullscreen") is False
             window.evaluate_js(
@@ -199,7 +199,7 @@ def main():
                 ".find(b=>b.textContent==='Apresentar').click()"
             )
             for _ in range(90):
-                state = window.js_api.window_get_state()
+                state = window._js_api.window_get_state()
                 if state.get("native_fullscreen") is True:
                     break
                 time.sleep(.05)
@@ -219,7 +219,7 @@ def main():
                 "button[aria-label^=Encerrar]')?.click()"
             )
             for _ in range(90):
-                state = window.js_api.window_get_state()
+                state = window._js_api.window_get_state()
                 if state.get("native_fullscreen") is False:
                     break
                 time.sleep(.05)
