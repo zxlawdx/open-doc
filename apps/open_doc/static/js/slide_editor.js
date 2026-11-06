@@ -258,6 +258,7 @@
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
+      this._button("Prévia",()=>this.previewTransition(),"Prévia da transição no slide atual");
       const paintLabel=document.createElement("label");paintLabel.className="slide-paint-selector";
       paintLabel.textContent="Cor";
       this.paintColor=document.createElement("input");this.paintColor.type="color";
@@ -291,7 +292,8 @@
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide"]},
         {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem"]},
-        {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]}
+        {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
+        {label:"Transições",labels:["Prévia"]}
       ];
       const panels=[];
       for(const item of categories){
@@ -519,6 +521,24 @@
       editor.addEventListener("blur",()=>finish(true),{signal:this.signal});
       editor.focus();editor.select();
     }
+    previewTransition(){
+      const effect=this.getModel().surfaces[this.current]?.transition||"none";
+      if(effect==="none")return this.status("Selecione uma transição nas propriedades do slide.");
+      const node=this._surface(this.current);
+      if(!node)return;
+      const key={"fade":"open-doc-transition-fade",
+        "push-left":"open-doc-transition-push-left","push-right":"open-doc-transition-push-right",
+        "wipe-left":"open-doc-transition-wipe-left","wipe-right":"open-doc-transition-wipe-right"}[effect];
+      if(!key)return;
+      const speed=this.getModel().surfaces[this.current]?.transition_speed||"med";
+      const ms={slow:1200,med:700,fast:400}[speed]||700;
+      node.style.animation="none";
+      // Force restart without removing the slide or the text editing model.
+      void node.offsetWidth;
+      node.style.animation=key+" "+ms+"ms ease both";
+      node.addEventListener("animationend",()=>{node.style.animation="";},{once:true,signal:this.signal});
+      this.status("Prévia da transição: "+effect+".");
+    }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
     _makeObject(obj,index,thumb=false){
       const node=document.createElement("div");node.className="slide-object slide-object-"+obj.type;
@@ -677,6 +697,28 @@
       const slide=slides[this.current],title=document.createElement("h3");title.textContent="Propriedades · Slide "+(this.current+1);
       this.inspector.append(title);
       this._property("Cor de fundo",slide.background||"#FFFFFF","color",value=>this.commands.updateSlide(this.current,{background:value}));
+      const transitionTitle=document.createElement("h4");transitionTitle.textContent="Transição de entrada deste slide";
+      this.inspector.append(transitionTitle);
+      const transitionLabel=document.createElement("label");transitionLabel.textContent="Efeito";
+      const transitionSelect=document.createElement("select");transitionSelect.setAttribute("aria-label","Transição do slide");
+      for(const [value,label] of [
+        ["none","Nenhuma"],["fade","Desvanecer"],
+        ["push-left","Empurrar para esquerda"],["push-right","Empurrar para direita"],
+        ["wipe-left","Revelar à esquerda"],["wipe-right","Revelar à direita"]
+      ]){
+        const option=document.createElement("option");option.value=value;option.textContent=label;transitionSelect.append(option);
+      }
+      transitionSelect.value=slide.transition||"none";
+      transitionSelect.addEventListener("change",()=>this.commands.updateSlide(this.current,{transition:transitionSelect.value}),{signal:this.signal});
+      transitionLabel.append(transitionSelect);this.inspector.append(transitionLabel);
+      const speedLabel=document.createElement("label");speedLabel.textContent="Velocidade";
+      const speedSelect=document.createElement("select");speedSelect.setAttribute("aria-label","Velocidade da transição");
+      for(const [value,label] of [["fast","Rápida"],["med","Normal"],["slow","Lenta"]]){
+        const option=document.createElement("option");option.value=value;option.textContent=label;speedSelect.append(option);
+      }
+      speedSelect.value=slide.transition_speed||"med";
+      speedSelect.addEventListener("change",()=>this.commands.updateSlide(this.current,{transition_speed:speedSelect.value}),{signal:this.signal});
+      speedLabel.append(speedSelect);this.inspector.append(speedLabel);
       const subtitle=document.createElement("h4");subtitle.textContent="Camadas";this.inspector.append(subtitle);
       const list=document.createElement("div");list.className="slide-layer-list";
       (slide.elements||[]).slice().reverse().forEach(obj=>{
