@@ -135,3 +135,74 @@ test('PDF page extraction UI validates inclusive range and invokes the native br
  assert.equal(extracted,null,'invalid page ranges never enter native bridge');
  assert.ok(statuses.some(s=>s.includes('intervalo de páginas válido')));
 });
+
+test('PDF Ctrl+F marks text occurrences without losing the current document',async t=>{
+ const dom=new JSDOM(html(),{runScripts:'outside-only'}),w=dom.window;
+ const root=w.document.querySelector('[data-app]'),abort=new w.AbortController();
+ t.after(()=>{abort.abort();w.close();});
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ w.HTMLCanvasElement.prototype.getContext=()=>({});
+ w.Range.prototype.getClientRects=()=>[{left:25,top:40,width:80,height:18,right:105,bottom:58}];
+ w.IntersectionObserver=class{observe(){}disconnect(){}};
+ for(const file of ['compat.js','document_model.js','history.js','recovery.js'])w.eval(source(file));
+ w.pywebview={api:{set_dirty:async()=>{}}};
+ const page={
+   getViewport:()=>({width:400,height:500,scale:1}),
+   render:()=>({promise:Promise.resolve(),cancel(){}}),
+   getAnnotations:async()=>[],cleanup(){},
+   getTextContent:async()=>({items:[{str:'Porto'},{str:'Velho'}]})
+ };
+ const pdf={numPages:1,getPage:async()=>page,getOutline:async()=>[],destroy(){}};
+ w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',getDocument:()=>({promise:Promise.resolve(pdf)}),
+   TextLayer:class{constructor({container}){this.container=container;}
+     render(){for(const value of ['Porto','Velho']){const span=w.document.createElement('span');
+       span.textContent=value;this.container.append(span);}return Promise.resolve();}}};
+ w.eval(source('fixed_document.js'));
+ const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
+   asset:s=>'http://localhost/'+s,request:async()=>({}),status:()=>{}});
+ await editor.load({id:'search-mark-test',title:'PDF',revision:1,source_kind:'pdf',
+   capabilities:{preview:true},content:{source_kind:'pdf',surfaces:[
+     {index:0,width_pt:300,height_pt:400,strokes:[],text_overlays:[]}
+   ]}});
+ await new Promise(resolve=>setTimeout(resolve,25));
+ const input=root.querySelector('.fixed-controls input[type=search]');
+ w.dispatchEvent(new w.KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true,cancelable:true}));
+ assert.equal(w.document.activeElement,input,'Ctrl+F should focus PDF search');
+ input.value='Porto Velho';
+ Array.from(root.querySelectorAll('.fixed-controls button')).find(button=>button.textContent==='Buscar').click();
+ for(let i=0;i<30&&!root.querySelector('.pdf-search-hit');i++)
+   await new Promise(resolve=>setTimeout(resolve,5));
+ assert.ok(root.querySelector('.pdf-search-hit'),'result must highlight exact PDF text');
+ assert.equal(root.querySelectorAll('.textLayer span').length,2,'text-layer spans remain unmodified');
+ input.value='';input.dispatchEvent(new w.Event('input',{bubbles:true}));
+ assert.equal(root.querySelector('.pdf-search-hit'),null,'clearing search removes highlights');
+});
+
+test('PDF search tolerates missing getTextContent items instead of throwing map error',async t=>{
+ const dom=new JSDOM(html(),{runScripts:'outside-only'}),w=dom.window;
+ const root=w.document.querySelector('[data-app]'),abort=new w.AbortController();
+ t.after(()=>{abort.abort();w.close();});
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ w.HTMLCanvasElement.prototype.getContext=()=>({});
+ w.IntersectionObserver=class{observe(){}disconnect(){}};
+ for(const file of ['compat.js','document_model.js','history.js','recovery.js'])w.eval(source(file));
+ w.pywebview={api:{set_dirty:async()=>{}}};
+ const page={getViewport:()=>({width:400,height:500,scale:1}),render:()=>({promise:Promise.resolve(),cancel(){}}),
+   getTextContent:async()=>({}),getAnnotations:async()=>[],cleanup(){}};
+ w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',
+   getDocument:()=>({promise:Promise.resolve({numPages:1,getPage:async()=>page,getOutline:async()=>[],destroy(){}})}),
+   TextLayer:class{render(){return Promise.resolve();}}};
+ w.eval(source('fixed_document.js'));
+ const messages=[];
+ const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',asset:s=>'http://localhost/'+s,
+   request:async()=>({}),status:value=>messages.push(value)});
+ await editor.load({id:'invalid-search-items',title:'PDF',revision:1,source_kind:'pdf',
+   capabilities:{preview:true},content:{source_kind:'pdf',
+     surfaces:[{index:0,width_pt:300,height_pt:400,strokes:[],text_overlays:[]}]}});
+ const input=root.querySelector('.fixed-controls input[type=search]');
+ input.value='exemplo';
+ Array.from(root.querySelectorAll('.fixed-controls button')).find(button=>button.textContent==='Buscar').click();
+ for(let i=0;i<30&&!messages.some(value=>value.includes('páginas com resultados'));i++)
+   await new Promise(resolve=>setTimeout(resolve,5));
+ assert.ok(messages.some(value=>value.includes('0 páginas com resultados')),'missing item lists are treated as empty');
+});
