@@ -41,6 +41,9 @@ test('PDF search returns a distant page incrementally with bounded workers and c
  };
  w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',getDocument:()=>({promise:Promise.resolve(pdf)}),
    TextLayer:class{render(){return Promise.resolve();}}};
+ // Reproduce the real Open Doc runtime: the PPTX editor is also loaded
+ // while viewing a PDF. The inactive slide editor must not inspect PDF elements.
+ w.eval(source('slide_editor.js'));
  w.eval(source('fixed_document.js'));
  const statuses=[];
  const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
