@@ -568,80 +568,197 @@
       editor.addEventListener("blur",()=>finish(true),{signal:this.signal});
       editor.focus();editor.select();
     }
-    startPresentation(){
+    startPresentation(startIndex=this.current){
       if(!this.active||this.presentation)return;
       if(this.inlineEditing)this.inlineEditing.blur();
-      const overlay=document.createElement("section");overlay.className="slide-presentation";
-      overlay.tabIndex=-1;overlay.setAttribute("role","dialog");
-      overlay.setAttribute("aria-modal","true");
+      const slides=this.getModel().surfaces;
+      if(!slides?.length)return;
+      const overlay=document.createElement("section");
+      overlay.className="slide-presentation";overlay.tabIndex=-1;
+      overlay.setAttribute("role","dialog");overlay.setAttribute("aria-modal","true");
       overlay.setAttribute("aria-label","Apresentação de slides");
       const viewport=document.createElement("div");viewport.className="slide-presentation-viewport";
-      const footer=document.createElement("div");footer.className="slide-presentation-controls";
-      const previous=document.createElement("button");previous.type="button";previous.textContent="Anterior";
-      previous.title="Slide anterior (seta para esquerda)";
+      const stage=document.createElement("div");stage.className="slide-presentation-stage";
+      viewport.append(stage);
+      const footer=document.createElement("nav");footer.className="slide-presentation-controls";
+      footer.setAttribute("aria-label","Controle da apresentação");
+      const control=(label,path)=>{
+        const button=document.createElement("button");button.type="button";
+        button.title=label;button.setAttribute("aria-label",label);
+        const svg=document.createElementNS(SVG_NS,"svg");
+        svg.setAttribute("viewBox","0 0 24 24");svg.setAttribute("aria-hidden","true");
+        svg.setAttribute("fill","none");svg.setAttribute("stroke","currentColor");
+        svg.setAttribute("stroke-width","1.8");svg.setAttribute("stroke-linecap","round");
+        svg.setAttribute("stroke-linejoin","round");
+        const shape=document.createElementNS(SVG_NS,"path");shape.setAttribute("d",path);
+        svg.append(shape);button.append(svg);return button;
+      };
+      const previous=control("Slide anterior (←)","m14 6-6 6 6 6");
+      const next=control("Próximo slide (→)","m10 6 6 6-6 6");
+      const close=control("Encerrar apresentação (Esc)","M6 6 18 18 M18 6 6 18");
       const count=document.createElement("output");count.setAttribute("aria-live","polite");
-      const next=document.createElement("button");next.type="button";next.textContent="Próximo";
-      next.title="Próximo slide (seta para direita ou espaço)";
-      const close=document.createElement("button");close.type="button";close.textContent="Encerrar";
-      close.title="Encerrar apresentação (Esc)";
       footer.append(previous,count,next,close);overlay.append(viewport,footer);
       this.root.append(overlay);
-      const returning=document.activeElement;
-      this.presentation={overlay,viewport,count,index:this.current,returning,resize:null};
-      const draw=()=>{
-        const state=this.presentation;if(!state)return;
-        const slide=this.getModel().surfaces[state.index],source=this._surface(state.index);
-        if(!slide||!source)return;
-        const w=slide.width_pt*4/3*this.getZoom(),h=slide.height_pt*4/3*this.getZoom();
-        const width=Math.max(1,w),height=Math.max(1,h);
-        const maxW=Math.max(100,window.innerWidth-40),maxH=Math.max(100,window.innerHeight-94);
-        const scale=Math.min(maxW/width,maxH/height);
+      const state={overlay,viewport,stage,previous,next,count,
+        index:clamp(startIndex,0,slides.length-1),returning:document.activeElement,
+        render:null,resize:null,controlTimer:null,animationTimer:null,animationId:0,
+        nativeWindow:window.Vela?.platform?.window||null,wasFullscreen:null};
+      this.presentation=state;
+      const raiseControls=()=>{
+        overlay.classList.add("show-controls");
+        clearTimeout(state.controlTimer);
+        state.controlTimer=setTimeout(()=>{
+          if(this.presentation===state && !footer.matches(":hover")
+            && !footer.contains(document.activeElement))
+            overlay.classList.remove("show-controls");
+        },1900);
+      };
+      const slideFrame=index=>{
+        const surface=slides[index],source=this._surface(index);
+        if(!surface||!source)return null;
         const frame=document.createElement("div");frame.className="slide-presentation-frame";
-        Object.assign(frame.style,{width:(width*scale)+"px",height:(height*scale)+"px",
-          position:"relative",overflow:"hidden"});
         const page=source.cloneNode(true);
-        page.querySelectorAll(".slide-resize-handle,.slide-rotate-handle,.slide-inline-editor").forEach(node=>node.remove());
+        page.querySelectorAll(".slide-resize-handle,.slide-rotate-handle,.slide-inline-editor,.ink-overlay").forEach(node=>node.remove());
         page.querySelectorAll("[data-selected]").forEach(node=>node.removeAttribute("data-selected"));
-        Object.assign(page.style,{width:width+"px",height:height+"px",margin:"0",
-          position:"absolute",left:"0",top:"0",transformOrigin:"top left",
-          transform:"scale("+scale+")",boxShadow:"none",border:"0"});
-        frame.append(page);viewport.replaceChildren(frame);
-        count.textContent="Slide "+(state.index+1)+" de "+this.getModel().surfaces.length;
+        const width=surface.width_pt*4/3,height=surface.height_pt*4/3;
+        Object.assign(page.style,{width:width+"px",height:height+"px",left:"0px",top:"0px",
+          position:"absolute",margin:"0",border:"0",boxShadow:"none",
+          transformOrigin:"0 0",transform:"scale("+state.scale+")"});
+        frame.append(page);return frame;
+      };
+      const dimensions=()=>{
+        const slide=slides[state.index];
+        if(!slide)return;
+        const width=slide.width_pt*4/3,height=slide.height_pt*4/3;
+        state.scale=Math.min(window.innerWidth/width,window.innerHeight/height);
+        Object.assign(stage.style,{width:(width*state.scale)+"px",
+          height:(height*state.scale)+"px"});
+      };
+      const indicators=()=>{
+        count.textContent=(state.index+1)+" / "+slides.length;
         previous.disabled=state.index===0;
-        next.disabled=state.index===this.getModel().surfaces.length-1;
+        next.disabled=state.index===slides.length-1;
       };
-      const navigate=delta=>{
-        const state=this.presentation;if(!state)return;
-        state.index=clamp(state.index+delta,0,this.getModel().surfaces.length-1);
-        draw();
+      const cancelAnimation=()=>{
+        state.animationId++;
+        clearTimeout(state.animationTimer);
+        state.stage.replaceChildren(state.render||[]);
+        if(state.render){
+          state.render.style.transition="";
+          state.render.style.transform="";
+          state.render.style.opacity="";
+          state.render.style.clipPath="";
+        }
       };
-      previous.addEventListener("click",()=>navigate(-1));
-      next.addEventListener("click",()=>navigate(1));
+      const draw=()=>{
+        if(this.presentation!==state)return;
+        cancelAnimation();dimensions();
+        state.render=slideFrame(state.index);
+        stage.replaceChildren(state.render||[]);
+        indicators();
+      };
+      const navigate=(index,immediate=false)=>{
+        if(this.presentation!==state)return;
+        const target=clamp(index,0,slides.length-1);
+        if(target===state.index)return;
+        cancelAnimation();
+        const origin=state.render,previousIndex=state.index;
+        state.index=target;
+        dimensions();
+        const incoming=slideFrame(target);
+        const transition=slides[target]?.transition||"none";
+        const direction=transition.endsWith("right")?"right":"left";
+        const speed=slides[target]?.transition_speed||"med";
+        const duration={fast:260,med:520,slow:900}[speed]||520;
+        state.render=incoming;
+        indicators();
+        if(!origin||!incoming||immediate||transition==="none"){
+          stage.replaceChildren(incoming||[]);
+          return;
+        }
+        const token=++state.animationId;
+        origin.classList.add("slide-presentation-outgoing");
+        incoming.classList.add("slide-presentation-incoming");
+        stage.replaceChildren(origin,incoming);
+        const offset=direction==="right"?"100%":"-100%";
+        const inverse=direction==="right"?"-100%":"100%";
+        if(transition==="fade"){
+          incoming.style.opacity="0";
+        }else if(transition.startsWith("push")){
+          incoming.style.transform="translateX("+inverse+")";
+        }else if(transition.startsWith("wipe")){
+          incoming.style.clipPath=direction==="right"
+            ?"inset(0 0 0 100%)":"inset(0 100% 0 0)";
+        }
+        // Force layout once before applying transitions. Invalidated by token
+        // on repeated arrow presses so stale callbacks cannot mix slide frames.
+        incoming.getBoundingClientRect();
+        const property=transition==="fade"?"opacity":
+          transition.startsWith("wipe")?"clip-path":"transform";
+        incoming.style.transition=property+" "+duration+"ms ease";
+        if(transition.startsWith("push"))origin.style.transition="transform "+duration+"ms ease";
+        window.requestAnimationFrame(()=>{
+          if(this.presentation!==state||token!==state.animationId)return;
+          if(transition==="fade")incoming.style.opacity="1";
+          else if(transition.startsWith("push")){
+            incoming.style.transform="translateX(0)";
+            origin.style.transform="translateX("+offset+")";
+          }else if(transition.startsWith("wipe"))incoming.style.clipPath="inset(0 0 0 0)";
+        });
+        state.animationTimer=setTimeout(()=>{
+          if(this.presentation===state&&token===state.animationId){
+            incoming.style.transition="";incoming.style.transform="";
+            incoming.style.opacity="";incoming.style.clipPath="";
+            stage.replaceChildren(incoming);
+          }
+        },duration+50);
+      };
+      state.resize=draw;
+      window.addEventListener("resize",draw);
+      overlay.addEventListener("pointermove",raiseControls);
+      footer.addEventListener("pointerenter",raiseControls);
+      previous.addEventListener("click",()=>navigate(state.index-1));
+      next.addEventListener("click",()=>navigate(state.index+1));
       close.addEventListener("click",()=>this.stopPresentation());
       overlay.addEventListener("keydown",event=>{
         if(event.key==="Escape"){event.preventDefault();event.stopPropagation();this.stopPresentation();return;}
-        if(event.target.closest("button") && (event.key===" "||event.key==="Enter"))return;
+        if(event.key==="F11"){
+          event.preventDefault();event.stopPropagation();
+          state.nativeWindow?.toggleFullscreen().catch(error=>this.status(error.message));return;
+        }
+        if(event.target.closest("button")&&(event.key===" "||event.key==="Enter"))return;
         const forward=["ArrowRight","ArrowDown","PageDown"," ","Enter"];
         const backward=["ArrowLeft","ArrowUp","PageUp"];
         if(forward.includes(event.key)||backward.includes(event.key)){
           event.preventDefault();event.stopPropagation();
-          navigate(forward.includes(event.key)?1:-1);
+          navigate(state.index+(forward.includes(event.key)?1:-1));
         }else if(event.key==="Home"||event.key==="End"){
           event.preventDefault();event.stopPropagation();
-          const state=this.presentation;if(!state)return;
-          state.index=event.key==="Home"?0:this.getModel().surfaces.length-1;
-          draw();
+          navigate(event.key==="Home"?0:slides.length-1,true);
         }
       });
-      this.presentation.resize=draw;
-      window.addEventListener("resize",draw);
-      draw();overlay.focus();
+      // Window state is platform infrastructure, not slide editor business logic.
+      // The JS fullscreen request resolves only after the bridge processes it.
+      if(state.nativeWindow){
+        state.nativeWindow.getState().then(result=>{
+          state.wasFullscreen=Boolean(result.fullscreen);
+          if(this.presentation===state)return state.nativeWindow.enterFullscreen();
+        }).then(()=>{if(this.presentation===state)draw();})
+          .catch(error=>this.status("Tela cheia indisponível: "+error.message));
+      }else this.status("Apresentação em janela; atualize o Vela para tela cheia nativa.");
+      state.render=null;
+      draw();overlay.focus();raiseControls();
     }
     stopPresentation(){
       if(!this.presentation)return;
       const state=this.presentation;this.presentation=null;
+      clearTimeout(state.controlTimer);clearTimeout(state.animationTimer);
+      state.animationId++;
       window.removeEventListener("resize",state.resize);
       state.overlay.remove();
+      if(state.nativeWindow && state.wasFullscreen!==null)
+        state.nativeWindow.setFullscreen(state.wasFullscreen)
+          .catch(error=>this.status("Falha ao restaurar janela: "+error.message));
       if(state.returning?.isConnected)state.returning.focus();
     }
     previewTransition(){
