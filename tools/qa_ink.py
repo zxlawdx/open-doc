@@ -187,6 +187,46 @@ def main():
                 window,
                 "document.querySelector('.slide-vector-shape ellipse')?.getAttribute('fill')?.toUpperCase()==='#F4B183'",
             )
+            # Verify the OS-level QWidget, not a mocked DOM overlay or
+            # Vela's requested/intended fullscreen flag.
+            native = window.gui.BrowserView.instances.get(window.uid)
+            assert native is not None, "Qt native browser window missing"
+            state_before = window.js_api.window_get_state()
+            assert state_before.get("verified") is True
+            assert state_before.get("native_fullscreen") is False
+            window.evaluate_js(
+                "Array.from(document.querySelectorAll('.slide-studio-toolbar button'))"
+                ".find(b=>b.textContent==='Apresentar').click()"
+            )
+            for _ in range(90):
+                state = window.js_api.window_get_state()
+                if state.get("native_fullscreen") is True:
+                    break
+                time.sleep(.05)
+            assert state.get("ok") and state.get("verified"), state
+            assert native.isFullScreen(), "A barra de título permaneceu porque o QWidget não entrou em fullscreen"
+            screen = native.screen().geometry()
+            frame = native.frameGeometry()
+            assert abs(frame.width() - screen.width()) <= 4, (
+                "Fullscreen não ocupa a largura do monitor."
+            )
+            assert abs(frame.height() - screen.height()) <= 4, (
+                "Fullscreen não cobre a altura do monitor ou barra de tarefas."
+            )
+            print("QT_NATIVE_FULLSCREEN_SCREEN_GEOMETRY_VERIFIED_OK", flush=True)
+            window.evaluate_js(
+                "document.querySelector('.slide-presentation-controls "
+                "button[aria-label^=\\\"Encerrar\\\"]')?.click()"
+            )
+            for _ in range(90):
+                state = window.js_api.window_get_state()
+                if state.get("native_fullscreen") is False:
+                    break
+                time.sleep(.05)
+            assert state.get("verified") and state.get("native_fullscreen") is False
+            assert not native.isFullScreen(), "Escape/Encerrar não restaurou a janela"
+            print("QT_NATIVE_FULLSCREEN_RESTORATION_VERIFIED_OK", flush=True)
+
             output = subprocess.run(
                 [
                     "node", str(ROOT / "tools/qa_slide_capture.cjs"),
