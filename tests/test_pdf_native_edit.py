@@ -54,13 +54,13 @@ def test_ambiguous_occurrences_require_exact_selection(tmp_path):
     with pytest.raises(PdfNativeEditError, match="Mais de uma ocorrência"):
         PdfNativeEditor.apply(
             original, tmp_path / "blocked.pdf",
-            {"kind": "replace_text", "page": 0, "old": "erro", "new": "certo"},
+            {"kind": "replace_text", "page": 0, "old": "erro", "new": "certo", "allow_expansion": True},
         )
     assert not (tmp_path / "blocked.pdf").exists()
     result = PdfNativeEditor.apply(
         original, tmp_path / "changed.pdf",
         {"kind": "replace_text", "page": 0, "old": "erro",
-         "new": "certo", "occurrence": 0},
+         "new": "certo", "occurrence": 0, "allow_expansion": True},
     )
     assert result["occurrence"] == 0
     assert "certo" in PdfReader(str(tmp_path / "changed.pdf")).pages[0].extract_text()
