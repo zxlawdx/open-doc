@@ -29,28 +29,94 @@
       if(!emitted)changed("format");
       return result;
     }
+    // Pagination moves live blocks between physical pages. Text offsets alone
+    // cannot identify a caret inside blank paragraphs: 100 empty Enter blocks
+    // all have the same text offset. Never restore such a caret at the root
+    // of the contenteditable, where native Backspace may remove a page shell.
+    const blocks=()=>Array.from(rich.querySelectorAll(
+      '[data-page-content] > [data-node-id],[data-rich] > [data-node-id],[data-page-content] > p,[data-page-content] > div,[data-page-content] > li'
+    ));
+    function caretBlock(node){
+      const element=node?.nodeType===3?node.parentElement:node;
+      return element?.closest?.('[data-node-id],p,li,h1,h2,h3,blockquote,pre')||null;
+    }
     function bookmark() {
-      if (!savedRange || !rich.contains(savedRange.startContainer)) return null;
-      const before = document.createRange(); before.selectNodeContents(rich);
-      before.setEnd(savedRange.startContainer, savedRange.startOffset);
-      return {start: before.toString().length, length: savedRange.toString().length};
+      const selection=window.getSelection();
+      if(!selection?.rangeCount || !rich.contains(selection.anchorNode))return null;
+      const range=selection.getRangeAt(0);
+      const before=document.createRange();before.selectNodeContents(rich);
+      before.setEnd(range.startContainer,range.startOffset);
+      const result={start:before.toString().length,length:range.toString().length};
+      if(range.collapsed){
+        const all=blocks(),block=caretBlock(range.startContainer);
+        const index=all.indexOf(block);
+        if(index>=0){
+          const within=document.createRange();
+          within.selectNodeContents(block);
+          try{within.setEnd(range.startContainer,range.startOffset);}
+          catch(_){within.collapse(false);}
+          result.blockIndex=index;
+          result.blockId=block.dataset.nodeId||null;
+          result.blockOffset=within.toString().length;
+          result.childOffset=range.startContainer===block?range.startOffset:null;
+        }
+      }
+      return result;
     }
     function restoreBookmark(value) {
       rich.focus();
-      if (!value) return;
-      const walker = document.createTreeWalker(rich, NodeFilter.SHOW_TEXT);
-      let node, position = 0, startNode, startOffset = 0;
-      while ((node = walker.nextNode())) {
-        const end = position + node.textContent.length;
-        if (!startNode && value.start < end) { startNode = node; startOffset = Math.max(0, value.start - position); }
-        if (startNode && value.start + value.length <= end) {
-          const range = document.createRange(); range.setStart(startNode, startOffset);
-          range.setEnd(node, Math.max(0, value.start + value.length - position));
-          savedRange = range; restore(); return;
+      if(!value)return;
+      if(value.length===0 && Number.isInteger(value.blockIndex)){
+        const all=blocks();
+        const found=all[value.blockIndex];
+        const block=found || (value.blockId
+          ?all.find(el=>el.dataset.nodeId===value.blockId):null);
+        if(block){
+          const range=document.createRange();
+          const wanted=Math.max(0,value.blockOffset||0);
+          const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
+          let textNode,remaining=wanted,placed=false;
+          while((textNode=walker.nextNode())){
+            const length=textNode.textContent.length;
+            if(remaining<=length){
+              range.setStart(textNode,remaining);placed=true;break;
+            }
+            remaining-=length;
+          }
+          if(!placed){
+            range.selectNodeContents(block);
+            // Empty blocks require an element caret, not root selection.
+            if(Number.isInteger(value.childOffset))
+              range.setStart(block,Math.min(value.childOffset,block.childNodes.length));
+            else range.collapse(false);
+          }
+          range.collapse(true);
+          savedRange=range;restore();return;
         }
-        position = end;
       }
-      if(value.length===0){const range=document.createRange();range.selectNodeContents(rich);range.collapse(false);savedRange=range;restore();}
+      // Backwards compatibility: bookmarks created before this change lack
+      // block coordinates. Preserve the existing text-based selection logic.
+      const walker=document.createTreeWalker(rich,NodeFilter.SHOW_TEXT);
+      let node,position=0,startNode,startOffset=0;
+      while((node=walker.nextNode())){
+        const end=position+node.textContent.length;
+        if(!startNode && value.start<end){
+          startNode=node;startOffset=Math.max(0,value.start-position);
+        }
+        if(startNode && value.start+value.length<=end){
+          const range=document.createRange();range.setStart(startNode,startOffset);
+          range.setEnd(node,Math.max(0,value.start+value.length-position));
+          savedRange=range;restore();return;
+        }
+        position=end;
+      }
+      if(value.length===0){
+        const all=blocks(),target=all[all.length-1];
+        const range=document.createRange();
+        range.selectNodeContents(target||rich);
+        range.collapse(false);
+        savedRange=range;restore();
+      }
     }
     function state() {
       const selection = window.getSelection();
