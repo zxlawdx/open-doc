@@ -93,6 +93,65 @@ class OpenDocBridge(BaseBridge):
                 )
             }
 
+    def export_native_pdf_edit(self, document_id, revision, operation):
+        """Export a new PDF with actual content edits; the source stays immutable."""
+        import webview
+
+        from apps.open_doc.readers.pdf.native_edit_engine import (
+            NativePdfEditSession,
+            PdfEditOperation,
+            UnsupportedPdfEdit,
+        )
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        if type(operation) is not dict:
+            return {"error": "Operação PDF inválida."}
+        if operation.get("kind") not in {"replace_literal_text", "insert_text"}:
+            return {"error": "Essa ferramenta visual ainda não suporta esta operação PDF."}
+        try:
+            fixed = self._documents.context.fixed_documents
+            note = fixed.get(document_id)
+            if note["source_kind"] != "pdf":
+                raise ValueError("Abra primeiro um PDF.")
+            if type(revision) is not int or revision != note["revision"]:
+                raise RevisionConflict("O PDF mudou; salve e reabra antes de exportar.")
+            values = {
+                "kind": operation["kind"],
+                "page": operation.get("page"),
+                "target": operation.get("target", ""),
+                "replacement": operation.get("replacement", ""),
+                "x": operation.get("x", 0),
+                "y": operation.get("y", 0),
+            }
+            if any(
+                not isinstance(values[key], str) or len(values[key]) > 1000
+                for key in ("target", "replacement")
+            ):
+                raise ValueError("Texto PDF inválido ou muito extenso.")
+            source = fixed.source(document_id)
+            session = NativePdfEditSession(source.read_bytes())
+            session.apply(PdfEditOperation(**values))
+            stem = Path(note["title"]).stem[:90] or "Documento"
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(self._documents.context.config.root),
+                save_filename=f"{stem} - editado.pdf",
+                file_types=("Documento PDF (*.pdf)",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            destination = Path(paths if isinstance(paths, str) else paths[0])
+            if destination.resolve() == source.resolve():
+                raise ValueError("Não substitua a cópia original protegida.")
+            output = session.export(destination)
+            return {"path": str(output), "name": output.name, "ok": True}
+        except (UnsupportedPdfEdit, ValueError, RevisionConflict) as error:
+            return {"error": str(error)}
+        except Exception:
+            LOGGER.exception("Erro ao exportar edição nativa PDF")
+            return {"error": "Falha ao alterar o conteúdo do PDF; o original foi preservado."}
+
     def export_slide(self, document_id, revision, slide_index):
         """Native Save dialog; the application exports one editable PPTX slide."""
         import webview
