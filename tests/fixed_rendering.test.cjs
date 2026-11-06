@@ -241,3 +241,44 @@ test('editable PPTX Ctrl+F finds and selects actual slide text instead of a miss
    'the matching slide text object must visibly receive focus');
  assert.ok(statuses.some(s=>s.includes('ocorrência(s)')));
 });
+
+test('fixed document adapter keeps all PPTX slides in the model but only one editor surface',async t=>{
+ const dom=new JSDOM(html(),{runScripts:'outside-only'}),w=dom.window;
+ const root=w.document.querySelector('[data-app]'),abort=new w.AbortController();
+ t.after(()=>{abort.abort();w.close();});
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ w.IntersectionObserver=class{observe(){}disconnect(){}};
+ w.pywebview={api:{set_dirty:async()=>{}}};
+ for(const file of ['compat.js','document_model.js','history.js','recovery.js',
+   'slide_charts.js','slide_editor.js','fixed_document.js'])w.eval(source(file));
+ const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
+   asset:src=>'http://localhost/'+src,request:async()=>({}),status:()=>{}});
+ t.after(()=>editor.deactivate());
+ const slide=(index,text)=>({
+   index,width_pt:960,height_pt:540,background:'#FFFFFF',
+   notes:'',strokes:[],text_overlays:[],elements:[{
+     id:'text-'+index,type:'text',name:'Texto '+index,text,
+     x:.1,y:.2,width:.55,height:.2,font_size_pt:22,
+     color:'#191C1E',fill:'#FFFFFF',stroke:'#004AC6',rotation:0
+   }]
+ });
+ await editor.load({id:'two-slides',title:'Dois slides',revision:1,source_kind:'pptx',
+   capabilities:{preview:true},content:{source_kind:'pptx',editable_deck:true,assets:{},
+     surfaces:[slide(0,'Apenas primeiro'),slide(1,'Apenas segundo')]}});
+ const scroll=root.querySelector('.fixed-scroll');
+ const sidebar=root.querySelector('.fixed-sidebar');
+ assert.equal(scroll.querySelectorAll('.fixed-surface').length,1);
+ assert.equal(scroll.querySelector('.fixed-surface').dataset.pageIndex,'0');
+ assert.match(scroll.textContent,/Apenas primeiro/);
+ assert.doesNotMatch(scroll.textContent,/Apenas segundo/);
+ assert.equal(sidebar.querySelectorAll('[data-thumbnail-index]').length,2);
+ const field=root.querySelector('.fixed-controls input[type=number]');
+ field.value='2';field.dispatchEvent(new w.Event('change'));
+ assert.equal(scroll.querySelectorAll('.fixed-surface').length,1);
+ assert.equal(scroll.querySelector('.fixed-surface').dataset.pageIndex,'1');
+ assert.match(scroll.textContent,/Apenas segundo/);
+ assert.doesNotMatch(scroll.textContent,/Apenas primeiro/);
+ assert.equal(sidebar.querySelectorAll('[data-thumbnail-index]').length,2);
+ assert.equal(Number(field.max),2,'page navigation must keep total model size');
+ assert.equal(editor.snapshot().content.surfaces.length,2);
+});
