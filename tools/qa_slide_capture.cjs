@@ -24,6 +24,24 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
   if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));
   return result.result.value;
  };
+ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ const shot=async name=>{
+   await pause(200);
+   const captured=await send('Page.captureScreenshot',{format:'png'});
+   fs.writeFileSync(path.join(destination,name+'.png'),Buffer.from(captured.data,'base64'));
+ };
+ const click=async selector=>{
+   const point=await evaluate(`(()=>{
+     const button=document.querySelector(${JSON.stringify(selector)});
+     if(!button)throw Error('Missing visual control: '+${JSON.stringify(selector)});
+     button.scrollIntoView({block:'nearest'});
+     const bounds=button.getBoundingClientRect();
+     return {x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2};
+   })()`);
+   await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
+   await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
+   await pause(150);
+ };
  const result=await evaluate(`(()=>{
   const page=document.querySelector('.fixed-surface[data-page-index="0"]');
   const rect=page?.querySelector('.slide-object-rect');
