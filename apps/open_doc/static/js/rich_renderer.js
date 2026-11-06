@@ -34,7 +34,14 @@
       else if(kind==='tab'){e=document.createElement('span');e.textContent='\t';e.style.whiteSpace='pre';}
       else if(kind==='break'){e=document.createElement('br');if(n.break_type==='page'){e=document.createElement('span');e.textContent='— Quebra de página —';e.contentEditable='false';e.className='rich-page-break';}}
       else if(kind==='image'){e=document.createElement('img');e.alt=n.alt_text || '';e.draggable=false;if(n.width_pt>0 && n.width_pt<5000)e.style.width=n.width_pt+'pt';if(n.height_pt>0 && n.height_pt<5000)e.style.height=n.height_pt+'pt';e.style.maxWidth='100%';if(mediaRequest)mediaRequest(n.media_id).then(url=>{if(e.isConnected && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(url))e.src=url;}).catch(()=>{e.alt='Imagem preservada; preview indisponível';});}
-      else if(kind==='table'){e=document.createElement('table');applyBorders(e,n.borders);const body=document.createElement('tbody');for(const row of n.rows){const tr=document.createElement('tr');tr.dataset.rowId=row.id;for(const c of row.cells){if(c.merge_continue)continue;const td=document.createElement('td');td.dataset.cellId=c.id;td.colSpan=c.col_span || 1;td.rowSpan=c.row_span || 1;applyBorders(td,c.borders);if(c.shading)td.style.backgroundColor=color(c.shading);if(c.width_pt>0)td.style.width=c.width_pt+'pt';if(['top','center','bottom'].includes(c.vertical_align))td.style.verticalAlign=c.vertical_align==='center'?'middle':c.vertical_align;c.blocks.forEach(b=>td.appendChild(build(b)));tr.appendChild(td);}body.appendChild(tr);}e.appendChild(body);}
+      else if(kind==='table'){e=document.createElement('table');applyBorders(e,n.borders);
+        if(n.style_preset)e.dataset.tablePreset=n.style_preset;
+        if(Number.isFinite(n.cell_spacing_pt)){
+          e.dataset.cellSpacingPt=String(n.cell_spacing_pt);
+          e.style.borderCollapse=n.cell_spacing_pt>0||n.style_preset==='matrix'?'separate':'collapse';
+          e.style.borderSpacing=n.cell_spacing_pt*4/3+'px';
+        }
+        const body=document.createElement('tbody');for(const row of n.rows){const tr=document.createElement('tr');tr.dataset.rowId=row.id;for(const c of row.cells){if(c.merge_continue)continue;const td=document.createElement('td');td.dataset.cellId=c.id;td.colSpan=c.col_span || 1;td.rowSpan=c.row_span || 1;applyBorders(td,c.borders);if(c.shading)td.style.backgroundColor=color(c.shading);if(c.width_pt>0)td.style.width=c.width_pt+'pt';if(['top','center','bottom'].includes(c.vertical_align))td.style.verticalAlign=c.vertical_align==='center'?'middle':c.vertical_align;c.blocks.forEach(b=>td.appendChild(build(b)));tr.appendChild(td);}body.appendChild(tr);}e.appendChild(body);}
       else{e=document.createElement('span');e.contentEditable='false';e.className='rich-opaque';if(kind==='note-reference'){e.textContent='['+n.note_id+']';e.tabIndex=0;e.setAttribute('role','button');e.dataset.noteKind=n.note_kind;e.dataset.noteId=n.note_id;}else e.textContent=kind==='field'?(n.display || '[Campo Word]'):'[Conteúdo Word preservado]'+(n.display?' '+n.display.slice(0,200):'');}
       e.dataset.nodeId=n.id;e.dataset.nodeType=kind;return e;
     }
