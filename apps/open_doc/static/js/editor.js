@@ -384,7 +384,7 @@
       message.textContent="Salvo em: "+result.path+
         (result.lossy?" · Verifique a formatação no programa de destino.":"");
       const dismiss=document.createElement("button");dismiss.type="button";
-      dismiss.textContent="Fechar";dismiss.setAttribute("aria-label","Fechar confirmação de exportação");
+      dismiss.textContent="";dismiss.setAttribute("aria-label","Fechar confirmação de exportação");
       dismiss.addEventListener("click",()=>confirmation.replaceChildren());
       confirmation.append(message,dismiss);
       status(result.lossy?"Exportação concluída com avisos.":"Exportação concluída: "+(result.name||extension.toUpperCase()));
