@@ -6,7 +6,7 @@ const {JSDOM}=require('jsdom');
 const chartScript=fs.readFileSync(path.join(__dirname,'../apps/open_doc/static/js/slide_charts.js'),'utf8');
 const script=fs.readFileSync(path.join(__dirname,'../apps/open_doc/static/js/slide_editor.js'),'utf8');
 
-function setup(t){
+function setup(t, options={}){
  const dom=new JSDOM(
   '<div id="root"><span data-position></span><span data-count></span>'+
   '<section class="fixed-document" id="host"><div class="fixed-controls" id="controls"></div>'+
@@ -28,7 +28,7 @@ function setup(t){
  const editor=w.OpenDocSlidesEditor.create({root,host,controls,scroller,sidebar,signal:abort.signal,
    getModel:()=>model,update:value=>{model=value;versions.push(JSON.stringify(value));},
    status:()=>{},getZoom:()=>1,go:index=>{selected=index;editor.onPageChange(index);},
-   undo:()=>{},redo:()=>{},onRender:()=>{}});
+   undo:()=>{},redo:()=>{},onRender:()=>{},exportSlide:options.exportSlide});
  editor.load();
  return {w,root,host,controls,scroller,sidebar,editor,model:()=>model,versions,selected:()=>selected};
 }
@@ -659,4 +659,17 @@ test('slide transition animates the incoming slide and cancels safely on fast na
    'interrupting an effect must not leave duplicate frames');
  q.editor.stopPresentation();
  assert.equal(q.root.querySelector('.slide-presentation'),null);
+});
+
+test('Exportar slide is a visible command and delegates selected index to native bridge',t=>{
+ const exported=[];
+ const q=setup(t,{exportSlide:index=>{exported.push(index);return Promise.resolve();}});
+ clickLabel(q.controls,'+ Slide');
+ const tab=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+   .find(button=>button.textContent==='Slides');
+ tab.click();
+ clickLabel(q.controls,'Exportar slide');
+ assert.deepEqual(exported,[1]);
+ assert.ok(Array.from(q.controls.querySelectorAll('.slide-ribbon-group'))
+   .some(group=>!group.hidden&&group.textContent.includes('Exportar slide')));
 });
