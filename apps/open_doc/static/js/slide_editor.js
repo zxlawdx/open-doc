@@ -585,7 +585,7 @@
       const close=document.createElement("button");close.type="button";close.textContent="Encerrar";
       close.title="Encerrar apresentação (Esc)";
       footer.append(previous,count,next,close);overlay.append(viewport,footer);
-      this.host.append(overlay);
+      this.root.append(overlay);
       const returning=document.activeElement;
       this.presentation={overlay,viewport,count,index:this.current,returning,resize:null};
       const draw=()=>{
@@ -620,6 +620,7 @@
       close.addEventListener("click",()=>this.stopPresentation());
       overlay.addEventListener("keydown",event=>{
         if(event.key==="Escape"){event.preventDefault();event.stopPropagation();this.stopPresentation();return;}
+        if(event.target.closest("button") && (event.key===" "||event.key==="Enter"))return;
         const forward=["ArrowRight","ArrowDown","PageDown"," ","Enter"];
         const backward=["ArrowLeft","ArrowUp","PageUp"];
         if(forward.includes(event.key)||backward.includes(event.key)){
