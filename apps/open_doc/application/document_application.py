@@ -214,6 +214,16 @@ class DocumentApplication:
         )
         return service.export(document_id, revision, file_format, Path(destination))
 
+    def export_selected_slide(
+        self, document_id: str, revision: int, slide_index: int, destination: Path
+    ) -> dict[str, Any]:
+        """Export a native editable single-slide PPTX via the fixed-document service."""
+        if not self.context.fixed_documents.exists(document_id):
+            raise ValueError("Selecione uma apresentação PPTX editável.")
+        return self.context.fixed_documents.export_selected_slide(
+            document_id, revision, slide_index, Path(destination)
+        )
+
     def extract_pdf_pages(
         self, document_id: str, revision: int, first_page: int, last_page: int,
         destination: Path,
