@@ -31,8 +31,11 @@ class SlideDeckExporter:
     def __init__(self, source, model):
         self.model = model
         self.native = model.get("editable_deck") is True
+        # Reimport exactly the native subset without losing editability.
+        # Non-OpenDoc originals remain read-only until explicitly converted.
         self.presentation = Presentation() if self.native else Presentation(source)
         if self.native:
+            self.presentation.core_properties.keywords = "OpenDoc:EditableSlide-v1"
             first = model["surfaces"][0]
             self.presentation.slide_width = Pt(first["width_pt"])
             self.presentation.slide_height = Pt(first["height_pt"])
