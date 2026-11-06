@@ -31,7 +31,7 @@
       }else if(kind==='page_break'){e=document.createElement('div');e.contentEditable='false';e.className='manual-page-break';e.setAttribute('aria-label','Quebra de página');}
       else if(kind==='text'){e=document.createElement('span');e.textContent=n.text;textStyle(e,n.style);}
       else if(kind==='hyperlink'){e=document.createElement('a');if(/^(https?:\/\/|mailto:|#)/i.test(n.href))e.href=n.href;n.children.forEach(c=>e.appendChild(build(c)));}
-      else if(kind==='tab'){e=document.createElement('span');e.textContent='\t';e.style.whiteSpace='pre';}
+      else if(kind==='tab'){e=document.createElement('span');e.contentEditable='false';e.textContent='\t';e.style.whiteSpace='pre';}
       else if(kind==='break'){e=document.createElement('br');if(n.break_type==='page'){e=document.createElement('span');e.textContent='— Quebra de página —';e.contentEditable='false';e.className='rich-page-break';}}
       else if(kind==='image'){e=document.createElement('img');e.alt=n.alt_text || '';e.draggable=false;if(n.width_pt>0 && n.width_pt<5000)e.style.width=n.width_pt+'pt';if(n.height_pt>0 && n.height_pt<5000)e.style.height=n.height_pt+'pt';e.style.maxWidth='100%';if(mediaRequest)mediaRequest(n.media_id).then(url=>{if(e.isConnected && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(url))e.src=url;}).catch(()=>{e.alt='Imagem preservada; preview indisponível';});}
       else if(kind==='table'){e=document.createElement('table');applyBorders(e,n.borders);

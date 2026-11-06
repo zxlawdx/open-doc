@@ -443,7 +443,12 @@
       let node;
       while((node=walker.nextNode())){
         if(remaining<=node.textContent.length){
-          range.setStart(node,remaining);placed=true;break;
+          const tab=node.parentElement.closest('[data-node-type="tab"]');
+          if(tab){
+            if(remaining===0)range.setStartBefore(tab);
+            else range.setStartAfter(tab);
+          }else range.setStart(node,remaining);
+          placed=true;break;
         }
         remaining-=node.textContent.length;
       }
@@ -639,6 +644,25 @@
         const selection=getSelection();
         selection.removeAllRanges();selection.addRange(range);
         return;
+      }
+      if(event.key==='Tab'&&!event.shiftKey&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&
+        !event.isComposing&&!event.defaultPrevented&&mode==='rich'&&!lockedState&&!suspended&&
+        root.dataset.documentKind!=='fixed'&&document.activeElement===rich){
+        const selection=getSelection();
+        const paragraph=node=>(node?.nodeType===1?node:node?.parentElement)
+          ?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,pre,li');
+        const start=paragraph(selection?.anchorNode);
+        if(start&&rich.contains(start)&&start===paragraph(selection.focusNode)&&!start.closest('td,th')){
+          event.preventDefault();
+          commands.capture();
+          history.checkpoint(buffer());
+          nextKind="format";
+          try{
+            commands.execute('insertHTML',
+              '<span data-node-type="tab" contenteditable="false" style="white-space:pre">&#9;</span>');
+          }finally{nextKind="typing";}
+          return;
+        }
       }
       if(event.key==='Backspace')traceDeletion('keydown-entry');
       if(event.key!=='Backspace'&&event.key!=='Delete')return;

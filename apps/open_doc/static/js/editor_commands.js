@@ -79,7 +79,12 @@
           while((textNode=walker.nextNode())){
             const length=textNode.textContent.length;
             if(remaining<=length){
-              range.setStart(textNode,remaining);placed=true;break;
+              const tab=textNode.parentElement.closest('[data-node-type="tab"]');
+              if(tab){
+                if(remaining===0)range.setStartBefore(tab);
+                else range.setStartAfter(tab);
+              }else range.setStart(textNode,remaining);
+              placed=true;break;
             }
             remaining-=length;
           }

@@ -176,3 +176,37 @@ test('1000 empty line breaks reflow with bounded height measurements and no data
  assert.ok(measurements<850,'height reflows must not be linear in BR count per page');
  assert.ok(Date.now()-start<7000,'regression must not enter a long main-thread loop');
 });
+
+test('Tab inserts a DOCX tab stop and retains table and toolbar navigation',async t=>{
+ const s=await setup(t),{w,rich,root,editor}=s;
+ const press=(target,shiftKey=false)=>target.dispatchEvent(new w.KeyboardEvent('keydown',
+   {key:'Tab',bubbles:true,cancelable:true,shiftKey}));
+ const selection=w.getSelection();
+ s.select();
+ selection.collapse(selection.anchorNode,0);
+ w.document.execCommand=(command,_unused,html)=>{
+   assert.equal(command,'insertHTML');
+   const range=selection.getRangeAt(0),fragment=range.createContextualFragment(html);
+   const tab=fragment.firstChild;
+   range.deleteContents();
+   range.insertNode(fragment);
+   selection.collapse(tab.parentNode,Array.from(tab.parentNode.childNodes).indexOf(tab)+1);
+   rich.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText'}));
+   return true;
+ };
+ assert.equal(press(rich),false);
+ assert.equal(w.document.activeElement,rich);
+ assert.equal(editor.snapshot().content.blocks[0].children[0].type,'tab');
+ assert.equal(rich.querySelector('[data-node-type="tab"]').textContent,'\t');
+ editor.format('undo');
+ assert.equal(rich.querySelector('[data-node-type="tab"]'),null);
+ editor.format('redo');
+ assert.ok(rich.querySelector('[data-node-type="tab"]'));
+ await editor.flush();
+ editor.load({...s.note,...s.saved()});
+ assert.ok(rich.querySelector('[data-node-type="tab"]'));
+ assert.equal(press(root.querySelector('.toolbar button')),true);
+ s.select('td');
+ assert.equal(press(rich),false);
+ assert.equal(editor.snapshot().content.blocks[1].rows[0].cells[0].blocks[0].children.length,1);
+});
