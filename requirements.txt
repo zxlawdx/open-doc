@@ -1,5 +1,5 @@
 # Runtime Vela fixado no commit inspecionado.
-vela-framework @ git+https://github.com/zxlawdx/Vela-framework.git@cd5a324b396630e353aaf124231dda2c86f30f15
+vela-framework @ git+https://github.com/zxlawdx/Vela-framework.git@adb4f903aad5467d42fe57b3618173915193034d
 bottle==0.13.4
 pywebview==6.2.1
 PyQt5>=5.15.11,<6
