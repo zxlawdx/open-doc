@@ -108,6 +108,11 @@ class SlideModelValidator:
             chart_kind=element.get("chart_type","bar")
             if chart_kind not in ("bar","line","pie"):
                 raise ValueError("Tipo de gráfico inválido.")
+            palette=element.get("chart_palette","blue")
+            if palette not in ("blue","green","orange","contrast"):
+                raise ValueError("Paleta do gráfico inválida.")
+            if element.get("rotation", 0) != 0:
+                raise ValueError("Gráficos nativos não podem ser girados.")
             chart_title=element.get("chart_title","")
             if not isinstance(chart_title,str) or len(chart_title)>160:
                 raise ValueError("Título do gráfico inválido.")
