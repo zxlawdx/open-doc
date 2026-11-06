@@ -214,6 +214,12 @@ class DocumentApplication:
         )
         return service.export(document_id, revision, file_format, Path(destination))
 
+    def prepare_pdf_preview(self, document_id: str, revision: int) -> dict[str, Any]:
+        return self.context.fixed_documents.prepare_pdf_preview(document_id, revision)
+
+    def store_pdf_image(self, document_id: str, revision: int, path: Path) -> dict[str, Any]:
+        return self.context.fixed_documents.store_pdf_image(document_id, revision, path)
+
     def export_selected_slide(
         self, document_id: str, revision: int, slide_index: int, destination: Path
     ) -> dict[str, Any]:
