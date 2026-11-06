@@ -7,7 +7,40 @@
     surface.addEventListener('contextmenu',event=>{const cell=event.target.closest('td,th');if(!cell)return;event.preventDefault();selected=cell;menu.style.left=Math.min(event.clientX,innerWidth-240)+'px';menu.style.top=Math.min(event.clientY,innerHeight-360)+'px';menu.hidden=false;window.OpenDocPopovers?.position(menu,{left:event.clientX,top:event.clientY,bottom:event.clientY});menu.querySelector('button').focus();},{signal});
     document.addEventListener('click',event=>{if(!menu.contains(event.target))menu.hidden=true;},{signal});document.addEventListener('keydown',event=>{if(event.key==='Escape')menu.hidden=true;},{signal});signal.addEventListener('abort',()=>menu.remove(),{once:true});
     surface.addEventListener('keydown',event=>{const n=getSelection().anchorNode,element=n && (n.nodeType===1?n:n.parentElement);const cell=event.target.closest('td,th') || element?.closest('td,th');if(!cell || !surface.contains(cell) || event.key!=='Tab')return;event.preventDefault();const cells=Array.from(surface.querySelectorAll('td,th')),next=cells[cells.indexOf(cell)+(event.shiftKey?-1:1)];if(next){const r=document.createRange();r.selectNodeContents(next);r.collapse(!event.shiftKey);surface.focus();getSelection().removeAllRanges();getSelection().addRange(r);}},{signal});}
-  function insert(surface,range,rows=2,cols=2){if(!range || !surface.contains(range.commonAncestorContainer))return false;const table=document.createElement('table'),body=document.createElement('tbody');for(let r=0;r<rows;r++){const tr=document.createElement('tr');for(let c=0;c<cols;c++){const td=document.createElement('td'),p=document.createElement('p');p.appendChild(document.createElement('br'));td.appendChild(p);tr.appendChild(td);}body.appendChild(tr);}table.appendChild(body);let block=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;block=block.closest('p,h1,h2,h3,blockquote,pre,li');if(block && surface.contains(block))block.parentNode.insertBefore(table,block.nextSibling);else surface.appendChild(table);const after=document.createElement('p');after.appendChild(document.createElement('br'));table.parentNode.insertBefore(after,table.nextSibling);return true;}
+  function insert(surface,range,rows=2,cols=2,options={}){
+    if(!range||!surface.contains(range.commonAncestorContainer))return false;
+    if(!Number.isInteger(rows)||!Number.isInteger(cols)||rows<1||rows>100||cols<1||cols>30)
+      throw Error("Dimensões de tabela inválidas.");
+    const preset=["grid","header","matrix","plain"].includes(options.preset)?options.preset:"grid";
+    const spacing=Number(options.cellSpacingPt||0);
+    if(!Number.isFinite(spacing)||spacing<0||spacing>36)
+      throw Error("Espaçamento entre células inválido.");
+    const table=document.createElement("table"),body=document.createElement("tbody");
+    table.dataset.tablePreset=preset;
+    table.dataset.cellSpacingPt=String(spacing);
+    table.style.borderCollapse=spacing>0||preset==="matrix"?"separate":"collapse";
+    table.style.borderSpacing=spacing*4/3+"px";
+    for(let r=0;r<rows;r++){
+      const tr=document.createElement("tr");
+      for(let c=0;c<cols;c++){
+        const td=document.createElement("td"),p=document.createElement("p");
+        const content=options.data?.[r]?.[c];
+        if(content!=null&&String(content)!=="")p.textContent=String(content);
+        else p.appendChild(document.createElement("br"));
+        if(preset==="header"&&r===0)td.style.backgroundColor="#DAE2FD";
+        td.appendChild(p);tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    let block=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
+    block=block.closest("p,h1,h2,h3,blockquote,pre,li");
+    if(block&&surface.contains(block))block.parentNode.insertBefore(table,block.nextSibling);
+    else surface.appendChild(table);
+    const after=document.createElement("p");after.appendChild(document.createElement("br"));
+    table.parentNode.insertBefore(after,table.nextSibling);
+    return true;
+  }
   function operate(table,cell,action){
     const row=cell.parentElement,index=cell.cellIndex,rows=Array.from(table.rows);
     const blank=()=>{const td=document.createElement('td');td.innerHTML='<p><br></p>';return td;};
