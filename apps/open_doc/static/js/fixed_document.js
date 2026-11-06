@@ -5,7 +5,7 @@
  function create({root,request,status,token,asset,signal}){
   const host=document.createElement('section');host.className='fixed-document';host.hidden=true;root.querySelector('[data-document-body]').after(host);
   const controls=document.createElement('div');controls.className='fixed-controls';const sidebar=document.createElement('aside');sidebar.className='fixed-sidebar';sidebar.setAttribute('aria-label','Páginas e marcadores');const scroller=document.createElement('div');scroller.className='fixed-scroll';scroller.tabIndex=0;host.append(controls,sidebar,scroller);
-  let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,searchTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),searchingPages=new Set(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null;
+  let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,searchTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),searchingPages=new Set(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null,slideFitMode=null;
   const history=window.OpenDocHistory.create(),title=root.querySelector('[data-title]');
   const semantic=window.OpenDocSemanticAnnotations?.create({host,root,scroller,sidebar,signal,getModel:()=>model,getPage:index=>renderedPages.get(index),getZoom:()=>zoom,go,status,update:items=>{model=clone(model);model.annotations=items;changed();}});
   const slidesEditor=window.OpenDocSlidesEditor?.create({
@@ -18,7 +18,12 @@
       if(result.error)throw Error(result.error);
       if(!result.cancelled){status('Salvo em: '+result.path);return result;}
     },
-    onRender:()=>{pageNodes=Array.from(scroller.querySelectorAll('.fixed-surface'));pageField.max=pageNodes.length;}
+    onViewportResize:()=>{if(slideFitMode && model?.editable_deck)fit(slideFitMode==='page');},
+    onRender:()=>{
+      pageNodes=Array.from(scroller.querySelectorAll('.fixed-surface'));
+      pageField.max=model.surfaces.length;
+      texts();
+    }
   });
   const pageField=document.createElement('input');pageField.type='number';pageField.min='1';pageField.value='1';pageField.setAttribute('aria-label','Ir para página');
   function button(label,fn){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',()=>Promise.resolve(fn()).catch(e=>status(e.message)),{signal});controls.append(b);return b;}
@@ -35,9 +40,21 @@
   function setInkLayers(layers){model=clone(model);for(const s of model.surfaces){const l=layers.find(l=>l.surface_index===s.index);s.strokes=l?.strokes || [];s.text_overlays=l?.text_overlays || [];}changed();texts();}
   function inkLayers(){return model?.surfaces.map(s=>({...s,surface_index:s.index})) || [];}
   function insertRecognized(text,style,index,ids){const layers=inkLayers(),l=layers.find(l=>l.surface_index===index);if(!l)return;const points=l.strokes.filter(s=>ids.includes(s.id)).flatMap(s=>s.points),x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));l.text_overlays.push({id:window.OpenDocModel.id(),text,x,y,width:Math.max(.1,1-x),height:Math.min(.2,1-y),...style});l.strokes=l.strokes.filter(s=>!ids.includes(s.id));setInkLayers(layers);}
-  function texts(){pageNodes.forEach((node,index)=>{node.querySelectorAll('.fixed-text-overlay').forEach(n=>n.remove());for(const text of model.surfaces[index].text_overlays || []){const div=document.createElement('div');div.className='fixed-text-overlay';div.textContent=text.text;Object.assign(div.style,{left:text.x*100+'%',top:text.y*100+'%',width:text.width*100+'%',fontFamily:JSON.stringify(text.font_family)+', Inter, sans-serif',fontSize:text.font_size_pt*4/3*zoom+'px',color:text.color});node.append(div);}});}
+  function texts(){pageNodes.forEach(node=>{const index=Number(node.dataset.pageIndex||0);node.querySelectorAll('.fixed-text-overlay').forEach(n=>n.remove());for(const text of model.surfaces[index]?.text_overlays || []){const div=document.createElement('div');div.className='fixed-text-overlay';div.textContent=text.text;Object.assign(div.style,{left:text.x*100+'%',top:text.y*100+'%',width:text.width*100+'%',fontFamily:JSON.stringify(text.font_family)+', Inter, sans-serif',fontSize:text.font_size_pt*4/3*zoom+'px',color:text.color});node.append(div);}});}
   async function flush(){if(!active)return note;if(!note || signature()===saved)return note;const b=snapshot(),sig=signature();queue=queue.catch(()=>{}).then(async()=>{b.revision=note.revision;const result=await request('document/save',b);note.revision=result.revision;saved=sig;if(signature()===saved)window.OpenDocRecovery.clear(note.id);window.pywebview.api.set_dirty?.(signature()!==saved);status(model?.editable_deck?'Apresentação salva.':'Anotações salvas.');return result;});return queue;}
-  function go(index){index=Math.max(0,Math.min(pageNodes.length-1,index));pageField.value=index+1;pageNodes[index]?.scrollIntoView({block:'start'});if(model?.editable_deck)slidesEditor?.onPageChange(index);lazy();}
+  function go(index){
+    const total=model?.surfaces?.length||0;
+    if(!total)return;
+    index=Math.max(0,Math.min(total-1,index));
+    pageField.value=index+1;
+    if(model?.editable_deck){
+      slidesEditor?.goTo(index);
+      scroller.scrollLeft=0;scroller.scrollTop=0;
+      return;
+    }
+    pageNodes[index]?.scrollIntoView({block:'start'});
+    lazy();
+  }
   // Highlight exact occurrences in the PDF text layer, including matches
   // crossing adjacent spans. Pure overlays preserve original text selection.
   function highlightSearch(index){
@@ -78,8 +95,35 @@
     }
     if(overlay.childElementCount)surface.append(overlay);
   }
-  function scale(value){zoom=Math.max(.25,Math.min(3,value));root.querySelector('[data-zoom]').value=Math.round(zoom*100);root.querySelector('[data-zoom-value]').textContent=Math.round(zoom*100)+'%';pageNodes.forEach((node,index)=>{const s=model.surfaces[index];node.style.width=s.width_pt*4/3*zoom+'px';node.style.height=s.height_pt*4/3*zoom+'px';node.querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content,.semantic-overlays').forEach(n=>n.remove());});semantic?.hide();for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();texts();slidesEditor?.render();root.dispatchEvent(new CustomEvent('open-doc:layout'));lazy();}
-  function fit(whole){if(!model)return;const s=model.surfaces[Number(pageField.value)-1] || model.surfaces[0];scale(Math.min((scroller.clientWidth-48)/(s.width_pt*4/3),whole?(scroller.clientHeight-32)/(s.height_pt*4/3):3));}
+  function scale(value,keepFit=false){
+    zoom=Math.max(.25,Math.min(3,value));
+    if(model?.editable_deck&&!keepFit)slideFitMode=null;
+    root.querySelector('[data-zoom]').value=Math.round(zoom*100);
+    root.querySelector('[data-zoom-value]').textContent=Math.round(zoom*100)+'%';
+    if(model?.editable_deck){
+      slidesEditor?.render();
+      root.dispatchEvent(new CustomEvent('open-doc:layout'));
+      return;
+    }
+    pageNodes.forEach((node,index)=>{
+      const s=model.surfaces[index];
+      node.style.width=s.width_pt*4/3*zoom+'px';
+      node.style.height=s.height_pt*4/3*zoom+'px';
+      node.querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content,.semantic-overlays').forEach(n=>n.remove());
+    });
+    semantic?.hide();for(const t of renderTasks.values())t.cancel();
+    renderTasks.clear();rendering.clear();texts();
+    root.dispatchEvent(new CustomEvent('open-doc:layout'));lazy();
+  }
+  function fit(whole){
+    if(!model)return;
+    const s=model.surfaces[Number(pageField.value)-1]||model.surfaces[0];
+    if(!s)return;
+    const width=(scroller.clientWidth-(model.editable_deck?72:48))/(s.width_pt*4/3);
+    const height=(scroller.clientHeight-(model.editable_deck?72:32))/(s.height_pt*4/3);
+    if(model.editable_deck)slideFitMode=whole?'page':'width';
+    scale(Math.max(.25,Math.min(width,whole?height:3)),Boolean(model.editable_deck));
+  }
   function pageError(node,index,stage,error){
     console.error('Open Doc PDF',{id:note.id,version:window.OpenDocPdf?.version,page:index+1,stage},error);
     const message=document.createElement('p');message.className='fixed-page-error';message.dataset.errorStage=stage;message.setAttribute('role','status');message.textContent=(stage==='canvas'?'Falha ao renderizar página '+(index+1):'Página '+(index+1)+' — '+stage+' indisponível')+': '+String(error.message).slice(0,180);node.append(message);status('PDF carregado; '+stage+' indisponível na página '+(index+1)+'.');
@@ -219,16 +263,18 @@
       find().catch(error=>status(error.message));
     }
   },{signal});
-  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
+  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
-   for(const s of model.surfaces){const node=document.createElement('div');node.className='fixed-surface';node.dataset.pageIndex=s.index;node.dataset.widthPt=s.width_pt;node.dataset.heightPt=s.height_pt;node.style.width=s.width_pt*4/3+'px';node.style.height=s.height_pt*4/3+'px';scroller.append(node);pageNodes.push(node);const b=document.createElement('button');b.textContent='Página '+(s.index+1);b.dataset.thumbnailIndex=s.index;b.onclick=()=>go(s.index);sidebar.append(b);}
-   root.querySelector('[data-mode-label]').textContent=note.source_kind==='pdf'?'Leitor PDF':'Apresentação';root.querySelector('[data-count]').textContent=model.surfaces.length+' páginas';texts();root.dispatchEvent(new CustomEvent('open-doc:content'));
    if(note.source_kind==='pptx' && model.editable_deck){
      root.dataset.readerState='ready';
+     root.querySelector('[data-mode-label]').textContent='Apresentação';
      slidesEditor?.load();
      if(scroller.clientWidth>80 && scroller.clientHeight>80)fit(true);
+     root.dispatchEvent(new CustomEvent('open-doc:content'));
      return;
    }
+   for(const s of model.surfaces){const node=document.createElement('div');node.className='fixed-surface';node.dataset.pageIndex=s.index;node.dataset.widthPt=s.width_pt;node.dataset.heightPt=s.height_pt;node.style.width=s.width_pt*4/3+'px';node.style.height=s.height_pt*4/3+'px';scroller.append(node);pageNodes.push(node);const b=document.createElement('button');b.textContent='Página '+(s.index+1);b.dataset.thumbnailIndex=s.index;b.onclick=()=>go(s.index);sidebar.append(b);}
+   root.querySelector('[data-mode-label]').textContent=note.source_kind==='pdf'?'Leitor PDF':'Apresentação';root.querySelector('[data-count]').textContent=model.surfaces.length+' páginas';texts();root.dispatchEvent(new CustomEvent('open-doc:content'));
    if(note.source_kind==='pptx'){
      try{const loaded=await window.OpenDocPptx.load(note.id,token);if(generation!==epoch){loaded.destroy();return;}pptx=loaded;if(pptx.count!==model.surfaces.length)throw Error('Quantidade de slides difere da origem.');root.dataset.readerState='ready';const warning=document.createElement('p');warning.className='pptx-fidelity-warning';warning.textContent='Prévia local PPTX: fontes, animações, mídia e efeitos avançados podem diferir do PowerPoint.';scroller.prepend(warning);fit(false);lazy();thumbObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(!entry.isIntersecting || entry.target.querySelector('.pptx-thumbnail'))continue;const index=Number(entry.target.dataset.thumbnailIndex),surface=model.surfaces[index];pptx.render(index,entry.target,110,110*surface.height_pt/surface.width_pt,true);}},{root:sidebar,rootMargin:'100px'});sidebar.querySelectorAll('[data-thumbnail-index]').forEach(b=>thumbObserver.observe(b));}
      catch(error){console.error('Open Doc PPTX',error);root.dataset.readerState='error';note.capabilities.preview=false;note.capabilities.ink=false;const warning=document.createElement('p');warning.className='fixed-load-error';warning.textContent='Não foi possível inicializar o leitor PPTX: '+error.message;warning.setAttribute('role','alert');scroller.prepend(warning);status(warning.textContent);}return;
