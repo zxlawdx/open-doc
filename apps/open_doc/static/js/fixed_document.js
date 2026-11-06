@@ -276,7 +276,7 @@
   title.addEventListener('input',()=>{if(active)changed();},{signal});scroller.addEventListener('scroll',lazy,{signal});
   function format(command){if(locked)return;if(command==='undo' || command==='redo'){const value=history[command]();if(value){model=clone(value.content);title.value=value.title;clearTimeout(timer);timer=setTimeout(()=>flush().catch(e=>status(e.message)),800);texts();semantic?.refresh();slidesEditor?.render();root.dispatchEvent(new CustomEvent('open-doc:content'));}}}
   window.addEventListener('keydown',e=>{if(!active || !(e.ctrlKey || e.metaKey))return;
-    if(e.key.toLowerCase()==='f' && note?.source_kind==='pdf'){
+    if(e.key.toLowerCase()==='f' && (note?.source_kind==='pdf'||note?.source_kind==='pptx')){
       e.preventDefault();search.focus();search.select();return;
     }
     if(e.key.toLowerCase()==='s'){e.preventDefault();flush().catch(e=>status(e.message));}if(['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
