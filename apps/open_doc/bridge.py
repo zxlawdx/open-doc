@@ -125,6 +125,40 @@ class OpenDocBridge(BaseBridge):
                 )
             }
 
+    def edit_pdf_native(self, document_id, revision, operation):
+        """Native save dialog for a REAL content-stream edit (not annotations)."""
+        import webview
+        from apps.open_doc.readers.pdf.native_edit import PdfNativeEditError
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        if not isinstance(operation, dict):
+            return {"error": "Operação de edição inválida."}
+        try:
+            descriptor = self._documents.export_descriptor(document_id, "pdf")
+            stem = Path(descriptor["filename"]).stem
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(descriptor["directory"]),
+                save_filename=f"{stem} - corrigido.pdf",
+                file_types=("Documento PDF (*.pdf)",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            destination = paths if isinstance(paths, str) else paths[0]
+            saved = self._documents.export_native_pdf_edit(
+                document_id, revision, operation, Path(destination)
+            )
+            # Reimport as an independent document so that the original and
+            # its revision/history are never silently overwritten.
+            result = self._documents.import_path(Path(saved["path"]))
+            return {**saved, "document": result["document"], "opened": True}
+        except (PdfNativeEditError, ValueError, RevisionConflict) as exc:
+            return {"error": str(exc)}
+        except Exception:
+            LOGGER.exception("Falha na edição nativa do PDF")
+            return {"error": "A edição nativa não pôde ser aplicada. O original foi preservado."}
+
     def export_slide(self, document_id, revision, slide_index):
         """Native Save dialog; the application exports one editable PPTX slide."""
         import webview

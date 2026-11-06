@@ -5,7 +5,7 @@
  function create({root,request,status,token,asset,signal}){
   const host=document.createElement('section');host.className='fixed-document';host.hidden=true;root.querySelector('[data-document-body]').after(host);
   const controls=document.createElement('div');controls.className='fixed-controls';const sidebar=document.createElement('aside');sidebar.className='fixed-sidebar';sidebar.setAttribute('aria-label','Páginas e marcadores');const scroller=document.createElement('div');scroller.className='fixed-scroll';scroller.tabIndex=0;host.append(controls,sidebar,scroller);
-  let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,searchTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),searchingPages=new Set(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null,slideFitMode=null,pptxPreviewIndex=0;
+  let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,searchTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),searchingPages=new Set(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null,slideFitMode=null,pptxPreviewIndex=0,nativeEditMode=false;
   const history=window.OpenDocHistory.create(),title=root.querySelector('[data-title]');
   const semantic=window.OpenDocSemanticAnnotations?.create({host,root,scroller,sidebar,signal,getModel:()=>model,getPage:index=>renderedPages.get(index),getZoom:()=>zoom,go,status,update:items=>{model=clone(model);model.annotations=items;changed();}});
   const slidesEditor=window.OpenDocSlidesEditor?.create({
@@ -30,6 +30,17 @@
   button('Anterior',()=>go(Number(pageField.value)-2));controls.append(pageField);pageField.addEventListener('change',()=>go(Number(pageField.value)-1),{signal});button('Próxima',()=>go(Number(pageField.value)));
   button('Ajustar largura',()=>fit(false));button('Página inteira',()=>fit(true));button('−',()=>scale(zoom/1.2));button('+',()=>scale(zoom*1.2));
   const search=document.createElement('input');search.type='search';search.placeholder='Localizar no PDF';search.setAttribute('aria-label','Localizar no PDF');controls.append(search);button('Buscar',find);const extractButton=button('Extrair páginas',()=>extractPages().catch(error=>status(error.message)));
+  const nativeEditButton=button('Editar PDF',()=>{
+    if(note?.source_kind!=='pdf')return;
+    nativeEditMode=!nativeEditMode;
+    nativeEditButton.setAttribute('aria-pressed',String(nativeEditMode));
+    nativeEditButton.textContent=nativeEditMode?'Concluir edição PDF':'Editar PDF';
+    if(!nativeEditMode)host.querySelector('.pdf-native-editor')?.remove();
+    status(nativeEditMode?'Duplo clique no texto do PDF para corrigir o conteúdo original.':
+      'Modo de edição PDF encerrado.');
+  });
+  nativeEditButton.title='Substituir texto real de PDFs digitais com fonte compatível';
+  nativeEditButton.hidden=true;
   const pdfButton=button('Salvar PDF',()=>exportDocument('pdf'));const pptxButton=button('Salvar PPTX',()=>exportDocument('pptx'));
   const noteButton=button('Nota adesiva',()=>{inkMode('cursor');semantic?.setNoteMode(!semantic.noteActive());});
   semantic?.bindNoteButton(noteButton);
@@ -59,6 +70,66 @@
     pageNodes[index]?.scrollIntoView({block:'start'});
     lazy();
   }
+  function openPdfNativeTextEditor(event){
+    if(!nativeEditMode||note?.source_kind!=='pdf'||!pdf||locked)return;
+    const word=event.target.closest?.('.textLayer span');
+    const surface=word?.closest('.fixed-surface');
+    if(!surface)return;
+    const selection=window.getSelection();
+    const selected=selection&&!selection.isCollapsed&&
+      surface.contains(selection.anchorNode)&&surface.contains(selection.focusNode)
+      ?selection.toString().trim():'';
+    const old=selected||word.textContent.trim();
+    if(!old||old.length>180||/[\r\n]/.test(old)){
+      status('Selecione uma palavra ou frase curta em uma única linha.');return;
+    }
+    host.querySelector('.pdf-native-editor')?.remove();
+    const panel=document.createElement('form');panel.className='pdf-native-editor';
+    panel.setAttribute('aria-label','Substituir texto nativo do PDF');
+    const label=document.createElement('label');label.textContent='Editar texto original';
+    const input=document.createElement('input');input.type='text';input.maxLength=180;
+    input.value=old;input.required=true;label.append(input);
+    const expanded=document.createElement('label');expanded.className='pdf-native-expansion';
+    const checkbox=document.createElement('input');checkbox.type='checkbox';
+    expanded.append(checkbox,document.createTextNode('Permitir texto maior (conferir encaixe)'));
+    const actions=document.createElement('div');actions.className='pdf-native-editor-actions';
+    const save=document.createElement('button');save.type='submit';save.textContent='Salvar PDF corrigido';
+    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancelar';
+    cancel.addEventListener('click',()=>panel.remove());actions.append(save,cancel);
+    panel.append(label,expanded,actions);
+    const rect=word.getBoundingClientRect(),area=surface.getBoundingClientRect();
+    const left=Math.max(6,Math.min(surface.clientWidth-330,rect.left-area.left));
+    panel.style.left=left+'px';
+    panel.style.top=Math.max(6,rect.bottom-area.top+8)+'px';
+    surface.append(panel);
+    panel.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){e.preventDefault();e.stopPropagation();panel.remove();}
+    });
+    panel.addEventListener('submit',async e=>{
+      e.preventDefault();e.stopPropagation();
+      if(save.disabled)return;
+      if(input.value===old){status('O texto não foi alterado.');return;}
+      save.disabled=true;
+      try{
+        // The native bridge opens Save As, writes actual PDF operators and
+        // reimports only after strict extraction validation. Never add an
+        // overlay that merely conceals the old word.
+        await flush();
+        const result=await window.pywebview.api.edit_pdf_native(note.id,note.revision,{
+          kind:'replace_text',page:Number(surface.dataset.pageIndex),
+          old,new:input.value,allow_expansion:checkbox.checked
+        });
+        if(result.error)throw Error(result.error);
+        if(result.cancelled){save.disabled=false;return;}
+        if(result.document){await load(result.document);
+          status('PDF corrigido e reaberto: '+result.path);}
+      }catch(error){status('Edição nativa: '+error.message);save.disabled=false;}
+    });
+    input.focus();input.select();
+  }
+  scroller.addEventListener('dblclick',event=>{
+    if(nativeEditMode)openPdfNativeTextEditor(event);
+  },{signal});
   // Highlight exact occurrences in the PDF text layer, including matches
   // crossing adjacent spans. Pure overlays preserve original text selection.
   function highlightSearch(index){
@@ -307,7 +378,7 @@
     root.dispatchEvent(new CustomEvent('open-doc:layout'));
   }
 
-  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
+  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;nativeEditMode=false;nativeEditButton.textContent='Editar PDF';nativeEditButton.setAttribute('aria-pressed','false');nativeEditButton.hidden=note.source_kind!=='pdf';pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
    if(note.source_kind==='pptx' && model.editable_deck){
      root.dataset.readerState='ready';

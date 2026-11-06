@@ -72,6 +72,22 @@ const destination = path.resolve(__dirname, '../docs/images/ink');
     'PDF Ctrl+F must not log text extraction/map errors while pages are rendered lazily');
   await evaluate("const page=document.querySelector('.fixed-controls input[type=number]');page.value=1;page.dispatchEvent(new Event('change'));const search=document.querySelector('.fixed-controls input[type=search]');search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));");await pause();await pause();
   console.log('QT_PDF_TEXT_SELECTION_AND_SEARCH_PAGE_299_OK');
+  await evaluate(`(()=>{
+    const edit=Array.from(document.querySelectorAll('.fixed-controls button'))
+      .find(button=>button.textContent==='Editar PDF');
+    if(!edit)throw Error('Editar PDF command missing');
+    edit.click();
+    const span=document.querySelector('.fixed-surface .textLayer span');
+    if(!span)throw Error('Selectable PDF text missing');
+    span.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+  })()`);
+  assert.equal(await evaluate("!!document.querySelector('.pdf-native-editor input[type=text]')"),true,
+    'PDF native editing must show its input on the page');
+  assert.equal(await evaluate("document.querySelector('.pdf-native-editor input').value.length>0"),true);
+  await shot('pdf-inline-native-text-editor');
+  await evaluate("document.querySelector('.pdf-native-editor button[type=button]').click()");
+  await evaluate("Array.from(document.querySelectorAll('.fixed-controls button')).find(b=>b.textContent==='Concluir edição PDF').click()");
+  console.log('QT_PDF_NATIVE_INLINE_EDITING_VISIBLE_ON_REAL_TEXT_LAYER_OK');
   await click('[data-ink-mode=handwriting]');
   await evaluate(`(() => {const svg=document.querySelector('.fixed-surface .ink-overlay'),r=svg.getBoundingClientRect();svg.setPointerCapture=()=>{};for(const [type,x,y,p] of [['pointerdown',.15,.2,.2],['pointermove',.22,.25,.7],['pointermove',.3,.2,.9],['pointerup',.35,.25,.5]])svg.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:77,pointerType:'pen',button:0,buttons:1,pressure:p,tiltX:12,tiltY:-8,clientX:r.left+r.width*x,clientY:r.top+r.height*y}));})()`);
   console.log('QT_STROKE');
