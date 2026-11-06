@@ -167,7 +167,9 @@ def _insert_text(pdf, page, operation):
         ([], pikepdf.Operator("ET")),
         ([], pikepdf.Operator("Q")),
     ]
-    page.add_content(pikepdf.unparse_content_stream(operations))
+    instructions = _instructions(page)
+    instructions.extend(operations)
+    _rewrite(pdf, page, instructions)
 
 
 def _image_resource(page, target):
