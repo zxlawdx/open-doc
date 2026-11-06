@@ -446,3 +446,28 @@ test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
  clickLabel(q.controls,'Balde');
  assert.equal(q.editor.paintActive,false);
 });
+
+test('slide transition controls persist per-slide effects and preview without flattening shapes',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ const previous=q.versions.length;
+ let controls=q.host.querySelectorAll('.slide-inspector select');
+ assert.equal(controls.length>=2,true,'transition and speed selectors are visible');
+ const effect=Array.from(controls).find(x=>x.getAttribute('aria-label')==='Transição do slide');
+ const speed=Array.from(controls).find(x=>x.getAttribute('aria-label')==='Velocidade da transição');
+ assert.ok(effect);assert.ok(speed);
+ effect.value='wipe-left';effect.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ speed.value='fast';speed.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.model().surfaces[0].transition,'wipe-left');
+ assert.equal(q.model().surfaces[0].transition_speed,'fast');
+ assert.equal(q.versions.length,previous+2);
+ const group=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+  .find(b=>b.textContent==='Transições');
+ assert.ok(group);group.click();
+ const preview=Array.from(q.controls.querySelectorAll('.slide-ribbon-group button'))
+  .find(b=>b.textContent==='Prévia');
+ assert.ok(preview);preview.click();
+ assert.match(q.scroller.querySelector('.fixed-surface').style.animation,/open-doc-transition-wipe-left/);
+ assert.equal(q.scroller.querySelectorAll('.slide-object-text').length,1,
+   'preview must not flatten or replace editable text');
+});
