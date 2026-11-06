@@ -164,10 +164,14 @@ def read_editable_deck(path) -> dict | None:
             if slide._element.find(_NS + "timing") is not None:
                 return None
             effect, speed = _transition(slide)
+            color = _rgb(slide.background.fill.fore_color, "#FFFFFF")
+            notes = ""
+            if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+                notes = slide.notes_slide.notes_text_frame.text[:5000]
             surface = dict(index=index, preview_kind="pptx-native",
                            width_pt=width / 12700, height_pt=height / 12700,
-                           strokes=[], text_overlays=[], background="#FFFFFF",
-                           notes="", transition=effect, transition_speed=speed,
+                           strokes=[], text_overlays=[], background=color,
+                           notes=notes, transition=effect, transition_speed=speed,
                            elements=[])
             if len(slide.shapes) > 500:
                 return None
