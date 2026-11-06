@@ -13,6 +13,7 @@ from PIL import Image
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
+from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Pt
 
 from ...ink.raster import render_layer
@@ -99,6 +100,43 @@ class SlideDeckExporter:
             run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
         return shape
 
+    @staticmethod
+    def _apply_transition(slide, surface):
+        """Write native ECMA-376 p:transition. Never rasterize an effect.
+
+        These simple transitions are understood by legacy PowerPoint and
+        LibreOffice without 2010+ extension namespaces. Speed is a native
+        slow/med/fast property; the editor does not claim exact durations.
+        """
+        effect=surface.get("transition", "none")
+        if effect=="none":
+            return
+        transition=OxmlElement("p:transition")
+        transition.set("spd",surface.get("transition_speed","med"))
+        if effect=="fade":
+            child=OxmlElement("p:fade")
+        elif effect.startswith("push-"):
+            child=OxmlElement("p:push")
+            child.set("dir","l" if effect.endswith("left") else "r")
+        else:
+            child=OxmlElement("p:wipe")
+            child.set("dir","l" if effect.endswith("left") else "r")
+        transition.append(child)
+        # Valid CT_Slide order: cSld, clrMapOvr, transition, timing, extLst.
+        root=slide._element
+        existing=root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}transition")
+        if existing is not None:
+            root.remove(existing)
+        timing=root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}timing")
+        if timing is not None:
+            root.insert(list(root).index(timing),transition)
+        else:
+            extension=root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}extLst")
+            if extension is not None:
+                root.insert(list(root).index(extension),transition)
+            else:
+                root.append(transition)
+
     def _raster_ink(self, slide, surface):
         """Add ink before editable OOXML shapes on a native slide.
 
@@ -153,6 +191,7 @@ class SlideDeckExporter:
                 if surface.get("notes"):
                     slide.notes_slide.notes_text_frame.text = surface["notes"]
                 self._text_overlays(slide, surface)
+                self._apply_transition(slide,surface)
         else:
             for slide, surface in zip(self.presentation.slides, self.model["surfaces"]):
                 self._overlay(slide, surface)
