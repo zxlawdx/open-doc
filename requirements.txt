@@ -18,3 +18,6 @@ Pillow>=10,<13
 fonttools>=4.55,<5
 
 python-pptx>=1.0,<2
+
+# Native PDF content-stream editing, MPL-2.0 (incl. bundled QPDF notices).
+pikepdf>=9.11,<11
