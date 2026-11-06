@@ -425,10 +425,35 @@
     }
 
 
-    function commitModel(next, kind='format') {
+    function restoreLogicalCaret(caret) {
+      if(!caret)return;
+      const blocks=Array.from(rich.querySelectorAll(
+        '[data-page-content] > [data-node-id], [data-rich] > [data-node-id]'));
+      const block=blocks.find(node=>node.dataset.nodeId===caret.blockId
+        ||node.dataset.fragmentOf===caret.blockId);
+      if(!block)return;
+      const range=document.createRange(),offset=Math.max(0,caret.textOffset||0);
+      let remaining=offset,placed=false;
+      const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
+      let node;
+      while((node=walker.nextNode())){
+        if(remaining<=node.textContent.length){
+          range.setStart(node,remaining);placed=true;break;
+        }
+        remaining-=node.textContent.length;
+      }
+      if(!placed)range.setStart(block,offset===0?0:block.childNodes.length);
+      range.collapse(true);
+      rich.focus();
+      const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
+      commands.capture();
+    }
+    function commitModel(next, kind='format', caret=null) {
       const previous=model,oldBlocks=previous?.blocks || [],newBlocks=next.blocks || [],blockIds=Array.from(new Set([...oldBlocks,...newBlocks].map(b=>b.id))).filter(id=>JSON.stringify(oldBlocks.find(b=>b.id===id))!==JSON.stringify(newBlocks.find(b=>b.id===id))),structural=JSON.stringify(oldBlocks.map(b=>b.id))!==JSON.stringify(newBlocks.map(b=>b.id));
       history.checkpoint(buffer());model=next;source.value=window.OpenDocModel.markdown(model);source.readOnly=true;
-      renderRich();history.record(buffer(),kind,{blockIds,structural});cache();scheduleRecovery();render();
+      renderRich();if(caret)restoreLogicalCaret(caret);
+      history.record(buffer(),kind,{blockIds,structural});
+      cache();scheduleRecovery();render();
     }
     function ensureModel(){if(!model)updateModel();return window.OpenDocModel.clone(model);}
     function insertPage(where='break',pageIndex=null){
@@ -503,86 +528,59 @@
       controller.abort();
     }
 
-    // QtWebEngine may restore a caret at the page-shell boundary after moving
-    // empty paragraphs between pages. Native Backspace at that boundary can
-    // delete entire <section> wrappers and freeze the renderer. Constrain only
-    // a collapsed shell-level caret; ordinary text and range deletions remain
-    // handled natively.
-    rich.addEventListener('keydown',event=>{
-      if(event.key!=='Backspace' && event.key!=='Delete')return;
+    // One command contract for both keyboard and beforeinput deletion.
+    // The model is the authority; page sections are disposable layout only.
+    function applyLogicalDeletion(event,inputType){
+      if(mode!=='rich'||lockedState||!model||root.dataset.documentKind==='fixed'
+        ||event.defaultPrevented || window.getSelection()?.isComposing)return false;
+      const transactions=window.OpenDocLogicalTransactions;
+      if(!transactions)return false;
       const selection=getSelection();
-      if(!selection?.rangeCount||!selection.isCollapsed)return;
-      const anchor=selection.anchorNode;
-      if(!anchor)return;
-      const element=anchor.nodeType===3?anchor.parentElement:anchor;
-      // Native Chromium Backspace from the first paragraph in a *physical*
-      // page tries to join text across sibling <section> wrappers. This
-      // unexpectedly deletes page shells and can hang QtWebEngine even for
-      // 100 empty Enter paragraphs. Merge the two logical paragraphs here,
-      // then let the model serializer / paginator remount the pages.
-      if(event.key==='Backspace' && element){
-        const block=element.closest('p[data-node-id],p[data-fragment-of]');
-        const box=block?.parentElement?.matches('[data-page-content]')
-          ?block.parentElement:null;
-        const page=box?.parentElement?.matches('.document-page')
-          ?box.parentElement:null;
-        const previousPage=page?.previousElementSibling;
-        const previousBox=previousPage?.matches('.document-page')
-          ?previousPage.querySelector('[data-page-content]'):null;
-        const previousBlock=previousBox?.lastElementChild;
-        if(block && box?.firstElementChild===block && previousBlock?.tagName==='P'
-          && block.tagName==='P'){
-          const before=document.createRange();
-          before.selectNodeContents(block);
-          try{before.setEnd(selection.anchorNode,selection.anchorOffset);}
-          catch(_){before.collapse(false);}
-          if(!before.toString().length && (anchor===block && selection.anchorOffset===0
-            || anchor.nodeType===3 && selection.anchorOffset===0
-            || block.textContent.length===0)){
-            event.preventDefault();history.checkpoint(buffer());
-            const previousLength=previousBlock.childNodes.length;
-            // Remove a placeholder BR before concatenating paragraphs.
-            if(previousBlock.childNodes.length===1 && previousBlock.firstChild.tagName==='BR')
-              previousBlock.replaceChildren();
-            for(const child of Array.from(block.childNodes))
-              if(!(child.nodeType===1 && child.tagName==='BR' && !block.textContent))
-                previousBlock.appendChild(child);
-            block.remove();
-            if(!previousBlock.childNodes.length)
-              previousBlock.appendChild(document.createElement('br'));
-            const replacement=document.createRange();
-            replacement.setStart(previousBlock,Math.min(previousLength,previousBlock.childNodes.length));
-            replacement.collapse(true);
-            selection.removeAllRanges();selection.addRange(replacement);
-            commands.capture();
-            beforeInputCrossPage=true;
-            beforeInputBlockId=previousBlock.dataset.fragmentOf||previousBlock.dataset.nodeId;
-            changed('typing',rich,{inputType:'deleteContentBackward'});
-            return;
+      if(inputType==='deleteContentBackward' || inputType==='deleteContentForward'){
+        if(!selection?.isCollapsed && transactions.isEntireDocumentSelected(rich,selection)){
+          event.preventDefault();
+          const op=transactions.deleteAll(model);
+          if(op)commitModel(op.model,'transaction',op.caret);
+          return true;
+        }
+        if(!selection?.isCollapsed){
+          const first=(selection?.anchorNode?.nodeType===3?
+            selection.anchorNode.parentElement:selection?.anchorNode)?.closest?.('.document-page');
+          const last=(selection?.focusNode?.nodeType===3?
+            selection.focusNode.parentElement:selection?.focusNode)?.closest?.('.document-page');
+          if(first && last && first!==last){
+            event.preventDefault();
+            status('Seleção atravessa páginas; utilize Ctrl+A para excluir o documento inteiro.');
+            return true;
           }
         }
       }
-      if(anchor.nodeType!==1)return;
-      if(anchor!==rich && !anchor.matches('.document-page,[data-page-content]'))return;
-      let candidate=null;
-      if(anchor===rich){
-        const previous=rich.childNodes[Math.max(0,selection.anchorOffset-1)];
-        candidate=previous?.querySelector?.('[data-page-content] > :last-child') ||
-          previous?.matches?.('[data-node-id]')&&previous;
-      }else if(anchor.matches('.document-page')){
-        candidate=anchor.querySelector('[data-page-content] > :last-child');
-      }else{
-        candidate=anchor.lastElementChild;
+      if(inputType!=='deleteContentBackward'||!selection?.isCollapsed)return false;
+      const boundary=transactions.inspectBackspace(rich,selection,model);
+      if(!boundary)return false;
+      event.preventDefault();
+      const op=transactions.joinBackward(model,boundary.currentId);
+      if(!op){
+        status('Não é possível unir estes blocos sem alterar a estrutura do documento.');
+        return true;
       }
-      if(!candidate)candidate=rich.querySelector('[data-page-content] > :last-child');
-      if(!candidate)return;
-      const range=document.createRange();
-      range.selectNodeContents(candidate);range.collapse(false);
-      selection.removeAllRanges();selection.addRange(range);
-      commands.capture();
-    },listeners);
+      beforeInputCrossPage=true;
+      beforeInputBlockId=op.caret.blockId;
+      commitModel(op.model,'transaction',op.caret);
+      beforeInputCrossPage=false;
+      root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
+        {detail:{blockId:op.caret.blockId,reason:'typing',structural:true,full:true}}));
+      return true;
+    }
+    rich.addEventListener('keydown',event=>{
+      if(event.key!=='Backspace'&&event.key!=='Delete')return;
+      if(event.ctrlKey||event.altKey||event.metaKey||event.isComposing)return;
+      applyLogicalDeletion(event,event.key==='Backspace'
+        ?'deleteContentBackward':'deleteContentForward');
+    },{...listeners,capture:true});
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
+      if(applyLogicalDeletion(event,event.inputType))return;
       commands.capture();history.checkpoint(buffer());
       const selection=getSelection();
       const anchorNode=selection?.anchorNode,focusNode=selection?.focusNode;
