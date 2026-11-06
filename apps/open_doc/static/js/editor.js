@@ -432,8 +432,8 @@
         for(const start of matches.reverse()){const end=start+query.length;let offset=0,inserted=false;for(const run of runs){const length=run.text.length,lo=Math.max(0,start-offset),hi=Math.min(length,end-offset);if(hi>lo){run.text=run.text.slice(0,lo)+(inserted?'':replacement)+run.text.slice(hi);inserted=true;}offset+=length;}count++;}
       }}visit(next.blocks);if(count)commitModel(next);return count;
     }
-    function tableOperation(action,rows=2,cols=2){
-      if(action==='insert'){commands.restore();const range=getSelection()?.rangeCount?getSelection().getRangeAt(0):null;if(window.OpenDocTables.insert(rich,range,rows,cols))changed('format');return;}
+    function tableOperation(action,rows=2,cols=2,options={}){
+      if(action==='insert'){commands.restore();const range=getSelection()?.rangeCount?getSelection().getRangeAt(0):null;if(window.OpenDocTables.insert(rich,range,rows,cols,options))changed('format');return;}
       const n=getSelection()?.anchorNode,e=n?.nodeType===1?n:n?.parentElement,cell=e?.closest('td,th'),table=cell?.closest('table');
       if(!table)return status('Selecione uma célula da tabela.');
       history.checkpoint(buffer());window.OpenDocTables.operate(table,cell,action);changed('format');
