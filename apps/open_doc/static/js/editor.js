@@ -503,6 +503,35 @@
       controller.abort();
     }
 
+    // QtWebEngine may restore a caret at the page-shell boundary after moving
+    // empty paragraphs between pages. Native Backspace at that boundary can
+    // delete entire <section> wrappers and freeze the renderer. Constrain only
+    // a collapsed shell-level caret; ordinary text and range deletions remain
+    // handled natively.
+    rich.addEventListener('keydown',event=>{
+      if(event.key!=='Backspace' && event.key!=='Delete')return;
+      const selection=getSelection();
+      if(!selection?.rangeCount||!selection.isCollapsed)return;
+      const anchor=selection.anchorNode;
+      if(!anchor||anchor.nodeType!==1)return;
+      if(anchor!==rich && !anchor.matches('.document-page,[data-page-content]'))return;
+      let candidate=null;
+      if(anchor===rich){
+        const previous=rich.childNodes[Math.max(0,selection.anchorOffset-1)];
+        candidate=previous?.querySelector?.('[data-page-content] > :last-child') ||
+          previous?.matches?.('[data-node-id]')&&previous;
+      }else if(anchor.matches('.document-page')){
+        candidate=anchor.querySelector('[data-page-content] > :last-child');
+      }else{
+        candidate=anchor.lastElementChild;
+      }
+      if(!candidate)candidate=rich.querySelector('[data-page-content] > :last-child');
+      if(!candidate)return;
+      const range=document.createRange();
+      range.selectNodeContents(candidate);range.collapse(false);
+      selection.removeAllRanges();selection.addRange(range);
+      commands.capture();
+    },listeners);
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
       commands.capture();history.checkpoint(buffer());
