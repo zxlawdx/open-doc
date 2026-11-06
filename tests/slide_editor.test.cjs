@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const {JSDOM}=require('jsdom');
+const chartScript=fs.readFileSync(path.join(__dirname,'../apps/open_doc/static/js/slide_charts.js'),'utf8');
 const script=fs.readFileSync(path.join(__dirname,'../apps/open_doc/static/js/slide_editor.js'),'utf8');
 
 function setup(t){
