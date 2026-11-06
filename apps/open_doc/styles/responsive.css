@@ -296,3 +296,15 @@
     width:100%;max-height:85vh
   }
 }
+
+/* Library sidebar yields to existing bottom navigation on small screens. */
+@media(max-width:1110px){
+  .open-doc .home{grid-template-columns:170px minmax(0,1fr)}
+  .open-doc .home-side-nav{padding:20px 9px}
+  .open-doc .home-side-nav button{font-size:12px;gap:8px;padding:9px}
+}
+@media(max-width:720px){
+  .open-doc .home{display:block}
+  .open-doc .home-side-nav{display:none}
+  .open-doc .home-inner{width:calc(100% - 28px)}
+}
