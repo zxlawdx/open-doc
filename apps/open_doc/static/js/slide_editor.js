@@ -528,6 +528,7 @@
       }
     }
     onPageChange(index){
+      if(!this.active || !this.getModel().surfaces[index]?.elements)return;
       if(index!==this.current)this._selectObject(null);
       this.current=index;
       const ids=new Set(this.getModel().surfaces[index].elements.map(obj=>obj.id));
