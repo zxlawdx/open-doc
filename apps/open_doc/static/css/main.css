@@ -268,6 +268,16 @@ body {
     margin-left: auto;
 }
 
+/* Brand mark and title must not visually collide in native Qt scaling. */
+.open-doc .app-header .product{gap:12px;padding-inline:5px}
+.open-doc .app-header .product .brand-mark{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 35px;width:35px;height:35px;box-sizing:border-box
+}
+.open-doc .app-header .product .brand-mark svg{width:20px;height:20px;display:block}
+.open-doc .app-header .header-divider{margin-inline:5px}
+.open-doc .app-header input[data-title]{margin-left:3px}
+
 /* Shared popover surface: main menus, library actions and page/table menus. */
 .open-doc .menubar {
     min-height: var(--menubar-height);
@@ -403,6 +413,80 @@ body {
     min-height: var(--control-height-lg);
     border: 1px solid var(--color-border);
     padding: var(--space-1) var(--space-4);
+}
+
+/* Table templates and focused task-oriented help are scrollable on desktop/Qt. */
+.open-doc .dialog.dialog-table,.open-doc .dialog.dialog-help{width:min(720px,calc(100vw - 32px))}
+.open-doc .table-dialog-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.open-doc .table-dialog-field{font-size:13px;min-width:0}
+.open-doc .table-dialog-field input{box-sizing:border-box;padding:9px 11px;border:1px solid var(--color-border);border-radius:9px;background:var(--of-surface-low);color:var(--color-text-primary)}
+.open-doc .table-preset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.open-doc .table-preset{display:flex;flex-direction:column;align-items:flex-start;gap:5px;
+  padding:14px;text-align:left;min-height:75px;border:1px solid var(--color-border);
+  border-radius:12px;background:var(--of-surface-low);color:var(--color-text-primary)}
+.open-doc .table-preset strong{font-size:14px}
+.open-doc .table-preset small{font-size:12px;line-height:1.45;color:var(--color-text-secondary)}
+.open-doc .table-preset[aria-pressed=true]{border:2px solid var(--color-primary);background:var(--color-primary-soft)}
+.open-doc .table-csv-file,.open-doc .table-dialog textarea{box-sizing:border-box;width:100%;font:inherit;
+  color:var(--color-text-primary);background:var(--of-surface-low);border:1px solid var(--color-border);
+  padding:10px;border-radius:9px;min-height:40px;resize:vertical}
+.open-doc .table-import-link{padding:10px 14px;border:1px solid var(--color-border);
+  background:var(--of-surface-low);color:var(--color-text-primary);border-radius:9px}
+.open-doc .table-dialog-feedback{font-size:13px;color:var(--color-text-secondary)}
+.open-doc .table-dialog-hint{font-size:13px}
+.open-doc .dialog h3{font-size:14px;margin:18px 0 10px;font-weight:650}
+.open-doc .dialog-help .help-entries{display:flex;flex-direction:column;gap:10px}
+.open-doc .dialog-help .help-entry{border:1px solid var(--color-border);
+  background:var(--of-surface-low);padding:12px 14px;border-radius:12px}
+.open-doc .dialog-help .help-entry summary{cursor:pointer;font-weight:600;line-height:1.5}
+.open-doc .dialog-help .help-entry p{margin:10px 0 0;line-height:1.6}
+
+/* Task-focused editor for readable math entry, not a raw URL/dialog prompt. */
+.open-doc .dialog.dialog-equation{width:min(750px,calc(100vw - 32px))}
+.open-doc .dialog-equation .equation-format-note{
+  font-size:12px;line-height:1.55;margin:9px 0 16px
+}
+.open-doc .equation-expression{
+  display:block;width:100%;box-sizing:border-box;min-height:76px;
+  font:17px/1.6 var(--font-ui);resize:vertical;
+  border:1px solid var(--color-border);border-radius:10px;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  padding:11px 13px;margin-top:8px
+}
+.open-doc .equation-symbols{
+  display:grid;grid-template-columns:repeat(8,minmax(0,1fr));
+  gap:7px;margin:13px 0
+}
+.open-doc .equation-symbols button{
+  display:grid;place-items:center;min-height:38px;border-radius:9px;
+  border:1px solid var(--color-border);background:var(--of-surface-low);
+  color:var(--color-text-primary);font-size:17px
+}
+.open-doc .equation-preview{
+  display:block;min-height:45px;margin:12px 0;
+  padding:12px;box-sizing:border-box;overflow-wrap:anywhere;
+  border-left:3px solid var(--color-primary);
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  font-size:18px;line-height:1.55
+}
+.open-doc .equation-calculator{
+  margin-top:17px;padding-top:12px;border-top:1px solid var(--color-border)
+}
+.open-doc .equation-calculator h3{margin:0 0 7px}
+.open-doc .equation-calculator>p{font-size:12px;margin:3px 0 10px}
+.open-doc .equation-calculator input{
+  box-sizing:border-box;border-radius:9px;padding:9px 12px;
+  color:var(--color-text-primary);background:var(--of-surface-low)
+}
+.open-doc .equation-calc-actions{display:flex;gap:9px;margin:11px 0}
+.open-doc .equation-calc-actions button{
+  border:1px solid var(--color-border);background:var(--of-surface-low);
+  padding:9px 12px;border-radius:9px;color:var(--color-text-primary)
+}
+.open-doc .equation-calc-actions button:disabled{opacity:.5;cursor:not-allowed}
+.open-doc .equation-calc-result{
+  display:block;min-height:30px;font-size:14px;line-height:1.5;
+  color:var(--color-text-primary)
 }
 
 /* Groups are indivisible. Smaller windows scroll one intentional tool strip. */
@@ -905,6 +989,15 @@ body {
     pointer-events: none;
 }
 
+/* Matrices and native Word tables are still editable cell-by-cell. */
+.open-doc .paper table[data-table-preset="matrix"]{border-collapse:separate}
+.open-doc .paper table[data-table-preset="matrix"] td{border-radius:4px}
+.open-doc .paper table[data-table-preset="header"] tr:first-child td{
+  background:#DAE2FD;color:#172D46;font-weight:650
+}
+.open-doc .paper table[data-table-preset="plain"] td{border-color:transparent}
+.open-doc .paper table[data-table-preset="grid"] td{border-color:#8998B6}
+
 /* A document library, with restrained desktop density. */
 .open-doc .home {
     flex: 1;
@@ -969,6 +1062,40 @@ body {
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
 }
+
+/* Desktop library follows familiar navigation/content separation. */
+.open-doc .home{display:grid;grid-template-columns:220px minmax(0,1fr);align-items:start}
+.open-doc .home-side-nav{
+  grid-column:1;grid-row:1;position:sticky;top:0;align-self:start;
+  display:flex;flex-direction:column;gap:7px;
+  height:100%;max-height:calc(100vh - 110px);overflow-y:auto;box-sizing:border-box;
+  padding:26px 14px;background:var(--color-panel);
+  border-right:1px solid var(--color-border-soft);
+}
+.open-doc .home-side-nav-title{
+  margin:4px 9px 10px;font-size:10px;font-weight:700;
+  letter-spacing:.09em;color:var(--color-text-secondary)
+}
+.open-doc .home-side-nav button{
+  display:flex;align-items:center;gap:13px;min-height:43px;
+  text-align:left;color:var(--color-text-primary);
+  border:1px solid transparent;border-radius:11px;background:transparent;
+  padding:10px 12px;font-size:13px;line-height:1.35;
+  cursor:pointer
+}
+.open-doc .home-side-nav button:hover,
+.open-doc .home-side-nav button:focus-visible{
+  border-color:var(--color-border);background:var(--of-surface-low)
+}
+.open-doc .home-side-nav button[aria-current=page]{
+  background:var(--color-primary-soft);color:var(--color-primary);font-weight:650
+}
+.open-doc .home-side-nav svg{display:block;flex:0 0 19px;width:19px;height:19px;stroke:currentColor;fill:none}
+.open-doc .home-side-divider{border-top:1px solid var(--color-border-soft);margin:9px 7px}
+.open-doc .home-inner{grid-column:2;grid-row:1;max-width:min(calc(100% - 48px),var(--home-max-width))}
+
+/* Qt/Chromium 83: explicitly honor hidden after desktop home becomes grid. */
+.open-doc .home[hidden]{display:none!important}
 
 /* Icon / flexible title / secondary metadata / reserved action target. */
 .open-doc .document-list {
@@ -1168,6 +1295,72 @@ body {
 .semantic-annotation-editor input[type=range]{width:100%;accent-color:var(--color-primary)}
 .open-doc .fixed-controls button[aria-pressed=true]{color:var(--color-primary);background:var(--color-primary-soft)}
 
+
+/* Separate navigation thumbnails from comments: full-width reading area. */
+.open-doc .fixed-document[data-annotation-pane="true"]:not([data-slide-editor="true"]){
+  grid-template-columns:176px minmax(0,1fr) minmax(260px,320px);
+}
+.open-doc .semantic-notes-rail{
+  grid-column:3;grid-row:2;min-width:0;min-height:0;overflow-y:auto;
+  background:var(--color-panel);border-left:1px solid var(--color-border);
+  padding:18px 16px;box-sizing:border-box;
+}
+.open-doc .semantic-notes-rail[hidden],.open-doc .semantic-note-balloon[hidden],
+.open-doc .semantic-rail-toggle[hidden]{display:none!important}
+.open-doc .semantic-notes-rail .semantic-annotation-panel{
+  border:0;margin:0;padding:0;
+}
+.open-doc .semantic-annotation-panel h3{font-size:16px;line-height:1.4;margin:0 0 12px}
+.open-doc .semantic-annotation-list{max-height:clamp(190px,38vh,420px);gap:9px}
+.open-doc .semantic-annotation-list button{
+  text-align:left;line-height:1.5;padding:11px 12px;min-height:44px;
+  border:1px solid var(--color-border);border-radius:10px;
+  background:var(--of-surface-low);white-space:normal;
+}
+.open-doc .semantic-annotation-editor{
+  padding-top:14px;border-top:1px solid var(--color-border);
+  margin-top:16px;gap:12px;
+}
+.open-doc .semantic-annotation-editor button{min-height:36px;padding:8px 10px}
+.open-doc .semantic-rail-toggle{
+  border-color:var(--color-border);min-height:34px;border-radius:8px;
+}
+.open-doc .semantic-rail-toggle[aria-expanded=true]{
+  border-color:var(--color-primary);background:var(--color-primary-soft);
+  color:var(--color-primary);
+}
+.open-doc .semantic-note-balloon{
+  position:fixed;z-index:250;box-sizing:border-box;
+  padding:16px;display:flex;flex-direction:column;gap:11px;
+  max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;
+  border:1px solid var(--color-border);border-radius:14px;
+  box-shadow:0 14px 50px rgba(0,0,0,.22);background:var(--color-panel);
+  color:var(--color-text-primary);
+}
+.open-doc .semantic-note-balloon strong{font-size:15px}
+.open-doc .semantic-balloon-quote{
+  margin:0;padding:10px;border-radius:8px;
+  border-left:3px solid var(--color-primary);
+  background:var(--of-surface-low);font-size:13px;line-height:1.5;
+}
+.open-doc .semantic-note-balloon label{display:flex;flex-direction:column;gap:7px;font-size:13px}
+.open-doc .semantic-note-balloon textarea{
+  box-sizing:border-box;resize:vertical;min-height:76px;width:100%;
+  border:1px solid var(--color-border);border-radius:9px;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  padding:10px;font:inherit;
+}
+.open-doc .semantic-balloon-actions{display:flex;justify-content:flex-end;gap:8px}
+.open-doc .semantic-balloon-actions button{
+  border:1px solid var(--color-border);background:var(--of-surface-low);
+  color:var(--color-text-primary);border-radius:8px;padding:8px 12px;
+}
+
+/* Ctrl+F-style search marks are painted over the text layer, without changing
+ * PDF text nodes or invalidating highlight/comment anchors. */
+.open-doc .pdf-search-overlays{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5}
+.open-doc .pdf-search-hit{position:absolute;box-sizing:border-box;background:rgba(255,211,50,.48);box-shadow:0 0 0 1px rgba(173,104,0,.54) inset;border-radius:2px}
+
 /* Shared state vocabulary. A focus fallback also works without :focus-visible. */
 .open-doc button,
 .open-doc summary,
@@ -1235,6 +1428,27 @@ body {
     background: var(--color-danger-soft);
     color: var(--color-danger);
 }
+
+/* Never hide the export destination in a truncated status bar. */
+.open-doc .export-result:not(:empty){
+  position:fixed;z-index:var(--z-dialog);left:50%;bottom:48px;
+  transform:translateX(-50%);
+  display:flex;align-items:flex-start;gap:13px;justify-content:space-between;
+  width:min(610px,calc(100vw - 32px));box-sizing:border-box;
+  padding:14px 16px;line-height:1.5;overflow-wrap:anywhere;
+  background:var(--color-panel);color:var(--color-text-primary);
+  border:1px solid var(--color-border);border-left:4px solid var(--color-primary);
+  box-shadow:0 8px 30px rgba(0,0,0,.18);border-radius:12px;font-size:13px;
+}
+.open-doc .export-result button{
+  flex:0 0 auto;border:1px solid var(--color-border);
+  background:var(--of-surface-low);border-radius:8px;padding:7px 12px;
+  color:var(--color-text-primary);min-height:34px;
+}
+
+/* Icon via CSS preserves exact export destination in DOM text for automation. */
+.open-doc .export-result button::after{content:"×";font-size:20px;line-height:1}
+.open-doc .export-result button{min-width:36px;font-size:0}
 
 /* Ofício Aberto visual language adapted to Open Doc desktop, from local tokens.
    No external fonts, Tailwind CDN or substitute runtime. */
@@ -1614,6 +1828,198 @@ body {
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]{background:transparent;border:1px solid var(--color-border-soft);border-radius:10px;padding:7px;font-size:11px;text-align:left}
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]:hover,.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar [data-thumbnail-index]:focus-visible{border-color:var(--color-primary);background:var(--color-primary-soft)}
 
+/* Compact contextual slide command strip. Icons come from local icons.svg. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:4px;
+  min-width:0;padding:5px 9px;scrollbar-width:thin;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{
+  flex:0 0 auto;border:0;padding:0;margin:0 9px 0 0;
+  gap:3px;overflow:visible;min-width:0;
+  border-right:1px solid var(--color-border-soft);
+  padding-right:10px;
+}
+.open-doc .slide-studio-toolbar button{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:33px;padding:5px 9px;font-size:12px;
+  background:var(--of-surface-low);border:1px solid transparent;
+  transition:background .12s ease,border-color .12s ease;
+}
+.open-doc .slide-studio-toolbar button:focus-visible{
+  outline:2px solid var(--color-primary);outline-offset:1px;
+}
+.open-doc .slide-studio-toolbar button:hover{border-color:var(--color-border-soft);}
+.open-doc .slide-studio-toolbar .slide-action-icon{
+  display:inline-block;width:17px;height:17px;flex:none;
+  pointer-events:none;color:currentColor;stroke:currentColor;fill:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{
+  min-width:0;min-height:0;overflow:auto;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-inspector{
+  min-width:0;overflow-y:auto;
+}
+.open-doc .slide-layer-list button{
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+
+/* Ribbon organized by user task, not an endless mixed PDF/PPTX command row. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  flex-wrap:wrap;overflow-x:hidden;overflow-y:visible;
+  row-gap:9px;column-gap:9px;padding:10px 12px;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{
+  order:2;flex:1 1 100%;display:flex;flex-direction:column;
+  align-items:stretch;gap:8px;padding:0;margin:2px 0 0;
+  border:0;overflow:visible;
+}
+.open-doc .slide-ribbon-tabs{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--color-border-soft);min-height:36px}
+.open-doc .slide-ribbon-tab{
+  border-radius:8px 8px 0 0!important;padding:8px 16px!important;
+  background:transparent!important;min-height:34px;font-weight:600;
+}
+.open-doc .slide-ribbon-tab[aria-selected=true]{
+  color:var(--color-primary)!important;border-bottom:3px solid var(--color-primary)!important;
+}
+.open-doc .slide-ribbon-body{display:flex;min-width:0;max-width:100%}
+.open-doc .slide-ribbon-group{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  min-height:40px;max-width:100%;padding-bottom:2px;
+}
+.open-doc .slide-ribbon-group[hidden]{display:none!important}
+.open-doc .slide-ribbon-group button{
+  min-height:37px;padding:7px 12px;white-space:nowrap;
+  border-radius:9px;border:1px solid var(--color-border-soft);
+}
+.open-doc .slide-paint-selector{
+  display:inline-flex;align-items:center;gap:8px;padding:3px 11px;
+  border:1px solid var(--color-border-soft);border-radius:9px;
+  color:var(--color-text-secondary);font-size:12px;
+}
+.open-doc .slide-paint-selector input{width:38px;height:30px;border:0;cursor:pointer}
+.open-doc .slide-ribbon-group button[aria-pressed=true]{
+  background:var(--color-primary-soft)!important;
+  border-color:var(--color-primary);color:var(--color-primary)!important;
+}
+.open-doc .slide-inspector{gap:14px;padding:20px 18px}
+.open-doc .slide-inspector h4{font-size:13px;margin-top:15px}
+.open-doc .slide-inspector label{gap:7px;font-size:13px}
+.open-doc .slide-inspector label input,.open-doc .slide-inspector label textarea{
+  padding:10px 12px;min-height:39px;
+}
+.open-doc .slide-layer-list,.open-doc .slide-layer-actions{gap:9px}
+.open-doc .slide-layer-list button,.open-doc .slide-layer-actions button{
+  min-height:40px;padding:10px 12px;font-size:13px;
+}
+
+/* All eight editing handles and one rotation control remain accessible. */
+.open-doc .slide-object[data-selected=true]{overflow:visible}
+.open-doc .slide-resize-handle{
+  position:absolute;box-sizing:border-box;
+  width:12px;height:12px;z-index:6;
+  border:2px solid white;border-radius:3px;background:var(--color-primary);
+  touch-action:none;transform:translate(-50%,-50%);
+}
+.open-doc .slide-handle-nw{left:0;top:0;cursor:nwse-resize}
+.open-doc .slide-handle-n{left:50%;top:0;cursor:ns-resize}
+.open-doc .slide-handle-ne{left:100%;top:0;cursor:nesw-resize}
+.open-doc .slide-handle-e{left:100%;top:50%;cursor:ew-resize}
+.open-doc .slide-handle-se{left:100%;top:100%;cursor:nwse-resize}
+.open-doc .slide-handle-s{left:50%;top:100%;cursor:ns-resize}
+.open-doc .slide-handle-sw{left:0;top:100%;cursor:nesw-resize}
+.open-doc .slide-handle-w{left:0;top:50%;cursor:ew-resize}
+.open-doc .slide-rotate-handle{
+  position:absolute;left:50%;top:-34px;transform:translateX(-50%);
+  z-index:8;width:21px;height:21px;box-sizing:border-box;
+  border:2px solid var(--color-primary);border-radius:50%;
+  background:white;cursor:grab;touch-action:none;
+}
+.open-doc .slide-rotate-handle::after{
+  content:"";position:absolute;left:50%;top:19px;height:13px;
+  border-left:1.5px solid var(--color-primary);
+}
+.open-doc .slide-inline-editor{
+  position:absolute;z-index:9;box-sizing:border-box;top:0;left:0;right:0;bottom:0;
+  width:100%;height:100%;resize:none;overflow:auto;
+  background:rgba(255,255,255,.96);border:1px solid var(--color-primary);
+  outline:2px solid var(--color-primary);border-radius:2px;
+  padding:6px;color:inherit;font:inherit;line-height:inherit;
+  white-space:pre-wrap;word-break:break-word;
+}
+
+/* Visual preview only. Native PPTX export writes p:transition OOXML separately. */
+@keyframes open-doc-transition-fade{
+  from{opacity:0}to{opacity:1}
+}
+@keyframes open-doc-transition-push-left{
+  from{opacity:.2;transform:translateX(22%)}to{opacity:1;transform:translateX(0)}
+}
+@keyframes open-doc-transition-push-right{
+  from{opacity:.2;transform:translateX(-22%)}to{opacity:1;transform:translateX(0)}
+}
+@keyframes open-doc-transition-wipe-left{
+  from{clip-path:inset(0 0 0 100%)}to{clip-path:inset(0)}
+}
+@keyframes open-doc-transition-wipe-right{
+  from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0)}
+}
+.open-doc .slide-inspector select{
+  display:block;box-sizing:border-box;min-height:39px;width:100%;
+  border:1px solid var(--color-border);border-radius:9px;
+  color:var(--color-text-primary);background:var(--of-surface-low);
+  padding:8px 12px
+}
+
+
+/* Editable native chart preview and its row-based data source. */
+.open-doc .slide-object-chart{background:#fff;overflow:hidden}
+.open-doc .slide-chart-preview{
+  position:absolute;left:0;top:0;display:block;
+  box-sizing:border-box;width:100%;height:100%;pointer-events:none;
+  border:1px solid #CBD5E1;border-radius:5px;background:#fff;
+}
+.open-doc .slide-chart-data{
+  display:flex;flex-direction:column;gap:13px;margin-top:17px;
+  padding:15px 0;border-top:1px solid var(--color-border);
+}
+.open-doc .slide-chart-data h4{margin:0;font-size:14px}
+.open-doc .slide-chart-options{display:grid;grid-template-columns:1fr;gap:11px}
+.open-doc .slide-chart-options label{
+  display:flex;flex-direction:column;gap:7px;
+  font-size:12px;color:var(--color-text-secondary)
+}
+.open-doc .slide-chart-options select,.open-doc .slide-chart-options input{
+  min-height:39px;box-sizing:border-box;border:1px solid var(--color-border);
+  border-radius:8px;background:var(--of-surface-low);
+  color:var(--color-text-primary);padding:8px 10px;width:100%
+}
+.open-doc .slide-chart-hint{font-size:12px;line-height:1.6;margin:0}
+.open-doc .slide-chart-grid{
+  border-collapse:separate;border-spacing:0;width:100%;
+  max-width:100%;font-size:12px
+}
+.open-doc .slide-chart-grid th{
+  text-align:left;padding:8px 4px;color:var(--color-text-secondary);
+  font-size:11px;border-bottom:1px solid var(--color-border)
+}
+.open-doc .slide-chart-grid td{padding:5px 2px;min-width:0}
+.open-doc .slide-chart-grid td:first-child{width:48%}
+.open-doc .slide-chart-grid td:nth-child(2){width:39%}
+.open-doc .slide-chart-grid input{
+  width:100%;min-width:0;box-sizing:border-box;padding:7px 6px;
+  border:1px solid var(--color-border);border-radius:7px;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  font-size:12px;min-height:35px
+}
+.open-doc .slide-chart-grid button{min-width:26px;min-height:35px;
+  color:var(--color-text-primary);border-radius:7px}
+.open-doc .slide-chart-data>button{
+  padding:9px;border:1px solid var(--color-border);border-radius:8px;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  min-height:37px;text-align:left
+}
+
 /* Desktop policy: one scrollable toolbar strip; never compress paper geometry. */
 @media (max-width: 1439px) {
     .open-doc {
@@ -1866,6 +2272,71 @@ body {
     .open-doc .slide-studio-toolbar button { padding:5px 9px; }
 }
 
+
+/* PDF annotation rail responsive layout */
+@media(max-width:1100px){
+  .open-doc .fixed-document[data-annotation-pane="true"]:not([data-slide-editor="true"]){
+    grid-template-columns:145px minmax(0,1fr) 260px;
+  }
+}
+@media(max-width:860px){
+  .open-doc .fixed-document[data-annotation-pane="true"]:not([data-slide-editor="true"]){
+    grid-template-columns:110px minmax(0,1fr);position:relative;
+  }
+  .open-doc .semantic-notes-rail{
+    position:absolute;right:0;top:0;bottom:0;z-index:36;
+    width:min(340px,calc(100% - 60px));box-shadow:-7px 0 24px rgba(0,0,0,.14);
+  }
+  .open-doc .fixed-sidebar{padding:6px}
+}
+
+
+/* Slide ribbon and Inspector responsive layout */
+@media(max-width:1000px){
+  .open-doc .fixed-document[data-slide-editor="true"]{
+    grid-template-columns:130px minmax(0,1fr) minmax(220px,260px);
+  }
+  .open-doc .slide-inspector{padding:12px}
+  .open-doc .slide-ribbon-group{flex-wrap:nowrap;overflow-x:auto;max-width:100%}
+}
+@media(max-width:720px){
+  .open-doc .fixed-document[data-slide-editor="true"]{
+    grid-template-columns:100px minmax(0,1fr);
+  }
+  .open-doc .fixed-document[data-slide-editor="true"] .slide-inspector{
+    grid-column:2;grid-row:2;position:absolute;right:0;top:0;
+    bottom:0;z-index:25;width:min(270px,55%);
+    box-shadow:-5px 0 16px rgba(0,0,0,.12);
+  }
+}
+
+/* Table builder and help adapt without introducing media queries in modules. */
+@media(max-width:720px){
+  .open-doc .table-dialog-dimensions{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .open-doc .table-preset-grid{grid-template-columns:1fr}
+  .open-doc .dialog.dialog-table,.open-doc .dialog.dialog-help{
+    width:100%;max-height:85vh
+  }
+}
+
+/* Library sidebar yields to existing bottom navigation on small screens. */
+@media(max-width:1110px){
+  .open-doc .home{grid-template-columns:170px minmax(0,1fr)}
+  .open-doc .home-side-nav{padding:20px 9px}
+  .open-doc .home-side-nav button{font-size:12px;gap:8px;padding:9px}
+}
+@media(max-width:720px){
+  .open-doc .home{display:block}
+  .open-doc .home-side-nav{display:none}
+  .open-doc .home-inner{width:calc(100% - 28px)}
+}
+
+@media(max-width:720px){
+  .open-doc .dialog.dialog-equation{width:100%;max-height:85vh}
+  .open-doc .equation-symbols{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .open-doc .equation-calc-actions{flex-wrap:wrap}
+}
+
 /* Visibility is authoritative over flex/grid component display declarations. */
 .open-doc [hidden] {
     display: none !important;
@@ -1886,10 +2357,3 @@ body {
     display: none;
 }
 
-
-/* Compact contextual slide command strip. Icons come from local icons.svg. */
-.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:4px;min-width:0;padding:5px 9px}
-.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{flex:0 0 auto;border:0;padding:0;margin:0 9px 0 0;gap:3px;overflow:visible;border-right:1px solid var(--color-border-soft);padding-right:10px}
-.open-doc .slide-studio-toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:33px;padding:5px 9px;font-size:12px}
-.open-doc .slide-studio-toolbar .slide-action-icon{display:inline-block;width:17px;height:17px;flex:none;pointer-events:none;color:currentColor;stroke:currentColor;fill:none}
-.open-doc .slide-layer-list button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
