@@ -174,7 +174,7 @@
     if(confirmation){
       confirmation.replaceChildren();
       const label=document.createElement('span');label.textContent='Salvo em: '+result.path;
-      const close=document.createElement('button');close.type='button';close.textContent='Fechar';
+      const close=document.createElement('button');close.type='button';close.textContent='';
       close.setAttribute('aria-label','Fechar confirmação de exportação');
       close.addEventListener('click',()=>confirmation.replaceChildren());
       confirmation.append(label,close);
