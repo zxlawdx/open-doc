@@ -372,3 +372,77 @@ test('Inspector non-destructive picture crop preserves geometry, history and ima
  assert.equal(q.scroller.querySelector('.fixed-surface .slide-image-crop img').src,
    'data:image/png;base64,YQ==','original picture data remains intact');
 });
+
+test('double-click edits text directly on the slide and Escape cancels',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const text=q.scroller.querySelector('.slide-object-text');
+ assert.equal(text.textContent.includes('Novo texto'),true);
+ const before=q.versions.length;
+ text.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+ const input=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(input,'text area is in the canvas, no prompt');
+ input.value='Queimadas no Brasil';
+ input.dispatchEvent(new q.w.KeyboardEvent('keydown',{bubbles:true,key:'Enter',ctrlKey:true}));
+ assert.equal(q.model().surfaces[0].elements[0].text,'Queimadas no Brasil');
+ assert.equal(q.versions.length,before+1,'one edit is one undo step');
+ const next=q.scroller.querySelector('.slide-object-text');
+ next.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+ const cancel=q.scroller.querySelector('.slide-inline-editor');
+ cancel.value='Temporário';
+ cancel.dispatchEvent(new q.w.KeyboardEvent('keydown',{bubbles:true,key:'Escape'}));
+ assert.equal(q.model().surfaces[0].elements[0].text,'Queimadas no Brasil');
+ assert.equal(q.versions.length,before+1);
+});
+
+test('shape grips resize on all edges and rotation control commits one change',t=>{
+ const q=setup(t);clickLabel(q.controls,'Retângulo');
+ const box=q.scroller.querySelector('.fixed-surface');
+ box.getBoundingClientRect=()=>({left:10,top:20,width:600,height:300,right:610,bottom:320});
+ let node=q.scroller.querySelector('.slide-object-rect');
+ assert.equal(node.querySelectorAll('[data-resize]').length,8);
+ assert.ok(node.querySelector('[data-rotate]'));
+ const before=q.versions.length;
+ const handle=node.querySelector('[data-resize="w"]');
+ handle.dispatchEvent(new q.w.MouseEvent('pointerdown',
+   {bubbles:true,clientX:140,clientY:125,button:0}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointermove',
+   {bubbles:true,clientX:80,clientY:125}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',
+   {bubbles:true,clientX:80,clientY:125}));
+ const shape=q.model().surfaces[0].elements[0];
+ assert.ok(Math.abs(shape.x-.10)<.001);
+ assert.ok(Math.abs(shape.width-.37)<.001);
+ assert.equal(q.versions.length,before+1);
+ node=q.scroller.querySelector('.slide-object-rect');
+ const centerX=10+(shape.x+shape.width/2)*600;
+ const centerY=20+(shape.y+shape.height/2)*300;
+ const rotate=node.querySelector('[data-rotate]');
+ rotate.dispatchEvent(new q.w.MouseEvent('pointerdown',
+   {bubbles:true,clientX:centerX,clientY:centerY-45,button:0}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointermove',
+   {bubbles:true,clientX:centerX+45,clientY:centerY}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',
+   {bubbles:true,clientX:centerX+45,clientY:centerY}));
+ assert.equal(q.model().surfaces[0].elements[0].rotation,90);
+ assert.equal(q.versions.length,before+2);
+ assert.equal(q.scroller.querySelector('.slide-vector-shape rect').getAttribute('width'),'100');
+});
+
+test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
+ const q=setup(t);
+ assert.equal(q.controls.querySelectorAll('.slide-ribbon-tab').length,3);
+ clickLabel(q.controls,'Retângulo');
+ const shape=q.scroller.querySelector('.slide-object-rect');
+ const color=q.controls.querySelector('.slide-paint-selector input[type=color]');
+ color.value='#ff6600';
+ q.controls.querySelector('.slide-ribbon-tab[aria-selected="true"]').textContent;
+ Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+   .find(b=>b.textContent==='Formatar').click();
+ clickLabel(q.controls,'Balde');
+ assert.equal(q.editor.paintActive,true);
+ shape.dispatchEvent(new q.w.MouseEvent('click',{bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].fill,'#ff6600');
+ assert.equal(q.scroller.querySelector('.slide-vector-shape rect').getAttribute('fill'),'#ff6600');
+ clickLabel(q.controls,'Balde');
+ assert.equal(q.editor.paintActive,false);
+});
