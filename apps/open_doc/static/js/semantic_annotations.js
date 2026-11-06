@@ -10,7 +10,19 @@
     // own right rail, independent of the thumbnail list.
     const rail=document.createElement('aside');
     rail.className='semantic-notes-rail';rail.setAttribute('aria-label','Anotações do PDF');
-    rail.hidden=true;host.append(rail);
+    rail.hidden=true;rail.id='open-doc-annotation-rail';host.append(rail);
+    const toggleRail=document.createElement('button');toggleRail.type='button';
+    toggleRail.className='semantic-rail-toggle';
+    toggleRail.textContent='Comentários';
+    toggleRail.setAttribute('aria-controls',rail.id);
+    toggleRail.setAttribute('aria-expanded','false');
+    host.querySelector('.fixed-controls')?.append(toggleRail);
+    toggleRail.addEventListener('click',()=>{
+      rail.hidden=!rail.hidden;
+      host.dataset.annotationPane=String(!rail.hidden);
+      toggleRail.setAttribute('aria-expanded',String(!rail.hidden));
+      if(!rail.hidden)panel?.querySelector('h3')?.focus?.();
+    },{signal});
     const balloon=document.createElement('section');balloon.className='semantic-note-balloon';
     balloon.hidden=true;balloon.setAttribute('role','dialog');
     balloon.setAttribute('aria-label','Comentário da marcação');
@@ -175,6 +187,9 @@
       editor=document.createElement('div');editor.className='semantic-annotation-editor';
       panel.append(heading,tools,list,editor);
       rail.hidden=root.dataset.sourceKind!=='pdf';
+      host.dataset.annotationPane=String(!rail.hidden);
+      toggleRail.hidden=rail.hidden;
+      toggleRail.setAttribute('aria-expanded',String(!rail.hidden));
       panel.hidden=rail.hidden;rail.replaceChildren(panel);redrawList();
     }
     function redrawList(){
@@ -235,6 +250,7 @@
       const pageIndex=Number(surface.dataset.pageIndex),page=getPage(pageIndex);
       if(!page)return null;
       const box=surface.getBoundingClientRect();
+      if(!box.width||!box.height)return null;
       const viewport=page.getViewport({scale:4/3*getZoom()});
       const x=(event.clientX-box.left)*viewport.width/box.width;
       const y=(event.clientY-box.top)*viewport.height/box.height;
