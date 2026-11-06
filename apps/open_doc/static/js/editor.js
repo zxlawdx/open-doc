@@ -203,6 +203,7 @@
     }
 
     function load(note) {
+      finishLogicalTransaction();
       clearTimeout(recoveryTimer);clearTimeout(cacheTimer);markdownStale=false;
       documentState = {...note};
       model=note.content?window.OpenDocModel.clone(note.content):null;mediaCache.clear();
@@ -235,6 +236,7 @@
     }
 
     function flush() {
+      finishLogicalTransaction();
       if(suspended)return Promise.resolve();
       return enqueue(async () => {
         if (isClean()) return documentState;
@@ -285,6 +287,7 @@
     }
 
     function setMode(next) {
+      finishLogicalTransaction();
       if (!["rich", "markdown", "preview"].includes(next)) return;
       if(model && next==='markdown'){
         syncMarkdown();source.readOnly=true;
@@ -306,6 +309,7 @@
     }
 
     function restoreSnapshot(snapshot) {
+      finishLogicalTransaction();
       if (!snapshot) return;
       title.value = snapshot.title;
       source.value = snapshot.markdown;
@@ -331,6 +335,7 @@
     }
 
     function format(kind, value) {
+      finishLogicalTransaction();
       if (lockedState) return;
       history.checkpoint(buffer());
       if (kind === "undo") { restoreSnapshot(history.undo()); return; }
