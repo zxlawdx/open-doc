@@ -324,3 +324,28 @@ test('Backspace at DOCX page-shell caret is relocated into the last text block',
  assert.equal(el.closest('[data-node-id]')?.dataset.nodeId,'first',
    'physical pages must never be the browser native deletion target');
 });
+
+test('Backspace at first empty paragraph of next physical DOCX page never deletes page shell',t=>{
+ const q=setup(t);q.editor.setMode('rich');
+ const rich=q.root.querySelector('[data-rich]');
+ rich.innerHTML='<section class="document-page" data-page-index="0">'+
+   '<div data-page-content><p data-node-id="last-of-first"><br></p></div></section>'+
+   '<section class="document-page" data-page-index="1">'+
+   '<div data-page-content><p data-node-id="first-of-second"><br></p></div></section>';
+ const second=rich.querySelector('[data-node-id="first-of-second"]');
+ const selection=q.window.getSelection(),range=q.window.document.createRange();
+ range.selectNodeContents(second);range.collapse(true);
+ selection.removeAllRanges();selection.addRange(range);
+ const event=new q.window.KeyboardEvent('keydown',
+   {key:'Backspace',bubbles:true,cancelable:true});
+ second.dispatchEvent(event);
+ assert.equal(event.defaultPrevented,true,
+   'Native Chromium must not Backspace across physical SECTION wrappers');
+ assert.equal(rich.querySelectorAll('.document-page').length,2,
+   'Document page shells must not be deleted by backspace');
+ assert.equal(rich.querySelector('[data-node-id="first-of-second"]'),null);
+ const focused=selection.anchorNode;
+ const focusedElement=focused.nodeType===3?focused.parentElement:focused;
+ assert.equal(focusedElement.closest('[data-node-id]')?.dataset.nodeId,
+   'last-of-first');
+});
