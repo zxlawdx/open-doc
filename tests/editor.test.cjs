@@ -21,10 +21,10 @@ function setup(t, options = {}) {
   window.addEventListener('unhandledrejection',event=>{
     javascriptErrors.push(String(event.reason?.stack||event.reason));
   });
-  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "document_model.js", "rich_serializer.js", "rich_renderer.js", "editor_commands.js", "history.js", "recovery.js", "pagination.js", "editor.js"]) {
+  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "document_model.js", "rich_serializer.js", "rich_renderer.js", "editor_commands.js", "history.js", "recovery.js", "pagination.js", "logical_transactions.js", "editor.js"]) {
     window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js", file), "utf8"));
   }
-  for(const moduleName of ['OpenDocModel','OpenDocRichSerializer','OpenDocPagination','OpenDocEditor'])
+  for(const moduleName of ['OpenDocModel','OpenDocRichSerializer','OpenDocPagination','OpenDocLogicalTransactions','OpenDocEditor'])
     assert.ok(window[moduleName],moduleName+' must be loaded before editor tests');
   const intervals = [];
   window.setInterval = (callback, delay) => { intervals.push({callback, delay}); return intervals.length; };
@@ -320,45 +320,30 @@ test('DOCX empty Enter paragraphs restore a caret inside the logical block, neve
  assert.notEqual(node,rich,'Backspace would otherwise delete physical page shells');
 });
 
-test('Backspace at DOCX page-shell caret is relocated into the last text block',t=>{
+test('model-first backspace joins paragraphs without editing page wrappers',t=>{
  const q=setup(t);q.editor.setMode('rich');
  const rich=q.root.querySelector('[data-rich]');
- rich.innerHTML='<section class="document-page" data-page-index="0">'+
-   '<div data-page-content><p data-node-id="first"><br></p></div></section>'+
-   '<section class="document-page" data-page-index="1">'+
-   '<div data-page-content><p data-node-id="second"><br></p></div></section>';
- const selection=q.window.getSelection(),range=q.window.document.createRange();
- range.setStart(rich,1);range.collapse(true);
- selection.removeAllRanges();selection.addRange(range);
- rich.dispatchEvent(new q.window.KeyboardEvent('keydown',
-   {key:'Backspace',bubbles:true,cancelable:true}));
- const anchor=selection.anchorNode;
- const el=anchor.nodeType===3?anchor.parentElement:anchor;
- assert.equal(el.closest('[data-node-id]')?.dataset.nodeId,'first',
-   'physical pages must never be the browser native deletion target');
-});
-
-test('Backspace at first empty paragraph of next physical DOCX page never deletes page shell',t=>{
- const q=setup(t);q.editor.setMode('rich');
- const rich=q.root.querySelector('[data-rich]');
+ // Build two pages with stable model IDs, then reproduce a collapsed caret
+ // at the first block of the second physical page.
  rich.innerHTML='<section class="document-page" data-page-index="0">'+
    '<div data-page-content><p data-node-id="last-of-first"><br></p></div></section>'+
    '<section class="document-page" data-page-index="1">'+
    '<div data-page-content><p data-node-id="first-of-second"><br></p></div></section>';
+ const previous=q.window.OpenDocModel.empty();
+ previous.blocks=[
+   {id:'last-of-first',type:'paragraph',style:{},children:[]},
+   {id:'first-of-second',type:'paragraph',style:{},children:[]}
+ ];
+ const tx=q.window.OpenDocLogicalTransactions;
  const second=rich.querySelector('[data-node-id="first-of-second"]');
  const selection=q.window.getSelection(),range=q.window.document.createRange();
- range.selectNodeContents(second);range.collapse(true);
+ range.setStart(second,0);range.collapse(true);
  selection.removeAllRanges();selection.addRange(range);
- const event=new q.window.KeyboardEvent('keydown',
-   {key:'Backspace',bubbles:true,cancelable:true});
- second.dispatchEvent(event);
- assert.equal(event.defaultPrevented,true,
-   'Native Chromium must not Backspace across physical SECTION wrappers');
- assert.equal(rich.querySelectorAll('.document-page').length,2,
-   'Document page shells must not be deleted by backspace');
- assert.equal(rich.querySelector('[data-node-id="first-of-second"]'),null);
- const focused=selection.anchorNode;
- const focusedElement=focused.nodeType===3?focused.parentElement:focused;
- assert.equal(focusedElement.closest('[data-node-id]')?.dataset.nodeId,
-   'last-of-first');
+ const boundary=tx.inspectBackspace(rich,selection,previous);
+ assert.equal(boundary.currentId,'first-of-second');
+ const op=tx.joinBackward(previous,boundary.currentId);
+ assert.equal(op.model.blocks.length,1);
+ assert.equal(op.model.blocks[0].id,'last-of-first');
+ assert.equal(op.caret.blockId,'last-of-first');
+ assert.equal(previous.blocks.length,2,'transaction must not mutate original state');
 });
