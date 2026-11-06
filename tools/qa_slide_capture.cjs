@@ -218,5 +218,9 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    await shot('pptx-one-slide-'+width);
  }
  console.log('QT_PPTX_SINGLE_ACTIVE_CANVAS_THUMBNAILS_GEOMETRY_2_RESOLUTIONS_OK');
+ // Restore the original slide to allow the subsequent persistence/export
+ // smoke to append text to the four existing shapes on slide 1.
+ await click('.fixed-sidebar [data-thumbnail-index="0"]');
+ assert.equal(await evaluate("document.querySelector('.fixed-scroll .fixed-surface')?.dataset.pageIndex"),'0');
  ws.close();
 })().catch(error=>{console.error(error);process.exit(1);});
