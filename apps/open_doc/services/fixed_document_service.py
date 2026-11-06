@@ -387,14 +387,8 @@ class FixedDocumentService:
             ),
         }
 
-    def export_native_pdf_edit(self, identifier, revision, operation, destination):
-        """Apply a native PDF content transaction without touching source.pdf.
-
-        Ink/comment overlays are separate from PDF operators. Refuse to silently
-        discard them in this early native-export implementation.
-        """
-        from ..readers.pdf.native_edit import PdfNativeEditor
-
+    def require_native_pdf_edit(self, identifier, revision):
+        """Check the source document before editing original PDF content."""
         note = self.get(identifier)
         if note["source_kind"] != "pdf":
             raise ValueError("A edição nativa só está disponível para documentos PDF.")
@@ -409,6 +403,18 @@ class FixedDocumentService:
                 "Este documento possui anotações. Exporte uma cópia anotada "
                 "antes de iniciar a edição do conteúdo original."
             )
+        return note
+
+    def export_native_pdf_edit(self, identifier, revision, operation, destination):
+        """Apply a native PDF content transaction without touching source.pdf.
+
+        Ink/comment overlays are separate from PDF operators. Refuse to silently
+        discard them in this early native-export implementation.
+        """
+        from ..readers.pdf.native_edit import PdfNativeEditor
+
+        note = self.require_native_pdf_edit(identifier, revision)
+        content = note["content"]
         source = self.source(identifier)
         return PdfNativeEditor.apply(
             source, destination, operation,
