@@ -90,6 +90,20 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    assert.deepEqual(writing.errors,[],'Unexpected errors during DOCX insertion');
    await capture('docx-stress-'+total+'-enters');
    console.log('QT_DOCX_STRESS_ENTER_METRICS',JSON.stringify(writing));
+   const caret=await evaluate(`(()=>{
+     const rich=document.querySelector('[data-rich]');
+     const s=getSelection(),node=s?.anchorNode;
+     const el=node?.nodeType===3?node.parentElement:node;
+     const block=el?.closest?.('[data-node-id],p,li');
+     const position=el?.closest?.('[data-page-index]')?.dataset.pageIndex;
+     const range=s?.rangeCount?s.getRangeAt(0):null;
+     const mark=window.OpenDocApp?.editor?.()?.debug?.selection?.()||null;
+     return {tag:el?.tagName||'#text',blockId:block?.dataset.nodeId||null,
+       pageIndex:position??null,offset:s?.anchorOffset??null,
+       collapsed:s?.isCollapsed,focus:document.activeElement?.getAttribute('data-rich')!==null,
+       rootAnchor:node===rich,rangeContainer:range?.startContainer?.nodeName,mark};
+   })()`);
+   console.log('QT_DOCX_STRESS_CARET_BEFORE_BACKSPACE',total,JSON.stringify(caret));
    // Real native keyboard Backspace (not a synthetic event with no default action).
    for(let i=0;i<total;i++){
      if(i%25===0)console.log('QT_DOCX_STRESS_BACKSPACE_PROGRESS',total,i);
