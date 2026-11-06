@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from threading import Timer
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +41,46 @@ def wait(window, expression):
         + " STATUS "
         + str(window.evaluate_js("document.querySelector('[data-status]').textContent"))
     )
+
+
+def run_docx_stress(keyboard):
+    # Qt 5's CDP keyboard transport can fail before dispatching a DOM event.
+    # Use Qt's focus proxy for keys, leaving CDP for metrics and screenshots.
+    with subprocess.Popen(
+        [
+            "node",
+            str(ROOT / "tools/qa_docx_stress_capture.cjs"),
+            os.environ["QTWEBENGINE_REMOTE_DEBUGGING"],
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    ) as stress:
+        watchdog = Timer(220, stress.kill)
+        watchdog.start()
+        try:
+            for line in stress.stdout:
+                if not line.startswith("QT_KEY_REQUEST "):
+                    print(line, end="", flush=True)
+                    continue
+                _, key, count = line.split()
+                if key == "SelectAll":
+                    keyboard.press("A")
+                else:
+                    for _ in range(int(count)):
+                        keyboard.key(key)
+                        time.sleep(0.004)
+                stress.stdin.write("OK\n")
+                stress.stdin.flush()
+            assert (
+                stress.wait() == 0
+            ), "DOCX Enter/Backspace 100/500/1000 Qt stress or screenshots failed"
+        finally:
+            watchdog.cancel()
+            if stress.poll() is None:
+                stress.kill()
 
 
 def main():
@@ -182,6 +223,9 @@ def main():
             print(
                 "QT_QTEST_CTRL_O_MD_TXT_PDF_PPTX_DOCX_HOME_NEW_LIFECYCLE_OK", flush=True
             )
+            # Independent real QtWebEngine stress scenarios in a fresh DOCX
+            # editor. A CDP watchdog fails on a hung renderer/white screen.
+            run_docx_stress(keyboard)
             note = services().editor.get(fixture_id)
             assert sum(len(l["strokes"]) for l in note["content"]["ink_layers"]) == 20
             print("QT_DOCX_INK_PERSISTENCE_AND_INCREMENTAL_UNDO_OK", flush=True)

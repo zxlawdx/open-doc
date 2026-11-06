@@ -29,6 +29,38 @@ class OpenDocBridge(BaseBridge):
         self._window = window
         window.confirm_close = False
 
+    def get_runtime_diagnostics(self) -> dict[str, Any]:
+        """Reveal which executable/framework/assets are actually running.
+
+        A passing repository CI cannot prove a locally installed Open Doc EXE
+        was rebuilt. Return physical installation paths and a hash of the
+        active slide editor asset for user-supported provenance checks.
+        """
+        import hashlib
+        import importlib.metadata
+        import sys
+        import vela
+
+        asset_path = Path(__file__).parent / "static" / "js" / "slide_editor.js"
+        try:
+            digest = hashlib.sha256(asset_path.read_bytes()).hexdigest()
+        except OSError:
+            digest = None
+        try:
+            pywebview_version = importlib.metadata.version("pywebview")
+        except importlib.metadata.PackageNotFoundError:
+            pywebview_version = None
+        return {
+            "python_executable": str(sys.executable),
+            "frozen": bool(getattr(sys, "frozen", False)),
+            "vela_version": getattr(vela, "__version__", None),
+            "vela_path": str(Path(vela.__file__).resolve()),
+            "app_path": str(Path(__file__).resolve()),
+            "slide_editor_sha256": digest,
+            "pywebview_version": pywebview_version,
+            "window": self.window_get_state(),
+        }
+
     def get_bootstrap(self) -> dict[str, Any]:
         try:
             return self._documents.bootstrap()
