@@ -113,3 +113,12 @@
     color: var(--color-paper-placeholder);
     pointer-events: none;
 }
+
+/* Matrices and native Word tables are still editable cell-by-cell. */
+.open-doc .paper table[data-table-preset="matrix"]{border-collapse:separate}
+.open-doc .paper table[data-table-preset="matrix"] td{border-radius:4px}
+.open-doc .paper table[data-table-preset="header"] tr:first-child td{
+  background:#DAE2FD;color:#172D46;font-weight:650
+}
+.open-doc .paper table[data-table-preset="plain"] td{border-color:transparent}
+.open-doc .paper table[data-table-preset="grid"] td{border-color:#8998B6}

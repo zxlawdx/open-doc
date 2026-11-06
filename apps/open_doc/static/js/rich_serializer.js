@@ -38,7 +38,11 @@
         const old=previous(e);
         if(['opaque-ooxml','page_break'].includes(e.dataset.nodeType)){flush();out.push({...M.clone(old),id:identity(e)});continue;}
         if(['UL','OL'].includes(e.tagName)){flush();out.push(...blocks(e,{format:e.tagName==='UL'?'bullet':'decimal',level:listInfo?listInfo.level+1:0}));continue;}
-        if(e.tagName==='TABLE'){flush();const table={...old,id:identity(e),type:'table',rows:[]};for(const row of Array.from(e.rows)){
+        if(e.tagName==='TABLE'){flush();const table={...old,id:identity(e),type:'table',rows:[]};
+          if(e.dataset.tablePreset)table.style_preset=e.dataset.tablePreset;
+          if(e.dataset.cellSpacingPt!=null&&e.dataset.cellSpacingPt!=="")
+            table.cell_spacing_pt=Number(e.dataset.cellSpacingPt);
+          for(const row of Array.from(e.rows)){
           const oldRow=(old.rows || []).find(r=>r.id===row.dataset.rowId) || {};
           const cells=Array.from(row.cells).map(cell=>{const oldCell=(oldRow.cells || []).find(c=>c.id===cell.dataset.cellId) || {};return {...oldCell,id:cell.dataset.cellId || M.id(),col_span:cell.colSpan,row_span:cell.rowSpan,blocks:blocks(cell)};});
           if(oldRow.cells){let i=0;table.rows.push({...oldRow,cells:oldRow.cells.map(c=>c.merge_continue?M.clone(c):cells[i++]).filter(Boolean)});}else table.rows.push({id:M.id(),cells});

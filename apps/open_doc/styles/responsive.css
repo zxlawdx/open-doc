@@ -249,3 +249,68 @@
     .open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll { padding:8px; }
     .open-doc .slide-studio-toolbar button { padding:5px 9px; }
 }
+
+
+/* PDF annotation rail responsive layout */
+@media(max-width:1100px){
+  .open-doc .fixed-document[data-annotation-pane="true"]:not([data-slide-editor="true"]){
+    grid-template-columns:145px minmax(0,1fr) 260px;
+  }
+}
+@media(max-width:860px){
+  .open-doc .fixed-document[data-annotation-pane="true"]:not([data-slide-editor="true"]){
+    grid-template-columns:110px minmax(0,1fr);position:relative;
+  }
+  .open-doc .semantic-notes-rail{
+    position:absolute;right:0;top:0;bottom:0;z-index:36;
+    width:min(340px,calc(100% - 60px));box-shadow:-7px 0 24px rgba(0,0,0,.14);
+  }
+  .open-doc .fixed-sidebar{padding:6px}
+}
+
+
+/* Slide ribbon and Inspector responsive layout */
+@media(max-width:1000px){
+  .open-doc .fixed-document[data-slide-editor="true"]{
+    grid-template-columns:130px minmax(0,1fr) minmax(220px,260px);
+  }
+  .open-doc .slide-inspector{padding:12px}
+  .open-doc .slide-ribbon-group{flex-wrap:nowrap;overflow-x:auto;max-width:100%}
+}
+@media(max-width:720px){
+  .open-doc .fixed-document[data-slide-editor="true"]{
+    grid-template-columns:100px minmax(0,1fr);
+  }
+  .open-doc .fixed-document[data-slide-editor="true"] .slide-inspector{
+    grid-column:2;grid-row:2;position:absolute;right:0;top:0;
+    bottom:0;z-index:25;width:min(270px,55%);
+    box-shadow:-5px 0 16px rgba(0,0,0,.12);
+  }
+}
+
+/* Table builder and help adapt without introducing media queries in modules. */
+@media(max-width:720px){
+  .open-doc .table-dialog-dimensions{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .open-doc .table-preset-grid{grid-template-columns:1fr}
+  .open-doc .dialog.dialog-table,.open-doc .dialog.dialog-help{
+    width:100%;max-height:85vh
+  }
+}
+
+/* Library sidebar yields to existing bottom navigation on small screens. */
+@media(max-width:1110px){
+  .open-doc .home{grid-template-columns:170px minmax(0,1fr)}
+  .open-doc .home-side-nav{padding:20px 9px}
+  .open-doc .home-side-nav button{font-size:12px;gap:8px;padding:9px}
+}
+@media(max-width:720px){
+  .open-doc .home{display:block}
+  .open-doc .home-side-nav{display:none}
+  .open-doc .home-inner{width:calc(100% - 28px)}
+}
+
+@media(max-width:720px){
+  .open-doc .dialog.dialog-equation{width:100%;max-height:85vh}
+  .open-doc .equation-symbols{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .open-doc .equation-calc-actions{flex-wrap:wrap}
+}

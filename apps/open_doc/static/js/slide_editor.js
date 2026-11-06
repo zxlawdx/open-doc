@@ -7,11 +7,13 @@
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
     round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
-    triangle:"Triângulo",diamond:"Losango"})[type]||"Objeto";
+    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico"})[type]||"Objeto";
   const SVG_NS="http://www.w3.org/2000/svg";
   const ACTION_ICONS={
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
+    "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
+    "Gráfico: Pizza":"chart-pie",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
@@ -32,13 +34,13 @@
       if(!tag)return null;
       const shape=document.createElementNS(SVG_NS,tag);
       const geometry=({
-        rect:{x:1,y:1,width:98,height:98},
-        round_rect:{x:1,y:1,width:98,height:98,rx:16,ry:16},
-        ellipse:{cx:50,cy:50,rx:49,ry:49},
-        line:{x1:5,y1:95,x2:95,y2:5},
+        rect:{x:0,y:0,width:100,height:100},
+        round_rect:{x:0,y:0,width:100,height:100,rx:16,ry:16},
+        ellipse:{cx:50,cy:50,rx:50,ry:50},
+        line:{x1:0,y1:100,x2:100,y2:0},
         arrow:{points:"4,38 62,38 62,14 98,50 62,86 62,62 4,62"},
-        triangle:{points:"50,2 98,98 2,98"},
-        diamond:{points:"50,2 98,50 50,98 2,50"}
+        triangle:{points:"50,0 100,100 0,100"},
+        diamond:{points:"50,0 100,50 50,100 0,50"}
       })[obj.type];
       for(const [key,value] of Object.entries(geometry))
         shape.setAttribute(key,String(value));
@@ -118,6 +120,22 @@
         assets[assetId]={mime:image.mime,data:image.data};
       }
       return assetId;
+    }
+    insertChart(index,kind="bar"){
+      if(!["bar","line","pie"].includes(kind))throw Error("Tipo de gráfico inválido.");
+      const id=window.OpenDocModel.id();
+      this.apply(slides=>{
+        const elements=slides[index].elements;
+        if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
+        elements.push({
+          id,type:"chart",name:"Gráfico de "+({bar:"barras",line:"linhas",pie:"pizza"}[kind]),
+          x:.14,y:.2,width:.72,height:.58,rotation:0,stroke_width:1.5,
+          color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
+          chart_type:kind,chart_title:"Resultados",chart_palette:"blue",
+          chart_categories:["2024","2025","2026"],chart_values:[18,25,32]
+        });
+      });
+      return id;
     }
     insertImage(index,image){
       const id=window.OpenDocModel.id();
@@ -207,6 +225,7 @@
       this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.selectedIds=new Set();this.current=0;this.drag=null;
       this.pan=null;this.spacePressed=false;this.imageReplacement=null;
+      this.paintActive=false;this.inlineEditing=null;
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
       this.imageInput=document.createElement("input");this.imageInput.type="file";
       this.imageInput.accept="image/png,image/jpeg,image/webp";this.imageInput.hidden=true;
@@ -255,8 +274,86 @@
       this._button("Triângulo",()=>this.add("triangle"));
       this._button("Losango",()=>this.add("diamond"));
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
+      for(const [label,kind] of [
+        ["Gráfico: Barras","bar"],["Gráfico: Linhas","line"],["Gráfico: Pizza","pie"]
+      ])this._button(label,()=>this.insertChart(kind),"Inserir gráfico PPTX nativo e editável");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
+      this._button("Prévia",()=>this.previewTransition(),"Prévia da transição no slide atual");
+      const paintLabel=document.createElement("label");paintLabel.className="slide-paint-selector";
+      paintLabel.textContent="Cor";
+      this.paintColor=document.createElement("input");this.paintColor.type="color";
+      this.paintColor.value="#DAE2FD";this.paintColor.setAttribute("aria-label","Cor do balde");
+      paintLabel.append(this.paintColor);this.toolbar.append(paintLabel);
+      this.paintButton=this._button("Balde",()=>{
+        this.paintActive=!this.paintActive;
+        this.paintButton.setAttribute("aria-pressed",String(this.paintActive));
+        this.status(this.paintActive
+          ?"Balde ativo: clique em uma forma para aplicar a cor."
+          :"Balde desativado.");
+      },"Pintar formas clicando diretamente no slide");
+      this.paintButton.setAttribute("aria-pressed","false");
+      this._button("Pintar seleção",()=>{
+        if(!this.selectedIds.size)return this.status("Selecione uma forma para colorir.");
+        const ids=new Set(this.selectedIds),color=this.paintColor.value;
+        this.commands.apply(slides=>{
+          for(const obj of slides[this.current].elements){
+            if(!ids.has(obj.id)||obj.type==="image"||obj.type==="chart")continue;
+            obj[obj.type==="text"?"color":obj.type==="line"?"stroke":"fill"]=color;
+          }
+        });
+        this.status("Cor aplicada aos objetos selecionados.");
+      });
+      this._organizeRibbon();
+    }
+    _organizeRibbon(){
+      const actions=Array.from(this.toolbar.querySelectorAll("button"));
+      const tabs=document.createElement("div");tabs.className="slide-ribbon-tabs";
+      const body=document.createElement("div");body.className="slide-ribbon-body";
+      const categories=[
+        {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide"]},
+        {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
+        {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
+        {label:"Transições",labels:["Prévia"]}
+      ];
+      const panels=[];
+      for(const item of categories){
+        const tab=document.createElement("button");tab.type="button";tab.textContent=item.label;
+        tab.className="slide-ribbon-tab";tabs.append(tab);
+        const group=document.createElement("div");group.className="slide-ribbon-group";group.hidden=true;
+        group.setAttribute("aria-label","Ferramentas de "+item.label);
+        for(const action of actions){
+          if(item.labels.includes(action.textContent))group.append(action);
+        }
+        if(item.label==="Formatar")group.prepend(this.toolbar.querySelector(".slide-paint-selector"));
+        body.append(group);panels.push([tab,group]);
+        tab.addEventListener("click",()=>activate(item.label),{signal:this.signal});
+      }
+      const activate=label=>{
+        panels.forEach(([tab,panel],i)=>{
+          const enabled=categories[i].label===label;
+          tab.setAttribute("aria-selected",String(enabled));panel.hidden=!enabled;
+        });
+      };
+      this.toolbar.prepend(tabs,body);activate("Inserir");
+    }
+    insertChart(kind){
+      const id=this.commands.insertChart(this.current,kind);
+      this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
+      this._selectObject(id);this.render();
+      this.status("Gráfico editável criado. Altere os dados nas propriedades.");
+    }
+    _paintObject(index,id){
+      const obj=this.getModel().surfaces[index].elements.find(item=>item.id===id);
+      if(!obj)return;
+      if(obj.type==="image"||obj.type==="chart")
+        return this.status(obj.type==="chart"
+          ?"Para colorir o gráfico, escolha uma paleta nas propriedades."
+          :"O balde não altera os pixels de uma imagem.");
+      const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
+      this.commands.updateObject(index,id,{[property]:this.paintColor.value});
+      this._selectObject(id);
+      this.status("Cor aplicada a "+(obj.name||labelFor(obj.type))+".");
     }
     _transferImage(data){
       if(!data)return null;
@@ -333,18 +430,22 @@
         const changedSlide=targetIndex!==this.current;
         this.current=targetIndex;
         const item=event.target.closest("[data-slide-element]");
+        if(event.target.closest(".slide-inline-editor"))return;
+        if(this.paintActive&&item){
+          this._paintObject(targetIndex,item.dataset.slideElement);this.render();return;
+        }
         this._selectObject(item?item.dataset.slideElement:null,!changedSlide&&event.shiftKey);
         this.render();
       },{signal:this.signal});
       this.scroller.addEventListener("dblclick",event=>{
-        if(!this.active)return;
-        const item=event.target.closest('[data-slide-element][data-kind="text"]');
+        if(!this.active||this.paintActive)return;
+        const item=event.target.closest('[data-slide-element]');
         if(!item)return;
-        event.preventDefault();
         const index=Number(item.closest(".fixed-surface").dataset.pageIndex),id=item.dataset.slideElement;
-        const next=window.prompt?.("Editar texto do slide",item.textContent.trim());
-        if(next===null||next===undefined)return;
-        this.commands.updateObject(index,id,{text:next.slice(0,10000)});
+        const obj=this.getModel().surfaces[index].elements.find(e=>e.id===id);
+        if(!obj||(obj.type!=="text"&&!obj.text))return;
+        event.preventDefault();event.stopPropagation();
+        this._editText(index,id,item,obj.text);
       },{signal:this.signal});
       this.root.addEventListener("keydown",event=>{
         if(!this.active)return;
@@ -425,6 +526,49 @@
       this.current=replacement?replacement.index:targetIndex;
       this._selectObject(id);this.render();
     }
+    _editText(index,id,node,value){
+      if(this.inlineEditing)return;
+      const editor=document.createElement("textarea");
+      editor.className="slide-inline-editor";editor.value=value||"";
+      editor.maxLength=10000;editor.setAttribute("aria-label","Editar texto diretamente no slide");
+      const previous=node.style.overflow;
+      node.replaceChildren(editor);node.style.overflow="hidden";
+      this.inlineEditing=editor;
+      let finished=false;
+      const finish=save=>{
+        if(finished)return;finished=true;
+        this.inlineEditing=null;node.style.overflow=previous;
+        if(save&&editor.value!==value)
+          this.commands.updateObject(index,id,{text:editor.value.slice(0,10000)});
+        else this.render();
+      };
+      editor.addEventListener("keydown",event=>{
+        if(event.key==="Escape"){event.preventDefault();finish(false);}
+        if((event.ctrlKey||event.metaKey)&&event.key==="Enter"){
+          event.preventDefault();finish(true);
+        }
+      },{signal:this.signal});
+      editor.addEventListener("blur",()=>finish(true),{signal:this.signal});
+      editor.focus();editor.select();
+    }
+    previewTransition(){
+      const effect=this.getModel().surfaces[this.current]?.transition||"none";
+      if(effect==="none")return this.status("Selecione uma transição nas propriedades do slide.");
+      const node=this._surface(this.current);
+      if(!node)return;
+      const key={"fade":"open-doc-transition-fade",
+        "push-left":"open-doc-transition-push-left","push-right":"open-doc-transition-push-right",
+        "wipe-left":"open-doc-transition-wipe-left","wipe-right":"open-doc-transition-wipe-right"}[effect];
+      if(!key)return;
+      const speed=this.getModel().surfaces[this.current]?.transition_speed||"med";
+      const ms={slow:1200,med:700,fast:400}[speed]||700;
+      node.style.animation="none";
+      // Force restart without removing the slide or the text editing model.
+      void node.offsetWidth;
+      node.style.animation=key+" "+ms+"ms ease both";
+      node.addEventListener("animationend",()=>{node.style.animation="";},{once:true,signal:this.signal});
+      this.status("Prévia da transição: "+effect+".");
+    }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
     _makeObject(obj,index,thumb=false){
       const node=document.createElement("div");node.className="slide-object slide-object-"+obj.type;
@@ -433,7 +577,15 @@
       this._styleObject(node,obj,index,thumb);
       const vector=this.shapeRenderer.create(obj);
       if(vector)node.append(vector);
-      if(obj.type==="image"){
+      if(obj.type==="chart"){
+        if(window.OpenDocSlideCharts?.ChartPreview)
+          node.append(window.OpenDocSlideCharts.ChartPreview.render(obj));
+        else {
+          const placeholder=document.createElement("span");
+          placeholder.textContent="Gráfico · "+(obj.chart_title||"Sem título");
+          node.append(placeholder);
+        }
+      }else if(obj.type==="image"){
         const asset=(this.getModel().assets||{})[obj.asset_id];
         if(asset){
           // Keep picture pixels behind an independent clipping viewport: the
@@ -459,8 +611,18 @@
       }else if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
-        const handle=document.createElement("span");handle.className="slide-resize-handle";handle.dataset.resize="true";
-        handle.setAttribute("aria-label","Redimensionar objeto");node.append(handle);
+        for(const direction of ["nw","n","ne","e","se","s","sw","w"]){
+          const handle=document.createElement("span");
+          handle.className="slide-resize-handle slide-handle-"+direction;
+          handle.dataset.resize=direction;
+          handle.setAttribute("aria-label","Redimensionar: "+direction);node.append(handle);
+        }
+        if(obj.type!=="chart"){
+          const rotate=document.createElement("span");
+          rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
+          rotate.setAttribute("aria-label","Girar objeto");
+          node.append(rotate);
+        }
       }
       return node;
     }
@@ -575,6 +737,28 @@
       const slide=slides[this.current],title=document.createElement("h3");title.textContent="Propriedades · Slide "+(this.current+1);
       this.inspector.append(title);
       this._property("Cor de fundo",slide.background||"#FFFFFF","color",value=>this.commands.updateSlide(this.current,{background:value}));
+      const transitionTitle=document.createElement("h4");transitionTitle.textContent="Transição de entrada deste slide";
+      this.inspector.append(transitionTitle);
+      const transitionLabel=document.createElement("label");transitionLabel.textContent="Efeito";
+      const transitionSelect=document.createElement("select");transitionSelect.setAttribute("aria-label","Transição do slide");
+      for(const [value,label] of [
+        ["none","Nenhuma"],["fade","Desvanecer"],
+        ["push-left","Empurrar para esquerda"],["push-right","Empurrar para direita"],
+        ["wipe-left","Revelar à esquerda"],["wipe-right","Revelar à direita"]
+      ]){
+        const option=document.createElement("option");option.value=value;option.textContent=label;transitionSelect.append(option);
+      }
+      transitionSelect.value=slide.transition||"none";
+      transitionSelect.addEventListener("change",()=>this.commands.updateSlide(this.current,{transition:transitionSelect.value}),{signal:this.signal});
+      transitionLabel.append(transitionSelect);this.inspector.append(transitionLabel);
+      const speedLabel=document.createElement("label");speedLabel.textContent="Velocidade";
+      const speedSelect=document.createElement("select");speedSelect.setAttribute("aria-label","Velocidade da transição");
+      for(const [value,label] of [["fast","Rápida"],["med","Normal"],["slow","Lenta"]]){
+        const option=document.createElement("option");option.value=value;option.textContent=label;speedSelect.append(option);
+      }
+      speedSelect.value=slide.transition_speed||"med";
+      speedSelect.addEventListener("change",()=>this.commands.updateSlide(this.current,{transition_speed:speedSelect.value}),{signal:this.signal});
+      speedLabel.append(speedSelect);this.inspector.append(speedLabel);
       const subtitle=document.createElement("h4");subtitle.textContent="Camadas";this.inspector.append(subtitle);
       const list=document.createElement("div");list.className="slide-layer-list";
       (slide.elements||[]).slice().reverse().forEach(obj=>{
@@ -608,6 +792,13 @@
           const name=value.trim().slice(0,80);
           if(name)this.commands.updateObject(this.current,selected.id,{name});
         });
+        if(selected.type==="chart"&&window.OpenDocSlideCharts?.ChartInspector){
+          window.OpenDocSlideCharts.ChartInspector.mount(
+            this.inspector,selected,
+            patch=>this.commands.updateObject(this.current,selected.id,patch),
+            this.status,this.signal
+          );
+        }
         if(selected.type==="image"){
           const replaceButton=document.createElement("button");
           replaceButton.type="button";replaceButton.textContent="Substituir imagem";
@@ -637,7 +828,7 @@
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
         if(selected.type==="text"||selected.text)
           this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));
-        if(selected.type!=="text"&&selected.type!=="image"){
+        if(selected.type!=="text"&&selected.type!=="image"&&selected.type!=="chart"){
           if(selected.type!=="line"&&selected.type!=="arrow")
             this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
           this._property("Contorno",selected.stroke,"color",value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
@@ -646,8 +837,10 @@
         }
         if(selected.type==="text"||selected.text)
           this._property("Fonte (pt)",selected.font_size_pt||28,"number",value=>this.commands.updateObject(this.current,selected.id,{font_size_pt:clamp(Number(value)||28,6,144)}));
-        const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
-        rotationField.min="-360";rotationField.max="360";
+        if(selected.type!=="chart"){
+          const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
+          rotationField.min="-360";rotationField.max="360";
+        }
         for(const [key,label] of fields)this._property(label,Math.round(selected[key]*100),"number",value=>{
           const amount=clamp(Number(value)/100,0,key==="x"||key==="y"?1:1);
           const patch={[key]:amount};
@@ -693,7 +886,8 @@
       event?.preventDefault();return true;
     }
     _start(event){
-      if(!this.active||event.button!==0||event.shiftKey)return;
+      if(!this.active||event.button!==0||event.shiftKey||this.paintActive)return;
+      if(event.target.closest(".slide-inline-editor"))return;
       const node=event.target.closest("[data-slide-element]");
       if(!node)return;
       const surface=node.closest(".fixed-surface"),index=Number(surface.dataset.pageIndex);
@@ -704,17 +898,33 @@
       this._properties();
       const box=surface.getBoundingClientRect();
       if(!box.width||!box.height)return;
+      const handle=event.target.closest("[data-resize]")?.dataset.resize||null;
+      const rotating=Boolean(event.target.closest("[data-rotate]"));
+      const centerX=box.left+(obj.x+obj.width/2)*box.width;
+      const centerY=box.top+(obj.y+obj.height/2)*box.height;
       this.drag={index,id:obj.id,startX:event.clientX,startY:event.clientY,
-        initial:clone(obj),box,node,resizing:Boolean(event.target.closest("[data-resize]")),value:null};
+        initial:clone(obj),box,node,handle,rotating,centerX,centerY,
+        startingAngle:Math.atan2(event.clientY-centerY,event.clientX-centerX),value:null};
       event.preventDefault();event.stopPropagation();
     }
     _drag(event){
       const state=this.drag;if(!state||!this.active)return;
       const dx=(event.clientX-state.startX)/state.box.width,dy=(event.clientY-state.startY)/state.box.height;
       const item={...state.initial};
-      if(state.resizing){
-        item.width=clamp(state.initial.width+dx,.01,1-state.initial.x);
-        item.height=clamp(state.initial.height+dy,.01,1-state.initial.y);
+      if(state.rotating){
+        const angle=Math.atan2(event.clientY-state.centerY,event.clientX-state.centerX);
+        item.rotation=clamp(Math.round((state.initial.rotation||0)
+          +(angle-state.startingAngle)*180/Math.PI),-360,360);
+      }else if(state.handle){
+        const h=state.handle;
+        const left=state.initial.x,right=left+state.initial.width;
+        const top=state.initial.y,bottom=top+state.initial.height;
+        if(h.includes("w"))item.x=clamp(left+dx,0,right-.01);
+        if(h.includes("n"))item.y=clamp(top+dy,0,bottom-.01);
+        if(h.includes("e"))item.width=clamp(right+dx-item.x,.01,1-item.x);
+        else item.width=right-item.x;
+        if(h.includes("s"))item.height=clamp(bottom+dy-item.y,.01,1-item.y);
+        else item.height=bottom-item.y;
       }else{
         item.x=clamp(state.initial.x+dx,0,1-state.initial.width);
         item.y=clamp(state.initial.y+dy,0,1-state.initial.height);
@@ -726,8 +936,10 @@
       const drag=this.drag;if(!drag)return;
       this.drag=null;
       if(!drag.value){this.render();return;}
-      const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,height:drag.value.height};
-      if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,width:drag.initial.width,height:drag.initial.height}))return;
+      const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,
+        height:drag.value.height,rotation:drag.value.rotation};
+      if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,
+        width:drag.initial.width,height:drag.initial.height,rotation:drag.initial.rotation}))return;
       this.commands.updateObject(drag.index,drag.id,patch);
       event.preventDefault();
     }
