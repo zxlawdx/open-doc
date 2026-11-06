@@ -62,3 +62,34 @@
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
 }
+
+/* Desktop library follows familiar navigation/content separation. */
+.open-doc .home{display:grid;grid-template-columns:220px minmax(0,1fr);align-items:start}
+.open-doc .home-side-nav{
+  grid-column:1;grid-row:1;position:sticky;top:0;align-self:start;
+  display:flex;flex-direction:column;gap:7px;
+  height:100%;max-height:calc(100vh - 110px);overflow-y:auto;box-sizing:border-box;
+  padding:26px 14px;background:var(--color-panel);
+  border-right:1px solid var(--color-border-soft);
+}
+.open-doc .home-side-nav-title{
+  margin:4px 9px 10px;font-size:10px;font-weight:700;
+  letter-spacing:.09em;color:var(--color-text-secondary)
+}
+.open-doc .home-side-nav button{
+  display:flex;align-items:center;gap:13px;min-height:43px;
+  text-align:left;color:var(--color-text-primary);
+  border:1px solid transparent;border-radius:11px;background:transparent;
+  padding:10px 12px;font-size:13px;line-height:1.35;
+  cursor:pointer
+}
+.open-doc .home-side-nav button:hover,
+.open-doc .home-side-nav button:focus-visible{
+  border-color:var(--color-border);background:var(--of-surface-low)
+}
+.open-doc .home-side-nav button[aria-current=page]{
+  background:var(--color-primary-soft);color:var(--color-primary);font-weight:650
+}
+.open-doc .home-side-nav svg{display:block;flex:0 0 19px;width:19px;height:19px;stroke:currentColor;fill:none}
+.open-doc .home-side-divider{border-top:1px solid var(--color-border-soft);margin:9px 7px}
+.open-doc .home-inner{grid-column:2;grid-row:1;max-width:min(calc(100% - 48px),var(--home-max-width))}
