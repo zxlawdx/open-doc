@@ -207,6 +207,7 @@
       this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.selectedIds=new Set();this.current=0;this.drag=null;
       this.pan=null;this.spacePressed=false;this.imageReplacement=null;
+      this.paintActive=false;this.inlineEditing=null;
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
       this.imageInput=document.createElement("input");this.imageInput.type="file";
       this.imageInput.accept="image/png,image/jpeg,image/webp";this.imageInput.hidden=true;
@@ -257,6 +258,70 @@
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
+      const paintLabel=document.createElement("label");paintLabel.className="slide-paint-selector";
+      paintLabel.textContent="Cor";
+      this.paintColor=document.createElement("input");this.paintColor.type="color";
+      this.paintColor.value="#DAE2FD";this.paintColor.setAttribute("aria-label","Cor do balde");
+      paintLabel.append(this.paintColor);this.toolbar.append(paintLabel);
+      this.paintButton=this._button("Balde",()=>{
+        this.paintActive=!this.paintActive;
+        this.paintButton.setAttribute("aria-pressed",String(this.paintActive));
+        this.status(this.paintActive
+          ?"Balde ativo: clique em uma forma para aplicar a cor."
+          :"Balde desativado.");
+      },"Pintar formas clicando diretamente no slide");
+      this.paintButton.setAttribute("aria-pressed","false");
+      this._button("Pintar seleção",()=>{
+        if(!this.selectedIds.size)return this.status("Selecione uma forma para colorir.");
+        const ids=new Set(this.selectedIds),color=this.paintColor.value;
+        this.commands.apply(slides=>{
+          for(const obj of slides[this.current].elements){
+            if(!ids.has(obj.id)||obj.type==="image")continue;
+            obj[obj.type==="text"?"color":obj.type==="line"?"stroke":"fill"]=color;
+          }
+        });
+        this.status("Cor aplicada aos objetos selecionados.");
+      });
+      this._organizeRibbon();
+    }
+    _organizeRibbon(){
+      const actions=Array.from(this.toolbar.querySelectorAll("button"));
+      const tabs=document.createElement("div");tabs.className="slide-ribbon-tabs";
+      const body=document.createElement("div");body.className="slide-ribbon-body";
+      const categories=[
+        {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide"]},
+        {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem"]},
+        {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]}
+      ];
+      const panels=[];
+      for(const item of categories){
+        const tab=document.createElement("button");tab.type="button";tab.textContent=item.label;
+        tab.className="slide-ribbon-tab";tabs.append(tab);
+        const group=document.createElement("div");group.className="slide-ribbon-group";group.hidden=true;
+        group.setAttribute("aria-label","Ferramentas de "+item.label);
+        for(const action of actions){
+          if(item.labels.includes(action.textContent))group.append(action);
+        }
+        if(item.label==="Formatar")group.prepend(this.toolbar.querySelector(".slide-paint-selector"));
+        body.append(group);panels.push([tab,group]);
+        tab.addEventListener("click",()=>activate(item.label),{signal:this.signal});
+      }
+      const activate=label=>{
+        panels.forEach(([tab,panel],i)=>{
+          const enabled=categories[i].label===label;
+          tab.setAttribute("aria-selected",String(enabled));panel.hidden=!enabled;
+        });
+      };
+      this.toolbar.prepend(tabs,body);activate("Inserir");
+    }
+    _paintObject(index,id){
+      const obj=this.getModel().surfaces[index].elements.find(item=>item.id===id);
+      if(!obj)return;
+      if(obj.type==="image")return this.status("O balde não altera os pixels de uma imagem.");
+      const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
+      this.commands.updateObject(index,id,{[property]:this.paintColor.value});
+      this._selectObject(id);
+      this.status("Cor aplicada a "+(obj.name||labelFor(obj.type))+".");
     }
     _transferImage(data){
       if(!data)return null;
@@ -333,18 +398,22 @@
         const changedSlide=targetIndex!==this.current;
         this.current=targetIndex;
         const item=event.target.closest("[data-slide-element]");
+        if(event.target.closest(".slide-inline-editor"))return;
+        if(this.paintActive&&item){
+          this._paintObject(targetIndex,item.dataset.slideElement);this.render();return;
+        }
         this._selectObject(item?item.dataset.slideElement:null,!changedSlide&&event.shiftKey);
         this.render();
       },{signal:this.signal});
       this.scroller.addEventListener("dblclick",event=>{
-        if(!this.active)return;
-        const item=event.target.closest('[data-slide-element][data-kind="text"]');
+        if(!this.active||this.paintActive)return;
+        const item=event.target.closest('[data-slide-element]');
         if(!item)return;
-        event.preventDefault();
         const index=Number(item.closest(".fixed-surface").dataset.pageIndex),id=item.dataset.slideElement;
-        const next=window.prompt?.("Editar texto do slide",item.textContent.trim());
-        if(next===null||next===undefined)return;
-        this.commands.updateObject(index,id,{text:next.slice(0,10000)});
+        const obj=this.getModel().surfaces[index].elements.find(e=>e.id===id);
+        if(!obj||(obj.type!=="text"&&!obj.text))return;
+        event.preventDefault();event.stopPropagation();
+        this._editText(index,id,item,obj.text);
       },{signal:this.signal});
       this.root.addEventListener("keydown",event=>{
         if(!this.active)return;
@@ -425,6 +494,31 @@
       this.current=replacement?replacement.index:targetIndex;
       this._selectObject(id);this.render();
     }
+    _editText(index,id,node,value){
+      if(this.inlineEditing)return;
+      const editor=document.createElement("textarea");
+      editor.className="slide-inline-editor";editor.value=value||"";
+      editor.maxLength=10000;editor.setAttribute("aria-label","Editar texto diretamente no slide");
+      const previous=node.style.overflow;
+      node.replaceChildren(editor);node.style.overflow="hidden";
+      this.inlineEditing=editor;
+      let finished=false;
+      const finish=save=>{
+        if(finished)return;finished=true;
+        this.inlineEditing=null;node.style.overflow=previous;
+        if(save&&editor.value!==value)
+          this.commands.updateObject(index,id,{text:editor.value.slice(0,10000)});
+        else this.render();
+      };
+      editor.addEventListener("keydown",event=>{
+        if(event.key==="Escape"){event.preventDefault();finish(false);}
+        if((event.ctrlKey||event.metaKey)&&event.key==="Enter"){
+          event.preventDefault();finish(true);
+        }
+      },{signal:this.signal});
+      editor.addEventListener("blur",()=>finish(true),{signal:this.signal});
+      editor.focus();editor.select();
+    }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
     _makeObject(obj,index,thumb=false){
       const node=document.createElement("div");node.className="slide-object slide-object-"+obj.type;
@@ -459,8 +553,16 @@
       }else if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
-        const handle=document.createElement("span");handle.className="slide-resize-handle";handle.dataset.resize="true";
-        handle.setAttribute("aria-label","Redimensionar objeto");node.append(handle);
+        for(const direction of ["nw","n","ne","e","se","s","sw","w"]){
+          const handle=document.createElement("span");
+          handle.className="slide-resize-handle slide-handle-"+direction;
+          handle.dataset.resize=direction;
+          handle.setAttribute("aria-label","Redimensionar: "+direction);node.append(handle);
+        }
+        const rotate=document.createElement("span");
+        rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
+        rotate.setAttribute("aria-label","Girar objeto");
+        node.append(rotate);
       }
       return node;
     }
@@ -693,7 +795,8 @@
       event?.preventDefault();return true;
     }
     _start(event){
-      if(!this.active||event.button!==0||event.shiftKey)return;
+      if(!this.active||event.button!==0||event.shiftKey||this.paintActive)return;
+      if(event.target.closest(".slide-inline-editor"))return;
       const node=event.target.closest("[data-slide-element]");
       if(!node)return;
       const surface=node.closest(".fixed-surface"),index=Number(surface.dataset.pageIndex);
@@ -704,17 +807,33 @@
       this._properties();
       const box=surface.getBoundingClientRect();
       if(!box.width||!box.height)return;
+      const handle=event.target.closest("[data-resize]")?.dataset.resize||null;
+      const rotating=Boolean(event.target.closest("[data-rotate]"));
+      const centerX=box.left+(obj.x+obj.width/2)*box.width;
+      const centerY=box.top+(obj.y+obj.height/2)*box.height;
       this.drag={index,id:obj.id,startX:event.clientX,startY:event.clientY,
-        initial:clone(obj),box,node,resizing:Boolean(event.target.closest("[data-resize]")),value:null};
+        initial:clone(obj),box,node,handle,rotating,centerX,centerY,
+        startingAngle:Math.atan2(event.clientY-centerY,event.clientX-centerX),value:null};
       event.preventDefault();event.stopPropagation();
     }
     _drag(event){
       const state=this.drag;if(!state||!this.active)return;
       const dx=(event.clientX-state.startX)/state.box.width,dy=(event.clientY-state.startY)/state.box.height;
       const item={...state.initial};
-      if(state.resizing){
-        item.width=clamp(state.initial.width+dx,.01,1-state.initial.x);
-        item.height=clamp(state.initial.height+dy,.01,1-state.initial.y);
+      if(state.rotating){
+        const angle=Math.atan2(event.clientY-state.centerY,event.clientX-state.centerX);
+        item.rotation=clamp(Math.round((state.initial.rotation||0)
+          +(angle-state.startingAngle)*180/Math.PI),-360,360);
+      }else if(state.handle){
+        const h=state.handle;
+        const left=state.initial.x,right=left+state.initial.width;
+        const top=state.initial.y,bottom=top+state.initial.height;
+        if(h.includes("w"))item.x=clamp(left+dx,0,right-.01);
+        if(h.includes("n"))item.y=clamp(top+dy,0,bottom-.01);
+        if(h.includes("e"))item.width=clamp(right+dx-item.x,.01,1-item.x);
+        else item.width=right-item.x;
+        if(h.includes("s"))item.height=clamp(bottom+dy-item.y,.01,1-item.y);
+        else item.height=bottom-item.y;
       }else{
         item.x=clamp(state.initial.x+dx,0,1-state.initial.width);
         item.y=clamp(state.initial.y+dy,0,1-state.initial.height);
@@ -726,8 +845,10 @@
       const drag=this.drag;if(!drag)return;
       this.drag=null;
       if(!drag.value){this.render();return;}
-      const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,height:drag.value.height};
-      if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,width:drag.initial.width,height:drag.initial.height}))return;
+      const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,
+        height:drag.value.height,rotation:drag.value.rotation};
+      if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,
+        width:drag.initial.width,height:drag.initial.height,rotation:drag.initial.rotation}))return;
       this.commands.updateObject(drag.index,drag.id,patch);
       event.preventDefault();
     }
