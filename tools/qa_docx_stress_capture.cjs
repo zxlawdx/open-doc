@@ -112,6 +112,17 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
        rootAnchor:node===rich,rangeContainer:range?.startContainer?.nodeName,mark};
    })()`);
    console.log('QT_DOCX_STRESS_CARET_BEFORE_BACKSPACE',total,JSON.stringify(caret));
+   const probe=await evaluate(`(()=>{
+     const app=OpenDocApp.editor(),selection=getSelection(),model=app.snapshot().content;
+     const tx=window.OpenDocLogicalTransactions;
+     if(!tx)return {module:false};
+     const match=tx.inspectBackspace(document.querySelector('[data-rich]'),selection,model);
+     const anchor=selection.anchorNode,el=anchor?.nodeType===3?anchor.parentElement:anchor;
+     const id=el?.closest('[data-node-id]')?.dataset.nodeId;
+     return {module:true,match,modelIndex:model.blocks.findIndex(b=>b.id===id),
+       modelBlocks:model.blocks.length};
+   })()`);
+   console.log('QT_DOCX_STRESS_LOGICAL_PROBE',total,JSON.stringify(probe));
    // Real native keyboard Backspace (not a synthetic event with no default action).
    for(let i=0;i<total;i++){
      if(i%25===0)console.log('QT_DOCX_STRESS_BACKSPACE_PROGRESS',total,i);
