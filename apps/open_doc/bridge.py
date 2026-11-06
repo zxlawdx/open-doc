@@ -93,6 +93,33 @@ class OpenDocBridge(BaseBridge):
                 )
             }
 
+    def export_slide(self, document_id, revision, slide_index):
+        """Native Save dialog; the application exports one editable PPTX slide."""
+        import webview
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        try:
+            descriptor = self._documents.export_descriptor(document_id, "pptx")
+            stem = Path(descriptor["filename"]).stem
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE,
+                directory=str(descriptor["directory"]),
+                save_filename=f"{stem} - slide {slide_index + 1}.pptx",
+                file_types=("Apresentação PowerPoint (*.pptx)",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            destination = paths if isinstance(paths, str) else paths[0]
+            return self._documents.export_selected_slide(
+                document_id, revision, slide_index, Path(destination)
+            )
+        except (ValueError, RevisionConflict) as exc:
+            return {"error": str(exc)}
+        except Exception:
+            LOGGER.exception("Falha ao exportar slide")
+            return {"error": "Falha ao exportar o slide. A apresentação original foi preservada."}
+
     def extract_pdf_pages(self, document_id, revision, first_page, last_page):
         """Native Save dialog for a page interval; no HTML-supplied paths."""
         import webview
