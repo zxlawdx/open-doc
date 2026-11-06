@@ -14,9 +14,18 @@ function setup(t, options = {}) {
     {url: "http://127.0.0.1:8000", runScripts: "outside-only"}
   );
   const window = dom.window;
-  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "editor_commands.js", "history.js", "recovery.js", "editor.js"]) {
+  const javascriptErrors=[];
+  window.addEventListener('error',event=>{
+    javascriptErrors.push(event.error?.stack||event.message||'Uncaught JavaScript error');
+  });
+  window.addEventListener('unhandledrejection',event=>{
+    javascriptErrors.push(String(event.reason?.stack||event.reason));
+  });
+  for (const file of ["compat.js", "vendor/marked.js", "vendor/purify.js", "vendor/turndown.js", "document_model.js", "rich_serializer.js", "rich_renderer.js", "editor_commands.js", "history.js", "recovery.js", "pagination.js", "editor.js"]) {
     window.eval(fs.readFileSync(path.join(rootPath, "apps/open_doc/static/js", file), "utf8"));
   }
+  for(const moduleName of ['OpenDocModel','OpenDocRichSerializer','OpenDocPagination','OpenDocEditor'])
+    assert.ok(window[moduleName],moduleName+' must be loaded before editor tests');
   const intervals = [];
   window.setInterval = (callback, delay) => { intervals.push({callback, delay}); return intervals.length; };
   window.clearInterval = () => {};
@@ -33,7 +42,11 @@ function setup(t, options = {}) {
   });
   editor.setMode("markdown");
   root.querySelectorAll("[data-mode]").forEach(button => button.addEventListener("click", () => editor.setMode(button.dataset.mode)));
-  t.after(() => { editor.destroy(); dom.window.close(); });
+  t.after(() => {
+    try{ editor.destroy(); assert.deepEqual(javascriptErrors,[],
+      'JavaScript runtime exceptions must fail the test, even if JSDOM logs them'); }
+    finally{dom.window.close();}
+  });
   const source = root.querySelector("[data-source]");
   function input(text) {
     source.value = text;
