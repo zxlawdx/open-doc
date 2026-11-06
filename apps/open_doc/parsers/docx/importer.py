@@ -332,6 +332,7 @@ class DocxImporter:
                 style_id=attr(prop.find(w("tblStyle"))),
                 layout=attr(prop.find(w("tblLayout")), "type"),
                 alignment=attr(prop.find(w("jc"))),
+                cell_spacing_pt=twips_to_pt(attr(prop.find(w("tblCellSpacing")),"w")),
             )
         active = {}
         for row in e.findall(w("tr")):
