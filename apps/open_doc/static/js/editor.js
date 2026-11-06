@@ -180,8 +180,10 @@
         structural=structural || ids!==model?.blocks.map(b=>b.id).join('|');
         // Markdown is a *secondary read-only view* for rich documents.
         // Serializing the whole document for each keystroke is O(N) work.
-        if(model)markdownStale=true;
-        else source.value=converter.turndown(rich.innerHTML);
+        if(model){
+          if(kind==='typing' && inputEvent)markdownStale=true;
+          else {source.value=window.OpenDocModel.markdown(model);markdownStale=false;}
+        }else source.value=converter.turndown(rich.innerHTML);
       }
       const blockId=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId || null;
       if(window.OpenDocDebug.input)console.debug('[OpenDoc input]',{beforeDom:beforeDom?.slice(-240),afterDom:rich.textContent.slice(-240),modelText:source.value.slice(-240),blockId,pageIndex:dirty?.closest('[data-page-index]')?.dataset.pageIndex,selection:commands.bookmark()});
