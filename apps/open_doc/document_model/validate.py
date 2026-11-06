@@ -150,6 +150,13 @@ def validate_rich_document(model):
                 ):
                     raise ValueError("Nível de lista inválido.")
             elif kind == "table":
+                spacing=obj.get("cell_spacing_pt")
+                if spacing is not None and (type(spacing) not in (int,float)
+                    or not math.isfinite(spacing) or not 0 <= spacing <= 36):
+                    raise ValueError("Espaçamento das células deve estar entre 0 e 36 pt.")
+                preset=obj.get("style_preset")
+                if preset is not None and preset not in ("grid","header","matrix","plain"):
+                    raise ValueError("Modelo de tabela inválido.")
                 if not isinstance(obj.get("rows"), list):
                     raise ValueError("Tabela inválida.")
                 for row in obj["rows"]:
