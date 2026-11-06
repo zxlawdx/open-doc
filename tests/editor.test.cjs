@@ -306,3 +306,21 @@ test('DOCX empty Enter paragraphs restore a caret inside the logical block, neve
  assert.equal(element.closest('[data-node-id]')?.dataset.nodeId,'p99');
  assert.notEqual(node,rich,'Backspace would otherwise delete physical page shells');
 });
+
+test('Backspace at DOCX page-shell caret is relocated into the last text block',t=>{
+ const q=setup(t);q.editor.setMode('rich');
+ const rich=q.root.querySelector('[data-rich]');
+ rich.innerHTML='<section class="document-page" data-page-index="0">'+
+   '<div data-page-content><p data-node-id="first"><br></p></div></section>'+
+   '<section class="document-page" data-page-index="1">'+
+   '<div data-page-content><p data-node-id="second"><br></p></div></section>';
+ const selection=q.window.getSelection(),range=q.window.document.createRange();
+ range.setStart(rich,1);range.collapse(true);
+ selection.removeAllRanges();selection.addRange(range);
+ rich.dispatchEvent(new q.window.KeyboardEvent('keydown',
+   {key:'Backspace',bubbles:true,cancelable:true}));
+ const anchor=selection.anchorNode;
+ const el=anchor.nodeType===3?anchor.parentElement:anchor;
+ assert.equal(el.closest('[data-node-id]')?.dataset.nodeId,'first',
+   'physical pages must never be the browser native deletion target');
+});
