@@ -206,3 +206,35 @@ test('PDF search tolerates missing getTextContent items instead of throwing map 
    await new Promise(resolve=>setTimeout(resolve,5));
  assert.ok(messages.some(value=>value.includes('0 páginas com resultados')),'missing item lists are treated as empty');
 });
+
+test('editable PPTX Ctrl+F finds and selects actual slide text instead of a missing imported viewer',async t=>{
+ const dom=new JSDOM(html(),{runScripts:'outside-only'}),w=dom.window;
+ const root=w.document.querySelector('[data-app]'),abort=new w.AbortController();
+ t.after(()=>{abort.abort();w.close();});
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ w.IntersectionObserver=class{observe(){}disconnect(){}};
+ w.pywebview={api:{set_dirty:async()=>{}}};
+ for(const file of ['compat.js','document_model.js','history.js','recovery.js',
+   'slide_charts.js','slide_editor.js','fixed_document.js'])w.eval(source(file));
+ const statuses=[];
+ const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
+   asset:src=>'http://localhost/'+src,request:async()=>({}),status:s=>statuses.push(s)});
+ t.after(()=>editor.deactivate());
+ await editor.load({id:'editable-search',title:'Pesquisa',revision:1,source_kind:'pptx',
+   capabilities:{preview:true},content:{source_kind:'pptx',editable_deck:true,assets:{},
+     surfaces:[{index:0,width_pt:960,height_pt:540,background:'#FFFFFF',notes:'',
+       strokes:[],text_overlays:[],elements:[{id:'slide-text',name:'Título',
+       type:'text',text:'Congresso Acadêmico sobre Defesa',x:.1,y:.2,width:.65,height:.2,
+       font_size_pt:24,color:'#222222',fill:'#FFFFFF',stroke:'#444444',rotation:0}]}]}});
+ const input=root.querySelector('.fixed-controls input[type=search]');
+ w.dispatchEvent(new w.KeyboardEvent('keydown',{key:'f',ctrlKey:true,bubbles:true}));
+ assert.equal(w.document.activeElement,input);
+ input.value='congresso';
+ Array.from(root.querySelectorAll('.fixed-controls button')).find(b=>b.textContent==='Buscar').click();
+ const result=root.querySelector('[data-search-result]');
+ assert.ok(result,'search should expose a result for editable PPTX text');
+ assert.match(result.textContent,/Slide 1/);
+ assert.ok(root.querySelector('.slide-search-match'),
+   'the matching slide text object must visibly receive focus');
+ assert.ok(statuses.some(s=>s.includes('ocorrência(s)')));
+});

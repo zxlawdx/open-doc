@@ -146,3 +146,33 @@ test('long runs of blank Enter breaks paginate rather than overflowing one sheet
  assert.equal(pages.reduce((total,node)=>total+node.querySelectorAll('[data-page-content] br').length,0),90,
    'pagination must not lose blank lines');
 });
+
+test('1000 empty line breaks reflow with bounded height measurements and no data loss',async t=>{
+ const s=await setup(t);
+ s.editor.pagination().paginate();
+ const box=s.rich.querySelector('[data-page-content]');
+ box.replaceChildren();
+ const paragraph=s.w.document.createElement('p');
+ paragraph.dataset.nodeId='stress-enter';
+ for(let n=0;n<1000;n++)paragraph.append(s.w.document.createElement('br'));
+ box.append(paragraph);
+ const original=s.w.HTMLElement.prototype.getBoundingClientRect;
+ let measurements=0;
+ s.w.HTMLElement.prototype.getBoundingClientRect=function(){
+   if(this.matches('[data-page-content]')){
+     measurements++;
+     const height=Array.from(this.children).reduce((sum,node)=>
+       sum+Math.max(1,node.querySelectorAll('br').length)*32,0);
+     return {top:0,bottom:height,left:0,right:600,height,width:600};
+   }
+   return original.call(this);
+ };
+ const start=Date.now();
+ s.editor.pagination().setMode('pages');
+ const pages=Array.from(s.rich.querySelectorAll('[data-page-index]'));
+ const total=pages.reduce((n,node)=>n+node.querySelectorAll('[data-page-content] br').length,0);
+ assert.equal(total,1000,'no empty input lines are discarded');
+ assert.ok(pages.length>5,'oversized input must spill to additional pages');
+ assert.ok(measurements<850,'height reflows must not be linear in BR count per page');
+ assert.ok(Date.now()-start<7000,'regression must not enter a long main-thread loop');
+});

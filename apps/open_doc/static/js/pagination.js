@@ -33,7 +33,7 @@
   function logical(surface){const container=document.createElement('div');contents(surface,true).forEach(n=>container.appendChild(n));return container;}
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
-    let mode='pages',timer=null,frame=null,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false;
+    let mode='pages',timer=null,frame=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
@@ -70,10 +70,14 @@
           // splitting BR nodes, one paragraph grows beyond the paper boundary.
           const rest=node.cloneNode(false);
           rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
+          // Move chunks, not individual BRs. Re-measuring layout once per
+          // empty line was quadratic and froze Qt for large Enter sequences.
           while(overflow()){
             const breaks=Array.from(node.children).filter(child=>child.tagName==='BR');
             if(breaks.length<=1)break;
-            rest.prepend(breaks[breaks.length-1]);
+            const count=Math.max(1,Math.floor(breaks.length/2));
+            for(let step=0;step<count;step++)
+              rest.prepend(breaks[breaks.length-1-step]);
           }
           if(rest.childNodes.length)nodes.splice(i+1,0,rest);
         }else if(overflow() && /^(P|H[1-6]|BLOCKQUOTE|PRE)$/.test(node.tagName) && node.textContent.length>1){
@@ -107,8 +111,23 @@
       const index=options.full?0:Number.isInteger(options.pageIndex)?options.pageIndex:page?Number(page.dataset.pageIndex):dirtyPage;
       dirtyPage=Math.min(dirtyPage,index);
       clearTimeout(timer);
+      const generation=++epoch;
+      if(frame!==null){
+        (window.cancelAnimationFrame || window.clearTimeout)(frame);
+        frame=null;
+      }
       if(composing){pendingComposition=true;return;}
-      timer=setTimeout(()=>{frame=(window.requestAnimationFrame || window.setTimeout)(paginate);},options.reason==='typing'?450:100);
+      timer=setTimeout(()=>{
+        frame=(window.requestAnimationFrame || window.setTimeout)(()=>{
+          frame=null;
+          if(destroyed||generation!==epoch)return;
+          try{paginate();}catch(error){
+            console.error('Open Doc: falha na paginação',error);
+            root.dispatchEvent(new CustomEvent('open-doc:layout-error',
+              {detail:{message:'Erro ao paginar. O documento continua disponível para recuperação.'}}));
+          }
+        });
+      },options.reason==='typing'?450:120);
     }
     function fits(blockId){
       const node=Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId || n.dataset.fragmentOf===blockId),page=node?.closest('[data-page-index]'),box=page?.querySelector('[data-page-content]');
@@ -118,14 +137,18 @@
       // Existing fragments may need rebalancing even after deleting text.
       return capacity>0 && height<=capacity+1 && !surface.querySelector('[data-fragment-of="'+blockId+'"]');
     }
-    function setMode(value){mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;paginate();}
+    function setMode(value){
+      clearTimeout(timer);epoch++;
+      if(frame!==null){(window.cancelAnimationFrame || window.clearTimeout)(frame);frame=null;}
+      mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;paginate();
+    }
     const change=event=>{const {blockId,reason,structural}=event.detail || {};if(reason==='typing' && !structural && blockId && fits(blockId))return;invalidate(blockId,{reason,preserveScroll:true});};
     const startComposition=()=>{composing=true;clearTimeout(timer);};
     const endComposition=()=>{composing=false;if(pendingComposition){pendingComposition=false;change({detail:{reason:'typing'}});}};
     surface.addEventListener('compositionstart',startComposition);surface.addEventListener('compositionend',endComposition);
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
     document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
-    function destroy(){destroyed=true;clearTimeout(timer);(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
+    function destroy(){destroyed=true;clearTimeout(timer);epoch++;(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
     return {paginate,invalidate,fits,destroy,setMode,active,metrics,logical:()=>logical(surface)};
   }
   window.OpenDocPagination={create,logical,contents,normalize,defaults};

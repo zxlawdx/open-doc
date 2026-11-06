@@ -5,12 +5,19 @@
  function create({root,request,status,token,asset,signal}){
   const host=document.createElement('section');host.className='fixed-document';host.hidden=true;root.querySelector('[data-document-body]').after(host);
   const controls=document.createElement('div');controls.className='fixed-controls';const sidebar=document.createElement('aside');sidebar.className='fixed-sidebar';sidebar.setAttribute('aria-label','Páginas e marcadores');const scroller=document.createElement('div');scroller.className='fixed-scroll';scroller.tabIndex=0;host.append(controls,sidebar,scroller);
-  let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null;
+  let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,searchTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),searchingPages=new Set(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null;
   const history=window.OpenDocHistory.create(),title=root.querySelector('[data-title]');
   const semantic=window.OpenDocSemanticAnnotations?.create({host,root,scroller,sidebar,signal,getModel:()=>model,getPage:index=>renderedPages.get(index),getZoom:()=>zoom,go,status,update:items=>{model=clone(model);model.annotations=items;changed();}});
   const slidesEditor=window.OpenDocSlidesEditor?.create({
     host,root,controls,scroller,sidebar,signal,getModel:()=>model,getZoom:()=>zoom,status,
     update:next=>{model=next;changed();},go,undo:()=>format('undo'),redo:()=>format('redo'),
+    exportSlide:async index=>{
+      if(!model?.editable_deck)throw Error('Abra uma apresentação editável.');
+      await flush();
+      const result=await window.pywebview.api.export_slide(note.id,note.revision,index);
+      if(result.error)throw Error(result.error);
+      if(!result.cancelled){status('Salvo em: '+result.path);return result;}
+    },
     onRender:()=>{pageNodes=Array.from(scroller.querySelectorAll('.fixed-surface'));pageField.max=pageNodes.length;}
   });
   const pageField=document.createElement('input');pageField.type='number';pageField.min='1';pageField.value='1';pageField.setAttribute('aria-label','Ir para página');
@@ -104,11 +111,39 @@
       }catch(error){if(generation===epoch)pageError(node,index,'links',error);}
        if(generation===epoch)semantic?.renderPage(index,page);
     }catch(error){if(canvas?.dataset.renderComplete!=='true')canvas?.remove();if(error.name!=='RenderingCancelledException' && generation===epoch)pageError(node,index,'canvas',error);}
-    finally{rendering.delete(index);renderTasks.delete(index);if(page && !node.querySelector('canvas')){page.cleanup();if(renderedPages.get(index)===page)renderedPages.delete(index);}}
+    finally{rendering.delete(index);renderTasks.delete(index);if(page && !node.querySelector('canvas') && !searchingPages.has(index)){page.cleanup();if(renderedPages.get(index)===page)renderedPages.delete(index);}}
   }
-  function lazy(){if((!pdf && !pptx) || !active)return;const viewport=scroller.getBoundingClientRect();let first=pageNodes.findIndex(n=>n.getBoundingClientRect().bottom>viewport.top);first=Math.max(0,first);pageField.value=first+1;root.querySelector('[data-position]').textContent='Página '+(first+1)+' de '+pageNodes.length;for(let i=0;i<pageNodes.length;i++){if(Math.abs(i-first)<=2)render(i,epoch).catch(e=>status(e.message));else if(Math.abs(i-first)>4){renderTasks.get(i)?.cancel();pageNodes[i].querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content').forEach(n=>n.remove());if(!rendering.has(i) && renderedPages.has(i)){renderedPages.get(i).cleanup();renderedPages.delete(i);}}}}
+  function lazy(){if((!pdf && !pptx) || !active)return;const viewport=scroller.getBoundingClientRect();let first=pageNodes.findIndex(n=>n.getBoundingClientRect().bottom>viewport.top);first=Math.max(0,first);pageField.value=first+1;root.querySelector('[data-position]').textContent='Página '+(first+1)+' de '+pageNodes.length;for(let i=0;i<pageNodes.length;i++){if(Math.abs(i-first)<=2)render(i,epoch).catch(e=>status(e.message));else if(Math.abs(i-first)>4){renderTasks.get(i)?.cancel();pageNodes[i].querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content').forEach(n=>n.remove());if(!rendering.has(i) && !searchingPages.has(i) && renderedPages.has(i)){renderedPages.get(i).cleanup();renderedPages.delete(i);}}}}
   async function destination(dest){if(typeof dest==='string')dest=await pdf.getDestination(dest);if(!dest)return;go(typeof dest[0]==='number'?dest[0]:await pdf.getPageIndex(dest[0]));}
   async function find(){
+    if(model?.editable_deck){
+      const term=search.value.trim().toLocaleLowerCase();
+      sidebar.querySelectorAll('[data-search-result]').forEach(node=>node.remove());
+      if(!term){status('Digite o texto que deseja localizar.');return;}
+      const matches=[];
+      model.surfaces.forEach((slide,index)=>{
+        (slide.elements||[]).forEach(obj=>{
+          const text=String(obj.text||'');
+          if(text.toLocaleLowerCase().includes(term))matches.push({index,id:obj.id,text});
+        });
+      });
+      const focus=match=>{
+        go(match.index);
+        slidesEditor?.selectSearchResult(match.index,match.id);
+      };
+      for(const match of matches){
+        const result=document.createElement('button');
+        result.dataset.searchResult='';result.dataset.searchPage=String(match.index);
+        result.className='slide-search-result';
+        result.textContent='Slide '+(match.index+1)+' · '+match.text.slice(0,70);
+        result.title='Ir ao texto encontrado no slide '+(match.index+1);
+        result.addEventListener('click',()=>focus(match),{signal});
+        sidebar.append(result);
+      }
+      if(matches.length)focus(matches[0]);
+      status(matches.length+' ocorrência(s) localizada(s) nos slides.');
+      return;
+    }
     if(pptx){const matches=pptx.find(search.value);status(matches.length+' slides com resultados.');if(matches.length)go(matches[0]);return;}
     const query=search.value.trim();
     if(!pdf || !query)return;
@@ -130,10 +165,19 @@
         const slot=cursor++;
         if(slot>=order.length)return;
         const index=order[slot];
+        searchingPages.add(index);
         try{
           const page=await pdf.getPage(index+1);
           if(!valid())return;
-          const extracted=await page.getTextContent();
+          let extracted;
+          try{extracted=await page.getTextContent();}
+          catch(error){
+            if(!valid())return;
+            // A concurrent PDF.js canvas cleanup can transiently invalidate
+            // text internals. Retry once while this page is protected.
+            await new Promise(resolve=>setTimeout(resolve,45));
+            extracted=await page.getTextContent();
+          }
           if(!valid())return;
           const items=Array.isArray(extracted?.items)?extracted.items:[];
           const text=items.map(item=>String(item?.str||'')).join(' ').toLocaleLowerCase();
@@ -154,7 +198,7 @@
           if(!valid())return;
           failures++;
           console.error('Open Doc: falha ao pesquisar página '+(index+1),error);
-        }
+        }finally{searchingPages.delete(index);}
       }
     };
     await Promise.all(Array.from({length:Math.min(4,total)},()=>worker()));
@@ -163,9 +207,17 @@
     status(matches.length+' páginas com resultados.'+(failures?' '+failures+' páginas não puderam ser examinadas.':''));
   }
   search.addEventListener('input',()=>{
+    clearTimeout(searchTimer);
     searchEpoch++;
     sidebar.querySelectorAll('[data-search-result]').forEach(node=>node.remove());
     pageNodes.forEach(node=>node.querySelector('.pdf-search-overlays')?.remove());
+    if(search.value.trim())searchTimer=setTimeout(()=>find().catch(error=>status(error.message)),260);
+  },{signal});
+  search.addEventListener('keydown',event=>{
+    if(event.key==='Enter'){
+      event.preventDefault();clearTimeout(searchTimer);
+      find().catch(error=>status(error.message));
+    }
   },{signal});
   async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
@@ -233,13 +285,13 @@
   title.addEventListener('input',()=>{if(active)changed();},{signal});scroller.addEventListener('scroll',lazy,{signal});
   function format(command){if(locked)return;if(command==='undo' || command==='redo'){const value=history[command]();if(value){model=clone(value.content);title.value=value.title;clearTimeout(timer);timer=setTimeout(()=>flush().catch(e=>status(e.message)),800);texts();semantic?.refresh();slidesEditor?.render();root.dispatchEvent(new CustomEvent('open-doc:content'));}}}
   window.addEventListener('keydown',e=>{if(!active || !(e.ctrlKey || e.metaKey))return;
-    if(e.key.toLowerCase()==='f' && note?.source_kind==='pdf'){
+    if(e.key.toLowerCase()==='f' && (note?.source_kind==='pdf'||note?.source_kind==='pptx')){
       e.preventDefault();search.focus();search.select();return;
     }
     if(e.key.toLowerCase()==='s'){e.preventDefault();flush().catch(e=>status(e.message));}if(['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
   window.addEventListener('beforeunload',e=>{if(active && signature()!==saved){request('document/recovery',snapshot()).catch(()=>{});e.preventDefault();e.returnValue='';}},{signal});
   signal.addEventListener('abort',()=>{clearTimeout(timer);clearTimeout(recoveryTimer);epoch++;thumbObserver?.disconnect();pdf?.destroy();pptx?.destroy();host.remove();},{once:true});
-  return {load,flush,snapshot,inkLayers,setInkLayers,insertRecognized,format,export:exportDocument,isClean:()=>!note || signature()===saved,setLocked:v=>{locked=v;title.disabled=v;},setMode:()=>{},capture:()=>{},refresh:lazy,style:()=>{},textState:()=>({}),commandState:()=>false,pagination:()=>null,pageView:()=>{},copy:async()=>{await flush();const duplicate=await request('document/duplicate',{id:note.id});load(duplicate);return duplicate;},deactivate:()=>{slidesEditor?.deactivate();active=false;epoch++;searchEpoch++;clearTimeout(timer);clearTimeout(recoveryTimer);thumbObserver?.disconnect();for(const task of renderTasks.values())task.cancel();renderTasks.clear();renderedPages.clear();rendering.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;pageNodes=[];scroller.replaceChildren();host.hidden=true;},find:()=>search.focus()};
+  return {load,flush,snapshot,inkLayers,setInkLayers,insertRecognized,format,export:exportDocument,isClean:()=>!note || signature()===saved,setLocked:v=>{locked=v;title.disabled=v;},setMode:()=>{},capture:()=>{},refresh:lazy,style:()=>{},textState:()=>({}),commandState:()=>false,pagination:()=>null,pageView:()=>{},copy:async()=>{await flush();const duplicate=await request('document/duplicate',{id:note.id});load(duplicate);return duplicate;},deactivate:()=>{slidesEditor?.deactivate();active=false;epoch++;searchEpoch++;searchingPages.clear();clearTimeout(timer);clearTimeout(recoveryTimer);clearTimeout(searchTimer);thumbObserver?.disconnect();for(const task of renderTasks.values())task.cancel();renderTasks.clear();renderedPages.clear();rendering.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;pageNodes=[];scroller.replaceChildren();host.hidden=true;},find:()=>search.focus()};
  }
  window.OpenDocFixedDocument={create};
 })();
