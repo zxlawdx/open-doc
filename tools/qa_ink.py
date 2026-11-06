@@ -216,7 +216,7 @@ def main():
             print("QT_NATIVE_FULLSCREEN_SCREEN_GEOMETRY_VERIFIED_OK", flush=True)
             window.evaluate_js(
                 "document.querySelector('.slide-presentation-controls "
-                "button[aria-label^=\\\"Encerrar\\\"]')?.click()"
+                "button[aria-label^=Encerrar]')?.click()"
             )
             for _ in range(90):
                 state = window.js_api.window_get_state()
