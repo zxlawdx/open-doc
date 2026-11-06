@@ -120,6 +120,22 @@ class OpenDocBridge(BaseBridge):
             LOGGER.exception("Falha ao exportar slide")
             return {"error": "Falha ao exportar o slide. A apresentação original foi preservada."}
 
+    def choose_pdf_image(self, document_id, revision):
+        import webview
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        paths = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=False,
+            file_types=("Imagens PNG e JPEG (*.png;*.jpg;*.jpeg)",),
+        )
+        if not paths:
+            return {"cancelled": True}
+        try:
+            return self._documents.store_pdf_image(document_id, revision, Path(paths[0]))
+        except (ValueError, RevisionConflict, OSError) as exc:
+            return {"error": str(exc)}
+
     def extract_pdf_pages(self, document_id, revision, first_page, last_page):
         """Native Save dialog for a page interval; no HTML-supplied paths."""
         import webview
