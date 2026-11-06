@@ -51,9 +51,25 @@ const destination = path.resolve(__dirname, '../docs/images/ink');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.textLayer span')).color"),'rgba(0, 0, 0, 0)');
   console.log('QT_PDF_300_PAGES_BOUNDED_RENDER_AND_OVERLAY_GEOMETRY_OK');
   assert.match(await evaluate(`(() => {const layer=document.querySelector('.textLayer'),range=document.createRange();range.selectNodeContents(layer);getSelection().removeAllRanges();getSelection().addRange(range);const text=getSelection().toString();getSelection().removeAllRanges();return text;})()`),/Pagina 1 texto pesquisavel/);
+  await evaluate(`(() => {
+    window.__pdfSearchErrors=[];
+    const previousError=console.error.bind(console);
+    console.error=(...parts)=>{
+      const message=parts.map(part=>String(part?.message||part)).join(' ');
+      if(message.includes('falha ao pesquisar'))__pdfSearchErrors.push(message);
+      previousError(...parts);
+    };
+    window.addEventListener('error',error=>{
+      const message=String(error.message||'');
+      if(message.includes("Cannot read property 'map'"))__pdfSearchErrors.push(message);
+    });
+  })()`);
   await evaluate("document.querySelector('.fixed-controls input[type=search]').value='Pagina 299 texto';Array.from(document.querySelectorAll('.fixed-controls button')).find(b=>b.textContent==='Buscar').click()");
   for(let i=0;i<80;i++){if(await evaluate("!!document.querySelector('[data-search-result]')"))break;await pause();}
   assert.match(await evaluate("document.querySelector('[data-search-result]')?.textContent"),/299/);
+  await pause();await pause();
+  assert.deepEqual(await evaluate('window.__pdfSearchErrors'),[],
+    'PDF Ctrl+F must not log text extraction/map errors while pages are rendered lazily');
   await evaluate("const page=document.querySelector('.fixed-controls input[type=number]');page.value=1;page.dispatchEvent(new Event('change'));const search=document.querySelector('.fixed-controls input[type=search]');search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));");await pause();await pause();
   console.log('QT_PDF_TEXT_SELECTION_AND_SEARCH_PAGE_299_OK');
   await click('[data-ink-mode=handwriting]');
