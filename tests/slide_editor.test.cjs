@@ -27,7 +27,7 @@ function setup(t, options={}){
  let selected=0;
  const editor=w.OpenDocSlidesEditor.create({root,host,controls,scroller,sidebar,signal:abort.signal,
    getModel:()=>model,update:value=>{model=value;versions.push(JSON.stringify(value));},
-   status:()=>{},getZoom:()=>1,go:index=>{selected=index;editor.onPageChange(index);},
+   status:()=>{},getZoom:()=>options.zoom??1,go:index=>{selected=index;editor.onPageChange(index);},
    undo:()=>{},redo:()=>{},onRender:()=>{},exportSlide:options.exportSlide});
  editor.load();
  return {w,root,host,controls,scroller,sidebar,editor,model:()=>model,versions,selected:()=>selected};
@@ -672,4 +672,17 @@ test('Exportar slide is a visible command and delegates selected index to native
  assert.deepEqual(exported,[1]);
  assert.ok(Array.from(q.controls.querySelectorAll('.slide-ribbon-group'))
    .some(group=>!group.hidden&&group.textContent.includes('Exportar slide')));
+});
+
+test('presentation does not inherit zoom-scaled object coordinates from authoring canvas',t=>{
+ const q=setup(t,{zoom:.75});
+ clickLabel(q.controls,'Retângulo');
+ const inEditor=q.scroller.querySelector('.slide-object-rect');
+ assert.ok(Math.abs(parseFloat(inEditor.style.left)-192)<.01);
+ clickLabel(q.controls,'Apresentar');
+ const inShow=q.root.querySelector('.slide-presentation .slide-object-rect');
+ assert.ok(inShow,'native presentation must contain the shape');
+ assert.ok(Math.abs(parseFloat(inShow.style.left)-256)<.01,
+   'slide show positions must derive from 960pt model, not 75% editor zoom');
+ q.editor.stopPresentation();
 });
