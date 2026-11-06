@@ -1,14 +1,45 @@
 # Open Doc
 
-Open Doc é um editor de documentos desktop local-first construído com o Vela Framework.
-O editor visual abre numa folha branca, com menus clássicos, estrutura de títulos,
-busca local e ferramentas de formatação. Sem conta, nuvem ou CDN.
+O Open Doc é um aplicativo desktop de código aberto para escrever documentos,
+ler e anotar PDFs e montar apresentações. Os arquivos de trabalho ficam no
+computador. O uso cotidiano dispensa conta e sincronização em nuvem.
 
-![Editor Open Doc no Vela/Qt](docs/images/open-doc/styles-editor-1366.png)
+O projeto usa o [Vela Framework](https://github.com/zxlawdx/Vela-framework),
+desenvolvido pelo mesmo autor. O Vela integra o backend Python à interface
+HTML, CSS e JavaScript exibida em uma janela pywebview.
 
-## Executar
+![Editor de documentos do Open Doc no Qt](docs/images/open-doc/styles-editor-1366.png)
 
-Requer Python 3.10+, Git, dependências Qt e uma sessão gráfica. Para desenvolvimento a partir do código-fonte, Node 22+ e npm são pré-requisitos do pipeline de assets. O próprio `collectstatic` verifica as dependências locais do projeto e oferece executar `npm ci` quando necessário.
+## O que já dá para fazer
+
+| Área | Recursos |
+| --- | --- |
+| Biblioteca | Barra lateral com Página inicial, Recentes e Arquivos importados. Busca por título, filtros por formato e atalhos para criar ou importar arquivos. |
+| Documentos | Criar ou editar DOCX, formatar texto e parágrafos, configurar páginas, trabalhar com tabelas, importar dados CSV ou TSV e inserir expressões matemáticas. A calculadora insere resultados como texto editável. |
+| Tinta digital | Caneta, marca-texto livre, borracha parcial, remoção de traço inteiro e conversão opcional de manuscrito com um reconhecedor local. |
+| PDFs | Navegar, buscar, destacar, comentar, adicionar notas adesivas, extrair páginas e exportar cópias anotadas. PDFs digitais compatíveis também permitem substituir trechos de texto e salvar uma cópia corrigida. |
+| Apresentações | Criar ou importar PPTX, organizar slides, inserir texto, formas e imagens, criar gráficos editáveis, aplicar transições, apresentar em tela cheia e exportar um slide ou a apresentação inteira. |
+
+A edição de texto em PDF é experimental e depende da fonte e da composição do
+arquivo. OCR, digitalização e edição visual de imagens em PDF seguem pendentes.
+Arquivos DOCX e PPTX com layouts ou efeitos complexos podem apresentar diferenças
+na importação ou na exportação. Para um panorama técnico, veja
+[Layout e limites](#layout-e-limites).
+
+## Como testar
+
+Consulte a página de [Releases](https://github.com/zxlawdx/open-doc/releases)
+para ver os executáveis publicados. Também é possível rodar a versão do
+repositório seguindo os passos abaixo.
+
+### Executar pelo código-fonte
+
+Tenha Git, Python 3.10 ou mais recente, Node.js 22 ou mais recente com npm e
+uma sessão gráfica. O CI usa Python 3.12 e Node.js 22 no Windows e no Linux.
+O primeiro preparo baixa as dependências. O aplicativo usa os recursos
+compilados localmente.
+
+**Windows (PowerShell)**
 
 ```powershell
 git clone https://github.com/zxlawdx/open-doc.git
@@ -16,9 +47,26 @@ cd open-doc
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python manage.py collectstatic
+python manage.py collectstatic --yes
 python manage.py runapp
 ```
+
+**Linux (Bash)**
+
+```bash
+git clone https://github.com/zxlawdx/open-doc.git
+cd open-doc
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python manage.py collectstatic --yes
+python manage.py runapp
+```
+
+No Linux, o QtWebEngine depende de bibliotecas gráficas do sistema, incluindo
+Xtst, NSS, X11, xkbcommon, EGL e áudio. Para atualizar um clone na branch
+`main`, execute `git pull --ff-only origin main` e repita a instalação das
+dependências e o `collectstatic` antes de abrir o aplicativo.
 
 ### Executar sem Node.js (computador corporativo)
 
@@ -43,14 +91,12 @@ pré-compilados. Para alterar dependências JavaScript ou gerar novas classes
 Tailwind, use o fluxo de build normal em uma máquina autorizada com Node.
 Não é uma forma de contornar políticas corporativas de execução.
 
-Para atualizar um clone existente, use `git pull origin main` antes de instalar.
-No Linux/Mint, ative com `source .venv/bin/activate`. QtWebEngine precisa das
-bibliotecas gráficas do sistema (Xtst, NSS, X11, xkbcommon, EGL e áudio).
-`python main.py` usa o mesmo bootstrap oficial Vela.
+O comando `collectstatic` verifica as dependências Node do projeto. A opção
+`--yes` autoriza o `npm ci` quando necessário. Use `--no-install` para
+impedir essa instalação automática. `python main.py` usa o mesmo bootstrap
+do Vela.
 
-Se Node.js ou npm não estiverem instalados, `collectstatic` informa o pré-requisito e encerra sem tentar instalar pacotes do sistema. Se apenas `node_modules` estiver ausente ou inconsistente, o comando pede autorização antes de executar `npm ci`. Em CI ou automação não interativa use `python manage.py collectstatic --yes`; para proibir qualquer instalação automática use `--no-install`.
-
-## Recursos reais
+## Recursos em detalhe
 
 - Criar, renomear, reabrir e listar documentos recentes a partir do SQLite.
 - Editor visual estruturado; Markdown e preview em Exibir. Em documentos ricos, o Markdown é uma representação simplificada somente para leitura.
@@ -60,12 +106,13 @@ Se Node.js ou npm não estiverem instalados, `collectstatic` informa o pré-requ
 - Revisões transacionais, conflitos sem sobrescrita e salvar como cópia.
 - Recuperação SQLite após pausa de digitação de 600 ms e cache auxiliar local.
 - Importar DOCX abre imediatamente na folha editável, com pacote original preservado.
-- Biblioteca com capabilities do backend; PDF local com texto selecionável, busca, marcadores, miniaturas e renderização sob demanda.
+- PDF local com texto selecionável, busca, marcadores, miniaturas e renderização sob demanda. Comentários e destaques vinculados ao texto ficam no painel lateral.
 - Tinta vetorial compartilhada em DOCX/PDF/PPTX: caneta, marca-texto, borracha de traço, histórico e recuperação.
 - Reconhecimento local opcional de escrita com revisão antes de inserir texto na fonte escolhida.
-- PPTX anotável com renderer local independente de LibreOffice e exportação de tinta e texto nativo.
+- Leitor PPTX local independente de LibreOffice. Apresentações compatíveis podem ser editadas e exportadas com texto, formas, imagens, gráficos e transições.
 - Fontes disponíveis no sistema, tamanho 1–512 pt, sublinhado, tachado, sobrescrito/subscrito, cores, alinhamento, espaçamento e recuo.
-- Tabelas com tamanho configurável, navegação por Tab, inserção/exclusão de linhas e colunas, mescla horizontal e divisão.
+- Tabelas com modelos e tamanho configurável, importação de CSV ou TSV, navegação por Tab, edição de linhas e colunas, mescla horizontal e divisão.
+- Equações como texto Unicode editável, com paleta de símbolos, prévia e calculadora. Equações estruturadas do Word (OMML) ficam fora desse fluxo.
 - Exportar PDF, DOCX, HTML e Markdown pelo diálogo nativo **Salvar como**, com gravação atômica.
 - Importar fontes TTF/OTF/TTC locais, aplicar sem reiniciar e gerenciar o catálogo importado.
 - Páginas editáveis, quebra com Ctrl+Enter, página em branco e configuração de tamanho/orientação/margens.
