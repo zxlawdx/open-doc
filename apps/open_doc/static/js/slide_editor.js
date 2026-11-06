@@ -18,7 +18,7 @@
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
     Balde:"paint-bucket","Pintar seleção":"palette",Prévia:"play",Apresentar:"play",
-    Desfazer:"undo",Refazer:"redo"
+    "Exportar slide":"download",Desfazer:"undo",Refazer:"redo"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
   class SlideSvgRenderer {
@@ -220,8 +220,8 @@
   }
 
   class SlideStudio {
-    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender}){
-      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender});
+    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide}){
+      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide});
       this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
       this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.selectedIds=new Set();this.current=0;this.drag=null;
@@ -261,7 +261,8 @@
           if(this.paintActive&&label!=="Balde"&&this.paintButton){
             this.paintActive=false;this.paintButton.setAttribute("aria-pressed","false");
           }
-          action();
+          const result=action();
+          if(result&&typeof result.catch==="function")result.catch(error=>this.status(error.message));
         }catch(error){this.status(error.message);}
       },{signal:this.signal});this.toolbar.append(button);return button;
     }
@@ -271,6 +272,9 @@
       this._button("Excluir slide",()=>{this.commands.remove(this.current);this.current=clamp(this.current,0,this.getModel().surfaces.length-1);this._selectObject(null);});
       this._button("↑ Slide",()=>{this.commands.move(this.current,-1);this.current=clamp(this.current-1,0,this.getModel().surfaces.length-1);this._selectObject(null);});
       this._button("↓ Slide",()=>{this.commands.move(this.current,1);this.current=clamp(this.current+1,0,this.getModel().surfaces.length-1);this._selectObject(null);});
+      this._button("Exportar slide",()=>this.exportSlide?.(this.current)||
+        this.status("Exportação de slide indisponível."),
+        "Exportar o slide selecionado como PPTX editável");
       this._button("Texto",()=>this.add("text"));
       this._button("Retângulo",()=>this.add("rect"));
       this._button("Elipse",()=>this.add("ellipse"));
@@ -319,7 +323,7 @@
       const tabs=document.createElement("div");tabs.className="slide-ribbon-tabs";
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
-        {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide"]},
+        {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
         {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Prévia","Apresentar"]}
