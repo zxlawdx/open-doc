@@ -1,5 +1,38 @@
 <!-- Real Open Doc library; Ofício-inspired cards, no fabricated cloud state. -->
 <main class="home" data-library hidden aria-labelledby="recent-title">
+  <aside class="home-side-nav" aria-label="Navegação da biblioteca">
+    <p class="home-side-nav-title">ESPAÇO DE TRABALHO</p>
+    <button type="button" data-action="home" aria-current="page">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#home"></use></svg>
+      <span>Página inicial</span>
+    </button>
+    <button type="button" data-action="library-recent">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#clock"></use></svg>
+      <span>Recentes</span>
+    </button>
+    <button type="button" data-action="library-files">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg>
+      <span>Arquivos importados</span>
+    </button>
+    <div class="home-side-divider"></div>
+    <button type="button" data-action="import">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg>
+      <span>Abrir ou importar</span>
+    </button>
+    <button type="button" data-action="new">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#file-text"></use></svg>
+      <span>Novo documento</span>
+    </button>
+    <button type="button" data-action="presentation-new">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#slides"></use></svg>
+      <span>Nova apresentação</span>
+    </button>
+    <div class="home-side-divider"></div>
+    <button type="button" data-action="help-center">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#settings"></use></svg>
+      <span>Ajuda e soluções</span>
+    </button>
+  </aside>
   <div class="home-inner">
     <div class="home-hero">
       <div>
