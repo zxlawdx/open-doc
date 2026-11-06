@@ -142,5 +142,63 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  fs.writeFileSync(path.join(destination,'slide-native-image.png'),Buffer.from(imageShot.data,'base64'));
  fs.writeFileSync(path.join(destination,'slide-native-image.json'),JSON.stringify(imageGeometry,null,2));
  console.log('QT_SLIDE_NATIVE_IMAGE_VISIBLE_AND_SELECTABLE_OK');
+ // Real QtWebEngine viewport regression: PowerPoint-style one active slide.
+ // Check the actual physical DOM/geometry and screenshot at two sizes.
+ const initialCanvas=await evaluate(`(()=>{
+   const scroller=document.querySelector('.fixed-scroll');
+   return {pages:scroller.querySelectorAll('.fixed-surface').length,
+     active:scroller.querySelector('.fixed-surface')?.dataset.pageIndex,
+     thumbnails:document.querySelectorAll('.fixed-sidebar [data-thumbnail-index]').length,
+     workspace:!!scroller.querySelector('.slide-active-workspace')};
+ })()`);
+ assert.deepEqual(initialCanvas,{pages:1,active:'0',thumbnails:1,workspace:true});
+ await evaluate("Array.from(document.querySelectorAll('.slide-studio-toolbar button')).find(b=>b.textContent==='+ Slide').click()");
+ const second=await evaluate(`(()=>{
+   const scroller=document.querySelector('.fixed-scroll');
+   return {pages:scroller.querySelectorAll('.fixed-surface').length,
+     index:scroller.querySelector('.fixed-surface')?.dataset.pageIndex,
+     thumbs:document.querySelectorAll('.fixed-sidebar [data-thumbnail-index]').length,
+     current:document.querySelector('.fixed-sidebar [data-thumbnail-index="1"]')?.getAttribute('aria-current')};
+ })()`);
+ assert.deepEqual(second,{pages:1,index:'1',thumbs:2,current:'true'},
+   'Selecting slide 2 must replace physical slide 1, not stack it');
+ await click('.fixed-sidebar [data-thumbnail-index="0"]');
+ assert.equal(await evaluate("document.querySelector('.fixed-scroll .fixed-surface').dataset.pageIndex"),'0');
+ assert.equal(await evaluate("document.querySelectorAll('.fixed-scroll .fixed-surface').length"),1);
+ await click('.fixed-sidebar [data-thumbnail-index="1"]');
+ assert.equal(await evaluate("document.querySelector('.fixed-scroll .fixed-surface').dataset.pageIndex"),'1');
+ for(const [width,height] of [[1366,768],[1920,1080]]){
+   await send('Emulation.setDeviceMetricsOverride',
+     {width,height,deviceScaleFactor:1,mobile:false});
+   await pause();await pause();
+   const result=await evaluate(`(()=>{
+     const viewport=document.querySelector('.fixed-scroll');
+     const canvas=viewport.querySelector('.fixed-surface');
+     const side=document.querySelector('.fixed-sidebar');
+     const inspector=document.querySelector('.slide-inspector');
+     const p=canvas.getBoundingClientRect(),v=viewport.getBoundingClientRect();
+     const model=OpenDocApp.editor().snapshot().content;
+     const slide=model.surfaces[1];
+     return {pages:viewport.querySelectorAll('.fixed-surface').length,
+       thumbs:document.querySelectorAll('.fixed-sidebar [data-thumbnail-index]').length,
+       ratio:p.width/p.height,expected:slide.width_pt/slide.height_pt,
+       centerX:(p.left+p.right)/2,workspaceCenterX:(v.left+v.right)/2,
+       fits:p.width<=v.width+1&&p.height<=v.height+1,
+       sidebarWidth:side.getBoundingClientRect().width,
+       inspectorWidth:inspector.getBoundingClientRect().width,
+       page:{left:p.left,top:p.top,width:p.width,height:p.height},
+       viewport:{left:v.left,top:v.top,width:v.width,height:v.height}};
+   })()`);
+   assert.equal(result.pages,1,'Qt main workspace contains one slide');
+   assert.equal(result.thumbs,2,'Qt thumbnails remain independent');
+   assert.ok(Math.abs(result.ratio-result.expected)<.02,
+     'Qt active slide aspect ratio changed: '+JSON.stringify(result));
+   assert.ok(result.sidebarWidth>110&&result.inspectorWidth>160,
+     'The two side panels must stay visible: '+JSON.stringify(result));
+   if(result.fits)assert.ok(Math.abs(result.centerX-result.workspaceCenterX)<3,
+     'Active slide is not centered in viewport: '+JSON.stringify(result));
+   await shot('pptx-one-slide-'+width);
+ }
+ console.log('QT_PPTX_SINGLE_ACTIVE_CANVAS_THUMBNAILS_GEOMETRY_2_RESOLUTIONS_OK');
  ws.close();
 })().catch(error=>{console.error(error);process.exit(1);});
