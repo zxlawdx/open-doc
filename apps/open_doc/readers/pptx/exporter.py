@@ -13,7 +13,7 @@ from PIL import Image
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.chart.data import CategoryChartData
-from pptx.enum.chart import XL_CHART_TYPE
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Pt
@@ -58,7 +58,25 @@ class SlideDeckExporter:
             chart.has_title=bool(obj.get("chart_title"))
             if chart.has_title:
                 chart.chart_title.text_frame.text=obj["chart_title"]
-            chart.has_legend=False
+            chart.has_legend=(obj.get("chart_type")=="pie")
+            if chart.has_legend:
+                chart.legend.position=XL_LEGEND_POSITION.RIGHT
+            # Native OOXML chart parts + embedded editable XLSX workbook.
+            # Palette is editable property, not a pre-rendered screenshot.
+            palette={
+                "blue":["004AC6","6A9EFF","90C2FF","274F98","AFCBFF"],
+                "green":["2B886A","72C3A0","A2DEC5","14634B","D0F0DD"],
+                "orange":["F07938","FFC16D","BE4F2E","EACB90","F9DFCA"],
+                "contrast":["004AC6","B64264","267D4D","D18919","784FC5"],
+            }[obj.get("chart_palette","blue")]
+            series=chart.series[0]
+            if obj.get("chart_type")=="line":
+                series.format.line.color.rgb=RGBColor.from_string(palette[0])
+                series.format.line.width=Pt(2.5)
+            else:
+                for i,point in enumerate(series.points):
+                    point.format.fill.solid()
+                    point.format.fill.fore_color.rgb=RGBColor.from_string(palette[i%len(palette)])
         elif kind == "image":
             asset = self.model["assets"][obj["asset_id"]]
             picture_data = BytesIO(base64.b64decode(asset["data"], validate=True))
