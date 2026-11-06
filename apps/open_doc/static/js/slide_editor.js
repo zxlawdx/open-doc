@@ -12,6 +12,8 @@
   const ACTION_ICONS={
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
+    "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
+    "Gráfico: Pizza":"chart-pie",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
