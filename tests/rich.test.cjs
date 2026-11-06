@@ -121,3 +121,28 @@ test('equation insertion replaces the captured selection without moving to docum
  s.editor.format('undo');
  assert.equal(s.editor.snapshot().content.blocks[0].children[0].text,original);
 });
+
+test('long runs of blank Enter breaks paginate rather than overflowing one sheet',async t=>{
+ const s=await setup(t);
+ s.editor.pagination().paginate();
+ const box=s.rich.querySelector('[data-page-content]');
+ box.replaceChildren();
+ const paragraph=s.w.document.createElement('p');
+ paragraph.dataset.nodeId='long-empty-paragraph';
+ for(let n=0;n<90;n++)paragraph.append(s.w.document.createElement('br'));
+ box.append(paragraph);
+ const measure=s.w.HTMLElement.prototype.getBoundingClientRect;
+ s.w.HTMLElement.prototype.getBoundingClientRect=function(){
+   if(this.matches('[data-page-content]')){
+     const height=Array.from(this.children).reduce((total,node)=>
+       total+Math.max(1,node.querySelectorAll('br').length)*32,0);
+     return {top:0,bottom:height,left:0,right:600,height,width:600};
+   }
+   return measure.call(this);
+ };
+ s.editor.pagination().setMode('pages');
+ const pages=Array.from(s.rich.querySelectorAll('[data-page-index]'));
+ assert.ok(pages.length>=3,'blank lines must create additional pages');
+ assert.equal(pages.reduce((total,node)=>total+node.querySelectorAll('[data-page-content] br').length,0),90,
+   'pagination must not lose blank lines');
+});

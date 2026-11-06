@@ -200,7 +200,7 @@
         (!query||(a.selected_text+' '+a.comment).toLocaleLowerCase('pt-BR').includes(query)));
       for(const a of matches){
         const title=a.kind==='note'?'Nota':{highlight:'Destaque',underline:'Sublinhado',strikeout:'Tachado'}[a.kind];
-        const button=makeButton('P. '+(a.page_index+1)+' · '+title+' · '+(a.kind==='note'?(a.comment||'Sem comentário'):a.selected_text).slice(0,76),()=>select(a.id,false,true),list);
+        const button=makeButton('P. '+(a.page_index+1)+' · '+title+' · '+(a.kind==='note'?(a.comment||'Sem comentário'):a.selected_text).slice(0,76),()=>select(a.id,false,false),list);
         button.title=a.comment || a.selected_text;
         button.style.borderLeft='4px solid '+a.color;
         button.setAttribute('aria-pressed',String(chosen===a.id));
@@ -239,7 +239,10 @@
       if(a.kind!=='note')editor.prepend(opacityLabel);
       editor.prepend(quote,label,palette);
       // Editing the comment must never send the reader back to page one.
-      // Navigation happens only when clicking a result in the annotation rail.
+      // Selecting a comment only opens its editor. Navigation is an explicit action.
+      makeButton('Ir para página do comentário',()=>{
+        if(Number.isInteger(a.page_index) && a.page_index>=0)go(a.page_index);
+      },editor);
       if(navigate && a.page_index>=0)go(a.page_index);
       if(focus)textarea.focus();
     }

@@ -31,6 +31,46 @@
   function texts(){pageNodes.forEach((node,index)=>{node.querySelectorAll('.fixed-text-overlay').forEach(n=>n.remove());for(const text of model.surfaces[index].text_overlays || []){const div=document.createElement('div');div.className='fixed-text-overlay';div.textContent=text.text;Object.assign(div.style,{left:text.x*100+'%',top:text.y*100+'%',width:text.width*100+'%',fontFamily:JSON.stringify(text.font_family)+', Inter, sans-serif',fontSize:text.font_size_pt*4/3*zoom+'px',color:text.color});node.append(div);}});}
   async function flush(){if(!active)return note;if(!note || signature()===saved)return note;const b=snapshot(),sig=signature();queue=queue.catch(()=>{}).then(async()=>{b.revision=note.revision;const result=await request('document/save',b);note.revision=result.revision;saved=sig;if(signature()===saved)window.OpenDocRecovery.clear(note.id);window.pywebview.api.set_dirty?.(signature()!==saved);status(model?.editable_deck?'Apresentação salva.':'Anotações salvas.');return result;});return queue;}
   function go(index){index=Math.max(0,Math.min(pageNodes.length-1,index));pageField.value=index+1;pageNodes[index]?.scrollIntoView({block:'start'});slidesEditor?.onPageChange(index);lazy();}
+  // Highlight exact occurrences in the PDF text layer, including matches
+  // crossing adjacent spans. Pure overlays preserve original text selection.
+  function highlightSearch(index){
+    const surface=pageNodes[index],layer=surface?.querySelector('.textLayer');
+    surface?.querySelector('.pdf-search-overlays')?.remove();
+    const query=search.value.trim().toLocaleLowerCase();
+    if(!pdf||!layer||!query)return;
+    const parts=[],spans=Array.from(layer.querySelectorAll('span'));
+    let all='';
+    for(const span of spans){
+      const node=span.firstChild;
+      if(!node||node.nodeType!==3||!node.textContent)continue;
+      if(all)all+=' ';
+      const start=all.length;all+=node.textContent;
+      parts.push({node,start,end:all.length});
+    }
+    if(!parts.length)return;
+    const overlay=document.createElement('div');overlay.className='pdf-search-overlays';
+    const lower=all.toLocaleLowerCase();let offset=0,count=0;
+    while(count<200){
+      const at=lower.indexOf(query,offset);if(at<0)break;
+      offset=at+Math.max(1,query.length);count++;
+      const first=parts.find(part=>part.end>at),last=parts.find(part=>part.end>=at+query.length);
+      if(!first||!last)continue;
+      const range=document.createRange();
+      try{
+        range.setStart(first.node,Math.max(0,at-first.start));
+        range.setEnd(last.node,Math.min(last.node.length,at+query.length-last.start));
+        const origin=surface.getBoundingClientRect();
+        for(const rect of range.getClientRects()){
+          if(!rect.width||!rect.height)continue;
+          const hit=document.createElement('span');hit.className='pdf-search-hit';
+          Object.assign(hit.style,{left:(rect.left-origin.left)+'px',top:(rect.top-origin.top)+'px',
+            width:rect.width+'px',height:rect.height+'px'});
+          overlay.append(hit);
+        }
+      }catch(error){console.warn('PDF: intervalo de busca não desenhável',error);}
+    }
+    if(overlay.childElementCount)surface.append(overlay);
+  }
   function scale(value){zoom=Math.max(.25,Math.min(3,value));root.querySelector('[data-zoom]').value=Math.round(zoom*100);root.querySelector('[data-zoom-value]').textContent=Math.round(zoom*100)+'%';pageNodes.forEach((node,index)=>{const s=model.surfaces[index];node.style.width=s.width_pt*4/3*zoom+'px';node.style.height=s.height_pt*4/3*zoom+'px';node.querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content,.semantic-overlays').forEach(n=>n.remove());});semantic?.hide();for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();texts();slidesEditor?.render();root.dispatchEvent(new CustomEvent('open-doc:layout'));lazy();}
   function fit(whole){if(!model)return;const s=model.surfaces[Number(pageField.value)-1] || model.surfaces[0];scale(Math.min((scroller.clientWidth-48)/(s.width_pt*4/3),whole?(scroller.clientHeight-32)/(s.height_pt*4/3):3));}
   function pageError(node,index,stage,error){
@@ -52,6 +92,7 @@
         const text=document.createElement('div');text.className='textLayer';text.style.setProperty('--scale-factor',String(viewport.scale));node.append(text);
         const content=await page.getTextContent();if(generation!==epoch)return;
         await new window.OpenDocPdf.TextLayer({textContentSource:content,container:text,viewport}).render();
+        if(generation===epoch)highlightSearch(index);
       }catch(error){if(generation===epoch)pageError(node,index,'texto selecionável',error);}
       try{
         const links=document.createElement('div');links.className='pdf-links';node.append(links);
@@ -92,21 +133,22 @@
         try{
           const page=await pdf.getPage(index+1);
           if(!valid())return;
-          const items=(await page.getTextContent()).items;
+          const extracted=await page.getTextContent();
           if(!valid())return;
-          const text=items.map(item=>item.str||'').join(' ').toLocaleLowerCase();
+          const items=Array.isArray(extracted?.items)?extracted.items:[];
+          const text=items.map(item=>String(item?.str||'')).join(' ').toLocaleLowerCase();
           if(!text.includes(q))continue;
           matches.push(index);
           const button=document.createElement('button');
           button.dataset.searchResult='';
           button.dataset.searchPage=String(index);
           button.textContent='Resultado · página '+(index+1);
-          button.onclick=()=>go(index);
+          button.onclick=()=>{go(index);highlightSearch(index);};
           const successor=Array.from(sidebar.querySelectorAll('[data-search-result]'))
             .find(node=>Number(node.dataset.searchPage)>index);
           if(successor)sidebar.insertBefore(button,successor);
           else sidebar.append(button);
-          if(!navigated){navigated=true;go(index);}
+          if(!navigated){navigated=true;go(index);highlightSearch(index);}
           status(matches.length+' páginas com resultados (pesquisando…).');
         }catch(error){
           if(!valid())return;
@@ -117,12 +159,13 @@
     };
     await Promise.all(Array.from({length:Math.min(4,total)},()=>worker()));
     if(!valid())return;
-    if(matches.length)go(Math.min(...matches));
+    if(matches.length){const first=Math.min(...matches);go(first);highlightSearch(first);}
     status(matches.length+' páginas com resultados.'+(failures?' '+failures+' páginas não puderam ser examinadas.':''));
   }
   search.addEventListener('input',()=>{
     searchEpoch++;
     sidebar.querySelectorAll('[data-search-result]').forEach(node=>node.remove());
+    pageNodes.forEach(node=>node.querySelector('.pdf-search-overlays')?.remove());
   },{signal});
   async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
@@ -189,7 +232,11 @@
   },{signal});
   title.addEventListener('input',()=>{if(active)changed();},{signal});scroller.addEventListener('scroll',lazy,{signal});
   function format(command){if(locked)return;if(command==='undo' || command==='redo'){const value=history[command]();if(value){model=clone(value.content);title.value=value.title;clearTimeout(timer);timer=setTimeout(()=>flush().catch(e=>status(e.message)),800);texts();semantic?.refresh();slidesEditor?.render();root.dispatchEvent(new CustomEvent('open-doc:content'));}}}
-  window.addEventListener('keydown',e=>{if(!active || !(e.ctrlKey || e.metaKey))return;if(e.key.toLowerCase()==='s'){e.preventDefault();flush().catch(e=>status(e.message));}if(['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
+  window.addEventListener('keydown',e=>{if(!active || !(e.ctrlKey || e.metaKey))return;
+    if(e.key.toLowerCase()==='f' && note?.source_kind==='pdf'){
+      e.preventDefault();search.focus();search.select();return;
+    }
+    if(e.key.toLowerCase()==='s'){e.preventDefault();flush().catch(e=>status(e.message));}if(['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
   window.addEventListener('beforeunload',e=>{if(active && signature()!==saved){request('document/recovery',snapshot()).catch(()=>{});e.preventDefault();e.returnValue='';}},{signal});
   signal.addEventListener('abort',()=>{clearTimeout(timer);clearTimeout(recoveryTimer);epoch++;thumbObserver?.disconnect();pdf?.destroy();pptx?.destroy();host.remove();},{once:true});
   return {load,flush,snapshot,inkLayers,setInkLayers,insertRecognized,format,export:exportDocument,isClean:()=>!note || signature()===saved,setLocked:v=>{locked=v;title.disabled=v;},setMode:()=>{},capture:()=>{},refresh:lazy,style:()=>{},textState:()=>({}),commandState:()=>false,pagination:()=>null,pageView:()=>{},copy:async()=>{await flush();const duplicate=await request('document/duplicate',{id:note.id});load(duplicate);return duplicate;},deactivate:()=>{slidesEditor?.deactivate();active=false;epoch++;searchEpoch++;clearTimeout(timer);clearTimeout(recoveryTimer);thumbObserver?.disconnect();for(const task of renderTasks.values())task.cancel();renderTasks.clear();renderedPages.clear();rendering.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;pageNodes=[];scroller.replaceChildren();host.hidden=true;},find:()=>search.focus()};

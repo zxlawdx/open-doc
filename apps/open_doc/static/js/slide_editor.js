@@ -17,6 +17,7 @@
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
+    Balde:"paint-bucket","Pintar seleção":"palette",Prévia:"play",Apresentar:"play",
     Desfazer:"undo",Refazer:"redo"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
@@ -256,7 +257,12 @@
       }
       button.title=title;button.addEventListener("click",()=>{
         if(!this.active)return;
-        try{action();}catch(error){this.status(error.message);}
+        try{
+          if(this.paintActive&&label!=="Balde"&&this.paintButton){
+            this.paintActive=false;this.paintButton.setAttribute("aria-pressed","false");
+          }
+          action();
+        }catch(error){this.status(error.message);}
       },{signal:this.signal});this.toolbar.append(button);return button;
     }
     _buildToolbar(){
@@ -280,6 +286,7 @@
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
       this._button("Prévia",()=>this.previewTransition(),"Prévia da transição no slide atual");
+      this.presentButton=this._button("Apresentar",()=>this.startPresentation(),"Apresentar a partir do slide atual (F5)");
       const paintLabel=document.createElement("label");paintLabel.className="slide-paint-selector";
       paintLabel.textContent="Cor";
       this.paintColor=document.createElement("input");this.paintColor.type="color";
@@ -288,6 +295,7 @@
       this.paintButton=this._button("Balde",()=>{
         this.paintActive=!this.paintActive;
         this.paintButton.setAttribute("aria-pressed",String(this.paintActive));
+        if(this.paintActive)this.paintColor.click();
         this.status(this.paintActive
           ?"Balde ativo: clique em uma forma para aplicar a cor."
           :"Balde desativado.");
@@ -314,7 +322,7 @@
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide"]},
         {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
-        {label:"Transições",labels:["Prévia"]}
+        {label:"Transições",labels:["Prévia","Apresentar"]}
       ];
       const panels=[];
       for(const item of categories){
@@ -353,6 +361,8 @@
       const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
       this.commands.updateObject(index,id,{[property]:this.paintColor.value});
       this._selectObject(id);
+      this.paintActive=false;
+      this.paintButton.setAttribute("aria-pressed","false");
       this.status("Cor aplicada a "+(obj.name||labelFor(obj.type))+".");
     }
     _transferImage(data){
@@ -423,7 +433,7 @@
           if(!this.pan)this.scroller.style.cursor="";}
       },{signal:this.signal});
       this.scroller.addEventListener("click",event=>{
-        if(!this.active)return;
+        if(!this.active||this.inlineEditing)return;
         const surface=event.target.closest(".fixed-surface");
         if(!surface)return;
         const targetIndex=Number(surface.dataset.pageIndex);
@@ -452,7 +462,13 @@
         if(event.target.closest("input,textarea,[contenteditable=true]"))return;
         if(event.key===" "){event.preventDefault();this.spacePressed=true;
           if(!this.pan)this.scroller.style.cursor="grab";return;}
-        if(event.key==="Escape"){this._selectObject(null);this.render();return;}
+        if(event.key==="F5"){
+          event.preventDefault();this.startPresentation();return;
+        }
+        if(event.key==="Escape"){
+          if(this.paintActive){this.paintActive=false;this.paintButton.setAttribute("aria-pressed","false");}
+          this.lastTextTap=null;this._selectObject(null);this.render();return;
+        }
         if(!this.selected)return;
         if(event.key==="Delete"||event.key==="Backspace"){
           event.preventDefault();
@@ -484,6 +500,7 @@
       this.render();
     }
     deactivate(){
+      this.stopPresentation();
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
       this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.scroller.style.cursor="";this.inspector.replaceChildren();
@@ -550,6 +567,82 @@
       },{signal:this.signal});
       editor.addEventListener("blur",()=>finish(true),{signal:this.signal});
       editor.focus();editor.select();
+    }
+    startPresentation(){
+      if(!this.active||this.presentation)return;
+      if(this.inlineEditing)this.inlineEditing.blur();
+      const overlay=document.createElement("section");overlay.className="slide-presentation";
+      overlay.tabIndex=-1;overlay.setAttribute("role","dialog");
+      overlay.setAttribute("aria-modal","true");
+      overlay.setAttribute("aria-label","Apresentação de slides");
+      const viewport=document.createElement("div");viewport.className="slide-presentation-viewport";
+      const footer=document.createElement("div");footer.className="slide-presentation-controls";
+      const previous=document.createElement("button");previous.type="button";previous.textContent="Anterior";
+      previous.title="Slide anterior (seta para esquerda)";
+      const count=document.createElement("output");count.setAttribute("aria-live","polite");
+      const next=document.createElement("button");next.type="button";next.textContent="Próximo";
+      next.title="Próximo slide (seta para direita ou espaço)";
+      const close=document.createElement("button");close.type="button";close.textContent="Encerrar";
+      close.title="Encerrar apresentação (Esc)";
+      footer.append(previous,count,next,close);overlay.append(viewport,footer);
+      this.root.append(overlay);
+      const returning=document.activeElement;
+      this.presentation={overlay,viewport,count,index:this.current,returning,resize:null};
+      const draw=()=>{
+        const state=this.presentation;if(!state)return;
+        const slide=this.getModel().surfaces[state.index],source=this._surface(state.index);
+        if(!slide||!source)return;
+        const w=slide.width_pt*4/3*this.getZoom(),h=slide.height_pt*4/3*this.getZoom();
+        const width=Math.max(1,w),height=Math.max(1,h);
+        const maxW=Math.max(100,window.innerWidth-40),maxH=Math.max(100,window.innerHeight-94);
+        const scale=Math.min(maxW/width,maxH/height);
+        const frame=document.createElement("div");frame.className="slide-presentation-frame";
+        Object.assign(frame.style,{width:(width*scale)+"px",height:(height*scale)+"px",
+          position:"relative",overflow:"hidden"});
+        const page=source.cloneNode(true);
+        page.querySelectorAll(".slide-resize-handle,.slide-rotate-handle,.slide-inline-editor").forEach(node=>node.remove());
+        page.querySelectorAll("[data-selected]").forEach(node=>node.removeAttribute("data-selected"));
+        Object.assign(page.style,{width:width+"px",height:height+"px",margin:"0",
+          position:"absolute",left:"0",top:"0",transformOrigin:"top left",
+          transform:"scale("+scale+")",boxShadow:"none",border:"0"});
+        frame.append(page);viewport.replaceChildren(frame);
+        count.textContent="Slide "+(state.index+1)+" de "+this.getModel().surfaces.length;
+        previous.disabled=state.index===0;
+        next.disabled=state.index===this.getModel().surfaces.length-1;
+      };
+      const navigate=delta=>{
+        const state=this.presentation;if(!state)return;
+        state.index=clamp(state.index+delta,0,this.getModel().surfaces.length-1);
+        draw();
+      };
+      previous.addEventListener("click",()=>navigate(-1));
+      next.addEventListener("click",()=>navigate(1));
+      close.addEventListener("click",()=>this.stopPresentation());
+      overlay.addEventListener("keydown",event=>{
+        if(event.key==="Escape"){event.preventDefault();event.stopPropagation();this.stopPresentation();return;}
+        if(event.target.closest("button") && (event.key===" "||event.key==="Enter"))return;
+        const forward=["ArrowRight","ArrowDown","PageDown"," ","Enter"];
+        const backward=["ArrowLeft","ArrowUp","PageUp"];
+        if(forward.includes(event.key)||backward.includes(event.key)){
+          event.preventDefault();event.stopPropagation();
+          navigate(forward.includes(event.key)?1:-1);
+        }else if(event.key==="Home"||event.key==="End"){
+          event.preventDefault();event.stopPropagation();
+          const state=this.presentation;if(!state)return;
+          state.index=event.key==="Home"?0:this.getModel().surfaces.length-1;
+          draw();
+        }
+      });
+      this.presentation.resize=draw;
+      window.addEventListener("resize",draw);
+      draw();overlay.focus();
+    }
+    stopPresentation(){
+      if(!this.presentation)return;
+      const state=this.presentation;this.presentation=null;
+      window.removeEventListener("resize",state.resize);
+      state.overlay.remove();
+      if(state.returning?.isConnected)state.returning.focus();
     }
     previewTransition(){
       const effect=this.getModel().surfaces[this.current]?.transition||"none";
@@ -894,6 +987,17 @@
       if(index!==this.current)this.current=index;
       const obj=this.getModel().surfaces[index].elements.find(e=>e.id===node.dataset.slideElement);
       if(!obj)return;
+      // DOM nodes can be replaced after the first pointer-up. Match stable IDs
+      // so two taps activate inline text editing even on legacy QtWebEngine.
+      const now=Date.now(),previous=this.lastTextTap;
+      const editable=obj.type==="text"||typeof obj.text==="string";
+      if(editable&&previous?.id===obj.id&&previous.index===index&&now-previous.time<650
+        &&!event.target.closest("[data-resize],[data-rotate]")){
+        this.lastTextTap=null;this.drag=null;this._selectObject(obj.id);
+        event.preventDefault();event.stopPropagation();
+        this._editText(index,obj.id,node,obj.text||"");return;
+      }
+      this.lastTextTap=editable?{id:obj.id,index,time:now}:null;
       if(!this.selectedIds.has(obj.id))this._selectObject(obj.id);
       this._properties();
       const box=surface.getBoundingClientRect();
@@ -935,7 +1039,10 @@
     _finish(event){
       const drag=this.drag;if(!drag)return;
       this.drag=null;
-      if(!drag.value){this.render();return;}
+      if(!drag.value){
+        if(drag.node.dataset.selected!=="true")this.render();
+        return;
+      }
       const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,
         height:drag.value.height,rotation:drag.value.rotation};
       if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,

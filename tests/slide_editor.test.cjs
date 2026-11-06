@@ -446,6 +446,9 @@ test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
  shape.dispatchEvent(new q.w.MouseEvent('click',{bubbles:true}));
  assert.equal(q.model().surfaces[0].elements[0].fill,'#ff6600');
  assert.equal(q.scroller.querySelector('.slide-vector-shape rect').getAttribute('fill'),'#ff6600');
+ assert.equal(q.editor.paintActive,false,'paint mode should auto-exit after painting');
+ clickLabel(q.controls,'Balde');
+ assert.equal(q.editor.paintActive,true);
  clickLabel(q.controls,'Balde');
  assert.equal(q.editor.paintActive,false);
 });
@@ -540,4 +543,73 @@ test('chart validation prevents invalid pie values or wrong number of data cells
  change.value='-2';change.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  assert.equal(q.versions.length,before,'bad values must not mutate presentation');
  assert.equal(q.model().surfaces[0].elements[0].chart_values[0],18);
+});
+
+test('double pointer tap edits text in place despite slide DOM replacement',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ let obj=q.scroller.querySelector('.slide-object-text');
+ obj.dispatchEvent(new q.w.MouseEvent('pointerdown',{bubbles:true,cancelable:true,button:0,clientX:100,clientY:90}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',{bubbles:true,button:0,clientX:100,clientY:90}));
+ obj=q.scroller.querySelector('.slide-object-text');
+ obj.dispatchEvent(new q.w.MouseEvent('pointerdown',{bubbles:true,cancelable:true,button:0,clientX:100,clientY:90}));
+ const input=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(input,'second tap should present editable text on the canvas');
+ input.value='Título editado diretamente';
+ input.dispatchEvent(new q.w.Event('blur'));
+ assert.equal(q.model().surfaces[0].elements[0].text,'Título editado diretamente');
+});
+
+test('paint picker has SVG, clears mode after painting, Escape cancels',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Retângulo');
+ const picker=q.controls.querySelector('.slide-paint-selector input[type=color]');
+ picker.value='#ff8020';
+ const bucket=Array.from(q.controls.querySelectorAll('.slide-studio-toolbar button'))
+   .find(button=>button.textContent==='Balde');
+ assert.ok(bucket.querySelector('svg use[href$="#paint-bucket"]'),'paint control has an SVG');
+ bucket.click();
+ assert.equal(bucket.getAttribute('aria-pressed'),'true');
+ const target=q.scroller.querySelector('.slide-object-rect');
+ target.click();
+ assert.equal(q.model().surfaces[0].elements[0].fill,'#ff8020');
+ assert.equal(bucket.getAttribute('aria-pressed'),'false','paint mode must exit after one edit');
+ bucket.click();
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+ assert.equal(bucket.getAttribute('aria-pressed'),'false','Escape exits paint mode');
+});
+
+test('F5 presents slides in a scaled overlay with keyboard navigation and Escape',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'Retângulo');
+ const before=q.versions.length;
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'F5',bubbles:true,cancelable:true}));
+ const overlay=q.root.querySelector('.slide-presentation');
+ assert.ok(overlay,'slide presentation should open on F5');
+ assert.equal(overlay.getAttribute('role'),'dialog');
+ assert.equal(overlay.getAttribute('aria-modal'),'true');
+ assert.match(overlay.querySelector('output').textContent,/Slide 2 de 2/);
+ assert.ok(overlay.querySelector('.slide-object-rect'),'presentation reuses editable slide source rendering');
+ assert.equal(overlay.querySelector('.slide-resize-handle'),null,'authoring handles must be hidden');
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'ArrowLeft',bubbles:true,cancelable:true}));
+ assert.match(overlay.querySelector('output').textContent,/Slide 1 de 2/);
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'End',bubbles:true,cancelable:true}));
+ assert.match(overlay.querySelector('output').textContent,/Slide 2 de 2/);
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'Escape',bubbles:true,cancelable:true}));
+ assert.equal(q.root.querySelector('.slide-presentation'),null,'Escape closes the slide show');
+ assert.equal(q.versions.length,before,'presenting must not modify the deck');
+});
+
+test('presentation closes when leaving the slides editor',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Apresentar');
+ assert.ok(q.root.querySelector('.slide-presentation'));
+ q.editor.deactivate();
+ assert.equal(q.root.querySelector('.slide-presentation'),null);
 });
