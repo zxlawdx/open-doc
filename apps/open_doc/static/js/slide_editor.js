@@ -644,6 +644,18 @@
         page.querySelectorAll(".slide-resize-handle,.slide-rotate-handle,.slide-inline-editor,.ink-overlay").forEach(node=>node.remove());
         page.querySelectorAll("[data-selected]").forEach(node=>node.removeAttribute("data-selected"));
         const width=surface.width_pt*4/3,height=surface.height_pt*4/3;
+        // The authoring canvas stores CSS-pixel positions at the editor zoom.
+        // Recompute show geometry from normalized model coordinates, otherwise
+        // slides at 84% editor zoom are incorrectly scaled in full-screen mode.
+        for(const element of surface.elements||[]){
+          const object=page.querySelector('[data-slide-element="'+element.id+'"]');
+          if(!object)continue;
+          Object.assign(object.style,{
+            left:element.x*width+"px",top:element.y*height+"px",
+            width:element.width*width+"px",height:element.height*height+"px",
+            fontSize:(element.font_size_pt||28)*4/3+"px"
+          });
+        }
         Object.assign(page.style,{width:width+"px",height:height+"px",left:"0px",top:"0px",
           position:"absolute",margin:"0",border:"0",boxShadow:"none",
           transformOrigin:"0 0",transform:"scale("+state.scale+")"});
