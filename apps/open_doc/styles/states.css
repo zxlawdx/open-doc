@@ -82,3 +82,7 @@
   background:var(--of-surface-low);border-radius:8px;padding:7px 12px;
   color:var(--color-text-primary);min-height:34px;
 }
+
+/* Icon via CSS preserves exact export destination in DOM text for automation. */
+.open-doc .export-result button::after{content:"×";font-size:20px;line-height:1}
+.open-doc .export-result button{min-width:36px;font-size:0}
