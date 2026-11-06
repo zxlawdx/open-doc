@@ -269,3 +269,30 @@
   overflow-wrap:anywhere;font-size:12px;margin-top:5px;background:var(--color-panel);
   color:var(--color-text-primary);cursor:pointer}
 .open-doc .slide-search-result:hover{border-color:var(--color-primary)}
+
+/* PPTX workspace: ONE active physical slide, never a PDF-style page stack. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{
+  display:block;padding:0;overflow:auto;min-width:0;min-height:0;
+  overscroll-behavior:contain;background:var(--color-workspace);
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-active-workspace{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  box-sizing:border-box;min-width:100%;min-height:100%;padding:32px;
+  background:var(--color-workspace);
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-active-canvas{
+  display:block;position:relative;flex:0 0 auto;box-sizing:border-box;
+  outline:1px solid rgba(0,0,0,.12);box-shadow:0 12px 36px rgba(13,24,44,.18);
+  background:white;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar
+  [data-thumbnail-index][aria-current="true"]{
+  border-color:var(--color-primary);background:var(--color-primary-soft);
+  box-shadow:inset 3px 0 0 var(--color-primary);
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-thumb-preview{
+  box-sizing:border-box;flex:none;min-height:0;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar{
+  overflow-y:auto;align-content:start;
+}

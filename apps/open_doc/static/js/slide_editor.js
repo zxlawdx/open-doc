@@ -220,13 +220,37 @@
   }
 
   class SlideStudio {
-    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide}){
-      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide});
+    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize}){
+      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize});
       this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
       this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.selectedIds=new Set();this.current=0;this.drag=null;
       this.pan=null;this.spacePressed=false;this.imageReplacement=null;
       this.paintActive=false;this.inlineEditing=null;
+      // The active workspace owns one physical slide only. The complete deck
+      // and independent thumbnail views stay in the document model/sidebar.
+      this.workspace=document.createElement("div");
+      this.workspace.className="slide-active-workspace";
+      this.workspace.setAttribute("role","region");
+      this.workspace.setAttribute("aria-label","Slide ativo");
+      this.activeCanvas=null;
+      this._resizePending=false;
+      this._onWorkspaceResize=()=>{
+        if(!this.active||this._resizePending)return;
+        this._resizePending=true;
+        (window.requestAnimationFrame||window.setTimeout)(()=>{
+          this._resizePending=false;
+          if(!this.active)return;
+          this._sizeWorkspace();
+          this.onViewportResize?.();
+        });
+      };
+      window.addEventListener("resize",this._onWorkspaceResize,{signal:this.signal});
+      if(window.ResizeObserver){
+        this.workspaceObserver=new window.ResizeObserver(this._onWorkspaceResize);
+        this.workspaceObserver.observe(scroller);
+        this.signal.addEventListener("abort",()=>this.workspaceObserver.disconnect(),{once:true});
+      }
       this.toolbar=document.createElement("div");this.toolbar.className="slide-studio-toolbar";this.toolbar.hidden=true;
       this.imageInput=document.createElement("input");this.imageInput.type="file";
       this.imageInput.accept="image/png,image/jpeg,image/webp";this.imageInput.hidden=true;
@@ -503,6 +527,7 @@
     }
     load(){
       this.active=true;this.host.dataset.slideEditor="true";this.toolbar.hidden=false;this.inspector.hidden=false;
+      this.scroller.replaceChildren(this.workspace);
       this.current=0;this._selectObject(null);
       // An ink tool left active in PDF must never intercept slide selection.
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
@@ -513,6 +538,7 @@
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
       this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.scroller.style.cursor="";this.inspector.replaceChildren();
+      this.activeCanvas=null;this.workspace.replaceChildren();this.workspace.remove();
     }
     selectSearchResult(index,id){
       if(!this.active)return;
@@ -526,6 +552,11 @@
         object.classList.add("slide-search-match");
         object.scrollIntoView?.({block:"center",inline:"nearest"});
       }
+    }
+    goTo(index){
+      if(!this.active || !this.getModel().surfaces[index])return;
+      this.onPageChange(index);
+      this.render();
     }
     onPageChange(index){
       if(!this.active || !this.getModel().surfaces[index]?.elements)return;
@@ -638,7 +669,7 @@
         },1900);
       };
       const slideFrame=index=>{
-        const surface=slides[index],source=this._surface(index);
+        const surface=slides[index],source=this._surface(index)||this._buildSurface(index);
         if(!surface||!source)return null;
         const frame=document.createElement("div");frame.className="slide-presentation-frame";
         const page=source.cloneNode(true);
@@ -898,63 +929,87 @@
     }
     _thumb(button,surface,index){
       button.replaceChildren();
-      const preview=document.createElement("span");preview.className="slide-thumb-preview";
-      // Chromium 83 predates aspect-ratio support. Without an explicit
-      // minimum height, the absolutely positioned preview shapes escape the
-      // thumbnail's intended layout and may render as oversized ghosts.
+      const preview=document.createElement("span");
+      preview.className="slide-thumb-preview";
+      // QtWebEngine on Windows may lack the CSS aspect-ratio property.
+      // Physical height follows each presentation's original dimensions.
+      const sidebarWidth=Math.max(100,this.sidebar.clientWidth-38||142);
+      const ratio=surface.height_pt/surface.width_pt;
       Object.assign(preview.style,{display:"block",position:"relative",
-        overflow:"hidden",width:"100%",minHeight:"62px"});
+        overflow:"hidden",width:"100%",minHeight:"0px",
+        height:Math.round(sidebarWidth*ratio)+"px",
+        aspectRatio:String(surface.width_pt)+"/"+String(surface.height_pt)});
       preview.style.backgroundColor=surface.background||"#FFFFFF";
       for(const obj of surface.elements||[])preview.append(this._makeObject(obj,index,true));
-      const title=document.createElement("span");title.textContent="Slide "+(index+1);
-      button.append(preview,title);button.dataset.thumbnailIndex=String(index);
-      button.onclick=()=>this.go(index);
+      const title=document.createElement("span");
+      title.textContent="Slide "+(index+1);
+      button.append(preview,title);
+      button.dataset.thumbnailIndex=String(index);
       button.setAttribute("aria-label","Ir para slide "+(index+1));
+      button.setAttribute("aria-current",String(index===this.current));
+      button.onclick=()=>this.go(index);
+    }
+    _buildSurface(index){
+      const slide=this.getModel().surfaces[index];
+      if(!slide)return null;
+      const surface=document.createElement("div");
+      surface.className="fixed-surface slide-active-canvas";
+      surface.dataset.pageIndex=String(index);
+      surface.dataset.widthPt=String(slide.width_pt);
+      surface.dataset.heightPt=String(slide.height_pt);
+      Object.assign(surface.style,{
+        position:"relative",overflow:"hidden",isolation:"isolate",
+        flex:"0 0 auto",margin:"0",backgroundColor:slide.background||"#FFFFFF",
+        width:slide.width_pt*4/3*this.getZoom()+"px",
+        height:slide.height_pt*4/3*this.getZoom()+"px"
+      });
+      const background=document.createElement("div");
+      background.className="slide-object-layer";
+      Object.assign(background.style,{
+        position:"absolute",top:"0px",left:"0px",right:"0px",bottom:"0px",
+        width:"100%",height:"100%",zIndex:"1",pointerEvents:"none",
+        backgroundColor:slide.background||"#FFFFFF"
+      });
+      surface.append(background);
+      for(const obj of slide.elements||[])surface.append(this._makeObject(obj,index));
+      return surface;
+    }
+    _sizeWorkspace(){
+      if(!this.active||!this.activeCanvas)return;
+      const width=parseFloat(this.activeCanvas.style.width)||0;
+      const height=parseFloat(this.activeCanvas.style.height)||0;
+      // Give the slide breathing room without squeezing it when zoom > fit.
+      // The scrollable workspace grows around this ONE slide, not around a
+      // vertical list of physical document pages.
+      Object.assign(this.workspace.style,{
+        boxSizing:"border-box",display:"flex",alignItems:"center",
+        justifyContent:"center",padding:"32px",
+        width:Math.max(this.scroller.clientWidth,width+64)+"px",
+        height:Math.max(this.scroller.clientHeight,height+64)+"px"
+      });
     }
     render(){
       if(!this.active)return;
       const slides=this.getModel().surfaces;
-      // Remove detached drawing nodes outside pages left by an interrupted
-      // render/zoom transition before painting the current slide.
-      this.scroller.querySelectorAll(".slide-object").forEach(node=>{
-        if(!node.closest(".fixed-surface"))node.remove();
-      });
-      // After reordering/adding slides, use the existing physical surface
-      // containers, not a second canvas or document lifecycle.
-      const containers=Array.from(this.scroller.querySelectorAll(".fixed-surface"));
-      while(containers.length<slides.length){
-        const node=document.createElement("div");node.className="fixed-surface";
-        this.scroller.append(node);containers.push(node);
-      }
-      while(containers.length>slides.length)containers.pop().remove();
+      if(!slides?.length)return;
+      this.current=clamp(this.current,0,slides.length-1);
+      // Use one editable physical canvas, replacing it on selection changes.
+      // Unlike a PDF reader, this viewport never stacks slide page elements.
+      const canvas=this._buildSurface(this.current);
+      this.activeCanvas=canvas;
+      if(this.scroller.firstChild!==this.workspace)
+        this.scroller.replaceChildren(this.workspace);
+      this.workspace.replaceChildren(canvas);
+      this._sizeWorkspace();
       const buttons=Array.from(this.sidebar.querySelectorAll("[data-thumbnail-index]"));
-      while(buttons.length<slides.length){const b=document.createElement("button");this.sidebar.append(b);buttons.push(b);}
+      while(buttons.length<slides.length){
+        const button=document.createElement("button");
+        this.sidebar.append(button);buttons.push(button);
+      }
       while(buttons.length>slides.length)buttons.pop().remove();
-      slides.forEach((slide,index)=>{
-        const surface=containers[index];surface.dataset.pageIndex=String(index);
-        surface.dataset.widthPt=String(slide.width_pt);surface.dataset.heightPt=String(slide.height_pt);
-        surface.style.width=slide.width_pt*4/3*this.getZoom()+"px";
-        surface.style.height=slide.height_pt*4/3*this.getZoom()+"px";
-        surface.style.position="relative";
-        surface.style.overflow="hidden";
-        surface.style.isolation="isolate";
-        surface.querySelector(".slide-object-layer")?.remove();
-        const layer=document.createElement("div");layer.className="slide-object-layer";
-        // QtWebEngine on Windows embeds Chromium 83, where the CSS "inset"
-        // shorthand is ignored. Use explicit physical dimensions so that
-        // percentage-positioned SVG shapes never collapse to zero size.
-        Object.assign(layer.style,{position:"absolute",top:"0px",left:"0px",
-          right:"0px",bottom:"0px",width:"100%",height:"100%"});
-        layer.style.zIndex="1";layer.style.pointerEvents="none";
-        layer.style.backgroundColor=slide.background||"#FFFFFF";
-        surface.prepend(layer);
-        // Shapes are direct slide children so percentages on the layer
-        // cannot collapse their bounds to zero in legacy QtWebEngine.
-        surface.querySelectorAll(":scope > .slide-object").forEach(n=>n.remove());
-        for(const obj of slide.elements||[])surface.append(this._makeObject(obj,index));
-        this._thumb(buttons[index],slide,index);
-      });
-      this.root.querySelector("[data-position]").textContent="Slide "+(this.current+1)+" de "+slides.length;
+      slides.forEach((slide,index)=>this._thumb(buttons[index],slide,index));
+      this.root.querySelector("[data-position]").textContent=
+        "Slide "+(this.current+1)+" de "+slides.length;
       this.root.querySelector("[data-count]").textContent=slides.length+" slides";
       this.onRender?.(slides);
       this._properties();

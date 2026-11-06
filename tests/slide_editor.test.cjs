@@ -27,7 +27,7 @@ function setup(t, options={}){
  let selected=0;
  const editor=w.OpenDocSlidesEditor.create({root,host,controls,scroller,sidebar,signal:abort.signal,
    getModel:()=>model,update:value=>{model=value;versions.push(JSON.stringify(value));},
-   status:()=>{},getZoom:()=>options.zoom??1,go:index=>{selected=index;editor.onPageChange(index);},
+   status:()=>{},getZoom:()=>options.zoom??1,go:index=>{selected=index;editor.goTo(index);},
    undo:()=>{},redo:()=>{},onRender:()=>{},exportSlide:options.exportSlide});
  editor.load();
  return {w,root,host,controls,scroller,sidebar,editor,model:()=>model,versions,selected:()=>selected};
@@ -71,7 +71,10 @@ test('new slides support text and native shape objects with editable properties'
  clickLabel(q.controls,'+ Slide');
  assert.equal(q.model().surfaces.length,2);
  assert.equal(q.model().surfaces[1].index,1);
- assert.equal(q.scroller.querySelectorAll('.fixed-surface').length,2);
+ assert.equal(q.scroller.querySelectorAll('.fixed-surface').length,1,
+   'the active editor must not stack a second slide beneath the first');
+ assert.equal(q.scroller.querySelector('.fixed-surface').dataset.pageIndex,'1');
+ assert.equal(q.sidebar.querySelectorAll('[data-thumbnail-index]').length,2);
  clickLabel(q.controls,'Duplicar');
  assert.equal(q.model().surfaces.length,3);
  assert.equal(q.model().surfaces.map(s=>s.index).join(','),'0,1,2');
@@ -199,13 +202,13 @@ test('legacy Qt keeps shape previews contained, while the canvas clips slide edg
  assert.equal(page.style.overflow,'hidden','slide objects must be clipped to page bounds');
  assert.equal(page.style.position,'relative');
  assert.equal(page.style.isolation,'isolate');
- assert.equal(thumb.style.minHeight,'62px','Chromium 83 has no aspect-ratio support');
+ assert.ok(parseFloat(thumb.style.height)>50,'explicit 16:9 thumbnail height supports legacy Qt without aspect-ratio');
  assert.equal(thumb.style.overflow,'hidden');
  assert.equal(thumb.style.position,'relative');
  assert.equal(page.querySelectorAll(':scope > .slide-object').length,1);
  q.editor.render();
- assert.equal(page.querySelectorAll(':scope > .slide-object').length,1,
-   'rerender may not leave duplicate SVGs outside slide');
+ assert.equal(q.scroller.querySelectorAll('.fixed-surface .slide-object').length,1,
+   'rerender must replace the active canvas without duplicate SVGs');
  assert.equal(q.scroller.querySelectorAll('.slide-object').length,1);
 });
 
@@ -415,6 +418,9 @@ test('shape grips resize on all edges and rotation control commits one change',t
  assert.ok(Math.abs(shape.x-.10)<.001);
  assert.ok(Math.abs(shape.width-.37)<.001);
  assert.equal(q.versions.length,before+1);
+ // The active surface is replaced after a committed resize. Measure its
+ // new physical node rather than continuing to use the detached old page.
+ q.scroller.querySelector('.fixed-surface').getBoundingClientRect=()=>({left:10,top:20,width:600,height:300,right:610,bottom:320});
  node=q.scroller.querySelector('.slide-object-rect');
  const centerX=10+(shape.x+shape.width/2)*600;
  const centerY=20+(shape.y+shape.height/2)*300;
@@ -684,5 +690,70 @@ test('presentation does not inherit zoom-scaled object coordinates from authorin
  assert.ok(inShow,'native presentation must contain the shape');
  assert.ok(Math.abs(parseFloat(inShow.style.left)-256)<.01,
    'slide show positions must derive from 960pt model, not 75% editor zoom');
+ q.editor.stopPresentation();
+});
+
+test('two slide model is navigated with one active page and independent thumbnails',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'Retângulo');
+ assert.equal(q.model().surfaces.length,2);
+ assert.equal(q.scroller.querySelectorAll('.fixed-surface').length,1);
+ assert.equal(q.scroller.querySelector('.fixed-surface').dataset.pageIndex,'1');
+ assert.equal(q.scroller.querySelectorAll('.slide-object-text').length,0);
+ assert.equal(q.scroller.querySelectorAll('.slide-object-rect').length,1);
+ assert.equal(q.sidebar.querySelectorAll('[data-thumbnail-index]').length,2);
+ const first=q.sidebar.querySelector('[data-thumbnail-index="0"]');
+ first.click();
+ assert.equal(q.scroller.querySelectorAll('.fixed-surface').length,1);
+ assert.equal(q.scroller.querySelector('.fixed-surface').dataset.pageIndex,'0');
+ assert.equal(q.scroller.querySelectorAll('.slide-object-text').length,1);
+ assert.equal(q.scroller.querySelectorAll('.slide-object-rect').length,0);
+ assert.equal(q.sidebar.querySelectorAll('[data-thumbnail-index]').length,2);
+ assert.equal(first.getAttribute('aria-current'),'true');
+ q.sidebar.querySelector('[data-thumbnail-index="1"]').click();
+ assert.equal(q.scroller.querySelectorAll('.fixed-surface').length,1);
+ assert.equal(q.scroller.querySelector('.fixed-surface').dataset.pageIndex,'1');
+ assert.equal(q.scroller.querySelectorAll('.slide-object-rect').length,1);
+});
+
+test('workspace centers the one active slide and keeps 4:3 dimensions on navigation',t=>{
+ const q=setup(t);
+ q.editor.commands.apply(slides=>{
+   slides[0].width_pt=720;slides[0].height_pt=540;
+ });
+ const page=q.scroller.querySelector('.fixed-surface');
+ const workspace=q.scroller.querySelector('.slide-active-workspace');
+ assert.ok(workspace,'a dedicated slide workspace must exist');
+ assert.equal(workspace.children.length,1);
+ assert.equal(page.style.width,'960px');
+ assert.equal(page.style.height,'720px');
+ assert.equal(workspace.style.alignItems,'center');
+ assert.equal(workspace.style.justifyContent,'center');
+ const preview=q.sidebar.querySelector('.slide-thumb-preview');
+ assert.equal(preview.style.aspectRatio,'720/540');
+ assert.ok(Math.abs(parseFloat(preview.style.height)/Math.max(100,q.sidebar.clientWidth-38||142)-.75)<.02);
+ assert.equal(q.model().surfaces[0].width_pt,720,
+   'zoom and visual layout cannot mutate original slide coordinates');
+});
+
+test('presenter can navigate to an offscreen slide without creating a second editor canvas',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'Retângulo');
+ q.editor.goTo(0);
+ assert.equal(q.scroller.querySelectorAll('.fixed-surface').length,1);
+ q.editor.startPresentation(0);
+ const overlay=q.root.querySelector('.slide-presentation');
+ assert.ok(overlay.querySelector('.slide-object-text'));
+ const next=overlay.querySelector('[aria-label^="Próximo slide"]');
+ next.click();
+ assert.equal(overlay.querySelector('output').textContent,'2 / 2');
+ assert.ok(overlay.querySelector('.slide-object-rect'),
+   'the offscreen slide should be rendered from the model for presentation');
+ assert.equal(q.scroller.querySelectorAll('.fixed-surface').length,1,
+   'presenter navigation must not create physical editor pages');
  q.editor.stopPresentation();
 });
