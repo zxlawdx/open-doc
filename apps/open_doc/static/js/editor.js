@@ -350,6 +350,19 @@
       source.focus(); changed("format", source);
     }
 
+    function insertPlainText(value){
+      // Preserve the editor selection captured before the dialog.
+      // Browser editing commands integrate with undo and the rich serializer.
+      if(lockedState||suspended||typeof value!=="string"||!value||value.length>1024)return false;
+      if(mode!=="rich")setMode("rich");
+      history.checkpoint(buffer());
+      nextKind="format";
+      let applied=false;
+      try{applied=commands.execute("insertText",value);}
+      finally{nextKind="typing";}
+      return Boolean(applied);
+    }
+
     function textState(){
       const selection=getSelection();let node=selection.anchorNode;
       if(node?.nodeType===1){node=node.childNodes[Math.min(selection.anchorOffset,node.childNodes.length-1)] || node;while(node.firstChild)node=node.firstChild;}
@@ -378,8 +391,16 @@
       const result = await bridge.export_document(documentState.id, documentState.revision, extension);
       if (result.cancelled) { status("Exportação cancelada."); return result; }
       if (result.error) throw Error(result.error);
-      root.querySelector("[data-export-result]").textContent = "Salvo em: " + result.path;
-      status(result.lossy ? "Arquivo exportado com avisos de compatibilidade." : "Arquivo exportado.");
+      const confirmation=root.querySelector("[data-export-result]");
+      confirmation.replaceChildren();
+      const message=document.createElement("span");
+      message.textContent="Salvo em: "+result.path+
+        (result.lossy?" · Verifique a formatação no programa de destino.":"");
+      const dismiss=document.createElement("button");dismiss.type="button";
+      dismiss.textContent="";dismiss.setAttribute("aria-label","Fechar confirmação de exportação");
+      dismiss.addEventListener("click",()=>confirmation.replaceChildren());
+      confirmation.append(message,dismiss);
+      status(result.lossy?"Exportação concluída com avisos.":"Exportação concluída: "+(result.name||extension.toUpperCase()));
       return result;
     }
 
@@ -432,8 +453,8 @@
         for(const start of matches.reverse()){const end=start+query.length;let offset=0,inserted=false;for(const run of runs){const length=run.text.length,lo=Math.max(0,start-offset),hi=Math.min(length,end-offset);if(hi>lo){run.text=run.text.slice(0,lo)+(inserted?'':replacement)+run.text.slice(hi);inserted=true;}offset+=length;}count++;}
       }}visit(next.blocks);if(count)commitModel(next);return count;
     }
-    function tableOperation(action,rows=2,cols=2){
-      if(action==='insert'){commands.restore();const range=getSelection()?.rangeCount?getSelection().getRangeAt(0):null;if(window.OpenDocTables.insert(rich,range,rows,cols))changed('format');return;}
+    function tableOperation(action,rows=2,cols=2,options={}){
+      if(action==='insert'){commands.restore();const range=getSelection()?.rangeCount?getSelection().getRangeAt(0):null;if(window.OpenDocTables.insert(rich,range,rows,cols,options))changed('format');return;}
       const n=getSelection()?.anchorNode,e=n?.nodeType===1?n:n?.parentElement,cell=e?.closest('td,th'),table=cell?.closest('table');
       if(!table)return status('Selecione uma célula da tabela.');
       history.checkpoint(buffer());window.OpenDocTables.operate(table,cell,action);changed('format');
@@ -531,7 +552,7 @@
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }
     function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}
-    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
+    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPlainText, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;
     if(window.OpenDocPagination)pagination=window.OpenDocPagination.create({root,model:()=>model,pageMetrics:()=>model?.sections?.[0],capture:()=>{commands.capture();return commands.bookmark();},restore:b=>commands.restoreBookmark(b)});
     if(window.OpenDocPageMenu)window.OpenDocPageMenu.create(root,instance,controller.signal);

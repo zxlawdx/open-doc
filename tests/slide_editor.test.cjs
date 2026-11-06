@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const {JSDOM}=require('jsdom');
+const chartScript=fs.readFileSync(path.join(__dirname,'../apps/open_doc/static/js/slide_charts.js'),'utf8');
 const script=fs.readFileSync(path.join(__dirname,'../apps/open_doc/static/js/slide_editor.js'),'utf8');
 
 function setup(t){
@@ -14,6 +15,7 @@ function setup(t){
   {url:'http://localhost',runScripts:'outside-only'});
  const w=dom.window;t.after(()=>w.close());
  w.OpenDocModel={id:(()=>{let x=0;return()=>'slide-node-'+(++x);})()};
+ w.eval(chartScript);
  w.eval(script);
  const root=w.document.querySelector('#root'),host=w.document.querySelector('#host'),
    controls=w.document.querySelector('#controls'),scroller=w.document.querySelector('#scroll'),
@@ -430,7 +432,8 @@ test('shape grips resize on all edges and rotation control commits one change',t
 
 test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
  const q=setup(t);
- assert.equal(q.controls.querySelectorAll('.slide-ribbon-tab').length,3);
+ assert.deepEqual(Array.from(q.controls.querySelectorAll('.slide-ribbon-tab')).map(tab=>tab.textContent),
+   ['Slides','Inserir','Formatar','Transições']);
  clickLabel(q.controls,'Retângulo');
  const shape=q.scroller.querySelector('.slide-object-rect');
  const color=q.controls.querySelector('.slide-paint-selector input[type=color]');
@@ -445,4 +448,96 @@ test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
  assert.equal(q.scroller.querySelector('.slide-vector-shape rect').getAttribute('fill'),'#ff6600');
  clickLabel(q.controls,'Balde');
  assert.equal(q.editor.paintActive,false);
+});
+
+test('slide transition controls persist per-slide effects and preview without flattening shapes',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ const previous=q.versions.length;
+ let controls=q.host.querySelectorAll('.slide-inspector select');
+ assert.equal(controls.length>=2,true,'transition and speed selectors are visible');
+ const effect=Array.from(controls).find(x=>x.getAttribute('aria-label')==='Transição do slide');
+ const speed=Array.from(controls).find(x=>x.getAttribute('aria-label')==='Velocidade da transição');
+ assert.ok(effect);assert.ok(speed);
+ effect.value='wipe-left';effect.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ speed.value='fast';speed.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.model().surfaces[0].transition,'wipe-left');
+ assert.equal(q.model().surfaces[0].transition_speed,'fast');
+ assert.equal(q.versions.length,previous+2);
+ const group=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+  .find(b=>b.textContent==='Transições');
+ assert.ok(group);group.click();
+ const preview=Array.from(q.controls.querySelectorAll('.slide-ribbon-group button'))
+  .find(b=>b.textContent==='Prévia');
+ assert.ok(preview);preview.click();
+ assert.match(q.scroller.querySelector('.fixed-surface').style.animation,/open-doc-transition-wipe-left/);
+ assert.equal(q.scroller.querySelectorAll('.slide-object-text').length,1,
+   'preview must not flatten or replace editable text');
+});
+
+
+test('native editable chart actions create chart object and SVG without bitmap',t=>{
+ const q=setup(t);
+ for(const [label,kind] of [
+   ['Gráfico: Barras','bar'],['Gráfico: Linhas','line'],['Gráfico: Pizza','pie']
+ ]){
+   clickLabel(q.controls,label);
+   const object=q.model().surfaces[0].elements.slice(-1)[0];
+   assert.equal(object.type,'chart');assert.equal(object.chart_type,kind);
+   assert.deepEqual(JSON.parse(JSON.stringify(object.chart_categories)),['2024','2025','2026']);
+   assert.equal(object.chart_values.length,3);
+   const rendered=Array.from(q.scroller.querySelectorAll('.slide-object-chart'))
+     .find(n=>n.dataset.slideElement===object.id);
+   assert.ok(rendered.querySelector('.slide-chart-preview'));
+   assert.equal(rendered.querySelector('canvas, img'),null,'chart uses native vector preview');
+   assert.equal(rendered.querySelectorAll('[data-resize]').length,8);
+   assert.equal(rendered.querySelector('[data-rotate]'),null,
+      'chart rotation is not supported by graphicFrame');
+ }
+ assert.equal(q.model().surfaces[0].elements.length,3);
+});
+
+test('chart data table edits stay linked to native chart object; palettes and undo snapshot',t=>{
+ const q=setup(t);clickLabel(q.controls,'Gráfico: Barras');
+ const head=q.model().surfaces[0].elements[0];
+ assert.equal(head.chart_type,'bar');
+ assert.ok(q.host.querySelector('.slide-chart-data'));
+ let grid=q.host.querySelector('.slide-chart-grid');
+ assert.equal(grid.querySelectorAll('tbody tr').length,3);
+ let label=grid.querySelector('tbody tr:first-child input[type=text]');
+ label.value='Rondônia';
+ const prior=q.versions.length;
+ label.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].chart_categories[0],'Rondônia');
+ assert.equal(q.versions.length,prior+1);
+ let number=q.host.querySelector('.slide-chart-grid tbody tr:first-child input[type=number]');
+ number.value='104';
+ number.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].chart_values[0],104);
+ let palette=q.host.querySelector('[aria-label="Paleta do gráfico"]');
+ palette.value='green';palette.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].chart_palette,'green');
+ let add=q.host.querySelector('.slide-chart-data > button');
+ add.click();
+ assert.equal(q.model().surfaces[0].elements[0].chart_categories.length,4);
+ assert.equal(q.host.querySelectorAll('.slide-chart-grid tbody tr').length,4);
+ let del=q.host.querySelector('.slide-chart-grid tbody tr:last-child button');
+ del.click();
+ assert.equal(q.model().surfaces[0].elements[0].chart_categories.length,3);
+ assert.equal(q.scroller.querySelectorAll('.slide-object-chart').length,1);
+});
+
+test('chart validation prevents invalid pie values or wrong number of data cells',t=>{
+ const q=setup(t);const C=q.w.OpenDocSlideCharts;
+ assert.throws(()=>C.valid('pie',['A','B'],[-1,2]),/pizza/);
+ assert.throws(()=>C.valid('pie',['A','B'],[0,0]),/pizza/);
+ assert.throws(()=>C.valid('bar',['A'],[1,2]),/24 linhas/);
+ assert.throws(()=>C.valid('bar',['A'],[Number.NaN]),/numéricos/);
+ assert.doesNotThrow(()=>C.valid('line',['A','B'],[-10,2]));
+ clickLabel(q.controls,'Gráfico: Pizza');
+ const change=q.host.querySelector('.slide-chart-grid tbody tr:first-child input[type=number]');
+ const before=q.versions.length;
+ change.value='-2';change.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.versions.length,before,'bad values must not mutate presentation');
+ assert.equal(q.model().surfaces[0].elements[0].chart_values[0],18);
 });
