@@ -82,7 +82,7 @@ class PdfNativeEditor:
         if type(page_index) is not int or not 0 <= page_index < len(writer.pages):
             raise PdfNativeEditError("Número de página inválido.")
         page = writer.pages[page_index]
-        if not page.get_contents():
+        if page.get_contents() is None:
             raise PdfNativeEditError("A página não possui conteúdo editável.")
         return page, ContentStream(page.get_contents(), writer)
 
