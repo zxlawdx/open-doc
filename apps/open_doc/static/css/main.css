@@ -2053,6 +2053,13 @@ body {
 .open-doc .slide-presentation .slide-resize-handle,
 .open-doc .slide-presentation .slide-rotate-handle{display:none!important}
 
+.open-doc .slide-object.slide-search-match{outline:3px solid #f4b000;outline-offset:3px}
+.open-doc .slide-search-result{display:block;width:100%;padding:8px 9px;
+  border:1px solid var(--color-border);border-radius:7px;text-align:left;
+  overflow-wrap:anywhere;font-size:12px;margin-top:5px;background:var(--color-panel);
+  color:var(--color-text-primary);cursor:pointer}
+.open-doc .slide-search-result:hover{border-color:var(--color-primary)}
+
 /* Desktop policy: one scrollable toolbar strip; never compress paper geometry. */
 @media (max-width: 1439px) {
     .open-doc {
