@@ -118,6 +118,70 @@
         savedRange=range;restore();
       }
     }
+    // Pure structured-model transaction plan. Physical .document-page nodes
+    // are views: deleting across blocks must never mutate their wrappers.
+    // This operation is used for BOTH keyboard and beforeinput deletion, so
+    // undo, selection and pagination have a single source of truth.
+    function planLogicalBackward(model){
+      const selection=window.getSelection();
+      if(!model?.blocks || !selection?.rangeCount ||
+         !rich.contains(selection.anchorNode))return null;
+      const range=selection.getRangeAt(0);
+      const blocks=model.blocks;
+      const element=n=>n?.nodeType===3?n.parentElement:n;
+      if(!selection.isCollapsed){
+        const visible=Array.from(rich.querySelectorAll('[data-page-content] > [data-node-id], [data-rich] > [data-node-id]'));
+        if(!visible.length)return null;
+        let first=visible[0],last=visible[visible.length-1];
+        // Only whole-document range deletion is handled here. Partial complex
+        // selections retain the browser's current editing behavior.
+        try{
+          if(!range.intersectsNode(first)||!range.intersectsNode(last))return null;
+        }catch(_){return null;}
+        const preserved=blocks[0]&&blocks[0].type==='paragraph'?blocks[0]:
+          {id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[]};
+        return {
+          model:{...model,blocks:[{...preserved,children:[]}]},
+          caret:{blockId:preserved.id,blockIndex:0,blockOffset:0,
+            childOffset:0,start:0,length:0},
+          affected:blocks.map(b=>b.id),kind:'replace-all'
+        };
+      }
+      const anchor=selection.anchorNode,host=element(anchor);
+      const node=host?.closest?.('[data-node-id][data-node-type="paragraph"],p[data-node-id],p[data-fragment-of],blockquote[data-node-id],pre[data-node-id]');
+      if(!node)return null;
+      const id=node.dataset.fragmentOf||node.dataset.nodeId;
+      const index=blocks.findIndex(b=>b.id===id);
+      if(index<0 || blocks[index].type!=='paragraph')return null;
+      // At the start of a paragraph, only a transactional merge is permitted.
+      // A text offset of zero across blank paragraphs is not a global
+      // document cursor: the stable block ID above disambiguates it.
+      const before=document.createRange();
+      before.selectNodeContents(node);
+      try{before.setEnd(anchor,selection.anchorOffset);}
+      catch(_){return null;}
+      if(before.toString().length>0)return null;
+      // A caret inside a nested inline node may be at the start of a span
+      // even when preceding inline images/tabs exist: don't delete them.
+      if(node.querySelector('img,table,[contenteditable="false"]'))return null;
+      if(index===0)return {noop:true};
+      const previous=blocks[index-1],current=blocks[index];
+      if(previous.type!=='paragraph')return null;
+      const prefix=(previous.children||[]).reduce((n,v)=>
+        n+(v.type==='text'?v.text.length:v.type==='break'?1:0),0);
+      const next=window.OpenDocModel.clone(model);
+      next.blocks[index-1].children=[
+        ...(next.blocks[index-1].children||[]),
+        ...(next.blocks[index].children||[])
+      ];
+      next.blocks.splice(index,1);
+      return {
+        model:next,
+        caret:{blockId:previous.id,blockIndex:index-1,blockOffset:prefix,
+          childOffset:null,start:prefix,length:0},
+        affected:[previous.id,current.id],kind:'merge-paragraph'
+      };
+    }
     function state() {
       const selection = window.getSelection();
       if (!selection?.rangeCount || !rich.contains(selection.anchorNode)) return {};
@@ -130,7 +194,7 @@
       };
     }
     document.addEventListener("selectionchange", capture, {signal});
-    return {capture, restore, execute, state, bookmark, restoreBookmark};
+    return {capture, restore, execute, state, bookmark, restoreBookmark, planLogicalBackward};
   }
   window.OpenDocCommands = {create};
 })();
