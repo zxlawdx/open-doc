@@ -591,15 +591,18 @@ test('F5 presents slides in a scaled overlay with keyboard navigation and Escape
  assert.ok(overlay,'slide presentation should open on F5');
  assert.equal(overlay.getAttribute('role'),'dialog');
  assert.equal(overlay.getAttribute('aria-modal'),'true');
- assert.match(overlay.querySelector('output').textContent,/Slide 2 de 2/);
+ assert.match(overlay.querySelector('output').textContent,/1 \\/ 2/);
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'ArrowRight',bubbles:true,cancelable:true}));
+ assert.match(overlay.querySelector('output').textContent,/2 \\/ 2/);
  assert.ok(overlay.querySelector('.slide-object-rect'),'presentation reuses editable slide source rendering');
  assert.equal(overlay.querySelector('.slide-resize-handle'),null,'authoring handles must be hidden');
  overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
    {key:'ArrowLeft',bubbles:true,cancelable:true}));
- assert.match(overlay.querySelector('output').textContent,/Slide 1 de 2/);
+ assert.match(overlay.querySelector('output').textContent,/1 \\/ 2/);
  overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
    {key:'End',bubbles:true,cancelable:true}));
- assert.match(overlay.querySelector('output').textContent,/Slide 2 de 2/);
+ assert.match(overlay.querySelector('output').textContent,/2 \\/ 2/);
  overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
    {key:'Escape',bubbles:true,cancelable:true}));
  assert.equal(q.root.querySelector('.slide-presentation'),null,'Escape closes the slide show');
@@ -611,5 +614,49 @@ test('presentation closes when leaving the slides editor',t=>{
  clickLabel(q.controls,'Apresentar');
  assert.ok(q.root.querySelector('.slide-presentation'));
  q.editor.deactivate();
+ assert.equal(q.root.querySelector('.slide-presentation'),null);
+});
+
+test('native fullscreen requests Vela and restores the previous window state',async t=>{
+ const q=setup(t);
+ const calls=[];
+ q.w.Vela={platform:{window:{
+   getState:async()=>({fullscreen:false}),
+   enterFullscreen:async()=>{calls.push('enter');return {fullscreen:true};},
+   exitFullscreen:async()=>{calls.push('exit');return {fullscreen:false};},
+   setFullscreen:async value=>{calls.push('set:'+value);return {fullscreen:value};},
+   toggleFullscreen:async()=>{calls.push('toggle');return {fullscreen:false};}
+ }}};
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'F5',bubbles:true,cancelable:true}));
+ await new Promise(resolve=>setTimeout(resolve,1));
+ assert.ok(calls.includes('enter'),'F5 delegates real fullscreen to Vela');
+ const overlay=q.root.querySelector('.slide-presentation');
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'F11',bubbles:true,cancelable:true}));
+ await new Promise(resolve=>setTimeout(resolve,1));
+ assert.ok(calls.includes('toggle'),'F11 requests native fullscreen toggle');
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+ await new Promise(resolve=>setTimeout(resolve,1));
+ assert.ok(calls.includes('set:false'),'Escape restores the previous state of the native window');
+});
+
+test('slide transition animates the incoming slide and cancels safely on fast navigation',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'Retângulo');
+ q.editor.commands.updateSlide(1,{transition:'push-left',transition_speed:'fast'});
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'F5',bubbles:true}));
+ const overlay=q.root.querySelector('.slide-presentation');
+ const next=overlay.querySelector('[aria-label^="Próximo slide"]');
+ next.click();
+ const incoming=overlay.querySelector('.slide-presentation-incoming');
+ assert.ok(incoming,'transition creates a distinct incoming slide frame');
+ assert.match(incoming.style.transition,/transform/);
+ assert.equal(overlay.querySelector('.slide-presentation-stage').children.length,2);
+ overlay.querySelector('[aria-label^="Slide anterior"]').click();
+ assert.match(overlay.querySelector('output').textContent,/1 \\/ 2/);
+ assert.ok(overlay.querySelector('.slide-presentation-stage').children.length<=2,
+   'interrupting an effect must not leave duplicate frames');
+ q.editor.stopPresentation();
  assert.equal(q.root.querySelector('.slide-presentation'),null);
 });
