@@ -42,7 +42,7 @@ Referência: https://www.nngroup.com/articles/ten-usability-heuristics/
 - **PptxGenJS** — https://github.com/gitbrent/PptxGenJS/issues/327 — suporte de animações historicamente não implementado. Útil para exportação de gráficos/decks novos; inadequado para prometer roundtrip integral.
 - Critérios para uma implementação real de transições: escolher efeito, direção e duração; persistir no modelo; exportar `p:transition` OOXML; reabrir em PowerPoint e LibreOffice; não confundir prévia CSS com efeito nativo do arquivo.
 - Critérios para animações: identificar formas por shape IDs preservados; modelar `start` (clique/anterior/depois), duração e ordem; exportar `p:timing` válido; teste visual e OOXML; não reduzir animação a GIF ou rasterizar forma.
-- Critérios para gráficos editáveis: dados em modelo estruturado, planilha embutida `ppt/embeddings/*.xlsx` + relações com chart parts; operações de seleção/dados, paleta, fonte, eixos, legenda e etiquetas; reabrir e editar os dados no PowerPoint. **Ainda não implementado.**
+- Critérios para gráficos editáveis: dados em modelo estruturado, planilha embutida `ppt/embeddings/*.xlsx` + relações com chart parts; operações de seleção/dados, paleta, fonte, eixos, legenda e etiquetas; reabrir e editar os dados no PowerPoint. **Implementado parcialmente no PR #26**: barras/linhas/pizza, uma série de dados e paletas, com workbook XLSX embutido. Recursos avançados (múltiplas séries, eixos secundários e importação editável de gráficos externos) permanecem pendentes.
 
 ## Pesquisa técnica: edição real de PDFs
 
@@ -53,12 +53,12 @@ Referência: https://www.nngroup.com/articles/ten-usability-heuristics/
 
 ## Pendências de produto que continuam abertas
 
-1. **Transições nativas + animações de objetos** com prévia, compatibilidade e testes em duas suítes.
-2. **Gráficos editáveis e suas tabelas de dados**, tanto em PPTX como no fluxo documental quando houver chart part.
+1. **Animações por objeto**: transições nativas de slide (fade/push/wipe) foram implementadas no **PR #25**; faltam animações de formas com timing, ordem e roundtrip.
+2. **Gráficos avançados**: barras, linhas e pizza de uma série em PPTX foram implementados no **PR #26**; faltam múltiplas séries, gráficos em DOCX e edição de gráficos importados.
 3. **Tabelas matrizes em slides** com tamanho/posicionamento, fontes e dados editáveis; #24 cobre matriz **no documento DOCX**, não ainda no slide.
-4. **Editor matemático**: interface acessível com operadores, frações, super/subscritos, raízes, símbolos e prévia; persistência OMML em DOCX (ou MathML/OOXML), nunca colar apenas imagem sem avisar.
+4. **Equações estruturadas OMML**: o **PR #27** introduz calculadora e paleta que inserem texto matemático Unicode no cursor, mas ainda não geram equações profissionais estruturadas em OMML.
 5. **Edição real de PDF** por objeto com revisão de fidelidade; não confundir com as anotações atuais.
-6. **Salvamento e exportação**: confirmação com destino e botão “Mostrar pasta”, recuperação e erros contextualizados para todos os formatos.
+6. **Salvamento e exportação**: o PR #24 inclui confirmação legível com o caminho exato; ainda falta botão nativo “Mostrar pasta”, recuperação assistida e mensagens de erro específicas para todas as falhas.
 7. **Temas e modelos de slides, layouts, guias, alinhamento e grids** com editor de mastros/templates.
 8. **Cobertura real de Qt** para novos diálogos, arrastar alças, rotação, zoom e acessibilidade com leitor de tela; os testes atuais medem a lógica mais diretamente.
 9. **Ícone oficial**: marca ainda depende de arte final aprovada; o código SVG atual é apenas o símbolo de arquivo `#file-text`.
@@ -84,3 +84,24 @@ Referência: https://www.nngroup.com/articles/ten-usability-heuristics/
 - Sempre testar Windows e Linux Qt. Conferir `npm test`, `pytest`, `collectstatic --yes`, e suite real desktop.
 - Não mesclar os PRs de UX até passarem as duas plataformas. Não chamar funcionalidade parcialmente implementada de “editor profissional completo”.
 - Distinguir erros de **código**, **build**, **arquivo de origem** e **capacidade não suportada** em mensagens legíveis.
+
+## Progresso concreto da trilha de PRs
+
+| PR | Foco | Verificação CI |
+|---|---|---|
+| [#22](https://github.com/zxlawdx/open-doc/pull/22) | Anotações à direita, Ctrl+clique, estabilidade de página | Windows/Linux aprovados |
+| [#23](https://github.com/zxlawdx/open-doc/pull/23) | Texto inline no slide, oito alças, rotação e balde | Windows/Linux aprovados |
+| [#24](https://github.com/zxlawdx/open-doc/pull/24) | Tabelas matrizes DOCX, CSV, FAQ e UX da biblioteca | Windows/Linux aprovados |
+| [#25](https://github.com/zxlawdx/open-doc/pull/25) | Transições nativas com prévia | Windows/Linux aprovados |
+| [#26](https://github.com/zxlawdx/open-doc/pull/26) | Gráficos nativos editáveis, workbook XLSX e prévia SVG | Windows/Linux aprovados |
+| [#27](https://github.com/zxlawdx/open-doc/pull/27) | Assistente de equações Unicode e calculadora segura | Em validação; não alegar aprovação até CI |
+
+**Os PRs continuam em rascunho (draft) e não foram mesclados à main.**
+Não tratar o documento como comprovação de teste visual manual no Windows PowerPoint ou LibreOffice.
+
+### Etapas adicionais de verificação sequencial
+
+13. Insira gráficos de barras, linhas e pizza. Altere os valores e cores da tabela de dados. Exporte PPTX, abra no PowerPoint e confira se “Editar Dados” abre a planilha.
+14. Selecione uma transição de slide, use Prévia, exporte PPTX e reproduza a apresentação em PowerPoint ou LibreOffice.
+15. Em documento DOCX, posicione o cursor no meio de uma frase. Use Inserir > Equação e calculadora, escolha símbolos, calcule 2*(3+4), insira expressão, desfaça e refaça. Confira que a escrita ao redor não se move.
+16. Confirme explicitamente a limitação: a fórmula do passo anterior é texto Unicode editável, **não** uma equação OMML; redimensionar uma fração não deve ser apresentado como composição matemática profissional.
