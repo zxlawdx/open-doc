@@ -432,7 +432,7 @@
           if(!this.pan)this.scroller.style.cursor="";}
       },{signal:this.signal});
       this.scroller.addEventListener("click",event=>{
-        if(!this.active)return;
+        if(!this.active||this.inlineEditing)return;
         const surface=event.target.closest(".fixed-surface");
         if(!surface)return;
         const targetIndex=Number(surface.dataset.pageIndex);
@@ -461,7 +461,10 @@
         if(event.target.closest("input,textarea,[contenteditable=true]"))return;
         if(event.key===" "){event.preventDefault();this.spacePressed=true;
           if(!this.pan)this.scroller.style.cursor="grab";return;}
-        if(event.key==="Escape"){this._selectObject(null);this.render();return;}
+        if(event.key==="Escape"){
+          if(this.paintActive){this.paintActive=false;this.paintButton.setAttribute("aria-pressed","false");}
+          this.lastTextTap=null;this._selectObject(null);this.render();return;
+        }
         if(!this.selected)return;
         if(event.key==="Delete"||event.key==="Backspace"){
           event.preventDefault();
@@ -903,6 +906,17 @@
       if(index!==this.current)this.current=index;
       const obj=this.getModel().surfaces[index].elements.find(e=>e.id===node.dataset.slideElement);
       if(!obj)return;
+      // DOM nodes can be replaced after the first pointer-up. Match stable IDs
+      // so two taps activate inline text editing even on legacy QtWebEngine.
+      const now=Date.now(),previous=this.lastTextTap;
+      const editable=obj.type==="text"||typeof obj.text==="string";
+      if(editable&&previous?.id===obj.id&&previous.index===index&&now-previous.time<650
+        &&!event.target.closest("[data-resize],[data-rotate]")){
+        this.lastTextTap=null;this.drag=null;this._selectObject(obj.id);
+        event.preventDefault();event.stopPropagation();
+        this._editText(index,obj.id,node,obj.text||"");return;
+      }
+      this.lastTextTap=editable?{id:obj.id,index,time:now}:null;
       if(!this.selectedIds.has(obj.id))this._selectObject(obj.id);
       this._properties();
       const box=surface.getBoundingClientRect();
@@ -944,7 +958,10 @@
     _finish(event){
       const drag=this.drag;if(!drag)return;
       this.drag=null;
-      if(!drag.value){this.render();return;}
+      if(!drag.value){
+        if(drag.node.dataset.selected!=="true")this.render();
+        return;
+      }
       const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,
         height:drag.value.height,rotation:drag.value.rotation};
       if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,
