@@ -136,7 +136,12 @@ test('Ctrl+click markup opens an editable floating comment without navigating aw
  const toggle=host.querySelector('.semantic-rail-toggle');
  toggle.click();assert.equal(host.dataset.annotationPane,'false');
  toggle.click();assert.equal(host.dataset.annotationPane,'true');
- // Deliberate navigation only when clicking a card in the annotation list.
+ // Selecting a card must preserve the reader position; navigation is explicit.
  host.querySelector('.semantic-annotation-list button').click();
- assert.equal(nav,1);
+ assert.equal(nav,0,'Selecting a comment must not jump to the beginning of the PDF');
+ const goButton=[...host.querySelectorAll('.semantic-annotation-editor button')]
+   .find(button=>button.textContent.includes('Ir para página do comentário'));
+ assert.ok(goButton,'Explicit navigation button must be visible after choosing the comment');
+ goButton.click();
+ assert.equal(nav,1,'Only the explicit action navigates to the comment page');
 });
