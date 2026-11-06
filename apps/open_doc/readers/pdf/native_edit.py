@@ -106,12 +106,14 @@ class PdfNativeEditor:
         active_font = None
         matches = []
         for index, (operands, op) in enumerate(stream.operations):
-            if op == b"BT":
-                inside_text, active_font = True, None
+            if op == b"Tf":
+                # PDF text-state font is retained across BT/ET blocks. In
+                # particular FPDF2 selects /F1 in a separate BT/ET sequence.
+                active_font = operands[0]
+            elif op == b"BT":
+                inside_text = True
             elif op == b"ET":
                 inside_text = False
-            elif inside_text and op == b"Tf":
-                active_font = operands[0]
             elif inside_text and op == b"Tj" and operands:
                 value = operands[0]
                 try:
