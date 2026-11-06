@@ -164,7 +164,24 @@
     if(!result.cancelled)status('PDF extraído: '+result.path);
     return result;
   }
-  async function exportDocument(format){await flush();const result=await window.pywebview.api.export_document(note.id,note.revision,format);if(result.error)throw Error(result.error);if(!result.cancelled)status('Salvo em: '+result.path);return result;}
+  async function exportDocument(format){
+    await flush();
+    status('Exportando '+format.toUpperCase()+'…');
+    const result=await window.pywebview.api.export_document(note.id,note.revision,format);
+    if(result.error)throw Error(result.error);
+    if(result.cancelled){status('Exportação cancelada.');return result;}
+    const confirmation=root.querySelector('[data-export-result]');
+    if(confirmation){
+      confirmation.replaceChildren();
+      const label=document.createElement('span');label.textContent='Salvo em: '+result.path;
+      const close=document.createElement('button');close.type='button';close.textContent='';
+      close.setAttribute('aria-label','Fechar confirmação de exportação');
+      close.addEventListener('click',()=>confirmation.replaceChildren());
+      confirmation.append(label,close);
+    }
+    status('Salvo em: '+result.path);
+    return result;
+  }
   root.addEventListener('open-doc:fixed-zoom',event=>{if(active)scale(event.detail/100);},{signal});
   root.addEventListener('open-doc:view-ready',()=>{
     if(active && model?.editable_deck && host.dataset.slideEditor==='true' &&
