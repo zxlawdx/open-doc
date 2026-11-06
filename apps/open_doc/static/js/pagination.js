@@ -33,12 +33,16 @@
   function logical(surface){const container=document.createElement('div');contents(surface,true).forEach(n=>container.appendChild(n));return container;}
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
-    let mode='pages',timer=null,frame=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false,runCount=0,lastRunMs=0;
+    let mode='pages',timer=null,frame=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false,runCount=0,lastRunMs=0,reflowing=false,lastError=null,abortedPasses=0,workUnits=0;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
     function paginate(){
       if(destroyed || root.dataset.documentKind==='fixed')return;if(composing){pendingComposition=true;return;}
+      let work=0;
+      const maxWork=Math.max(700,surface.querySelectorAll('[data-node-id]').length*36);
+      const tick=()=>{workUnits++;if(++work>maxWork)
+        throw Error('Reflow abortado: limite de operações excedido.');};
       const started=Date.now();runCount++;
       const m=metrics(),key=JSON.stringify(m)+mode;
       if(signature!==key)dirtyPage=0;signature=key;
@@ -55,6 +59,7 @@
       function overflow(){return height()>capacity+1;}
       next();
       for(let i=0;i<nodes.length;i++){
+        tick();
         let node=nodes[i];
         if(node.dataset.nodeType==='page_break') {box.appendChild(node);next();continue;}
         if(node.style.breakBefore==='page' && box.children.length)next();
@@ -63,7 +68,7 @@
         if(overflow() && box.children.length>1){node.remove();next();box.appendChild(node);}
         if(overflow() && node.tagName==='TABLE' && node.rows.length>1 && !node.querySelector('[rowspan]:not([rowspan="1"])')){
           const rest=node.cloneNode(false),body=document.createElement('tbody');rest.appendChild(body);rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
-          while(overflow() && node.rows.length>1)body.insertBefore(node.rows[node.rows.length-1],body.firstChild);
+          while(overflow() && node.rows.length>1 && (tick(),true))body.insertBefore(node.rows[node.rows.length-1],body.firstChild);
           if(body.children.length)nodes.splice(i+1,0,rest);
         }else if(overflow() && /^(P|DIV|BLOCKQUOTE|PRE)$/.test(node.tagName)
           && !node.textContent.trim()
@@ -74,7 +79,7 @@
           rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
           // Move chunks, not individual BRs. Re-measuring layout once per
           // empty line was quadratic and froze Qt for large Enter sequences.
-          while(overflow()){
+          while(overflow() && (tick(),true)){
             const breaks=Array.from(node.children).filter(child=>child.tagName==='BR');
             if(breaks.length<=1)break;
             const count=Math.max(1,Math.floor(breaks.length/2));
@@ -107,6 +112,31 @@
       host.style.width=(widths.length?Math.max(...widths):m.page_width_pt*4/3)+'px';
       last=page;dirtyPage=Math.max(0,index-1);status();lastRunMs=Date.now()-started;if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));if(preservedScroll){const canvas=root.querySelector('[data-canvas]');canvas.scrollTop=preservedScroll.top;canvas.scrollLeft=preservedScroll.left;preservedScroll=null;}
     }
+    function safePaginate(){
+      if(reflowing || destroyed)return;
+      reflowing=true;
+      const documentModel=typeof model==='function'?model():model;
+      try{
+        paginate();
+        lastError=null;
+      }catch(error){
+        abortedPasses++;lastError=String(error.message||error);
+        console.error('Open Doc: repaginação abortada',error);
+        // The document model is the last committed state. Recover it instead
+        // of leaving partly moved DOM fragments or triggering another reflow.
+        try{
+          mode='continuous';root.dataset.pageMode='continuous';
+          if(documentModel?.blocks && window.OpenDocRichRenderer)
+            window.OpenDocRichRenderer.render(documentModel,surface,()=>Promise.resolve(''));
+          else{
+            const holder=logical(surface);surface.replaceChildren(...Array.from(holder.childNodes));
+          }
+        }catch(recoveryError){console.error('Falha de recuperação de layout',recoveryError);}
+        root.dispatchEvent(new CustomEvent('open-doc:layout-error',
+          {detail:{message:'Paginação interrompida para preservar o documento. Visualização contínua ativada.',
+            error:lastError}}));
+      }finally{reflowing=false;}
+    }
     function invalidate(blockId,options={}){
       if(options.preserveScroll){const canvas=root.querySelector('[data-canvas]');preservedScroll={top:canvas.scrollTop,left:canvas.scrollLeft};}
       const node=blockId && Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId || n.dataset.fragmentOf===blockId);
@@ -125,11 +155,7 @@
         frame=(window.requestAnimationFrame || window.setTimeout)(()=>{
           frame=null;
           if(destroyed||generation!==epoch)return;
-          try{paginate();}catch(error){
-            console.error('Open Doc: falha na paginação',error);
-            root.dispatchEvent(new CustomEvent('open-doc:layout-error',
-              {detail:{message:'Erro ao paginar. O documento continua disponível para recuperação.'}}));
-          }
+          safePaginate();
         });
       },options.reason==='typing'?450:120);
     }
@@ -144,7 +170,7 @@
     function setMode(value){
       clearTimeout(timer);epoch++;
       if(frame!==null){(window.cancelAnimationFrame || window.clearTimeout)(frame);frame=null;}
-      mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;paginate();
+      mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;safePaginate();
     }
     const change=event=>{
       const {blockId,reason,structural,full}=event.detail || {};
@@ -157,8 +183,9 @@
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
     document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
     function destroy(){destroyed=true;clearTimeout(timer);epoch++;(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
-    return {paginate,invalidate,fits,destroy,setMode,active,metrics,
-      diagnostics:()=>({runCount,lastRunMs,pages:surface.querySelectorAll('[data-page-index]').length}),
+    return {paginate:safePaginate,invalidate,fits,destroy,setMode,active,metrics,
+      diagnostics:()=>({runCount,lastRunMs,abortedPasses,workUnits,lastError,
+        pages:surface.querySelectorAll('[data-page-index]').length}),
       logical:()=>logical(surface)};
   }
   window.OpenDocPagination={create,logical,contents,normalize,defaults};
