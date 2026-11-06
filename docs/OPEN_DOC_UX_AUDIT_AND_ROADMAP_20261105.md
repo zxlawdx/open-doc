@@ -94,9 +94,9 @@ Referência: https://www.nngroup.com/articles/ten-usability-heuristics/
 | [#24](https://github.com/zxlawdx/open-doc/pull/24) | Tabelas matrizes DOCX, CSV, FAQ e UX da biblioteca | Windows/Linux aprovados |
 | [#25](https://github.com/zxlawdx/open-doc/pull/25) | Transições nativas com prévia | Windows/Linux aprovados |
 | [#26](https://github.com/zxlawdx/open-doc/pull/26) | Gráficos nativos editáveis, workbook XLSX e prévia SVG | Windows/Linux aprovados |
-| [#27](https://github.com/zxlawdx/open-doc/pull/27) | Assistente de equações Unicode e calculadora segura | Em validação; não alegar aprovação até CI |
+| [#27](https://github.com/zxlawdx/open-doc/pull/27) | Assistente de equações Unicode e calculadora segura | Windows/Linux aprovados |
 
-**Os PRs continuam em rascunho (draft) e não foram mesclados à main.**
+**Todos os PRs #22–#27 foram mesclados em 5 de novembro de 2026 (horário de Porto Velho), na `main`, encerrando no commit `372662bf731f8ab1231b5785ee32ec6e25e465c5`.** As suítes Windows/Linux passaram nos HEADs pré-merge; a presença de todos os arquivos foi conferida na `main`. O workflow não gerou execução separada para o commit de merge.
 Não tratar o documento como comprovação de teste visual manual no Windows PowerPoint ou LibreOffice.
 
 ### Etapas adicionais de verificação sequencial
