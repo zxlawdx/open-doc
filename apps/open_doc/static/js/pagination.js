@@ -63,6 +63,19 @@
           const rest=node.cloneNode(false),body=document.createElement('tbody');rest.appendChild(body);rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
           while(overflow() && node.rows.length>1)body.insertBefore(node.rows[node.rows.length-1],body.firstChild);
           if(body.children.length)nodes.splice(i+1,0,rest);
+        }else if(overflow() && /^(P|DIV|BLOCKQUOTE|PRE)$/.test(node.tagName)
+          && !node.textContent.trim()
+          && Array.from(node.childNodes).filter(child=>child.nodeType===1&&child.tagName==='BR').length>1){
+          // A long chain of blank Enter lines has no text nodes. Without
+          // splitting BR nodes, one paragraph grows beyond the paper boundary.
+          const rest=node.cloneNode(false);
+          rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
+          while(overflow()){
+            const breaks=Array.from(node.children).filter(child=>child.tagName==='BR');
+            if(breaks.length<=1)break;
+            rest.prepend(breaks[breaks.length-1]);
+          }
+          if(rest.childNodes.length)nodes.splice(i+1,0,rest);
         }else if(overflow() && /^(P|H[1-6]|BLOCKQUOTE|PRE)$/.test(node.tagName) && node.textContent.length>1){
           // Split at the last word boundary which fits; Range retains inline formatting.
           const text=node.textContent,walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT),texts=[];let t;while((t=walker.nextNode()))texts.push(t);
