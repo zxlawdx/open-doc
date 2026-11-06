@@ -430,7 +430,8 @@ test('shape grips resize on all edges and rotation control commits one change',t
 
 test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
  const q=setup(t);
- assert.equal(q.controls.querySelectorAll('.slide-ribbon-tab').length,3);
+ assert.deepEqual(Array.from(q.controls.querySelectorAll('.slide-ribbon-tab')).map(tab=>tab.textContent),
+   ['Slides','Inserir','Formatar','Transições']);
  clickLabel(q.controls,'Retângulo');
  const shape=q.scroller.querySelector('.slide-object-rect');
  const color=q.controls.querySelector('.slide-paint-selector input[type=color]');
