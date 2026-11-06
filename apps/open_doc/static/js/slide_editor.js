@@ -7,11 +7,13 @@
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
     round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
-    triangle:"Triângulo",diamond:"Losango"})[type]||"Objeto";
+    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico"})[type]||"Objeto";
   const SVG_NS="http://www.w3.org/2000/svg";
   const ACTION_ICONS={
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
+    "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
+    "Gráfico: Pizza":"chart-pie",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
@@ -118,6 +120,22 @@
         assets[assetId]={mime:image.mime,data:image.data};
       }
       return assetId;
+    }
+    insertChart(index,kind="bar"){
+      if(!["bar","line","pie"].includes(kind))throw Error("Tipo de gráfico inválido.");
+      const id=window.OpenDocModel.id();
+      this.apply(slides=>{
+        const elements=slides[index].elements;
+        if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
+        elements.push({
+          id,type:"chart",name:"Gráfico de "+({bar:"barras",line:"linhas",pie:"pizza"}[kind]),
+          x:.14,y:.2,width:.72,height:.58,rotation:0,stroke_width:1.5,
+          color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
+          chart_type:kind,chart_title:"Resultados",chart_palette:"blue",
+          chart_categories:["2024","2025","2026"],chart_values:[18,25,32]
+        });
+      });
+      return id;
     }
     insertImage(index,image){
       const id=window.OpenDocModel.id();
@@ -256,6 +274,9 @@
       this._button("Triângulo",()=>this.add("triangle"));
       this._button("Losango",()=>this.add("diamond"));
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
+      for(const [label,kind] of [
+        ["Gráfico: Barras","bar"],["Gráfico: Linhas","line"],["Gráfico: Pizza","pie"]
+      ])this._button(label,()=>this.insertChart(kind),"Inserir gráfico PPTX nativo e editável");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
       this._button("Prévia",()=>this.previewTransition(),"Prévia da transição no slide atual");
@@ -277,7 +298,7 @@
         const ids=new Set(this.selectedIds),color=this.paintColor.value;
         this.commands.apply(slides=>{
           for(const obj of slides[this.current].elements){
-            if(!ids.has(obj.id)||obj.type==="image")continue;
+            if(!ids.has(obj.id)||obj.type==="image"||obj.type==="chart")continue;
             obj[obj.type==="text"?"color":obj.type==="line"?"stroke":"fill"]=color;
           }
         });
@@ -291,7 +312,7 @@
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide"]},
-        {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem"]},
+        {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Prévia"]}
       ];
@@ -316,10 +337,19 @@
       };
       this.toolbar.prepend(tabs,body);activate("Inserir");
     }
+    insertChart(kind){
+      const id=this.commands.insertChart(this.current,kind);
+      this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
+      this._selectObject(id);this.render();
+      this.status("Gráfico editável criado. Altere os dados nas propriedades.");
+    }
     _paintObject(index,id){
       const obj=this.getModel().surfaces[index].elements.find(item=>item.id===id);
       if(!obj)return;
-      if(obj.type==="image")return this.status("O balde não altera os pixels de uma imagem.");
+      if(obj.type==="image"||obj.type==="chart")
+        return this.status(obj.type==="chart"
+          ?"Para colorir o gráfico, escolha uma paleta nas propriedades."
+          :"O balde não altera os pixels de uma imagem.");
       const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
       this.commands.updateObject(index,id,{[property]:this.paintColor.value});
       this._selectObject(id);
@@ -547,7 +577,15 @@
       this._styleObject(node,obj,index,thumb);
       const vector=this.shapeRenderer.create(obj);
       if(vector)node.append(vector);
-      if(obj.type==="image"){
+      if(obj.type==="chart"){
+        if(window.OpenDocSlideCharts?.ChartPreview)
+          node.append(window.OpenDocSlideCharts.ChartPreview.render(obj));
+        else {
+          const placeholder=document.createElement("span");
+          placeholder.textContent="Gráfico · "+(obj.chart_title||"Sem título");
+          node.append(placeholder);
+        }
+      }else if(obj.type==="image"){
         const asset=(this.getModel().assets||{})[obj.asset_id];
         if(asset){
           // Keep picture pixels behind an independent clipping viewport: the
@@ -579,10 +617,12 @@
           handle.dataset.resize=direction;
           handle.setAttribute("aria-label","Redimensionar: "+direction);node.append(handle);
         }
-        const rotate=document.createElement("span");
-        rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
-        rotate.setAttribute("aria-label","Girar objeto");
-        node.append(rotate);
+        if(obj.type!=="chart"){
+          const rotate=document.createElement("span");
+          rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
+          rotate.setAttribute("aria-label","Girar objeto");
+          node.append(rotate);
+        }
       }
       return node;
     }
@@ -752,6 +792,13 @@
           const name=value.trim().slice(0,80);
           if(name)this.commands.updateObject(this.current,selected.id,{name});
         });
+        if(selected.type==="chart"&&window.OpenDocSlideCharts?.ChartInspector){
+          window.OpenDocSlideCharts.ChartInspector.mount(
+            this.inspector,selected,
+            patch=>this.commands.updateObject(this.current,selected.id,patch),
+            this.status,this.signal
+          );
+        }
         if(selected.type==="image"){
           const replaceButton=document.createElement("button");
           replaceButton.type="button";replaceButton.textContent="Substituir imagem";
@@ -781,7 +828,7 @@
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
         if(selected.type==="text"||selected.text)
           this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));
-        if(selected.type!=="text"&&selected.type!=="image"){
+        if(selected.type!=="text"&&selected.type!=="image"&&selected.type!=="chart"){
           if(selected.type!=="line"&&selected.type!=="arrow")
             this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
           this._property("Contorno",selected.stroke,"color",value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
@@ -790,8 +837,10 @@
         }
         if(selected.type==="text"||selected.text)
           this._property("Fonte (pt)",selected.font_size_pt||28,"number",value=>this.commands.updateObject(this.current,selected.id,{font_size_pt:clamp(Number(value)||28,6,144)}));
-        const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
-        rotationField.min="-360";rotationField.max="360";
+        if(selected.type!=="chart"){
+          const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
+          rotationField.min="-360";rotationField.max="360";
+        }
         for(const [key,label] of fields)this._property(label,Math.round(selected[key]*100),"number",value=>{
           const amount=clamp(Number(value)/100,0,key==="x"||key==="y"?1:1);
           const patch={[key]:amount};
