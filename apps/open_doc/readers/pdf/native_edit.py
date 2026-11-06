@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -250,11 +251,21 @@ class PdfNativeEditor:
                 raise PdfNativeEditError("A exportação alterou o número de páginas.")
             if kind == "replace_text":
                 text = checked.pages[page_index].extract_text()
+                before = reader.pages[page_index].extract_text()
                 if operation["new"] not in text:
                     raise PdfNativeEditError("Texto substituto não está presente no PDF.")
-                if operation["old"] in text and operation["old"] != operation["new"]:
+                # An old word can be a substring of the new word
+                # (atividade -> atividades), and other exact occurrences
+                # can legitimately remain after a selected replacement.
+                # Verify one *whole textual occurrence* disappears, not
+                # that the old bytes vanish from the entire document.
+                old_pattern = re.compile(r"(?<!\\w)" + re.escape(operation["old"]) +
+                                         r"(?!\\w)")
+                before_count = len(old_pattern.findall(before))
+                after_count = len(old_pattern.findall(text))
+                if before_count < 1 or after_count != before_count - 1:
                     raise PdfNativeEditError(
-                        "Texto original ainda presente: verifique ocorrências e seleção."
+                        "A ocorrência original não foi substituída na extração do PDF."
                     )
             temporary.replace(destination)
         finally:
