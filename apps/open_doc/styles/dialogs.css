@@ -59,3 +59,29 @@
     border: 1px solid var(--color-border);
     padding: var(--space-1) var(--space-4);
 }
+
+/* Table templates and focused task-oriented help are scrollable on desktop/Qt. */
+.open-doc .dialog.dialog-table,.open-doc .dialog.dialog-help{width:min(720px,calc(100vw - 32px))}
+.open-doc .table-dialog-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.open-doc .table-dialog-field{font-size:13px;min-width:0}
+.open-doc .table-dialog-field input{box-sizing:border-box;padding:9px 11px;border:1px solid var(--color-border);border-radius:9px;background:var(--of-surface-low);color:var(--color-text-primary)}
+.open-doc .table-preset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.open-doc .table-preset{display:flex;flex-direction:column;align-items:flex-start;gap:5px;
+  padding:14px;text-align:left;min-height:75px;border:1px solid var(--color-border);
+  border-radius:12px;background:var(--of-surface-low);color:var(--color-text-primary)}
+.open-doc .table-preset strong{font-size:14px}
+.open-doc .table-preset small{font-size:12px;line-height:1.45;color:var(--color-text-secondary)}
+.open-doc .table-preset[aria-pressed=true]{border:2px solid var(--color-primary);background:var(--color-primary-soft)}
+.open-doc .table-csv-file,.open-doc .table-dialog textarea{box-sizing:border-box;width:100%;font:inherit;
+  color:var(--color-text-primary);background:var(--of-surface-low);border:1px solid var(--color-border);
+  padding:10px;border-radius:9px;min-height:40px;resize:vertical}
+.open-doc .table-import-link{padding:10px 14px;border:1px solid var(--color-border);
+  background:var(--of-surface-low);color:var(--color-text-primary);border-radius:9px}
+.open-doc .table-dialog-feedback{font-size:13px;color:var(--color-text-secondary)}
+.open-doc .table-dialog-hint{font-size:13px}
+.open-doc .dialog h3{font-size:14px;margin:18px 0 10px;font-weight:650}
+.open-doc .dialog-help .help-entries{display:flex;flex-direction:column;gap:10px}
+.open-doc .dialog-help .help-entry{border:1px solid var(--color-border);
+  background:var(--of-surface-low);padding:12px 14px;border-radius:12px}
+.open-doc .dialog-help .help-entry summary{cursor:pointer;font-weight:600;line-height:1.5}
+.open-doc .dialog-help .help-entry p{margin:10px 0 0;line-height:1.6}
