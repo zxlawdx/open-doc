@@ -21,6 +21,44 @@
     clearTimeout(noticeTimer);
     if (!destroyed) root.querySelector('[data-status]').textContent = text;
   }
+  // Delegated tooltip layer also covers buttons created later by PDF/slide editors.
+  function installTooltips(){
+    const tip=document.createElement('div');tip.className='opendoc-tooltip';
+    tip.setAttribute('role','tooltip');tip.hidden=true;root.append(tip);
+    let current=null,timer=null;
+    const hide=()=>{clearTimeout(timer);timer=null;current=null;tip.hidden=true;};
+    const control=element=>element?.closest?.('button,[role="button"],summary,select,input[type="color"]');
+    const message=element=>{
+      const value=element.getAttribute('data-tooltip')||element.getAttribute('aria-label')
+        ||element.getAttribute('title')||element.textContent||'';
+      return value.replace(/\\s+/g,' ').trim().slice(0,220);
+    };
+    function schedule(element){
+      if(!element||element.disabled||element.closest('[hidden]')){hide();return;}
+      const value=message(element);
+      if(!value){hide();return;}
+      if(current===element)return;
+      hide();current=element;
+      timer=setTimeout(()=>{
+        if(signal.aborted||!current?.isConnected)return;
+        tip.textContent=value;tip.hidden=false;
+        const rect=element.getBoundingClientRect(),width=tip.offsetWidth||220,height=tip.offsetHeight||28;
+        const left=Math.max(8,Math.min(window.innerWidth-width-8,rect.left+rect.width/2-width/2));
+        const top=rect.bottom+height+10>window.innerHeight
+          ?Math.max(8,rect.top-height-8):rect.bottom+8;
+        tip.style.left=left+'px';tip.style.top=top+'px';
+      },500);
+    }
+    root.addEventListener('pointerover',event=>schedule(control(event.target)),{signal});
+    root.addEventListener('pointerout',event=>{
+      if(current && (!event.relatedTarget||!current.contains(event.relatedTarget)))hide();
+    },{signal});
+    root.addEventListener('focusin',event=>schedule(control(event.target)),{signal});
+    root.addEventListener('focusout',hide,{signal});
+    root.addEventListener('pointerdown',hide,{signal});
+    root.addEventListener('scroll',hide,{capture:true,signal});
+    signal.addEventListener('abort',()=>{hide();tip.remove();},{once:true});
+  }
   function report(name, error) {
     console.error('Open Doc: ' + name, error);
     failures.push({module: name, message: error.message});
@@ -371,6 +409,7 @@
     navigation = await auxiliary('navegação', 'OpenDocNavigation', 'navigation.js', module => module.create(root, editor, signal));
     design = await auxiliary('interface de documentos', 'OpenDocDesign', 'design_system.js', module => module.create({root,action,signal}));
     showView(false);
+    installTooltips();
     root.dataset.ready = 'true';
   }
   mount().catch(error => { console.error('Open Doc: inicialização', error); status(error.message); });
