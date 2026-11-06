@@ -350,6 +350,19 @@
       source.focus(); changed("format", source);
     }
 
+    function insertPlainText(value){
+      // Preserve the editor selection captured before the dialog.
+      // Browser editing commands integrate with undo and the rich serializer.
+      if(lockedState||suspended||typeof value!=="string"||!value||value.length>1024)return false;
+      if(mode!=="rich")setMode("rich");
+      history.checkpoint(buffer());
+      nextKind="format";
+      let applied=false;
+      try{applied=commands.execute("insertText",value);}
+      finally{nextKind="typing";}
+      return Boolean(applied);
+    }
+
     function textState(){
       const selection=getSelection();let node=selection.anchorNode;
       if(node?.nodeType===1){node=node.childNodes[Math.min(selection.anchorOffset,node.childNodes.length-1)] || node;while(node.firstChild)node=node.firstChild;}
@@ -539,7 +552,7 @@
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }
     function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}
-    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
+    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPlainText, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;
     if(window.OpenDocPagination)pagination=window.OpenDocPagination.create({root,model:()=>model,pageMetrics:()=>model?.sections?.[0],capture:()=>{commands.capture();return commands.bookmark();},restore:b=>commands.restoreBookmark(b)});
     if(window.OpenDocPageMenu)window.OpenDocPageMenu.create(root,instance,controller.signal);

@@ -22,7 +22,7 @@
     rich:[
       ["Como criar uma tabela?","Vá em Inserir > Tabela. Escolha linhas, colunas, modelo e espaçamento. Você também pode colar dados tabulados ou importar um CSV. Depois edite cada célula diretamente."],
       ["O layout mudou ao exportar. O que faço?","Salve uma cópia DOCX e compare com o original. Fontes indisponíveis e recursos avançados podem alterar a paginação. Ajuste a largura e as margens em Configuração da página."],
-      ["Como inserir equações?","O editor ainda não tem um construtor matemático nativo completo. Você pode inserir texto Unicode simples, mas fórmulas complexas exigem uma implementação específica para preservar a estrutura matemática em DOCX."]
+      ["Como inserir equações?","Vá em Inserir > Equação e calculadora. Escolha símbolos, componha sua expressão e confirme. O texto entra exatamente na posição do cursor e permanece editável. Equações OMML estruturadas e frações empilhadas ainda não estão disponíveis."]
     ]
   };
   class HelpCenter {

@@ -150,7 +150,7 @@
   }
   function closeDialog(value = null) {
     const backdrop = root.querySelector('[data-dialog]');
-    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help');
+    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help','dialog-equation');
     // QtWebEngine (Chromium 83) must not rely solely on the [hidden]
     // attribute when a component stylesheet sets display:grid.
     backdrop.hidden = true;
@@ -212,6 +212,12 @@
       'font-import':async()=>{const result=await window.pywebview.api.import_font();if(result.error)throw Error(result.error);if(!result.cancelled){await refreshFonts();status('Fontes importadas.');}},
       'font-refresh':refreshFonts,
       'font-manage':fontManager,
+      'equation-insert':async()=>{
+        if(root.dataset.documentKind==="fixed")
+          return status("Abra um documento de texto para inserir uma equação.");
+        if(!window.OpenDocEquationAssistant)await loadScript('equation_assistant.js');
+        return window.OpenDocEquationAssistant.EquationAssistant.open({dialog,root,editor,status});
+      },
       'table-insert':async()=>{
         if(!window.OpenDocTableInsertDialog)await loadScript('table_insert_dialog.js');
         const pending=window.OpenDocTableInsertDialog.TableInsertDialog.show({

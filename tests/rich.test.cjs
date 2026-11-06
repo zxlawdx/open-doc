@@ -95,3 +95,29 @@ test('keyboard_text_survives_inflight_save_response',async t=>{const s=await set
 test('local Backspace keeps the paginated block serializer fast path',async t=>{const s=await setup(t);s.editor.pagination().paginate();s.select();s.w.Range.prototype.cloneContents=()=>{throw Error('Bookmark cloned the document prefix');};s.rich.dispatchEvent(new s.w.InputEvent('beforeinput',{bubbles:true,inputType:'deleteContentBackward'}));s.rich.querySelector('table').cloneNode=()=>{throw Error('Backspace cloned an unrelated table');};s.rich.querySelector('[data-node-id=r1]').textContent='Texto selecionad';s.rich.dispatchEvent(new s.w.InputEvent('input',{bubbles:true,inputType:'deleteContentBackward'}));assert.equal(s.editor.snapshot().content.blocks[0].children.map(r=>r.text).join(''),'Texto selecionad');});
 
 test('native paragraph split IDs cannot collide with untouched blocks on the next input',async t=>{const s=await setup(t);s.editor.pagination().paginate();const first=s.rich.querySelector('[data-node-id=p1]'),second=first.cloneNode(true);second.dataset.nodeId='split-p';first.parentNode.insertBefore(second,first.nextSibling);const structural=s.w.OpenDocRichSerializer.serialize(s.rich,s.editor.snapshot().content,null,['p1','split-p']);assert.equal(second.querySelector('[data-node-type=text]').dataset.nodeId,'r1');second.querySelector('[data-node-type=text]').textContent='Nova linha persistente';const next=s.w.OpenDocRichSerializer.serializeLogicalBlock(s.rich,'split-p',structural),ids=[];function visit(n){if(!n||typeof n!=='object')return;if(n.id)ids.push(n.id);for(const v of Object.values(n))if(Array.isArray(v))v.forEach(visit);}next.blocks.forEach(visit);assert.equal(new Set(ids).size,ids.length);assert.equal(next.blocks[0],structural.blocks[0]);assert.equal(next.blocks[0].children[0].id,'r1');assert.match(JSON.stringify(next.blocks[1]),/Nova linha persistente/);});
+
+
+test('equation insertion replaces the captured selection without moving to document start',async t=>{
+ const s=await setup(t);
+ s.select('[data-node-id="p1"]');
+ const original=s.editor.snapshot().content.blocks[0].children[0].text;
+ assert.equal(original,'Texto selecionado');
+ const originalCmd=s.w.document.execCommand;
+ s.w.document.execCommand=(command,show,value)=>{
+   if(command!=='insertText')return originalCmd(command,show,value);
+   const selection=s.w.getSelection(),range=selection.getRangeAt(0);
+   range.deleteContents();
+   const inserted=s.w.document.createTextNode(value);
+   range.insertNode(inserted);range.setStartAfter(inserted);range.collapse(true);
+   selection.removeAllRanges();selection.addRange(range);
+   return true;
+ };
+ const count=s.editor.snapshot().content.blocks.length;
+ assert.equal(s.editor.insertPlainText('E = mc²'),true);
+ const next=s.editor.snapshot().content;
+ assert.equal(next.blocks.length,count);
+ assert.equal(next.blocks[0].children.map(r=>r.text).join(''),'E = mc²');
+ assert.equal(next.blocks[1].type,'table','insertion should not alter unrelated table');
+ s.editor.format('undo');
+ assert.equal(s.editor.snapshot().content.blocks[0].children[0].text,original);
+});

@@ -32,3 +32,7 @@ Código-fonte: https://github.com/zxlawdx/open-doc/blob/main/apps/open_doc/stati
 O cabeçalho usa `#file-text` em `apps/open_doc/templates/base.html`. É um pictograma de documento, **não** uma logo oficial concluída.
 
 O instalador, favicon, miniaturas e ícone do cabeçalho devem reutilizar variantes de uma marca aprovada, sem depender de fonte externa ou de renderização específica da WebView.
+
+### SVG standalone para criar a logo oficial
+
+O arquivo [`assets/branding/icone-atual-open-doc.svg`](branding/icone-atual-open-doc.svg) reproduz exatamente a geometria do símbolo atual `#file-text` e pode ser aberto no Inkscape. A cor primária foi fixada em azul para tornar a visualização independente do CSS da aplicação. Não é uma marca oficial final.
