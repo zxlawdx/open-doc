@@ -6,6 +6,15 @@
     menu.className='semantic-selection-menu';menu.hidden=true;
     menu.setAttribute('role','toolbar');menu.setAttribute('aria-label','Anotar texto selecionado');
     host.append(menu);
+    // Page thumbnails stay at the left; the annotation workspace owns its
+    // own right rail, independent of the thumbnail list.
+    const rail=document.createElement('aside');
+    rail.className='semantic-notes-rail';rail.setAttribute('aria-label','Anotações do PDF');
+    rail.hidden=true;host.append(rail);
+    const balloon=document.createElement('section');balloon.className='semantic-note-balloon';
+    balloon.hidden=true;balloon.setAttribute('role','dialog');
+    balloon.setAttribute('aria-label','Comentário da marcação');
+    host.append(balloon);
     const color=document.createElement('input');
     color.type='color';color.value='#f5cc54';color.setAttribute('aria-label','Cor do destaque');
     let pending=null,chosen=null,panel=null,list=null,editor=null,filter='all',query='',noteMode=false,noteButton=null;
@@ -119,6 +128,7 @@
         const right=Math.min(viewport.width,Math.max(...xs)),bottom=Math.min(viewport.height,Math.max(...ys));
         if(right<=left || bottom<=top)continue;
         const fragment=document.createElement('div');fragment.className='semantic-fragment '+a.kind;
+        fragment.dataset.annotationId=a.id;
         Object.assign(fragment.style,{left:left+'px',top:top+'px',width:(right-left)+'px',
           height:(bottom-top)+'px',backgroundColor:a.kind==='highlight'?a.color:'transparent',
           opacity:String(a.opacity??0.35),borderColor:a.color});
@@ -144,7 +154,7 @@
       redrawList();
     }
     function reset(){
-      hide();chosen=null;
+      hide();hideBalloon();chosen=null;
       panel?.remove();panel=document.createElement('section');panel.className='semantic-annotation-panel';
       const heading=document.createElement('h3');heading.textContent='Anotações e comentários';
       const tools=document.createElement('div');tools.className='semantic-annotation-tools';
@@ -163,7 +173,9 @@
       tools.prepend(search,select);
       list=document.createElement('div');list.className='semantic-annotation-list';
       editor=document.createElement('div');editor.className='semantic-annotation-editor';
-      panel.append(heading,tools,list,editor);panel.hidden=root.dataset.sourceKind!=='pdf';sidebar.append(panel);redrawList();
+      panel.append(heading,tools,list,editor);
+      rail.hidden=root.dataset.sourceKind!=='pdf';
+      panel.hidden=rail.hidden;rail.replaceChildren(panel);redrawList();
     }
     function redrawList(){
       if(!list)return;
@@ -173,7 +185,7 @@
         (!query||(a.selected_text+' '+a.comment).toLocaleLowerCase('pt-BR').includes(query)));
       for(const a of matches){
         const title=a.kind==='note'?'Nota':{highlight:'Destaque',underline:'Sublinhado',strikeout:'Tachado'}[a.kind];
-        const button=makeButton('P. '+(a.page_index+1)+' · '+title+' · '+(a.kind==='note'?(a.comment||'Sem comentário'):a.selected_text).slice(0,76),()=>select(a.id),list);
+        const button=makeButton('P. '+(a.page_index+1)+' · '+title+' · '+(a.kind==='note'?(a.comment||'Sem comentário'):a.selected_text).slice(0,76),()=>select(a.id,false,true),list);
         button.title=a.comment || a.selected_text;
         button.style.borderLeft='4px solid '+a.color;
         button.setAttribute('aria-pressed',String(chosen===a.id));
@@ -181,7 +193,7 @@
       if(!matches.length){const empty=document.createElement('p');empty.className='semantic-empty';empty.textContent='Nenhuma anotação corresponde ao filtro.';list.append(empty);}
       if(chosen && !annotations().some(a=>a.id===chosen)){chosen=null;editor?.replaceChildren();}
     }
-    function select(id,focus=false){
+    function select(id,focus=false,navigate=false){
       chosen=id;redrawList();
       const a=annotations().find(item=>item.id===id);
       if(!a || !editor)return;
@@ -211,14 +223,66 @@
       makeButton('Excluir anotação',()=>{replace(annotations().filter(item=>item.id!==id));},editor);
       if(a.kind!=='note')editor.prepend(opacityLabel);
       editor.prepend(quote,label,palette);
-      if(a.page_index>=0)go(a.page_index);
+      // Editing the comment must never send the reader back to page one.
+      // Navigation happens only when clicking a result in the annotation rail.
+      if(navigate && a.page_index>=0)go(a.page_index);
       if(focus)textarea.focus();
     }
+    function hideBalloon(){balloon.hidden=true;balloon.replaceChildren();}
+    function annotationAt(event){
+      const surface=event.target.closest('.fixed-surface');
+      if(!surface)return null;
+      const pageIndex=Number(surface.dataset.pageIndex),page=getPage(pageIndex);
+      if(!page)return null;
+      const box=surface.getBoundingClientRect();
+      const viewport=page.getViewport({scale:4/3*getZoom()});
+      const x=(event.clientX-box.left)*viewport.width/box.width;
+      const y=(event.clientY-box.top)*viewport.height/box.height;
+      return annotations().find(a=>a.page_index===pageIndex&&a.quad_points.some(quad=>{
+        const points=[];
+        for(let i=0;i<8;i+=2)points.push(viewport.convertToViewportPoint(quad[i],quad[i+1]));
+        return x>=Math.min(...points.map(p=>p[0]))-2&&x<=Math.max(...points.map(p=>p[0]))+2
+          &&y>=Math.min(...points.map(p=>p[1]))-2&&y<=Math.max(...points.map(p=>p[1]))+2;
+      }))||null;
+    }
+    function showBalloon(a,event){
+      hideBalloon();balloon.hidden=false;chosen=a.id;redrawList();
+      const heading=document.createElement('strong');
+      heading.textContent='Anotação · página '+(a.page_index+1);
+      const quote=document.createElement('p');quote.className='semantic-balloon-quote';
+      quote.textContent=a.kind==='note'?'Nota adesiva':a.selected_text.slice(0,250);
+      const label=document.createElement('label');label.textContent='Seu comentário';
+      const input=document.createElement('textarea');
+      input.value=a.comment||'';input.maxLength=20000;input.rows=3;
+      input.setAttribute('aria-label','Editar comentário da marcação');
+      input.addEventListener('change',()=>replace(annotations().map(value=>
+        value.id===a.id?{...value,comment:input.value}:value)),{signal});
+      label.append(input);
+      const actions=document.createElement('div');actions.className='semantic-balloon-actions';
+      makeButton('Ver no painel',()=>{hideBalloon();select(a.id,true,false);},actions);
+      makeButton('Fechar',hideBalloon,actions);
+      balloon.append(heading,quote,label,actions);
+      const width=Math.max(260,Math.min(350,window.innerWidth-24));
+      balloon.style.width=width+'px';
+      const left=Math.max(12,Math.min(window.innerWidth-width-12,event.clientX+12));
+      const top=Math.max(12,Math.min(window.innerHeight-240,event.clientY+12));
+      balloon.style.left=left+'px';balloon.style.top=top+'px';
+      input.focus();
+    }
+    // Ctrl+click consults saved PDF quads. Highlight overlays remain
+    // pointer-events:none so ordinary text selection continues working.
+    scroller.addEventListener('click',event=>{
+      if(!event.ctrlKey&&!event.metaKey)return;
+      const selected=annotationAt(event);
+      if(!selected)return;
+      event.preventDefault();event.stopPropagation();
+      showBalloon(selected,event);
+    },{signal});
     scroller.addEventListener('pointerup',placeNote,{signal});
     scroller.addEventListener('mouseup',()=>setTimeout(capture,0),{signal});
     scroller.addEventListener('keyup',event=>{if(event.key==='Shift' || event.key.startsWith('Arrow'))setTimeout(capture,0);},{signal});
-    scroller.addEventListener('scroll',hide,{signal});
-    root.addEventListener('keydown',event=>{if(event.key==='Escape')hide();},{signal});
+    scroller.addEventListener('scroll',()=>{hide();hideBalloon();},{signal});
+    root.addEventListener('keydown',event=>{if(event.key==='Escape'){hide();hideBalloon();}},{signal});
     return {renderPage,refresh,reset,hide,setNoteMode,noteActive,bindNoteButton,summary};
   }
   window.OpenDocSemanticAnnotations={create};
