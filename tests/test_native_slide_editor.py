@@ -394,3 +394,43 @@ def test_native_image_crop_is_persisted_and_stays_editable_in_powerpoint(tmp_pat
         invalid["surfaces"][0]["elements"][0].update(patch)
         with pytest.raises(ValueError):
             validate(invalid)
+
+
+def test_native_pptx_transition_roundtrip_and_validation(tmp_path):
+    from zipfile import ZipFile
+    from lxml import etree
+
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation("Transições da pesquisa")
+    model = deepcopy(note["content"])
+    model["surfaces"][0]["transition"] = "push-left"
+    model["surfaces"][0]["transition_speed"] = "slow"
+    validate(model)
+    saved = ctx.fixed_documents.save(
+        note["id"], note["title"], model, note["revision"]
+    )
+    target = tmp_path / "transicao-editavel.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", target)
+    slide = Presentation(target).slides[0]
+    xml = slide._element
+    ns = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+    transition = xml.find(ns + "transition")
+    assert transition is not None
+    assert transition.get("spd") == "slow"
+    push = transition.find(ns + "push")
+    assert push is not None
+    assert push.get("dir") == "l"
+    assert xml.index(transition) > xml.index(xml.find(ns + "cSld"))
+    with ZipFile(target) as archive:
+        assert archive.testzip() is None
+        saved_xml = etree.fromstring(archive.read("ppt/slides/slide1.xml"))
+        assert saved_xml.find(ns + "transition").find(ns + "push") is not None
+
+    for patch in [
+        {"transition": "javascript"}, {"transition_speed": "100000"},
+        {"transition_speed": 0}, {"transition": None},
+    ]:
+        bad = deepcopy(model)
+        bad["surfaces"][0].update(patch)
+        with pytest.raises(ValueError, match="Transição|Velocidade"):
+            validate(bad)

@@ -12,7 +12,10 @@ from PIL import Image
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
+from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Pt
 
 from ...ink.raster import render_layer
@@ -41,7 +44,40 @@ class SlideDeckExporter:
         w = max(1, int(obj["width"] * width))
         h = max(1, int(obj["height"] * height))
         kind = obj["type"]
-        if kind == "image":
+        if kind == "chart":
+            native_data=CategoryChartData()
+            native_data.categories=obj["chart_categories"]
+            native_data.add_series("Valores", obj["chart_values"])
+            chart_type={
+                "bar":XL_CHART_TYPE.COLUMN_CLUSTERED,
+                "line":XL_CHART_TYPE.LINE_MARKERS,
+                "pie":XL_CHART_TYPE.PIE,
+            }[obj.get("chart_type","bar")]
+            shape=slide.shapes.add_chart(chart_type,left,top,w,h,native_data)
+            chart=shape.chart
+            chart.has_title=bool(obj.get("chart_title"))
+            if chart.has_title:
+                chart.chart_title.text_frame.text=obj["chart_title"]
+            chart.has_legend=(obj.get("chart_type")=="pie")
+            if chart.has_legend:
+                chart.legend.position=XL_LEGEND_POSITION.RIGHT
+            # Native OOXML chart parts + embedded editable XLSX workbook.
+            # Palette is editable property, not a pre-rendered screenshot.
+            palette={
+                "blue":["004AC6","6A9EFF","90C2FF","274F98","AFCBFF"],
+                "green":["2B886A","72C3A0","A2DEC5","14634B","D0F0DD"],
+                "orange":["F07938","FFC16D","BE4F2E","EACB90","F9DFCA"],
+                "contrast":["004AC6","B64264","267D4D","D18919","784FC5"],
+            }[obj.get("chart_palette","blue")]
+            series=chart.series[0]
+            if obj.get("chart_type")=="line":
+                series.format.line.color.rgb=RGBColor.from_string(palette[0])
+                series.format.line.width=Pt(2.5)
+            else:
+                for i,point in enumerate(series.points):
+                    point.format.fill.solid()
+                    point.format.fill.fore_color.rgb=RGBColor.from_string(palette[i%len(palette)])
+        elif kind == "image":
             asset = self.model["assets"][obj["asset_id"]]
             picture_data = BytesIO(base64.b64decode(asset["data"], validate=True))
             if asset["mime"] == "image/webp":
@@ -83,9 +119,10 @@ class SlideDeckExporter:
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj.get("fill", "#DAE2FD"))
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
-        if kind not in {"text", "image"}:
+        if kind not in {"text", "image", "chart"}:
             shape.line.width = Pt(obj.get("stroke_width", 1.5))
-        shape.rotation = obj.get("rotation", 0)
+        if kind!="chart":
+            shape.rotation = obj.get("rotation", 0)
         if obj.get("name"):
             shape.name = obj["name"]
         if kind == "text" or obj.get("text"):
@@ -98,6 +135,43 @@ class SlideDeckExporter:
             run.font.size = Pt(obj.get("font_size_pt", 28))
             run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
         return shape
+
+    @staticmethod
+    def _apply_transition(slide, surface):
+        """Write native ECMA-376 p:transition. Never rasterize an effect.
+
+        These simple transitions are understood by legacy PowerPoint and
+        LibreOffice without 2010+ extension namespaces. Speed is a native
+        slow/med/fast property; the editor does not claim exact durations.
+        """
+        effect=surface.get("transition", "none")
+        if effect=="none":
+            return
+        transition=OxmlElement("p:transition")
+        transition.set("spd",surface.get("transition_speed","med"))
+        if effect=="fade":
+            child=OxmlElement("p:fade")
+        elif effect.startswith("push-"):
+            child=OxmlElement("p:push")
+            child.set("dir","l" if effect.endswith("left") else "r")
+        else:
+            child=OxmlElement("p:wipe")
+            child.set("dir","l" if effect.endswith("left") else "r")
+        transition.append(child)
+        # Valid CT_Slide order: cSld, clrMapOvr, transition, timing, extLst.
+        root=slide._element
+        existing=root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}transition")
+        if existing is not None:
+            root.remove(existing)
+        timing=root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}timing")
+        if timing is not None:
+            root.insert(list(root).index(timing),transition)
+        else:
+            extension=root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}extLst")
+            if extension is not None:
+                root.insert(list(root).index(extension),transition)
+            else:
+                root.append(transition)
 
     def _raster_ink(self, slide, surface):
         """Add ink before editable OOXML shapes on a native slide.
@@ -153,6 +227,7 @@ class SlideDeckExporter:
                 if surface.get("notes"):
                     slide.notes_slide.notes_text_frame.text = surface["notes"]
                 self._text_overlays(slide, surface)
+                self._apply_transition(slide,surface)
         else:
             for slide, surface in zip(self.presentation.slides, self.model["surfaces"]):
                 self._overlay(slide, surface)

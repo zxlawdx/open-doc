@@ -7,11 +7,13 @@
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
     round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
-    triangle:"Triângulo",diamond:"Losango"})[type]||"Objeto";
+    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico"})[type]||"Objeto";
   const SVG_NS="http://www.w3.org/2000/svg";
   const ACTION_ICONS={
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
+    "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
+    "Gráfico: Pizza":"chart-pie",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
@@ -118,6 +120,22 @@
         assets[assetId]={mime:image.mime,data:image.data};
       }
       return assetId;
+    }
+    insertChart(index,kind="bar"){
+      if(!["bar","line","pie"].includes(kind))throw Error("Tipo de gráfico inválido.");
+      const id=window.OpenDocModel.id();
+      this.apply(slides=>{
+        const elements=slides[index].elements;
+        if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
+        elements.push({
+          id,type:"chart",name:"Gráfico de "+({bar:"barras",line:"linhas",pie:"pizza"}[kind]),
+          x:.14,y:.2,width:.72,height:.58,rotation:0,stroke_width:1.5,
+          color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
+          chart_type:kind,chart_title:"Resultados",chart_palette:"blue",
+          chart_categories:["2024","2025","2026"],chart_values:[18,25,32]
+        });
+      });
+      return id;
     }
     insertImage(index,image){
       const id=window.OpenDocModel.id();
@@ -256,8 +274,12 @@
       this._button("Triângulo",()=>this.add("triangle"));
       this._button("Losango",()=>this.add("diamond"));
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
+      for(const [label,kind] of [
+        ["Gráfico: Barras","bar"],["Gráfico: Linhas","line"],["Gráfico: Pizza","pie"]
+      ])this._button(label,()=>this.insertChart(kind),"Inserir gráfico PPTX nativo e editável");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
+      this._button("Prévia",()=>this.previewTransition(),"Prévia da transição no slide atual");
       const paintLabel=document.createElement("label");paintLabel.className="slide-paint-selector";
       paintLabel.textContent="Cor";
       this.paintColor=document.createElement("input");this.paintColor.type="color";
@@ -276,7 +298,7 @@
         const ids=new Set(this.selectedIds),color=this.paintColor.value;
         this.commands.apply(slides=>{
           for(const obj of slides[this.current].elements){
-            if(!ids.has(obj.id)||obj.type==="image")continue;
+            if(!ids.has(obj.id)||obj.type==="image"||obj.type==="chart")continue;
             obj[obj.type==="text"?"color":obj.type==="line"?"stroke":"fill"]=color;
           }
         });
@@ -290,8 +312,9 @@
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide"]},
-        {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem"]},
-        {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]}
+        {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
+        {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
+        {label:"Transições",labels:["Prévia"]}
       ];
       const panels=[];
       for(const item of categories){
@@ -314,10 +337,19 @@
       };
       this.toolbar.prepend(tabs,body);activate("Inserir");
     }
+    insertChart(kind){
+      const id=this.commands.insertChart(this.current,kind);
+      this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
+      this._selectObject(id);this.render();
+      this.status("Gráfico editável criado. Altere os dados nas propriedades.");
+    }
     _paintObject(index,id){
       const obj=this.getModel().surfaces[index].elements.find(item=>item.id===id);
       if(!obj)return;
-      if(obj.type==="image")return this.status("O balde não altera os pixels de uma imagem.");
+      if(obj.type==="image"||obj.type==="chart")
+        return this.status(obj.type==="chart"
+          ?"Para colorir o gráfico, escolha uma paleta nas propriedades."
+          :"O balde não altera os pixels de uma imagem.");
       const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
       this.commands.updateObject(index,id,{[property]:this.paintColor.value});
       this._selectObject(id);
@@ -519,6 +551,24 @@
       editor.addEventListener("blur",()=>finish(true),{signal:this.signal});
       editor.focus();editor.select();
     }
+    previewTransition(){
+      const effect=this.getModel().surfaces[this.current]?.transition||"none";
+      if(effect==="none")return this.status("Selecione uma transição nas propriedades do slide.");
+      const node=this._surface(this.current);
+      if(!node)return;
+      const key={"fade":"open-doc-transition-fade",
+        "push-left":"open-doc-transition-push-left","push-right":"open-doc-transition-push-right",
+        "wipe-left":"open-doc-transition-wipe-left","wipe-right":"open-doc-transition-wipe-right"}[effect];
+      if(!key)return;
+      const speed=this.getModel().surfaces[this.current]?.transition_speed||"med";
+      const ms={slow:1200,med:700,fast:400}[speed]||700;
+      node.style.animation="none";
+      // Force restart without removing the slide or the text editing model.
+      void node.offsetWidth;
+      node.style.animation=key+" "+ms+"ms ease both";
+      node.addEventListener("animationend",()=>{node.style.animation="";},{once:true,signal:this.signal});
+      this.status("Prévia da transição: "+effect+".");
+    }
     _surface(index){return this.scroller.querySelector('.fixed-surface[data-page-index="'+index+'"]');}
     _makeObject(obj,index,thumb=false){
       const node=document.createElement("div");node.className="slide-object slide-object-"+obj.type;
@@ -527,7 +577,15 @@
       this._styleObject(node,obj,index,thumb);
       const vector=this.shapeRenderer.create(obj);
       if(vector)node.append(vector);
-      if(obj.type==="image"){
+      if(obj.type==="chart"){
+        if(window.OpenDocSlideCharts?.ChartPreview)
+          node.append(window.OpenDocSlideCharts.ChartPreview.render(obj));
+        else {
+          const placeholder=document.createElement("span");
+          placeholder.textContent="Gráfico · "+(obj.chart_title||"Sem título");
+          node.append(placeholder);
+        }
+      }else if(obj.type==="image"){
         const asset=(this.getModel().assets||{})[obj.asset_id];
         if(asset){
           // Keep picture pixels behind an independent clipping viewport: the
@@ -559,10 +617,12 @@
           handle.dataset.resize=direction;
           handle.setAttribute("aria-label","Redimensionar: "+direction);node.append(handle);
         }
-        const rotate=document.createElement("span");
-        rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
-        rotate.setAttribute("aria-label","Girar objeto");
-        node.append(rotate);
+        if(obj.type!=="chart"){
+          const rotate=document.createElement("span");
+          rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
+          rotate.setAttribute("aria-label","Girar objeto");
+          node.append(rotate);
+        }
       }
       return node;
     }
@@ -677,6 +737,28 @@
       const slide=slides[this.current],title=document.createElement("h3");title.textContent="Propriedades · Slide "+(this.current+1);
       this.inspector.append(title);
       this._property("Cor de fundo",slide.background||"#FFFFFF","color",value=>this.commands.updateSlide(this.current,{background:value}));
+      const transitionTitle=document.createElement("h4");transitionTitle.textContent="Transição de entrada deste slide";
+      this.inspector.append(transitionTitle);
+      const transitionLabel=document.createElement("label");transitionLabel.textContent="Efeito";
+      const transitionSelect=document.createElement("select");transitionSelect.setAttribute("aria-label","Transição do slide");
+      for(const [value,label] of [
+        ["none","Nenhuma"],["fade","Desvanecer"],
+        ["push-left","Empurrar para esquerda"],["push-right","Empurrar para direita"],
+        ["wipe-left","Revelar à esquerda"],["wipe-right","Revelar à direita"]
+      ]){
+        const option=document.createElement("option");option.value=value;option.textContent=label;transitionSelect.append(option);
+      }
+      transitionSelect.value=slide.transition||"none";
+      transitionSelect.addEventListener("change",()=>this.commands.updateSlide(this.current,{transition:transitionSelect.value}),{signal:this.signal});
+      transitionLabel.append(transitionSelect);this.inspector.append(transitionLabel);
+      const speedLabel=document.createElement("label");speedLabel.textContent="Velocidade";
+      const speedSelect=document.createElement("select");speedSelect.setAttribute("aria-label","Velocidade da transição");
+      for(const [value,label] of [["fast","Rápida"],["med","Normal"],["slow","Lenta"]]){
+        const option=document.createElement("option");option.value=value;option.textContent=label;speedSelect.append(option);
+      }
+      speedSelect.value=slide.transition_speed||"med";
+      speedSelect.addEventListener("change",()=>this.commands.updateSlide(this.current,{transition_speed:speedSelect.value}),{signal:this.signal});
+      speedLabel.append(speedSelect);this.inspector.append(speedLabel);
       const subtitle=document.createElement("h4");subtitle.textContent="Camadas";this.inspector.append(subtitle);
       const list=document.createElement("div");list.className="slide-layer-list";
       (slide.elements||[]).slice().reverse().forEach(obj=>{
@@ -710,6 +792,13 @@
           const name=value.trim().slice(0,80);
           if(name)this.commands.updateObject(this.current,selected.id,{name});
         });
+        if(selected.type==="chart"&&window.OpenDocSlideCharts?.ChartInspector){
+          window.OpenDocSlideCharts.ChartInspector.mount(
+            this.inspector,selected,
+            patch=>this.commands.updateObject(this.current,selected.id,patch),
+            this.status,this.signal
+          );
+        }
         if(selected.type==="image"){
           const replaceButton=document.createElement("button");
           replaceButton.type="button";replaceButton.textContent="Substituir imagem";
@@ -739,7 +828,7 @@
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
         if(selected.type==="text"||selected.text)
           this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));
-        if(selected.type!=="text"&&selected.type!=="image"){
+        if(selected.type!=="text"&&selected.type!=="image"&&selected.type!=="chart"){
           if(selected.type!=="line"&&selected.type!=="arrow")
             this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
           this._property("Contorno",selected.stroke,"color",value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
@@ -748,8 +837,10 @@
         }
         if(selected.type==="text"||selected.text)
           this._property("Fonte (pt)",selected.font_size_pt||28,"number",value=>this.commands.updateObject(this.current,selected.id,{font_size_pt:clamp(Number(value)||28,6,144)}));
-        const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
-        rotationField.min="-360";rotationField.max="360";
+        if(selected.type!=="chart"){
+          const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
+          rotationField.min="-360";rotationField.max="360";
+        }
         for(const [key,label] of fields)this._property(label,Math.round(selected[key]*100),"number",value=>{
           const amount=clamp(Number(value)/100,0,key==="x"||key==="y"?1:1);
           const patch={[key]:amount};
