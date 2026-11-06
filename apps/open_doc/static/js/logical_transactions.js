@@ -60,17 +60,24 @@
     if(!model||!selection?.isCollapsed)return null;
     const current=currentBlock(rich,selection);
     if(!current || !atBeginning(current.block,selection))return null;
-    const box=current.block.closest("[data-page-content]");
-    const page=box?.closest(".document-page");
-    if(!page || box.firstElementChild!==current.block)return null;
-    const earlier=page.previousElementSibling;
-    if(!earlier?.matches(".document-page"))return null;
-    const prior=earlier.querySelector("[data-page-content] > :last-child");
-    if(!prior)return null;
-    // The page boundary is purely presentational. The operation is computed
-    // against the logical model, not by moving/deleting DOM sections.
-    return {currentId:current.id,previousId:prior.dataset.fragmentOf||prior.dataset.nodeId,
-      fromPage:page.dataset.pageIndex, toPage:earlier.dataset.pageIndex};
+    // The document model owns ordering and identities. A physical page
+    // boundary is NOT necessarily the first DOM child of the page: a long
+    // paragraph can be split into fragments or page balance can move a block.
+    // Treat every paragraph-start Backspace consistently as a model join.
+    // This avoids Chromium attempting to merge DOM page shells indirectly.
+    const index=model.blocks.findIndex(block=>block.id===current.id);
+    if(index<=0 || model.blocks[index].type!=="paragraph"
+      || model.blocks[index-1].type!=="paragraph")return null;
+    const page=current.block.closest(".document-page");
+    const previousId=model.blocks[index-1].id;
+    const previousElement=Array.from(rich.querySelectorAll("[data-node-id]"))
+      .find(node=>node.dataset.nodeId===previousId ||
+        node.dataset.fragmentOf===previousId);
+    const previousPage=previousElement?.closest(".document-page");
+    return {currentId:current.id,previousId,
+      fromPage:page?.dataset.pageIndex??null,
+      toPage:previousPage?.dataset.pageIndex??null,
+      crossesPage:Boolean(page&&previousPage&&page!==previousPage)};
   }
   function isEntireDocumentSelected(rich,selection){
     if(!selection?.rangeCount||selection.isCollapsed)return false;
