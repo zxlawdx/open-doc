@@ -11,7 +11,8 @@ function setup(t){
  const w=dom.window;t.after(()=>w.close());w.eval(source);
  const root=w.document.querySelector('#root');
  let resolve;
- const dialog=()=>new Promise(r=>resolve=r);
+ const dialog=()=>{root.querySelector('[data-dialog-body]').replaceChildren();
+   return new Promise(r=>resolve=r);};
  const commits=[];
  const editor={tableOperation:(...args)=>commits.push(args)};
  const errors=[];
