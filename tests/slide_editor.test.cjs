@@ -541,3 +541,37 @@ test('chart validation prevents invalid pie values or wrong number of data cells
  assert.equal(q.versions.length,before,'bad values must not mutate presentation');
  assert.equal(q.model().surfaces[0].elements[0].chart_values[0],18);
 });
+
+test('double pointer tap edits text in place despite slide DOM replacement',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ let obj=q.scroller.querySelector('.slide-object-text');
+ obj.dispatchEvent(new q.w.MouseEvent('pointerdown',{bubbles:true,cancelable:true,button:0,clientX:100,clientY:90}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',{bubbles:true,button:0,clientX:100,clientY:90}));
+ obj=q.scroller.querySelector('.slide-object-text');
+ obj.dispatchEvent(new q.w.MouseEvent('pointerdown',{bubbles:true,cancelable:true,button:0,clientX:100,clientY:90}));
+ const input=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(input,'second tap should present editable text on the canvas');
+ input.value='Título editado diretamente';
+ input.dispatchEvent(new q.w.Event('blur'));
+ assert.equal(q.model().surfaces[0].elements[0].text,'Título editado diretamente');
+});
+
+test('paint picker has SVG, clears mode after painting, Escape cancels',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Retângulo');
+ const picker=q.controls.querySelector('.slide-paint-selector input[type=color]');
+ picker.value='#ff8020';
+ const bucket=Array.from(q.controls.querySelectorAll('.slide-studio-toolbar button'))
+   .find(button=>button.textContent==='Balde');
+ assert.ok(bucket.querySelector('svg use[href$="#paint-bucket"]'),'paint control has an SVG');
+ bucket.click();
+ assert.equal(bucket.getAttribute('aria-pressed'),'true');
+ const target=q.scroller.querySelector('.slide-object-rect');
+ target.click();
+ assert.equal(q.model().surfaces[0].elements[0].fill,'#ff8020');
+ assert.equal(bucket.getAttribute('aria-pressed'),'false','paint mode must exit after one edit');
+ bucket.click();
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+ assert.equal(bucket.getAttribute('aria-pressed'),'false','Escape exits paint mode');
+});
