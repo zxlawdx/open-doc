@@ -2357,3 +2357,7 @@ body {
     display: none;
 }
 
+/* Accessible short descriptions for any command, including dynamic editors. */
+.open-doc .opendoc-tooltip{position:fixed;z-index:900;pointer-events:none;box-sizing:border-box;max-width:300px;padding:8px 11px;border-radius:9px;background:var(--color-panel);color:var(--color-text-primary);border:1px solid var(--color-border);box-shadow:0 6px 22px rgba(0,0,0,.16);font:12px/1.45 Inter,Arial,sans-serif;overflow-wrap:anywhere}
+.open-doc .opendoc-tooltip[hidden]{display:none!important}
+
