@@ -8,6 +8,8 @@ qtpy>=2.4,<3
 python-docx>=1.1,<2
 fpdf2>=2.8,<3
 pypdf>=5,<7
+# MPL-2.0, native PDF content-stream manipulation; never vendor PyMuPDF AGPL.
+pikepdf>=9.5,<11
 
 markdown-it-py>=3,<5
 
