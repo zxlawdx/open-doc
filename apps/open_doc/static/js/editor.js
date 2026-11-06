@@ -56,8 +56,11 @@
     let recovered = null;
     let copying = false;
     let lockedState = false;
-    let renderTimer = null;
-    let nextKind = "typing",beforeInputBlockId=null;
+    let renderTimer = null, cacheTimer=null, markdownStale=false;
+    let nextKind = "typing",beforeInputBlockId=null,beforeInputCrossPage=false;
+    function syncMarkdown(){
+      if(model&&markdownStale){source.value=window.OpenDocModel.markdown(model);markdownStale=false;}
+    }
     const history = window.OpenDocHistory.create();
     const commands = window.OpenDocCommands.create(rich, kind => changed(kind), controller.signal);
 
@@ -96,10 +99,15 @@
     }
 
     function cache() {
-      if(suspended)return;
-      if (!documentState) return;
-      if (isClean()) window.OpenDocRecovery.clear(documentState.id);
-      else window.OpenDocRecovery.write(buffer());
+      if(suspended||!documentState)return;
+      // JSON.stringify + synchronous localStorage on every Enter/Backspace
+      // blocks Qt's UI thread. Keep SQLite recovery scheduled independently.
+      clearTimeout(cacheTimer);
+      cacheTimer=setTimeout(()=>{
+        if(destroyed||!documentState)return;
+        if(isClean())window.OpenDocRecovery.clear(documentState.id);
+        else window.OpenDocRecovery.write(buffer());
+      },400);
     }
 
     function updateHistoryControls() {
@@ -168,11 +176,18 @@
         if(dirty && !dirty.dataset.nodeId){dirty.dataset.nodeId=window.OpenDocModel.id();structural=true;}
         if(kind==='typing' && inputEvent && !inputEvent.inputType && dirty && model){const old=model.blocks.find(b=>b.id===(dirty.dataset.fragmentOf || dirty.dataset.nodeId));const text=v=>!v || typeof v!=='object'?'':typeof v.text==='string'?v.text:Object.values(v).map(text).join('');if(old && dirty.textContent===text(old))dirty=null;}
         const ids=model?.blocks.map(b=>b.id).join('|');
-        updateModel(dirty,inputStructural?[beforeInputBlockId,dirty?.dataset.fragmentOf || dirty?.dataset.nodeId].filter(Boolean):null);structural=structural || ids!==model?.blocks.map(b=>b.id).join('|');source.value=model?window.OpenDocModel.markdown(model):converter.turndown(rich.innerHTML);
+        updateModel(dirty,inputStructural?[beforeInputBlockId,dirty?.dataset.fragmentOf || dirty?.dataset.nodeId].filter(Boolean):null);
+        structural=structural || ids!==model?.blocks.map(b=>b.id).join('|');
+        // Markdown is a *secondary read-only view* for rich documents.
+        // Serializing the whole document for each keystroke is O(N) work.
+        if(model)markdownStale=true;
+        else source.value=converter.turndown(rich.innerHTML);
       }
       const blockId=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId || null;
       if(window.OpenDocDebug.input)console.debug('[OpenDoc input]',{beforeDom:beforeDom?.slice(-240),afterDom:rich.textContent.slice(-240),modelText:source.value.slice(-240),blockId,pageIndex:dirty?.closest('[data-page-index]')?.dataset.pageIndex,selection:commands.bookmark()});
-      if(origin===rich)root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',{detail:{blockId,reason:kind,structural}}));
+      if(origin===rich)root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
+        {detail:{blockId,reason:kind,structural,full:beforeInputCrossPage}}));
+      beforeInputCrossPage=false;
       history.record(buffer(), kind,{blockIds:Array.from(new Set([blockId,...(structural?[beforeInputBlockId]:[])].filter(Boolean))),structural});
       updateHistoryControls();
       cache();
@@ -186,7 +201,7 @@
     }
 
     function load(note) {
-      clearTimeout(recoveryTimer);
+      clearTimeout(recoveryTimer);clearTimeout(cacheTimer);markdownStale=false;
       documentState = {...note};
       model=note.content?window.OpenDocModel.clone(note.content):null;mediaCache.clear();
       const warning=root.querySelector('[data-rich-warning]'),list=root.querySelector('[data-rich-warnings]');
@@ -269,7 +284,10 @@
 
     function setMode(next) {
       if (!["rich", "markdown", "preview"].includes(next)) return;
-      if(model && next==='markdown'){source.readOnly=true;status('Markdown simplificado: somente leitura para preservar a formatação.');}
+      if(model && next==='markdown'){
+        syncMarkdown();source.readOnly=true;
+        status('Markdown simplificado: somente leitura para preservar a formatação.');
+      }
       if (next === "rich") renderRich();
       mode = next;
       surface.dataset.editorMode = mode;
@@ -475,7 +493,7 @@
       pagination?.destroy();
       clearInterval(timer);
       clearTimeout(recoveryTimer);
-      clearTimeout(renderTimer);
+      clearTimeout(renderTimer);clearTimeout(cacheTimer);
       if (!isClean()) {
         enqueue(() => request("document/recovery", buffer())).catch(() => {});
       }
@@ -484,7 +502,19 @@
     }
 
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
-    rich.addEventListener("beforeinput", () => { commands.capture();history.checkpoint(buffer());let n=getSelection()?.anchorNode;n=n?.nodeType===3?n.parentElement:n;while(n && n!==rich && n.tagName!=='LI' && !n.parentElement?.matches('[data-page-content],[data-rich]'))n=n.parentElement;beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;}, listeners);
+    rich.addEventListener("beforeinput", event => {
+      commands.capture();history.checkpoint(buffer());
+      const selection=getSelection();
+      const anchorNode=selection?.anchorNode,focusNode=selection?.focusNode;
+      const anchorPage=(anchorNode?.nodeType===3?anchorNode.parentElement:anchorNode)?.closest?.('[data-page-index]');
+      const focusPage=(focusNode?.nodeType===3?focusNode.parentElement:focusNode)?.closest?.('[data-page-index]');
+      beforeInputCrossPage=Boolean(anchorPage&&focusPage&&anchorPage!==focusPage)
+        || (event.inputType?.startsWith('delete') &&
+          selection && !selection.isCollapsed && (!anchorPage||!focusPage));
+      let n=anchorNode;n=n?.nodeType===3?n.parentElement:n;
+      while(n && n!==rich && n.tagName!=='LI' && !n.parentElement?.matches('[data-page-content],[data-rich]'))n=n.parentElement;
+      beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;
+    }, listeners);
     source.addEventListener("input", () => changed("typing", source), listeners);
     rich.addEventListener("input", event => changed(nextKind,rich,event), listeners);
     rich.addEventListener('compositionend',()=>changed('typing',rich,{inputType:'insertCompositionText'}),listeners);
