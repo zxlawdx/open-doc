@@ -102,8 +102,28 @@ class SlideModelValidator:
         if not isinstance(uid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", uid) or uid in ids:
             raise ValueError("Identificador de elemento inválido ou duplicado.")
         ids.add(uid)
-        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image"}:
+        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image", "chart"}:
             raise ValueError("Tipo de elemento não suportado.")
+        if element.get("type") == "chart":
+            chart_kind=element.get("chart_type","bar")
+            if chart_kind not in ("bar","line","pie"):
+                raise ValueError("Tipo de gráfico inválido.")
+            chart_title=element.get("chart_title","")
+            if not isinstance(chart_title,str) or len(chart_title)>160:
+                raise ValueError("Título do gráfico inválido.")
+            categories=element.get("chart_categories")
+            values=element.get("chart_values")
+            if not isinstance(categories,list) or not isinstance(values,list) or not 1 <= len(categories) <= 24 or len(categories)!=len(values):
+                raise ValueError("Categorias e valores do gráfico não correspondem.")
+            for item in categories:
+                if not isinstance(item,str) or not 1 <= len(item) <= 60:
+                    raise ValueError("Rótulo de categoria inválido.")
+            for value in values:
+                number(value,-100000000,100000000)
+                if chart_kind=="pie" and value<0:
+                    raise ValueError("Gráfico de pizza não permite valores negativos.")
+            if chart_kind=="pie" and not any(value>0 for value in values):
+                raise ValueError("Gráfico de pizza precisa de valores positivos.")
         if element.get("type") == "image":
             if not isinstance(element.get("asset_id"), str) or element["asset_id"] not in (assets or {}):
                 raise ValueError("Imagem não encontrada no catálogo de recursos.")
