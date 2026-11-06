@@ -211,7 +211,9 @@
       'font-import':async()=>{const result=await window.pywebview.api.import_font();if(result.error)throw Error(result.error);if(!result.cancelled){await refreshFonts();status('Fontes importadas.');}},
       'font-refresh':refreshFonts,
       'font-manage':fontManager,
-      'table-insert':async()=>{const value=await dialog('Inserir tabela','Informe linhas × colunas (por exemplo, 3x4).',true);if(!value)return;const m=value.match(/^(\d+)\s*[x×]\s*(\d+)$/i);if(!m || +m[1]<1 || +m[2]<1 || +m[1]>100 || +m[2]>30)throw Error('Use de 1 a 100 linhas e de 1 a 30 colunas.');editor.tableOperation('insert',+m[1],+m[2]);},
+      'table-insert':()=>window.OpenDocTableInsertDialog.TableInsertDialog.show({
+        dialog,editor,status,root
+      }),
 
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
       home: () => { showView(true); }, save: () => operate(() => editor.flush()),
@@ -270,7 +272,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocTableInsertDialog','table_insert_dialog.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
