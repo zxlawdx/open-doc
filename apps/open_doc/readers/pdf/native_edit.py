@@ -259,8 +259,8 @@ class PdfNativeEditor:
                 # can legitimately remain after a selected replacement.
                 # Verify one *whole textual occurrence* disappears, not
                 # that the old bytes vanish from the entire document.
-                old_pattern = re.compile(r"(?<!\\w)" + re.escape(operation["old"]) +
-                                         r"(?!\\w)")
+                old_pattern = re.compile(r"(?<!\w)" + re.escape(operation["old"]) +
+                                         r"(?!\w)")
                 before_count = len(old_pattern.findall(before))
                 after_count = len(old_pattern.findall(text))
                 if before_count < 1 or after_count != before_count - 1:
