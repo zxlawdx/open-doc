@@ -14,16 +14,15 @@
     if(index<=0)return null;
     const current=model.blocks[index],previous=model.blocks[index-1];
     if(current.type!=="paragraph"||previous.type!=="paragraph")return null;
-    // Crossing lists, table boundaries, section boundaries, or opaque OOXML
-    // may silently corrupt a document. Refuse rather than invent a merge.
+    // Keep section boundaries and list identities intact. Paragraph raw XML
+    // supplies the survivor's properties at export; the inline model holds
+    // the content, including opaque children from either paragraph.
     if(current.section_end_id||previous.section_end_id
-      ||JSON.stringify(current.list_info||null)!==JSON.stringify(previous.list_info||null)
-      ||current.raw_xml||previous.raw_xml)return null;
+      ||JSON.stringify(current.list_info||null)!==JSON.stringify(previous.list_info||null))return null;
     const next=clone(model);
     const prev=next.blocks[index-1],right=next.blocks[index];
     const offset=textLength(prev.children);
     prev.children=clone([...(prev.children||[]),...(right.children||[])]);
-    delete prev.raw_xml;
     next.blocks.splice(index,1);
     return {model:next,kind:"join-backward",
       changedIds:[previous.id,current.id],removedId:current.id,

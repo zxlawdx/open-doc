@@ -333,8 +333,11 @@ test('model-first backspace joins paragraphs without editing page wrappers',t=>{
  q.window.eval(fs.readFileSync(path.join(rootPath,'apps/open_doc/static/js/document_model.js'),'utf8'));
  const previous=q.window.OpenDocModel.empty();
  previous.blocks=[
-   {id:'last-of-first',type:'paragraph',style:{},children:[]},
-   {id:'first-of-second',type:'paragraph',style:{},children:[]}
+   {id:'last-of-first',type:'paragraph',style:{},children:[],
+    raw_xml:'<w:p><w:pPr/></w:p>'},
+   {id:'first-of-second',type:'paragraph',style:{},
+    children:[{id:'imported-run',type:'text',text:'Importado',style:{}}],
+    raw_xml:'<w:p><w:r><w:t>Importado</w:t></w:r></w:p>'}
  ];
  const tx=q.window.OpenDocLogicalTransactions;
  const second=rich.querySelector('[data-node-id="first-of-second"]');
@@ -347,5 +350,7 @@ test('model-first backspace joins paragraphs without editing page wrappers',t=>{
  assert.equal(op.model.blocks.length,1);
  assert.equal(op.model.blocks[0].id,'last-of-first');
  assert.equal(op.caret.blockId,'last-of-first');
+ assert.equal(op.model.blocks[0].raw_xml,previous.blocks[0].raw_xml);
+ assert.equal(op.model.blocks[0].children[0].text,'Importado');
  assert.equal(previous.blocks.length,2,'transaction must not mutate original state');
 });
