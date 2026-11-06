@@ -286,7 +286,7 @@
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
       this._button("Prévia",()=>this.previewTransition(),"Prévia da transição no slide atual");
-      this.presentButton=this._button("Apresentar",()=>this.startPresentation(),"Apresentar a partir do slide atual (F5)");
+      this.presentButton=this._button("Apresentar",()=>this.startPresentation(this.current),"Apresentar a partir do slide selecionado (Shift+F5); F5 inicia no primeiro.");
       const paintLabel=document.createElement("label");paintLabel.className="slide-paint-selector";
       paintLabel.textContent="Cor";
       this.paintColor=document.createElement("input");this.paintColor.type="color";
@@ -463,7 +463,12 @@
         if(event.key===" "){event.preventDefault();this.spacePressed=true;
           if(!this.pan)this.scroller.style.cursor="grab";return;}
         if(event.key==="F5"){
-          event.preventDefault();this.startPresentation();return;
+          event.preventDefault();this.startPresentation(event.shiftKey?this.current:0);return;
+        }
+        if(event.key==="F11"){
+          event.preventDefault();
+          window.Vela?.platform?.window?.toggleFullscreen()
+            .catch(error=>this.status(error.message));return;
         }
         if(event.key==="Escape"){
           if(this.paintActive){this.paintActive=false;this.paintButton.setAttribute("aria-pressed","false");}
@@ -604,6 +609,7 @@
         render:null,resize:null,controlTimer:null,animationTimer:null,animationId:0,
         nativeWindow:window.Vela?.platform?.window||null,wasFullscreen:null};
       this.presentation=state;
+      if(!window.requestAnimationFrame)window.requestAnimationFrame=callback=>setTimeout(callback,16);
       const raiseControls=()=>{
         overlay.classList.add("show-controls");
         clearTimeout(state.controlTimer);
@@ -642,7 +648,8 @@
       const cancelAnimation=()=>{
         state.animationId++;
         clearTimeout(state.animationTimer);
-        state.stage.replaceChildren(state.render||[]);
+        if(state.render)state.stage.replaceChildren(state.render);
+        else state.stage.replaceChildren();
         if(state.render){
           state.render.style.transition="";
           state.render.style.transform="";
@@ -662,7 +669,7 @@
         const target=clamp(index,0,slides.length-1);
         if(target===state.index)return;
         cancelAnimation();
-        const origin=state.render,previousIndex=state.index;
+        const origin=state.render;
         state.index=target;
         dimensions();
         const incoming=slideFrame(target);
