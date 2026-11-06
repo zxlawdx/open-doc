@@ -93,3 +93,6 @@
 .open-doc .home-side-nav svg{display:block;flex:0 0 19px;width:19px;height:19px;stroke:currentColor;fill:none}
 .open-doc .home-side-divider{border-top:1px solid var(--color-border-soft);margin:9px 7px}
 .open-doc .home-inner{grid-column:2;grid-row:1;max-width:min(calc(100% - 48px),var(--home-max-width))}
+
+/* Qt/Chromium 83: explicitly honor hidden after desktop home becomes grid. */
+.open-doc .home[hidden]{display:none!important}
