@@ -5,6 +5,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const readline=require('node:readline/promises');
 const port=process.argv[2]||'9234';
 const dest=path.resolve(__dirname,'../docs/images/stabilization');
 (async()=>{
@@ -39,9 +40,35 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    return reply.result.value;
  };
  const pause=ms=>new Promise(done=>setTimeout(done,ms));
- const key=async(key,code,virtual,modifiers=0)=>{
-   for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',
-     {type,key,code,windowsVirtualKeyCode:virtual,modifiers},10000);
+ const replies=readline.createInterface({input:process.stdin});
+ const acknowledgements=replies[Symbol.asyncIterator]();
+ const waitForPages=async condition=>{
+   const deadline=Date.now()+10000;
+   let layout;
+   do{
+     layout=await evaluate('OpenDocApp.editor().pagination().diagnostics()');
+     assert.equal(layout.lastError,null,JSON.stringify(layout));
+     if(condition(layout.pages))return;
+     await pause(100);
+   }while(Date.now()<deadline);
+   assert.fail('Pagination did not settle after the keyboard batch: '+JSON.stringify(layout));
+ };
+ const key=async(name,count=1)=>{
+   const observed=name==='Return'?'Enter':name;
+   const before=await evaluate(`window.__docxStressKeys[${JSON.stringify(observed)}]||0`);
+   console.log('QT_KEY_REQUEST',name,count);
+   const reply=await acknowledgements.next();
+   assert.equal(reply.value,'OK','QTest did not acknowledge '+name);
+   if(name==='SelectAll')return;
+   const deadline=Date.now()+10000;
+   let received=0;
+   do{
+     received=await evaluate(`window.__docxStressKeys[${JSON.stringify(observed)}]||0`);
+     if(received>=before+count)break;
+     await pause(15);
+   }while(Date.now()<deadline);
+   assert.equal(received-before,count,'QtWebEngine did not dispatch every '+name);
+
  };
  const capture=async name=>{
    const data=await send('Page.captureScreenshot',{format:'png'},10000);
@@ -50,13 +77,17 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
  };
  await evaluate(`(()=>{
    window.__docxStressErrors=[];
+   window.__docxStressKeys={};
+   document.querySelector('[data-rich]').addEventListener('keydown',event=>{
+     if(event.isTrusted)window.__docxStressKeys[event.key]=
+       (window.__docxStressKeys[event.key]||0)+1;
+   },true);
    window.addEventListener('error',event=>__docxStressErrors.push(event.message));
    window.addEventListener('unhandledrejection',event=>
      __docxStressErrors.push(String(event.reason)));
    return true;
  })()`);
  await send('Runtime.enable');
- await evaluate('window.OpenDocDebug.traceDelete=true');
  await send('Performance.enable');
  for(const total of [100,500,1000]){
    console.log('QT_DOCX_STRESS_BEGIN',total);
@@ -73,17 +104,11 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    const started=Date.now();
    for(let left=total;left>0;left-=20){
      const count=Math.min(left,20);
-     const result=await evaluate(`(()=>{
-       let successes=0;
-       for(let i=0;i<${count};i++)
-         if(document.execCommand('insertParagraph'))successes++;
-       return successes;
-     })()`);
-     assert.equal(result,count,'Native Chromium rejected Enter editing command');
+     await key('Return',count);
      await pause(8);
    }
    console.log('QT_DOCX_STRESS_ENTERS_DISPATCHED',total);
-   await pause(650);
+   await waitForPages(pages=>pages>1);
    const writing=await evaluate(`(()=>{
      const pages=document.querySelectorAll('.document-page');
      const note=OpenDocApp.editor().snapshot();
@@ -94,7 +119,7 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
        storage:document.querySelector('[data-app]').dataset.dirty};
    })()`);
    assert.ok(writing.pages>0&&!writing.white,'The DOCX editor turned white after Enter');
-   assert.ok(writing.blocks>0,'The model lost all blocks');
+   assert.equal(writing.blocks,total+1,'Every Enter must add one paragraph');
    assert.deepEqual(writing.errors,[],'Unexpected errors during DOCX insertion');
    await capture('docx-stress-'+total+'-enters');
    console.log('QT_DOCX_STRESS_ENTER_METRICS',JSON.stringify(writing));
@@ -124,12 +149,12 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    })()`);
    console.log('QT_DOCX_STRESS_LOGICAL_PROBE',total,JSON.stringify(probe));
    // Real native keyboard Backspace (not a synthetic event with no default action).
-   for(let i=0;i<total;i++){
-     if(i%25===0)console.log('QT_DOCX_STRESS_BACKSPACE_PROGRESS',total,i);
-     await key('Backspace','Backspace',8);
-     if(i%50===49)await pause(6);
+   for(let i=0;i<total;i+=25){
+     console.log('QT_DOCX_STRESS_BACKSPACE_PROGRESS',total,i);
+     await key('Backspace',Math.min(25,total-i));
+     await pause(40);
    }
-   await pause(650);
+   await waitForPages(pages=>pages===1);
    const deleting=await evaluate(`(()=>{
      const pages=document.querySelectorAll('.document-page');
      const note=OpenDocApp.editor().snapshot();
@@ -138,11 +163,16 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
        focused:document.activeElement===document.querySelector('[data-rich]')};
    })()`);
    assert.ok(deleting.pages>0&&deleting.blocks>0,'DOCX crashed on repeated Backspace');
+   assert.equal(deleting.blocks,1,'Every Backspace must remove one paragraph');
+   assert.equal(deleting.pages,1,'Empty pages must be removed');
+   assert.ok(deleting.focused,'Deletion lost editor focus');
    assert.deepEqual(deleting.errors,[],'Unexpected JS errors in DOCX deletion');
-   // Ctrl+A + Backspace tests cross-page large deletion and recovery from it.
-   await key('a','KeyA',65,2);
-   await key('Backspace','Backspace',8);
-   await pause(650);
+   // Exercise a real multipage selection after proving every join above.
+   await key('Return',40);
+   await waitForPages(pages=>pages>1);
+   await key('SelectAll');
+   await key('Backspace');
+   await waitForPages(pages=>pages===1);
    const emptied=await evaluate(`(()=>{
      const rich=document.querySelector('[data-rich]');
      const note=OpenDocApp.editor().snapshot();
@@ -152,6 +182,8 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    })()`);
    assert.ok(emptied.stillEditable&&emptied.pages>0&&emptied.blocks>0,
      'Large deletion lost the editable page surface');
+   assert.equal(emptied.pages,1);
+   assert.equal(emptied.blocks,1);
    assert.deepEqual(emptied.errors,[],'Exception after Ctrl+A and Backspace');
    await evaluate('OpenDocApp.editor().flush()');
    await capture('docx-stress-'+total+'-after-delete');
@@ -160,5 +192,6 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    console.log('QT_DOCX_STRESS_OK',JSON.stringify({total,elapsedMs:Date.now()-started,
      enter:writing,afterBackspace:deleting,afterBulkDelete:emptied,jsHeapBytes:memory}));
  }
+ replies.close();
  ws.close();
 })().catch(error=>{console.error(error);process.exit(1);});

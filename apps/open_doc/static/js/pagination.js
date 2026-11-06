@@ -33,7 +33,7 @@
   function logical(surface){const container=document.createElement('div');contents(surface,true).forEach(n=>container.appendChild(n));return container;}
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
-    let mode='pages',timer=null,frame=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false,runCount=0,lastRunMs=0,reflowing=false,lastError=null,abortedPasses=0,workUnits=0;
+    let mode='pages',timer=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false,runCount=0,lastRunMs=0,reflowing=false,lastError=null,abortedPasses=0,workUnits=0;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
@@ -146,17 +146,13 @@
       dirtyPage=Math.min(dirtyPage,index);
       clearTimeout(timer);
       const generation=++epoch;
-      if(frame!==null){
-        (window.cancelAnimationFrame || window.clearTimeout)(frame);
-        frame=null;
-      }
       if(composing){pendingComposition=true;return;}
+      // QtWebEngine can suspend animation frames while the native window
+      // is offscreen or the compositor is backlogged. Document layout still
+      // has to finish so the next edit targets the current physical pages.
       timer=setTimeout(()=>{
-        frame=(window.requestAnimationFrame || window.setTimeout)(()=>{
-          frame=null;
-          if(destroyed||generation!==epoch)return;
-          safePaginate();
-        });
+        if(destroyed||generation!==epoch)return;
+        safePaginate();
       },options.reason==='typing'?450:120);
     }
     function fits(blockId){
@@ -169,7 +165,6 @@
     }
     function setMode(value){
       clearTimeout(timer);epoch++;
-      if(frame!==null){(window.cancelAnimationFrame || window.clearTimeout)(frame);frame=null;}
       mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;safePaginate();
     }
     const change=event=>{
@@ -182,7 +177,7 @@
     surface.addEventListener('compositionstart',startComposition);surface.addEventListener('compositionend',endComposition);
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
     document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
-    function destroy(){destroyed=true;clearTimeout(timer);epoch++;(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
+    function destroy(){destroyed=true;clearTimeout(timer);epoch++;canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
     return {paginate:safePaginate,invalidate,fits,destroy,setMode,active,metrics,
       diagnostics:()=>({runCount,lastRunMs,abortedPasses,workUnits,lastError,
         pages:surface.querySelectorAll('[data-page-index]').length}),

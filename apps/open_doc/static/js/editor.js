@@ -560,7 +560,7 @@
       traceDeletion('render-complete');
     }
     function commitLogicalTransaction(op){
-      history.checkpoint(buffer());
+      if(!pendingLogicalCaret)history.checkpoint(buffer());
       model=op.model;
       source.value=window.OpenDocModel.markdown(model);
       markdownStale=false;source.readOnly=true;
@@ -585,7 +585,7 @@
         if(!selection?.isCollapsed && transactions.isEntireDocumentSelected(rich,selection)){
           event.preventDefault();
           const op=transactions.deleteAll(model);
-          if(op)commitModel(op.model,'transaction',op.caret);
+          if(op)commitLogicalTransaction(op);
           return true;
         }
         if(!selection?.isCollapsed){
@@ -601,6 +601,11 @@
         }
       }
       if(inputType!=='deleteContentBackward'||!selection?.isCollapsed)return false;
+      // A deferred render can leave the DOM caret in a removed paragraph.
+      // Only a caret at offset zero can continue joining from the model.
+      if(pendingLogicalCaret?.textOffset){
+        finishLogicalTransaction();
+      }
       const boundary=pendingLogicalCaret
         ?{currentId:pendingLogicalCaret.blockId,fromPage:null,toPage:null}
         :transactions.inspectBackspace(rich,selection,model);
@@ -624,6 +629,17 @@
       return true;
     }
     rich.addEventListener('keydown',event=>{
+      if(pendingLogicalCaret&&(event.key!=='Backspace'||event.ctrlKey||
+        event.altKey||event.metaKey||event.isComposing))finishLogicalTransaction();
+      if(mode==='rich'&&!lockedState&&model&&root.dataset.documentKind!=='fixed'&&
+        (event.ctrlKey||event.metaKey)&&!event.altKey&&!event.shiftKey&&
+        event.key.toLowerCase()==='a'){
+        event.preventDefault();
+        const range=document.createRange();range.selectNodeContents(rich);
+        const selection=getSelection();
+        selection.removeAllRanges();selection.addRange(range);
+        return;
+      }
       if(event.key==='Backspace')traceDeletion('keydown-entry');
       if(event.key!=='Backspace'&&event.key!=='Delete')return;
       if(event.ctrlKey||event.altKey||event.metaKey||event.isComposing)return;
