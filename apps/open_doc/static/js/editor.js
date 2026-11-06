@@ -56,8 +56,11 @@
     let recovered = null;
     let copying = false;
     let lockedState = false;
-    let renderTimer = null;
-    let nextKind = "typing",beforeInputBlockId=null;
+    let renderTimer = null, cacheTimer=null, markdownStale=false;
+    let nextKind = "typing",beforeInputBlockId=null,beforeInputCrossPage=false;
+    function syncMarkdown(){
+      if(model&&markdownStale){source.value=window.OpenDocModel.markdown(model);markdownStale=false;}
+    }
     const history = window.OpenDocHistory.create();
     const commands = window.OpenDocCommands.create(rich, kind => changed(kind), controller.signal);
 
@@ -96,10 +99,15 @@
     }
 
     function cache() {
-      if(suspended)return;
-      if (!documentState) return;
-      if (isClean()) window.OpenDocRecovery.clear(documentState.id);
-      else window.OpenDocRecovery.write(buffer());
+      if(suspended||!documentState)return;
+      // JSON.stringify + synchronous localStorage on every Enter/Backspace
+      // blocks Qt's UI thread. Keep SQLite recovery scheduled independently.
+      clearTimeout(cacheTimer);
+      cacheTimer=setTimeout(()=>{
+        if(destroyed||!documentState)return;
+        if(isClean())window.OpenDocRecovery.clear(documentState.id);
+        else window.OpenDocRecovery.write(buffer());
+      },400);
     }
 
     function updateHistoryControls() {
@@ -168,11 +176,20 @@
         if(dirty && !dirty.dataset.nodeId){dirty.dataset.nodeId=window.OpenDocModel.id();structural=true;}
         if(kind==='typing' && inputEvent && !inputEvent.inputType && dirty && model){const old=model.blocks.find(b=>b.id===(dirty.dataset.fragmentOf || dirty.dataset.nodeId));const text=v=>!v || typeof v!=='object'?'':typeof v.text==='string'?v.text:Object.values(v).map(text).join('');if(old && dirty.textContent===text(old))dirty=null;}
         const ids=model?.blocks.map(b=>b.id).join('|');
-        updateModel(dirty,inputStructural?[beforeInputBlockId,dirty?.dataset.fragmentOf || dirty?.dataset.nodeId].filter(Boolean):null);structural=structural || ids!==model?.blocks.map(b=>b.id).join('|');source.value=model?window.OpenDocModel.markdown(model):converter.turndown(rich.innerHTML);
+        updateModel(dirty,inputStructural?[beforeInputBlockId,dirty?.dataset.fragmentOf || dirty?.dataset.nodeId].filter(Boolean):null);
+        structural=structural || ids!==model?.blocks.map(b=>b.id).join('|');
+        // Markdown is a *secondary read-only view* for rich documents.
+        // Serializing the whole document for each keystroke is O(N) work.
+        if(model){
+          if(kind==='typing' && inputEvent)markdownStale=true;
+          else {source.value=window.OpenDocModel.markdown(model);markdownStale=false;}
+        }else source.value=converter.turndown(rich.innerHTML);
       }
       const blockId=dirty?.dataset.fragmentOf || dirty?.dataset.nodeId || null;
       if(window.OpenDocDebug.input)console.debug('[OpenDoc input]',{beforeDom:beforeDom?.slice(-240),afterDom:rich.textContent.slice(-240),modelText:source.value.slice(-240),blockId,pageIndex:dirty?.closest('[data-page-index]')?.dataset.pageIndex,selection:commands.bookmark()});
-      if(origin===rich)root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',{detail:{blockId,reason:kind,structural}}));
+      if(origin===rich)root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
+        {detail:{blockId,reason:kind,structural,full:beforeInputCrossPage}}));
+      beforeInputCrossPage=false;
       history.record(buffer(), kind,{blockIds:Array.from(new Set([blockId,...(structural?[beforeInputBlockId]:[])].filter(Boolean))),structural});
       updateHistoryControls();
       cache();
@@ -186,7 +203,8 @@
     }
 
     function load(note) {
-      clearTimeout(recoveryTimer);
+      finishLogicalTransaction();
+      clearTimeout(recoveryTimer);clearTimeout(cacheTimer);markdownStale=false;
       documentState = {...note};
       model=note.content?window.OpenDocModel.clone(note.content):null;mediaCache.clear();
       const warning=root.querySelector('[data-rich-warning]'),list=root.querySelector('[data-rich-warnings]');
@@ -218,6 +236,7 @@
     }
 
     function flush() {
+      finishLogicalTransaction();
       if(suspended)return Promise.resolve();
       return enqueue(async () => {
         if (isClean()) return documentState;
@@ -268,8 +287,12 @@
     }
 
     function setMode(next) {
+      finishLogicalTransaction();
       if (!["rich", "markdown", "preview"].includes(next)) return;
-      if(model && next==='markdown'){source.readOnly=true;status('Markdown simplificado: somente leitura para preservar a formatação.');}
+      if(model && next==='markdown'){
+        syncMarkdown();source.readOnly=true;
+        status('Markdown simplificado: somente leitura para preservar a formatação.');
+      }
       if (next === "rich") renderRich();
       mode = next;
       surface.dataset.editorMode = mode;
@@ -286,6 +309,7 @@
     }
 
     function restoreSnapshot(snapshot) {
+      finishLogicalTransaction();
       if (!snapshot) return;
       title.value = snapshot.title;
       source.value = snapshot.markdown;
@@ -311,6 +335,7 @@
     }
 
     function format(kind, value) {
+      finishLogicalTransaction();
       if (lockedState) return;
       history.checkpoint(buffer());
       if (kind === "undo") { restoreSnapshot(history.undo()); return; }
@@ -405,10 +430,35 @@
     }
 
 
-    function commitModel(next, kind='format') {
+    function restoreLogicalCaret(caret) {
+      if(!caret)return;
+      const blocks=Array.from(rich.querySelectorAll(
+        '[data-page-content] > [data-node-id], [data-rich] > [data-node-id]'));
+      const block=blocks.find(node=>node.dataset.nodeId===caret.blockId
+        ||node.dataset.fragmentOf===caret.blockId);
+      if(!block)return;
+      const range=document.createRange(),offset=Math.max(0,caret.textOffset||0);
+      let remaining=offset,placed=false;
+      const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
+      let node;
+      while((node=walker.nextNode())){
+        if(remaining<=node.textContent.length){
+          range.setStart(node,remaining);placed=true;break;
+        }
+        remaining-=node.textContent.length;
+      }
+      if(!placed)range.setStart(block,offset===0?0:block.childNodes.length);
+      range.collapse(true);
+      rich.focus();
+      const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
+      commands.capture();
+    }
+    function commitModel(next, kind='format', caret=null) {
       const previous=model,oldBlocks=previous?.blocks || [],newBlocks=next.blocks || [],blockIds=Array.from(new Set([...oldBlocks,...newBlocks].map(b=>b.id))).filter(id=>JSON.stringify(oldBlocks.find(b=>b.id===id))!==JSON.stringify(newBlocks.find(b=>b.id===id))),structural=JSON.stringify(oldBlocks.map(b=>b.id))!==JSON.stringify(newBlocks.map(b=>b.id));
       history.checkpoint(buffer());model=next;source.value=window.OpenDocModel.markdown(model);source.readOnly=true;
-      renderRich();history.record(buffer(),kind,{blockIds,structural});cache();scheduleRecovery();render();
+      renderRich();if(caret)restoreLogicalCaret(caret);
+      history.record(buffer(),kind,{blockIds,structural});
+      cache();scheduleRecovery();render();
     }
     function ensureModel(){if(!model)updateModel();return window.OpenDocModel.clone(model);}
     function insertPage(where='break',pageIndex=null){
@@ -471,11 +521,12 @@
     }
 
     function destroy() {
+      finishLogicalTransaction();
       cache();
       pagination?.destroy();
       clearInterval(timer);
       clearTimeout(recoveryTimer);
-      clearTimeout(renderTimer);
+      clearTimeout(renderTimer);clearTimeout(cacheTimer);
       if (!isClean()) {
         enqueue(() => request("document/recovery", buffer())).catch(() => {});
       }
@@ -483,8 +534,133 @@
       controller.abort();
     }
 
+    // One command contract for both keyboard and beforeinput deletion.
+    // The model is the authority; page sections are disposable layout only.
+    function traceDeletion(stage,details=null){
+      if(window.OpenDocDebug?.traceDelete)
+        console.warn('OPEN_DOC_DELETE_TRACE',stage,
+          details?JSON.stringify(details):'');
+    }
+    // Logical transactions update the model immediately; DOM presentation is
+    // committed in the next task, *after* Chromium finishes dispatching the
+    // native keyboard event. Replacing the selected DOM subtree synchronously
+    // inside keydown causes QtWebEngine 5.15 to stall on repeated Backspace.
+    let pendingLogicalCaret=null,logicalRenderTimer=null;
+    function finishLogicalTransaction(){
+      if(!pendingLogicalCaret)return;
+      const caret=pendingLogicalCaret;
+      pendingLogicalCaret=null;
+      clearTimeout(logicalRenderTimer);logicalRenderTimer=null;
+      traceDeletion('render-start');
+      renderRich();
+      restoreLogicalCaret(caret);
+      cache();scheduleRecovery();render();
+      root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
+        {detail:{blockId:caret.blockId,reason:'typing',structural:true,full:true}}));
+      traceDeletion('render-complete');
+    }
+    function commitLogicalTransaction(op){
+      if(!pendingLogicalCaret)history.checkpoint(buffer());
+      model=op.model;
+      source.value=window.OpenDocModel.markdown(model);
+      markdownStale=false;source.readOnly=true;
+      pendingLogicalCaret=op.caret;
+      const snapshot=buffer();
+      snapshot.selection={start:0,length:0,blockIndex:op.caret.blockIndex,
+        blockId:op.caret.blockId,blockOffset:op.caret.textOffset};
+      history.record(snapshot,'transaction',
+        {blockIds:op.changedIds||[],structural:true});
+      clearTimeout(logicalRenderTimer);
+      logicalRenderTimer=setTimeout(finishLogicalTransaction,32);
+      root.dataset.dirty='true';status('Alterações não salvas');
+    }
+    function applyLogicalDeletion(event,inputType){
+      traceDeletion('received',{type:event.type,inputType,cancelled:event.defaultPrevented});
+      if(mode!=='rich'||lockedState||!model||root.dataset.documentKind==='fixed'
+        ||event.defaultPrevented || window.getSelection()?.isComposing)return false;
+      const transactions=window.OpenDocLogicalTransactions;
+      if(!transactions)return false;
+      const selection=getSelection();
+      if(inputType==='deleteContentBackward' || inputType==='deleteContentForward'){
+        if(!selection?.isCollapsed && transactions.isEntireDocumentSelected(rich,selection)){
+          event.preventDefault();
+          const op=transactions.deleteAll(model);
+          if(op)commitLogicalTransaction(op);
+          return true;
+        }
+        if(!selection?.isCollapsed){
+          const first=(selection?.anchorNode?.nodeType===3?
+            selection.anchorNode.parentElement:selection?.anchorNode)?.closest?.('.document-page');
+          const last=(selection?.focusNode?.nodeType===3?
+            selection.focusNode.parentElement:selection?.focusNode)?.closest?.('.document-page');
+          if(first && last && first!==last){
+            event.preventDefault();
+            status('Seleção atravessa páginas; utilize Ctrl+A para excluir o documento inteiro.');
+            return true;
+          }
+        }
+      }
+      if(inputType!=='deleteContentBackward'||!selection?.isCollapsed)return false;
+      // A deferred render can leave the DOM caret in a removed paragraph.
+      // Only a caret at offset zero can continue joining from the model.
+      if(pendingLogicalCaret?.textOffset){
+        finishLogicalTransaction();
+      }
+      const boundary=pendingLogicalCaret
+        ?{currentId:pendingLogicalCaret.blockId,fromPage:null,toPage:null}
+        :transactions.inspectBackspace(rich,selection,model);
+      traceDeletion('inspected',boundary||{matched:false,blocks:model.blocks.length});
+      if(!boundary)return false;
+      event.preventDefault();
+      traceDeletion('cancelled-native');
+      const op=transactions.joinBackward(model,boundary.currentId);
+      if(!op){
+        // At the start of the first logical block no deletion is possible.
+        // Prevent the browser from deleting the physical page wrapper.
+        status('Não é possível unir estes blocos sem alterar a estrutura do documento.');
+        return true;
+      }
+      beforeInputCrossPage=true;
+      beforeInputBlockId=op.caret.blockId;
+      traceDeletion('before-commit',{blocks:op.model.blocks.length});
+      commitLogicalTransaction(op);
+      traceDeletion('after-commit');
+      beforeInputCrossPage=false;
+      return true;
+    }
+    rich.addEventListener('keydown',event=>{
+      if(pendingLogicalCaret&&(event.key!=='Backspace'||event.ctrlKey||
+        event.altKey||event.metaKey||event.isComposing))finishLogicalTransaction();
+      if(mode==='rich'&&!lockedState&&model&&root.dataset.documentKind!=='fixed'&&
+        (event.ctrlKey||event.metaKey)&&!event.altKey&&!event.shiftKey&&
+        event.key.toLowerCase()==='a'){
+        event.preventDefault();
+        const range=document.createRange();range.selectNodeContents(rich);
+        const selection=getSelection();
+        selection.removeAllRanges();selection.addRange(range);
+        return;
+      }
+      if(event.key==='Backspace')traceDeletion('keydown-entry');
+      if(event.key!=='Backspace'&&event.key!=='Delete')return;
+      if(event.ctrlKey||event.altKey||event.metaKey||event.isComposing)return;
+      applyLogicalDeletion(event,event.key==='Backspace'
+        ?'deleteContentBackward':'deleteContentForward');
+    },{...listeners,capture:true});
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
-    rich.addEventListener("beforeinput", () => { commands.capture();history.checkpoint(buffer());let n=getSelection()?.anchorNode;n=n?.nodeType===3?n.parentElement:n;while(n && n!==rich && n.tagName!=='LI' && !n.parentElement?.matches('[data-page-content],[data-rich]'))n=n.parentElement;beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;}, listeners);
+    rich.addEventListener("beforeinput", event => {
+      if(applyLogicalDeletion(event,event.inputType))return;
+      commands.capture();history.checkpoint(buffer());
+      const selection=getSelection();
+      const anchorNode=selection?.anchorNode,focusNode=selection?.focusNode;
+      const anchorPage=(anchorNode?.nodeType===3?anchorNode.parentElement:anchorNode)?.closest?.('[data-page-index]');
+      const focusPage=(focusNode?.nodeType===3?focusNode.parentElement:focusNode)?.closest?.('[data-page-index]');
+      beforeInputCrossPage=Boolean(anchorPage&&focusPage&&anchorPage!==focusPage)
+        || (event.inputType?.startsWith('delete') &&
+          selection && !selection.isCollapsed && (!anchorPage||!focusPage));
+      let n=anchorNode;n=n?.nodeType===3?n.parentElement:n;
+      while(n && n!==rich && n.tagName!=='LI' && !n.parentElement?.matches('[data-page-content],[data-rich]'))n=n.parentElement;
+      beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;
+    }, listeners);
     source.addEventListener("input", () => changed("typing", source), listeners);
     rich.addEventListener("input", event => changed(nextKind,rich,event), listeners);
     rich.addEventListener('compositionend',()=>changed('typing',rich,{inputType:'insertCompositionText'}),listeners);

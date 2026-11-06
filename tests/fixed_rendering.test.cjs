@@ -282,3 +282,49 @@ test('fixed document adapter keeps all PPTX slides in the model but only one edi
  assert.equal(Number(field.max),2,'page navigation must keep total model size');
  assert.equal(editor.snapshot().content.surfaces.length,2);
 });
+
+
+test('read-only imported PPTX with three slides never stacks sheets under active slide',async t=>{
+ const dom=new JSDOM(html(),{runScripts:'outside-only'}),w=dom.window;
+ const root=w.document.querySelector('[data-app]'),abort=new w.AbortController();
+ t.after(()=>{abort.abort();w.close();});
+ w.HTMLElement.prototype.scrollIntoView=()=>{};
+ w.IntersectionObserver=class{observe(){}disconnect(){}};
+ w.pywebview={api:{set_dirty:async()=>{}}};
+ for(const file of ['compat.js','document_model.js','history.js','recovery.js',
+   'slide_charts.js','slide_editor.js','fixed_document.js'])w.eval(source(file));
+ w.OpenDocPptx={load:async()=>({
+   count:3,destroy(){},render(index,node){
+     const marker=w.document.createElement('div');
+     marker.className='pptx-content';marker.dataset.slideIndex=String(index);
+     node.append(marker);
+   }
+ })};
+ const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
+   asset:src=>'http://localhost/'+src,request:async()=>({}),status:()=>{}});
+ t.after(()=>editor.deactivate());
+ const surfaces=[0,1,2].map(index=>({index,preview_kind:'pptx-native',
+   width_pt:960,height_pt:540,strokes:[],text_overlays:[]}));
+ const note={id:'read-only-import',title:'Importação 3 slides',revision:1,
+   source_kind:'pptx',capabilities:{preview:true},
+   content:{version:'opendoc-fixed-v1',source_kind:'pptx',source_sha256:'abc',
+     surfaces,annotations:[]}};
+ await editor.load(note);
+ const scroll=root.querySelector('.fixed-scroll'),sidebar=root.querySelector('.fixed-sidebar');
+ const assertSingle=(index)=>{
+   assert.equal(scroll.querySelectorAll('.fixed-surface').length,1,
+     'imported PPTX preview must not retain preceding physical slide pages');
+   assert.equal(scroll.querySelector('.fixed-surface').dataset.pageIndex,String(index));
+   assert.equal(scroll.querySelector('.fixed-surface .pptx-content').dataset.slideIndex,String(index));
+   assert.equal(sidebar.querySelectorAll('[data-thumbnail-index]').length,3);
+   assert.equal(scroll.querySelectorAll('.pptx-preview-workspace').length,1);
+ };
+ assertSingle(0);
+ sidebar.querySelector('[data-thumbnail-index="1"]').click();assertSingle(1);
+ sidebar.querySelector('[data-thumbnail-index="2"]').click();assertSingle(2);
+ root.dispatchEvent(new w.CustomEvent('open-doc:fixed-zoom',{detail:150}));
+ assertSingle(2);
+ assert.ok(parseFloat(scroll.querySelector('.fixed-surface').style.width)>960);
+ await editor.load(note);
+ assertSingle(0);
+});

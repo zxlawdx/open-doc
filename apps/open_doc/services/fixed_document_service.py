@@ -188,6 +188,12 @@ class FixedDocumentService:
             shutil.copyfile(path, source)
             digest = hashlib.sha256(source.read_bytes()).hexdigest()
             model = create(kind, digest, metadata["pages"])
+            if kind == "pptx":
+                from ..readers.pptx.native_importer import read_editable_deck
+                imported = read_editable_deck(source)
+                if imported is not None:
+                    model.update(imported)
+
             with self.documents._connect() as c:
                 c.execute(
                     "INSERT INTO fixed_documents VALUES (?,?,?,?,?,?,?,?)",

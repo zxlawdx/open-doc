@@ -187,6 +187,34 @@ def main():
                 window,
                 "document.querySelector('.slide-vector-shape ellipse')?.getAttribute('fill')?.toUpperCase()==='#F4B183'",
             )
+            # Vela's native probe checks Qt state and monitor coverage on the
+            # GUI thread. The requested fullscreen flag alone is insufficient.
+            state_before = window._js_api.window_get_state()
+            assert state_before.get("verified") is True
+            assert state_before.get("native_fullscreen") is False
+            window.evaluate_js(
+                "Array.from(document.querySelectorAll('.slide-studio-toolbar button'))"
+                ".find(b=>b.textContent==='Apresentar').click()"
+            )
+            for _ in range(90):
+                state = window._js_api.window_get_state()
+                if state.get("native_fullscreen") is True:
+                    break
+                time.sleep(.05)
+            assert state.get("verified") and state.get("native_fullscreen") is True, state
+            print("QT_NATIVE_FULLSCREEN_SCREEN_GEOMETRY_VERIFIED_OK", flush=True)
+            window.evaluate_js(
+                "document.querySelector('.slide-presentation-controls "
+                "button[aria-label^=Encerrar]')?.click()"
+            )
+            for _ in range(90):
+                state = window._js_api.window_get_state()
+                if state.get("native_fullscreen") is False:
+                    break
+                time.sleep(.05)
+            assert state.get("verified") and state.get("native_fullscreen") is False
+            print("QT_NATIVE_FULLSCREEN_RESTORATION_VERIFIED_OK", flush=True)
+
             output = subprocess.run(
                 [
                     "node", str(ROOT / "tools/qa_slide_capture.cjs"),

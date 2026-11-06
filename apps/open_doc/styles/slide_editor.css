@@ -296,3 +296,23 @@
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-sidebar{
   overflow-y:auto;align-content:start;
 }
+
+/* Imported PPTX preview: immutable source, single physical slide viewport. */
+.open-doc .fixed-document[data-pptx-preview="true"] .fixed-scroll{
+  display:block;overflow:auto;padding:0;min-height:0;min-width:0;
+  background:var(--color-workspace);
+}
+.open-doc .fixed-document[data-pptx-preview="true"] .pptx-preview-workspace{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  box-sizing:border-box;min-width:100%;min-height:100%;padding:32px;
+  background:var(--color-workspace);
+}
+.open-doc .fixed-document[data-pptx-preview="true"] .pptx-preview-canvas{
+  display:block;flex:0 0 auto;box-sizing:border-box;
+  outline:1px solid rgba(0,0,0,.11);box-shadow:0 12px 36px rgba(13,24,44,.18);
+}
+.open-doc .fixed-document[data-pptx-preview="true"] .fixed-sidebar
+  [data-thumbnail-index][aria-current="true"]{
+  border-color:var(--color-primary);background:var(--color-primary-soft);
+  box-shadow:inset 3px 0 0 var(--color-primary);
+}
