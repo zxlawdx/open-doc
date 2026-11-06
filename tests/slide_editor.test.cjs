@@ -446,6 +446,9 @@ test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
  shape.dispatchEvent(new q.w.MouseEvent('click',{bubbles:true}));
  assert.equal(q.model().surfaces[0].elements[0].fill,'#ff6600');
  assert.equal(q.scroller.querySelector('.slide-vector-shape rect').getAttribute('fill'),'#ff6600');
+ assert.equal(q.editor.paintActive,false,'paint mode should auto-exit after painting');
+ clickLabel(q.controls,'Balde');
+ assert.equal(q.editor.paintActive,true);
  clickLabel(q.controls,'Balde');
  assert.equal(q.editor.paintActive,false);
 });
