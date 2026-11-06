@@ -123,18 +123,6 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
        modelBlocks:model.blocks.length};
    })()`);
    console.log('QT_DOCX_STRESS_LOGICAL_PROBE',total,JSON.stringify(probe));
-   if(total===100){
-     const response=await evaluate(`(()=>{
-       const selection=getSelection(),node=selection.anchorNode;
-       const event=new KeyboardEvent('keydown',{key:'Backspace',code:'Backspace',
-         bubbles:true,cancelable:true});
-       node.dispatchEvent(event);
-       return {cancelled:event.defaultPrevented,
-         modelBlocks:OpenDocApp.editor().snapshot().content.blocks.length,
-         selectionTag:getSelection().anchorNode?.nodeName};
-     })()`);
-     console.log('QT_DOCX_SYNTHETIC_KEYDOWN_PROBE',JSON.stringify(response));
-   }
    // Real native keyboard Backspace (not a synthetic event with no default action).
    for(let i=0;i<total;i++){
      if(i%25===0)console.log('QT_DOCX_STRESS_BACKSPACE_PROGRESS',total,i);
