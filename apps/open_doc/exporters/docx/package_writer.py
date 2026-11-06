@@ -295,6 +295,14 @@ class DocxPackageWriter:
                 prop = element("tblPr")
                 out.insert(0, prop)
             write_borders(prop, "tblBorders", n.get("borders", {}))
+            preset=n.get("style_preset")
+            if preset in ("grid", "matrix") and not n.get("borders"):
+                line={"style":"single","size_pt":.5,"color":"8998B6"}
+                write_borders(prop,"tblBorders",{side:line for side in
+                    ("top","bottom","left","right","insideH","insideV")})
+            if n.get("cell_spacing_pt") is not None:
+                set_property(prop,"tblCellSpacing",{
+                    "w":round(n["cell_spacing_pt"]*20),"type":"dxa"})
             if n.get("layout"):
                 set_property(prop, "tblLayout", {"type": n["layout"]})
             if out.find(w("tblGrid")) is None and n.get("column_widths_pt"):
@@ -302,7 +310,7 @@ class DocxPackageWriter:
                 for width in n["column_widths_pt"]:
                     grid.append(element("gridCol", {"w": round(width * 20)}))
                 out.append(grid)
-            for row in n["rows"]:
+            for row_index,row in enumerate(n["rows"]):
                 tr = element("tr")
                 rp = properties(row.get("raw_properties"), "trPr")
                 tr.append(rp)
@@ -325,6 +333,8 @@ class DocxPackageWriter:
                         set_property(cp, "vMerge", {"val": "restart"})
                     if cell.get("shading"):
                         set_property(cp, "shd", {"fill": cell["shading"]})
+                    elif preset=="header" and row_index==0:
+                        set_property(cp,"shd",{"fill":"DAE2FD"})
                     if cell.get("vertical_align"):
                         set_property(cp, "vAlign", {"val": cell["vertical_align"]})
                     tc.append(cp)
