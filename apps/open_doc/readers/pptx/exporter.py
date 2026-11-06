@@ -12,6 +12,8 @@ from PIL import Image
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Pt
@@ -42,7 +44,22 @@ class SlideDeckExporter:
         w = max(1, int(obj["width"] * width))
         h = max(1, int(obj["height"] * height))
         kind = obj["type"]
-        if kind == "image":
+        if kind == "chart":
+            native_data=CategoryChartData()
+            native_data.categories=obj["chart_categories"]
+            native_data.add_series("Valores", obj["chart_values"])
+            chart_type={
+                "bar":XL_CHART_TYPE.COLUMN_CLUSTERED,
+                "line":XL_CHART_TYPE.LINE_MARKERS,
+                "pie":XL_CHART_TYPE.PIE,
+            }[obj.get("chart_type","bar")]
+            shape=slide.shapes.add_chart(chart_type,left,top,w,h,native_data)
+            chart=shape.chart
+            chart.has_title=bool(obj.get("chart_title"))
+            if chart.has_title:
+                chart.chart_title.text_frame.text=obj["chart_title"]
+            chart.has_legend=False
+        elif kind == "image":
             asset = self.model["assets"][obj["asset_id"]]
             picture_data = BytesIO(base64.b64decode(asset["data"], validate=True))
             if asset["mime"] == "image/webp":
@@ -84,9 +101,10 @@ class SlideDeckExporter:
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj.get("fill", "#DAE2FD"))
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
-        if kind not in {"text", "image"}:
+        if kind not in {"text", "image", "chart"}:
             shape.line.width = Pt(obj.get("stroke_width", 1.5))
-        shape.rotation = obj.get("rotation", 0)
+        if kind!="chart":
+            shape.rotation = obj.get("rotation", 0)
         if obj.get("name"):
             shape.name = obj["name"]
         if kind == "text" or obj.get("text"):
