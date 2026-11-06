@@ -7,7 +7,7 @@
   const clone=value=>JSON.parse(JSON.stringify(value));
   const textLength=children=>(children||[]).reduce((n,run)=>
     n+(run.type==="text"?String(run.text||"").length:
-      run.type==="hyperlink"?textLength(run.children):run.type==="break"?1:0),0);
+      run.type==="hyperlink"?textLength(run.children):(run.type==="break"||run.type==="tab")?1:0),0);
   function joinBackward(model,blockId) {
     if(!model?.blocks?.length || !blockId)return null;
     const index=model.blocks.findIndex(x=>x.id===blockId);

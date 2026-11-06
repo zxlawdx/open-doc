@@ -26,6 +26,7 @@
       if(c.nodeType!==1 || c.hasAttribute('data-list-marker') || ['UL','OL'].includes(c.tagName))continue;
       const old=previous(c),kind=c.dataset.nodeType;
       if(['opaque-ooxml','image','note-reference','field','tab','break'].includes(kind) && old.type){out.push({...M.clone(old),id:identity(c)});continue;}
+      if(kind==='tab' && c.textContent==='\t'){out.push({id:identity(c),type:'tab'});continue;}
       if(c.tagName==='BR'){if(parent.childNodes.length>1)out.push({id:identity(c),type:'break',break_type:'line'});continue;}
       const style=readStyle(c,{...inherited,...(old.style || {})});
       if(c.tagName==='A' && /^(https?:\/\/|mailto:|#)/i.test(c.getAttribute('href') || ''))out.push({...old,id:identity(c),type:'hyperlink',href:c.getAttribute('href'),children:inline(c,style,old.raw_properties || rawProperties)});
