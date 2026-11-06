@@ -730,7 +730,7 @@ test('workspace centers the one active slide and keeps 4:3 dimensions on navigat
  assert.equal(workspace.style.justifyContent,'center');
  const preview=q.sidebar.querySelector('.slide-thumb-preview');
  assert.equal(preview.style.aspectRatio,'720/540');
- assert.ok(Math.abs(parseFloat(preview.style.height)/142-.75)<.02);
+ assert.ok(Math.abs(parseFloat(preview.style.height)/Math.max(100,q.sidebar.clientWidth-38||142)-.75)<.02);
  assert.equal(q.model().surfaces[0].width_pt,720,
    'zoom and visual layout cannot mutate original slide coordinates');
 });
