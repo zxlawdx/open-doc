@@ -513,7 +513,56 @@
       const selection=getSelection();
       if(!selection?.rangeCount||!selection.isCollapsed)return;
       const anchor=selection.anchorNode;
-      if(!anchor||anchor.nodeType!==1)return;
+      if(!anchor)return;
+      const element=anchor.nodeType===3?anchor.parentElement:anchor;
+      // Native Chromium Backspace from the first paragraph in a *physical*
+      // page tries to join text across sibling <section> wrappers. This
+      // unexpectedly deletes page shells and can hang QtWebEngine even for
+      // 100 empty Enter paragraphs. Merge the two logical paragraphs here,
+      // then let the model serializer / paginator remount the pages.
+      if(event.key==='Backspace' && element){
+        const block=element.closest('p[data-node-id],p[data-fragment-of]');
+        const box=block?.parentElement?.matches('[data-page-content]')
+          ?block.parentElement:null;
+        const page=box?.parentElement?.matches('.document-page')
+          ?box.parentElement:null;
+        const previousPage=page?.previousElementSibling;
+        const previousBox=previousPage?.matches('.document-page')
+          ?previousPage.querySelector('[data-page-content]'):null;
+        const previousBlock=previousBox?.lastElementChild;
+        if(block && box?.firstElementChild===block && previousBlock?.tagName==='P'
+          && block.tagName==='P'){
+          const before=document.createRange();
+          before.selectNodeContents(block);
+          try{before.setEnd(selection.anchorNode,selection.anchorOffset);}
+          catch(_){before.collapse(false);}
+          if(!before.toString().length && (anchor===block && selection.anchorOffset===0
+            || anchor.nodeType===3 && selection.anchorOffset===0
+            || block.textContent.length===0)){
+            event.preventDefault();history.checkpoint(buffer());
+            const previousLength=previousBlock.childNodes.length;
+            // Remove a placeholder BR before concatenating paragraphs.
+            if(previousBlock.childNodes.length===1 && previousBlock.firstChild.tagName==='BR')
+              previousBlock.replaceChildren();
+            for(const child of Array.from(block.childNodes))
+              if(!(child.nodeType===1 && child.tagName==='BR' && !block.textContent))
+                previousBlock.appendChild(child);
+            block.remove();
+            if(!previousBlock.childNodes.length)
+              previousBlock.appendChild(document.createElement('br'));
+            const replacement=document.createRange();
+            replacement.setStart(previousBlock,Math.min(previousLength,previousBlock.childNodes.length));
+            replacement.collapse(true);
+            selection.removeAllRanges();selection.addRange(replacement);
+            commands.capture();
+            beforeInputCrossPage=true;
+            beforeInputBlockId=previousBlock.dataset.fragmentOf||previousBlock.dataset.nodeId;
+            changed('typing',rich,{inputType:'deleteContentBackward'});
+            return;
+          }
+        }
+      }
+      if(anchor.nodeType!==1)return;
       if(anchor!==rich && !anchor.matches('.document-page,[data-page-content]'))return;
       let candidate=null;
       if(anchor===rich){
