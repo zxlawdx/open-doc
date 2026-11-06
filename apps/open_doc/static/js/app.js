@@ -150,6 +150,7 @@
   }
   function closeDialog(value = null) {
     const backdrop = root.querySelector('[data-dialog]');
+    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help');
     // QtWebEngine (Chromium 83) must not rely solely on the [hidden]
     // attribute when a component stylesheet sets display:grid.
     backdrop.hidden = true;
@@ -211,12 +212,22 @@
       'font-import':async()=>{const result=await window.pywebview.api.import_font();if(result.error)throw Error(result.error);if(!result.cancelled){await refreshFonts();status('Fontes importadas.');}},
       'font-refresh':refreshFonts,
       'font-manage':fontManager,
-      'table-insert':()=>window.OpenDocTableInsertDialog.TableInsertDialog.show({
-        dialog,editor,status,root
-      }),
+      'table-insert':()=>{
+        const pending=window.OpenDocTableInsertDialog.TableInsertDialog.show({
+          dialog,editor,status,root
+        });
+        root.querySelector('[data-dialog] .dialog')?.classList.add('dialog-table');
+        return pending;
+      },
 
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
-      home: () => { showView(true); }, save: () => operate(() => editor.flush()),
+      home: () => { showView(true); },
+      'library-recent':()=>{showView(true);root.querySelector('[data-library-recent]')?.scrollIntoView({block:'start'});},
+      'library-files':()=>{showView(true);root.querySelector('[data-library-imports]')?.scrollIntoView({block:'start'});},
+      save: () => operate(async()=>{
+        await editor.flush();
+        status('Documento salvo na biblioteca local. Use Arquivo > Exportar para escolher a pasta e o formato.');
+      }),
       copy: () => operate(() => editor.copy()),
       navigator: () => toggleNavigator(),
       'zoom-reset': () => layout?.set(100),
@@ -232,6 +243,9 @@
         const value = await dialog('Aparência', 'O papel permanece branco nos temas claro e escuro.', false, theme?.preference() || 'system');
         if (value) await theme?.set(value);
       },
+      'help-center':()=>window.OpenDocHelpCenter.HelpCenter.open({
+        dialog,root,kind:root.dataset.sourceKind
+      }),
       shortcuts: () => dialog('Atalhos de teclado', 'Ctrl+N: novo · Ctrl+O: importar · Ctrl+S: salvar · Ctrl+B: negrito · Ctrl+I: itálico · Ctrl+Z: desfazer · Ctrl+Y ou Ctrl+Shift+Z: refazer · Ctrl+F: localizar. Copiar, recortar e colar usam os atalhos do sistema.'),
       about: () => dialog('Open Doc', 'Editor desktop local construído com o Vela Framework. Edição rica, páginas e exportação nativa. O layout pode diferir do Microsoft Word.')
     };
@@ -272,7 +286,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocTableInsertDialog','table_insert_dialog.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocTableInsertDialog','table_insert_dialog.js'],['OpenDocHelpCenter','help_center.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
