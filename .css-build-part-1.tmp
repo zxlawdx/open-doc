@@ -1,0 +1,998 @@
+/* Semantic colors are the only theme-dependent values. Paper stays light. */
+@font-face {
+    font-family: Inter;
+    src: url('../fonts/Inter.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 400 600;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: url('../fonts/JetBrainsMono.woff2') format('woff2');
+    font-display: swap;
+}
+.open-doc {
+    --color-app-chrome: #f8f9fa;
+    --color-workspace: #e9edf2;
+    --color-panel: #ffffff;
+    --color-paper: #ffffff;
+    --color-overlay: rgba(15, 23, 42, .28);
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #536174;
+    --color-text-muted: #738095;
+    --color-text-disabled: #98a2b3;
+    --color-border-strong: #c7ced8;
+    --color-border: #d4dae3;
+    --color-border-soft: #e7eaf0;
+    --color-primary: #1d4ed8;
+    --color-primary-hover: #1e40af;
+    --color-primary-active: #1e3a8a;
+    --color-primary-soft: #dbeafe;
+    --color-on-primary: #ffffff;
+    --color-hover: #e9edf3;
+    --color-danger: #b91c1c;
+    --color-danger-soft: #fee2e2;
+    --color-success: #15803d;
+    --color-warning: #b45309;
+    --color-paper-ink: #202124;
+    --color-paper-heading: #111827;
+    --color-paper-muted: #64748b;
+    --color-paper-border: #cbd0d8;
+    --color-paper-code: #f4f5f7;
+    --color-paper-selection: #c2dbff;
+    --color-paper-link: #1d4ed8;
+    --color-paper-placeholder: #9ca3af;
+    --color-opaque: #f1f5f9;
+    --color-opaque-ink: #475569;
+    --color-find: #fff1a5;
+    --font-ui: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', Consolas, monospace;
+    --font-document-default: Georgia, 'Times New Roman', serif;
+    --font-size-2xs: 9px;
+    --font-size-xs: 10px;
+    --font-size-sm: 11px;
+    --font-size-md: 12px;
+    --font-size-lg: 14px;
+    --font-size-xl: 16px;
+    --font-size-2xl: 20px;
+    --font-size-3xl: 28px;
+    --space-0-5: 2px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --control-height-sm: 28px;
+    --control-height-md: 30px;
+    --control-height-lg: 36px;
+    --control-icon-width: 30px;
+    --control-paragraph-width: 142px;
+    --control-font-width: 150px;
+    --control-number-width: 58px;
+    --control-select-width: 100px;
+    --control-color-width: 24px;
+    --radius-xs: 3px;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --shadow-menu: 0 8px 28px rgba(15,23,42,.14), 0 2px 6px rgba(15,23,42,.08);
+    --shadow-paper: 0 1px 2px rgba(15,23,42,.08), 0 6px 24px rgba(15,23,42,.08);
+    --header-height: 38px;
+    --menubar-height: 30px;
+    --toolbar-min-height: 40px;
+    --statusbar-height: 26px;
+    --navigator-width: 228px;
+    --navigator-collapsed-width: 38px;
+    --home-max-width: 1040px;
+    --page-gap: 24px;
+    --page-default-width: 794px;
+    --page-default-height: 1123px;
+    --page-default-padding: 78px 94.5px 94.5px;
+    --ruler-height: 22px;
+    --menu-min-width: 254px;
+    --popover-min-width: 220px;
+    --focus-ring: 2px solid var(--color-primary);
+    --focus-offset: -2px;
+    --motion-fast: 100ms;
+    --motion-normal: 160ms;
+    --z-menubar: 30;
+    --z-dropdown: 50;
+    --z-popover: 70;
+    --z-dialog: 100;
+    --z-tooltip: 120;
+    color-scheme: light;
+}
+.open-doc[data-theme='dark'] {
+    --color-app-chrome: #1e1f22;
+    --color-workspace: #141517;
+    --color-panel: #25272b;
+    --color-overlay: rgba(0,0,0,.55);
+    --color-text-primary: #f1f5f9;
+    --color-text-secondary: #b4bdca;
+    --color-text-muted: #9aa7b8;
+    --color-text-disabled: #738095;
+    --color-border-strong: #555d6b;
+    --color-border: #424854;
+    --color-border-soft: #333943;
+    --color-hover: #343b46;
+    --color-primary: #9bc0ff;
+    --color-primary-hover: #bdd5ff;
+    --color-primary-active: #d3e2ff;
+    --color-primary-soft: #263d5b;
+    --color-on-primary: #0f172a;
+    --color-danger: #fca5a5;
+    --color-danger-soft: #502b31;
+    --color-success: #8fcea4;
+    --color-warning: #f1c06d;
+    --shadow-menu: 0 8px 28px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.2);
+    color-scheme: dark;
+}
+
+/* Local UI reset; rich document typography is defined separately. */
+.open-doc,
+.open-doc *,
+.open-doc *::before,
+.open-doc *::after {
+    box-sizing: border-box;
+}
+.open-doc button,
+.open-doc input,
+.open-doc select,
+.open-doc textarea {
+    font: inherit;
+    color: inherit;
+}
+.open-doc button {
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    min-height: var(--control-height-sm);
+    padding: var(--space-1) var(--space-2);
+}
+.open-doc input:not([type='range']),
+.open-doc select {
+    min-height: var(--control-height-sm);
+    min-width: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-panel);
+    padding: var(--space-1) var(--space-2);
+}
+.open-doc svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+.open-doc .icon-button {
+    height: var(--control-height-md);
+    width: var(--control-icon-width);
+    min-width: var(--control-icon-width);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-1);
+}
+.open-doc .primary-button,
+.open-doc [data-dialog-confirm] {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: var(--color-primary);
+}
+.open-doc .danger-action {
+    color: var(--color-danger);
+}
+
+/* The only framework integration: full WebView bounds, no shell redesign. */
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+#vela-page {
+    /* Vela supplies inline/page padding; the desktop app owns the full viewport. */
+    padding: 0 !important;
+    overflow: hidden;
+    min-height: 0;
+}
+.open-doc {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font: var(--font-size-md) var(--font-ui);
+    color: var(--color-text-primary);
+    background: var(--color-app-chrome);
+}
+.open-doc .document-body {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+}
+
+/* Title keeps the flexible space; save messages have a stable slot. */
+.open-doc .app-header {
+    height: var(--header-height);
+    min-height: var(--header-height);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-soft);
+}
+.open-doc .product {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.open-doc .product svg {
+    color: var(--color-primary);
+}
+.open-doc .header-divider {
+    height: 18px;
+    border-left: 1px solid var(--color-border);
+}
+.open-doc input[data-title] {
+    flex: 0 1 320px;
+    width: 260px;
+    min-width: 100px;
+    background: transparent;
+    border-color: transparent;
+    text-overflow: ellipsis;
+}
+.open-doc .save-status {
+    width: 220px;
+    flex: 0 0 220px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.open-doc .header-search {
+    margin-left: auto;
+}
+
+/* Brand mark and title must not visually collide in native Qt scaling. */
+.open-doc .app-header .product{gap:12px;padding-inline:5px}
+.open-doc .app-header .product .brand-mark{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 35px;width:35px;height:35px;box-sizing:border-box
+}
+.open-doc .app-header .product .brand-mark svg{width:20px;height:20px;display:block}
+.open-doc .app-header .header-divider{margin-inline:5px}
+.open-doc .app-header input[data-title]{margin-left:3px}
+
+/* Shared popover surface: main menus, library actions and page/table menus. */
+.open-doc .menubar {
+    min-height: var(--menubar-height);
+    height: var(--menubar-height);
+    flex-shrink: 0;
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-0-5);
+    padding: 0 var(--space-3);
+    position: relative;
+    z-index: var(--z-menubar);
+    background: var(--color-app-chrome);
+}
+.open-doc .menu-group {
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+}
+.open-doc .menubar [data-menu] {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-xs);
+    white-space: nowrap;
+}
+.open-doc .dropdown,
+.open-doc .document-action-menu,
+.open-doc .page-menu {
+    position: fixed;
+    min-width: var(--popover-min-width);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-panel);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-menu);
+    z-index: var(--z-popover);
+}
+.open-doc .dropdown {
+    min-width: var(--menu-min-width);
+    z-index: var(--z-dropdown);
+}
+.open-doc .dropdown button,
+.open-doc .document-action-menu button,
+.open-doc .page-menu button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-6);
+    width: 100%;
+    min-height: var(--control-height-md);
+    padding: var(--space-1) var(--space-2);
+    text-align: left;
+    font-size: var(--font-size-md);
+    white-space: nowrap;
+}
+.open-doc .dropdown kbd {
+    font: var(--font-size-xs) var(--font-ui);
+    color: var(--color-text-secondary);
+}
+.open-doc .dropdown hr,
+.open-doc .document-action-menu hr {
+    border: 0;
+    border-top: 1px solid var(--color-border-soft);
+    margin: var(--space-1) 0;
+}
+.open-doc .menu-section {
+    font-size: var(--font-size-2xs);
+    letter-spacing: .08em;
+    color: var(--color-text-secondary);
+    padding: var(--space-2);
+    margin: 0;
+}
+
+/* Dialog contents scroll within the window, including page setup forms. */
+.open-doc .modal-backdrop {
+    position: fixed;
+    /* QtWebEngine Windows ships Chromium 83: `inset` is unsupported.
+       Explicit sides and viewport dimensions restore click hit-testing. */
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+    background: var(--color-overlay);
+    z-index: var(--z-dialog);
+}
+
+/* Never let display:grid override the HTML hidden state. */
+.open-doc .modal-backdrop[hidden] { display: none !important; }
+.open-doc .dialog {
+    width: min(440px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+    padding: var(--space-6);
+    background: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-menu);
+    color: var(--color-text-primary);
+}
+.open-doc .dialog h2 {
+    font-size: var(--font-size-xl);
+    margin: 0 0 var(--space-4);
+}
+.open-doc .dialog p {
+    line-height: 1.7;
+    color: var(--color-text-secondary);
+}
+.open-doc .dialog label {
+    display: block;
+    margin-top: var(--space-3);
+}
+.open-doc .dialog input,
+.open-doc .dialog select {
+    width: 100%;
+    margin-top: var(--space-1);
+    min-height: var(--control-height-lg);
+}
+.open-doc .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-6);
+}
+.open-doc .dialog-actions button {
+    min-height: var(--control-height-lg);
+    border: 1px solid var(--color-border);
+    padding: var(--space-1) var(--space-4);
+}
+
+/* Table templates and focused task-oriented help are scrollable on desktop/Qt. */
+.open-doc .dialog.dialog-table,.open-doc .dialog.dialog-help{width:min(720px,calc(100vw - 32px))}
+.open-doc .table-dialog-dimensions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.open-doc .table-dialog-field{font-size:13px;min-width:0}
+.open-doc .table-dialog-field input{box-sizing:border-box;padding:9px 11px;border:1px solid var(--color-border);border-radius:9px;background:var(--of-surface-low);color:var(--color-text-primary)}
+.open-doc .table-preset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.open-doc .table-preset{display:flex;flex-direction:column;align-items:flex-start;gap:5px;
+  padding:14px;text-align:left;min-height:75px;border:1px solid var(--color-border);
+  border-radius:12px;background:var(--of-surface-low);color:var(--color-text-primary)}
+.open-doc .table-preset strong{font-size:14px}
+.open-doc .table-preset small{font-size:12px;line-height:1.45;color:var(--color-text-secondary)}
+.open-doc .table-preset[aria-pressed=true]{border:2px solid var(--color-primary);background:var(--color-primary-soft)}
+.open-doc .table-csv-file,.open-doc .table-dialog textarea{box-sizing:border-box;width:100%;font:inherit;
+  color:var(--color-text-primary);background:var(--of-surface-low);border:1px solid var(--color-border);
+  padding:10px;border-radius:9px;min-height:40px;resize:vertical}
+.open-doc .table-import-link{padding:10px 14px;border:1px solid var(--color-border);
+  background:var(--of-surface-low);color:var(--color-text-primary);border-radius:9px}
+.open-doc .table-dialog-feedback{font-size:13px;color:var(--color-text-secondary)}
+.open-doc .table-dialog-hint{font-size:13px}
+.open-doc .dialog h3{font-size:14px;margin:18px 0 10px;font-weight:650}
+.open-doc .dialog-help .help-entries{display:flex;flex-direction:column;gap:10px}
+.open-doc .dialog-help .help-entry{border:1px solid var(--color-border);
+  background:var(--of-surface-low);padding:12px 14px;border-radius:12px}
+.open-doc .dialog-help .help-entry summary{cursor:pointer;font-weight:600;line-height:1.5}
+.open-doc .dialog-help .help-entry p{margin:10px 0 0;line-height:1.6}
+
+/* Task-focused editor for readable math entry, not a raw URL/dialog prompt. */
+.open-doc .dialog.dialog-equation{width:min(750px,calc(100vw - 32px))}
+.open-doc .dialog-equation .equation-format-note{
+  font-size:12px;line-height:1.55;margin:9px 0 16px
+}
+.open-doc .equation-expression{
+  display:block;width:100%;box-sizing:border-box;min-height:76px;
+  font:17px/1.6 var(--font-ui);resize:vertical;
+  border:1px solid var(--color-border);border-radius:10px;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  padding:11px 13px;margin-top:8px
+}
+.open-doc .equation-symbols{
+  display:grid;grid-template-columns:repeat(8,minmax(0,1fr));
+  gap:7px;margin:13px 0
+}
+.open-doc .equation-symbols button{
+  display:grid;place-items:center;min-height:38px;border-radius:9px;
+  border:1px solid var(--color-border);background:var(--of-surface-low);
+  color:var(--color-text-primary);font-size:17px
+}
+.open-doc .equation-preview{
+  display:block;min-height:45px;margin:12px 0;
+  padding:12px;box-sizing:border-box;overflow-wrap:anywhere;
+  border-left:3px solid var(--color-primary);
+  background:var(--of-surface-low);color:var(--color-text-primary);
+  font-size:18px;line-height:1.55
+}
+.open-doc .equation-calculator{
+  margin-top:17px;padding-top:12px;border-top:1px solid var(--color-border)
+}
+.open-doc .equation-calculator h3{margin:0 0 7px}
+.open-doc .equation-calculator>p{font-size:12px;margin:3px 0 10px}
+.open-doc .equation-calculator input{
+  box-sizing:border-box;border-radius:9px;padding:9px 12px;
+  color:var(--color-text-primary);background:var(--of-surface-low)
+}
+.open-doc .equation-calc-actions{display:flex;gap:9px;margin:11px 0}
+.open-doc .equation-calc-actions button{
+  border:1px solid var(--color-border);background:var(--of-surface-low);
+  padding:9px 12px;border-radius:9px;color:var(--color-text-primary)
+}
+.open-doc .equation-calc-actions button:disabled{opacity:.5;cursor:not-allowed}
+.open-doc .equation-calc-result{
+  display:block;min-height:30px;font-size:14px;line-height:1.5;
+  color:var(--color-text-primary)
+}
+
+/* Groups are indivisible. Smaller windows scroll one intentional tool strip. */
+.open-doc .toolbar {
+    min-height: var(--toolbar-min-height);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-top: 1px solid var(--color-border-soft);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-app-chrome);
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.open-doc .toolbar-group {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: var(--space-0-5);
+    min-width: 0;
+}
+.open-doc .toolbar-group + .toolbar-group {
+    border-left: 1px solid var(--color-border);
+    padding-left: var(--space-2);
+}
+.open-doc .toolbar select,
+.open-doc .toolbar input[type='number'] {
+    height: var(--control-height-sm);
+    font-size: var(--font-size-sm);
+}
+.open-doc .toolbar [data-paragraph] {
+    width: var(--control-paragraph-width);
+}
+.open-doc .toolbar [data-font-family] {
+    width: var(--control-font-width);
+}
+.open-doc .toolbar [data-font-size],
+.open-doc .toolbar input[type='number'] {
+    width: var(--control-number-width);
+}
+.open-doc .toolbar [data-paragraph-style='alignment'],
+.open-doc .toolbar [data-paragraph-style='line_spacing'] {
+    width: var(--control-select-width);
+}
+.open-doc .toolbar label:not(.sr-only) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-0-5);
+    white-space: nowrap;
+}
+.open-doc .toolbar input[type='color'] {
+    width: var(--control-color-width);
+    min-height: var(--control-height-sm);
+    padding: var(--space-0-5);
+}
+
+/* The narrow state is centralized in responsive.css. */
+.open-doc .navigator {
+    width: var(--navigator-width);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-app-chrome);
+    border-right: 1px solid var(--color-border);
+    min-height: 0;
+}
+.open-doc .navigator-header {
+    min-height: var(--space-10);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--space-3);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: .08em;
+    color: var(--color-text-secondary);
+}
+.open-doc .navigator-document {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-height-lg);
+    margin: 0 var(--space-2);
+    text-align: left;
+    white-space: nowrap;
+}
+.open-doc .navigator-content {
+    padding: var(--space-5) var(--space-3) var(--space-3);
+    overflow: auto;
+    min-height: 0;
+}
+.open-doc .find-label,
+.open-doc .outline-label {
+    display: block;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
+    letter-spacing: .06em;
+    margin: 0 0 var(--space-2);
+}
+.open-doc .find-field {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding-left: var(--space-2);
+    background: var(--color-panel);
+}
+.open-doc .find-field svg {
+    width: 14px;
+    color: var(--color-text-secondary);
+}
+.open-doc .find-field [data-find] {
+    width: 100%;
+    border-color: transparent;
+    background: transparent;
+    font-size: var(--font-size-sm);
+}
+.open-doc .find-replace-controls {
+    display: grid;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+}
+.open-doc .find-replace-controls label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+.open-doc .find-replace-controls input {
+    width: 100%;
+    margin-top: var(--space-1);
+}
+.open-doc .find-replace-controls > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+.open-doc .find-replace-controls button {
+    font-size: var(--font-size-sm);
+    border-color: var(--color-border);
+}
+.open-doc .find-results {
+    margin: var(--space-2) 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+.open-doc .find-results button,
+.open-doc [data-outline] button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.open-doc .outline-label {
+    margin-top: var(--space-6);
+}
+.open-doc [data-outline] button {
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    color: var(--color-text-secondary);
+}
+.open-doc [data-outline] button[data-level='2'] {
+    padding-left: var(--space-5);
+}
+.open-doc [data-outline] button[data-level='3'] {
+    padding-left: var(--space-8);
+}
+.open-doc .outline-empty,
+.open-doc .navigator-local {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+.open-doc .navigator-local {
+    margin-top: auto;
+    padding: var(--space-3);
+}
+.open-doc[data-collapsed='true'] .navigator {
+    width: var(--navigator-collapsed-width);
+}
+.open-doc[data-collapsed='true'] [data-nav-label] {
+    display: none;
+}
+.open-doc[data-collapsed='true'] .navigator-header {
+    padding: var(--space-1);
+}
+.open-doc[data-collapsed='true'] .navigator-document {
+    margin: var(--space-1);
+    padding: var(--space-1);
+    justify-content: center;
+}
+
+/* Document geometry is fixed by Section/JS; only its viewport is responsive. */
+.open-doc .document-workspace {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-workspace);
+    overflow: hidden;
+}
+.open-doc .ruler-band {
+    height: var(--ruler-height);
+    min-height: var(--ruler-height);
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    background: var(--color-workspace);
+    border-bottom: 1px solid var(--color-border);
+    padding: 0 var(--space-6);
+}
+.open-doc .ruler {
+    position: relative;
+    width: var(--page-default-width);
+    height: 20px;
+    flex-shrink: 0;
+    background: var(--color-paper);
+    transform-origin: top center;
+    color: var(--color-paper-muted);
+    border-inline: 1px solid var(--color-paper-border);
+    font-size: var(--font-size-2xs);
+}
+.open-doc .ruler::after {
+    content: '';
+    position: absolute;
+    inset: 12px 0 0;
+    background: repeating-linear-gradient(90deg,transparent 0 18px,var(--color-paper-border) 18px 19px,transparent 19px 37px,var(--color-paper-border) 37px 38px);
+    opacity: .8;
+}
+.open-doc .ruler span {
+    position: absolute;
+    top: 1px;
+    transform: translateX(-50%);
+}
+.open-doc .document-canvas {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+    padding: var(--space-6);
+}
+.open-doc .paper-layout {
+    margin: 0 auto;
+    position: relative;
+    width: var(--page-default-width);
+    min-height: var(--page-default-height);
+}
+.open-doc .recovery,
+.open-doc .conflict-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    font-size: var(--font-size-sm);
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-primary-soft);
+}
+.open-doc .recovery button,
+.open-doc .conflict-banner button {
+    border-color: var(--color-border);
+    background: var(--color-panel);
+}
+.open-doc .export-result:not(:empty) {
+    padding: var(--space-1) var(--space-4);
+    font-size: var(--font-size-xs);
+    overflow-wrap: anywhere;
+    border-top: 1px solid var(--color-border);
+    max-height: 58px;
+    overflow: auto;
+}
+.open-doc .rich-warning {
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    padding: var(--space-1) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    max-height: 130px;
+    overflow: auto;
+}
+.open-doc .rich-warning summary {
+    cursor: pointer;
+}
+.open-doc .rich-warning ul {
+    margin: var(--space-2) 0 var(--space-2) var(--space-5);
+    list-style: disc;
+}
+
+/* Page boxes never shrink with the window. Zoom/scroll are viewport operations. */
+.open-doc .paper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--page-default-width);
+    min-height: var(--page-default-height);
+    background: var(--color-paper);
+    color: var(--color-paper-ink);
+    box-shadow: var(--shadow-paper);
+    transform-origin: top left;
+    color-scheme: light;
+}
+.open-doc .paper [data-rich],
+.open-doc .paper [data-preview-pane],
+.open-doc .paper [data-source] {
+    display: block;
+    width: 100%;
+    min-height: var(--page-default-height);
+    padding: var(--page-default-padding);
+    border: 0;
+    background: var(--color-paper);
+    color: var(--color-paper-ink);
+    font: var(--font-size-xl)/1.7 var(--font-document-default);
+    user-select: text;
+    -webkit-user-select: text;
+    overflow-wrap: anywhere;
+}
+.open-doc .paper [data-source] {
+    resize: none;
+    font: var(--font-size-md)/1.8 var(--font-mono);
+    overflow: hidden;
+}
+.open-doc[data-page-mode='pages'] .paper {
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+}
+.open-doc[data-page-mode='pages'] [data-rich] {
+    padding: 0;
+    min-height: 0;
+    background: transparent;
+    counter-reset: sheet;
+}
+.open-doc .document-page {
+    background: var(--color-paper);
+    color: var(--color-paper-ink);
+    box-shadow: var(--shadow-paper);
+    margin: 0 auto var(--page-gap);
+    position: relative;
+    flex: none;
+    counter-increment: sheet;
+    /* Page chrome must clip ink and oversized fragments at the physical edge. */
+    overflow: hidden;
+    box-sizing: border-box;
+}
+.open-doc .document-page::after {
+    content: counter(sheet);
+    position: absolute;
+    bottom: var(--space-2);
+    right: var(--space-4);
+    font: var(--font-size-xs) var(--font-ui);
+    color: var(--color-paper-muted);
+    pointer-events: none;
+}
+.open-doc .page-content {
+    min-height: 1px;
+    display: flow-root;
+    overflow-wrap: anywhere;
+}
+.open-doc .page-content > p:first-child {
+    margin-top: 0;
+}
+.open-doc .manual-page-break {
+    height: 1px;
+    border-top: 1px dotted var(--color-paper-border);
+    user-select: none;
+}
+.open-doc .paper [data-rich-header],
+.open-doc .paper [data-rich-footer] {
+    padding: var(--space-3) 72pt;
+    color: var(--color-paper-ink);
+    background: var(--color-paper);
+    font: 10pt var(--font-document-default);
+    user-select: text;
+    border-bottom: 1px dashed var(--color-paper-border);
+}
+.open-doc .paper [data-rich-header] p,
+.open-doc .paper [data-rich-footer] p {
+    margin: 0;
+}
+
+/* These defaults deliberately preserve existing rich-document metrics. */
+.open-doc .paper p {
+    margin: 0 0 14px;
+}
+.open-doc .paper h1 {
+    font-size: 30px;
+    line-height: 1.25;
+    margin: 0 0 24px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    color: var(--color-paper-heading);
+}
+.open-doc .paper h2 {
+    font-size: 22px;
+    line-height: 1.35;
+    margin: 28px 0 14px;
+    font-weight: 600;
+    color: var(--color-paper-heading);
+}
+.open-doc .paper h3 {
+    font-size: 18px;
+    margin: 22px 0 12px;
+    font-weight: 600;
+}
+.open-doc .paper h4,
+.open-doc .paper h5,
+.open-doc .paper h6 {
+    font-size: 16px;
+    margin: 18px 0 10px;
+}
+.open-doc .paper a {
+    color: var(--color-paper-link);
+    text-decoration: underline;
+}
+.open-doc .paper ul,
+.open-doc .paper ol {
+    padding-left: 26px;
+    margin: 0 0 16px;
+}
+.open-doc .paper li {
+    margin: 4px 0;
+}
+.open-doc .paper blockquote {
+    margin: 20px 0;
+    padding: 6px 0 6px 18px;
+    border-left: 3px solid var(--color-paper-border);
+    color: var(--color-opaque-ink);
+}
+.open-doc .paper pre {
+    white-space: pre-wrap;
+    background: var(--color-paper-code);
+    border: 1px solid var(--color-paper-border);
+    padding: 12px;
+    font: 12px/1.7 var(--font-mono);
+    margin: 18px 0;
+}
+.open-doc .paper code {
+    font-family: var(--font-mono);
+    font-size: .85em;
+}
+.open-doc .paper table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    table-layout: fixed;
+}
+.open-doc .paper th,
+.open-doc .paper td {
+    padding: 7px 10px;
+    border: 1px solid var(--color-paper-border);
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+.open-doc .paper th {
+    background: var(--color-paper-code);
+    font-weight: 600;
+}
+.open-doc .paper img {
+    object-fit: contain;
+}
+.open-doc .paper ::selection {
+    background: var(--color-paper-selection);
+    color: var(--color-paper-heading);
+}
+.open-doc [data-rich] h1,
+.open-doc [data-rich] h2,
+.open-doc [data-rich] h3 {
+    scroll-margin: 30px;
+}
+.open-doc .rich-opaque {
+    display: inline-block;
+    background: var(--color-opaque);
+    color: var(--color-opaque-ink);
+    font: var(--font-size-sm) var(--font-ui);
+    padding: 2px 4px;
+    border: 1px dashed var(--color-paper-border);
+    white-space: normal;
+}
+.open-doc .rich-page-break {
+    display: block;
+    border-top: 1px dashed var(--color-paper-border);
+    margin: 18px 0;
+    color: var(--color-paper-muted);
+    font: var(--font-size-sm) var(--font-ui);
+    text-align: center;
+}
+.open-doc .find-highlight {
+    background: var(--color-find);
+    color: var(--color-paper-ink);
+}
+.open-doc .paper [data-rich]:empty::before {
+    content: 'Comece a escrever…';
+    color: var(--color-paper-placeholder);
+    pointer-events: none;
+}
+
+/* Matrices and native Word tables are still editable cell-by-cell. */
+.open-doc .paper table[data-table-preset="matrix"]{border-collapse:separate}
+.open-doc .paper table[data-table-preset="matrix"] td{border-radius:4px}
+.open-doc .paper table[data-table-preset="header"] tr:first-child td{
+  background:#DAE2FD;color:#172D46;font-weight:650
+}
+.open-doc .paper table[data-table-preset="plain"] td{border-color:transparent}
+.open-doc .paper table[data-table-preset="grid"] td{border-color:#8998B6}
