@@ -33,12 +33,14 @@
   function logical(surface){const container=document.createElement('div');contents(surface,true).forEach(n=>container.appendChild(n));return container;}
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
-    let mode='pages',timer=null,frame=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false;
+    let mode='pages',timer=null,frame=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false,runCount=0,lastRunMs=0;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
     function paginate(){
-      if(destroyed || root.dataset.documentKind==='fixed')return;if(composing){pendingComposition=true;return;}const m=metrics(),key=JSON.stringify(m)+mode;
+      if(destroyed || root.dataset.documentKind==='fixed')return;if(composing){pendingComposition=true;return;}
+      const started=Date.now();runCount++;
+      const m=metrics(),key=JSON.stringify(m)+mode;
       if(signature!==key)dirtyPage=0;signature=key;
       const selected=surface.contains(getSelection()?.anchorNode),saved=selected && capture?capture():null;
       // Preserve the unchanged prefix; reflow starts at the first edited page.
@@ -101,7 +103,9 @@
         const value=blockMap.get(node.dataset.nodeId);
         if(value?.section_end_id){sectionIndex++;section={...defaults,...documentModel.sections[sectionIndex]};next();}
       }
-      host.style.width=Math.max(...Array.from(surface.querySelectorAll('[data-page-index]')).map(p=>parseFloat(p.style.width)*4/3))+'px';last=page;dirtyPage=Math.max(0,index-1);status();if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));if(preservedScroll){const canvas=root.querySelector('[data-canvas]');canvas.scrollTop=preservedScroll.top;canvas.scrollLeft=preservedScroll.left;preservedScroll=null;}
+      const widths=Array.from(surface.querySelectorAll('[data-page-index]')).map(p=>parseFloat(p.style.width)*4/3).filter(Number.isFinite);
+      host.style.width=(widths.length?Math.max(...widths):m.page_width_pt*4/3)+'px';
+      last=page;dirtyPage=Math.max(0,index-1);status();lastRunMs=Date.now()-started;if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));if(preservedScroll){const canvas=root.querySelector('[data-canvas]');canvas.scrollTop=preservedScroll.top;canvas.scrollLeft=preservedScroll.left;preservedScroll=null;}
     }
     function invalidate(blockId,options={}){
       if(options.preserveScroll){const canvas=root.querySelector('[data-canvas]');preservedScroll={top:canvas.scrollTop,left:canvas.scrollLeft};}
@@ -142,14 +146,20 @@
       if(frame!==null){(window.cancelAnimationFrame || window.clearTimeout)(frame);frame=null;}
       mode=value==='continuous'?'continuous':'pages';root.dataset.pageMode=mode;dirtyPage=0;paginate();
     }
-    const change=event=>{const {blockId,reason,structural}=event.detail || {};if(reason==='typing' && !structural && blockId && fits(blockId))return;invalidate(blockId,{reason,preserveScroll:true});};
+    const change=event=>{
+      const {blockId,reason,structural,full}=event.detail || {};
+      if(reason==='typing' && !full && !structural && blockId && fits(blockId))return;
+      invalidate(blockId,{reason,full:Boolean(full),preserveScroll:true});
+    };
     const startComposition=()=>{composing=true;clearTimeout(timer);};
     const endComposition=()=>{composing=false;if(pendingComposition){pendingComposition=false;change({detail:{reason:'typing'}});}};
     surface.addEventListener('compositionstart',startComposition);surface.addEventListener('compositionend',endComposition);
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
     document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
     function destroy(){destroyed=true;clearTimeout(timer);epoch++;(window.cancelAnimationFrame || window.clearTimeout)(frame);canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
-    return {paginate,invalidate,fits,destroy,setMode,active,metrics,logical:()=>logical(surface)};
+    return {paginate,invalidate,fits,destroy,setMode,active,metrics,
+      diagnostics:()=>({runCount,lastRunMs,pages:surface.querySelectorAll('[data-page-index]').length}),
+      logical:()=>logical(surface)};
   }
   window.OpenDocPagination={create,logical,contents,normalize,defaults};
 })();
