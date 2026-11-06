@@ -53,6 +53,62 @@ def wait_for(window: Any, expression: str) -> Any:
     raise AssertionError("Timeout: " + expression)
 
 
+def verify_native_fullscreen(window: Any) -> None:
+    """Check actual Qt top-level fullscreen, not only CSS or a bridge mock."""
+    from threading import Event
+    from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+    from PyQt5.QtWidgets import QApplication
+    from webview.platforms.qt import BrowserView
+
+    class NativeInspector(QObject):
+        requested = pyqtSignal()
+
+        def __init__(self):
+            super().__init__()
+            self.done = Event()
+            self.value = None
+            self.requested.connect(self.inspect)
+
+        @pyqtSlot()
+        def inspect(self):
+            # All QWidget access must run on Qt's GUI thread.
+            native = BrowserView.instances[window.uid].webview.window()
+            self.value = bool(native.isFullScreen())
+            self.done.set()
+
+        def check(self):
+            self.done.clear()
+            self.requested.emit()
+            assert self.done.wait(5), "Qt fullscreen inspection timed out"
+            return self.value
+
+    inspector = NativeInspector()
+    inspector.moveToThread(QApplication.instance().thread())
+    try:
+        window.evaluate_js(
+            """window.__nativeState = null;
+            Vela.platform.window.enterFullscreen()
+              .then(state=>window.__nativeState=state)
+              .catch(error=>window.__nativeState={error:error.message});"""
+        )
+        state = wait_for(window, "window.__nativeState")
+        assert state.get("fullscreen") is True, state
+        time.sleep(0.3)
+        assert inspector.check(), "The actual Qt window did not enter fullscreen"
+    finally:
+        window.evaluate_js(
+            """window.__nativeState = null;
+            Vela.platform.window.exitFullscreen()
+              .then(state=>window.__nativeState=state)
+              .catch(error=>window.__nativeState={error:error.message});"""
+        )
+        restored = wait_for(window, "window.__nativeState")
+        assert restored.get("fullscreen") is False, restored
+        time.sleep(0.3)
+        assert not inspector.check(), "The actual Qt window did not exit fullscreen"
+    print("NATIVE_QT_FULLSCREEN_AND_RESTORE_OK", flush=True)
+
+
 def native_keyboard(window: Any) -> None:
     """Envia atalhos Qt reais ao focusProxy do QWebEngineView."""
     from threading import Event
@@ -496,6 +552,7 @@ def run_qa() -> None:
                 is True
             )
             print("NATIVE_VELA_BOOT_OK", flush=True)
+            verify_native_fullscreen(window)
             assert window.evaluate_js(
                 "(() => { const t = new EventTarget(); const c = new AbortController(); let n=0; t.addEventListener('x',()=>n++,{signal:c.signal}); c.abort(); t.dispatchEvent(new Event('x')); return n===0; })()"
             )
