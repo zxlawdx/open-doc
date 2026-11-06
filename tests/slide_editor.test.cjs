@@ -578,3 +578,38 @@ test('paint picker has SVG, clears mode after painting, Escape cancels',t=>{
  q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
  assert.equal(bucket.getAttribute('aria-pressed'),'false','Escape exits paint mode');
 });
+
+test('F5 presents slides in a scaled overlay with keyboard navigation and Escape',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'Retângulo');
+ const before=q.versions.length;
+ q.root.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'F5',bubbles:true,cancelable:true}));
+ const overlay=q.root.querySelector('.slide-presentation');
+ assert.ok(overlay,'slide presentation should open on F5');
+ assert.equal(overlay.getAttribute('role'),'dialog');
+ assert.equal(overlay.getAttribute('aria-modal'),'true');
+ assert.match(overlay.querySelector('output').textContent,/Slide 2 de 2/);
+ assert.ok(overlay.querySelector('.slide-object-rect'),'presentation reuses editable slide source rendering');
+ assert.equal(overlay.querySelector('.slide-resize-handle'),null,'authoring handles must be hidden');
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'ArrowLeft',bubbles:true,cancelable:true}));
+ assert.match(overlay.querySelector('output').textContent,/Slide 1 de 2/);
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'End',bubbles:true,cancelable:true}));
+ assert.match(overlay.querySelector('output').textContent,/Slide 2 de 2/);
+ overlay.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'Escape',bubbles:true,cancelable:true}));
+ assert.equal(q.root.querySelector('.slide-presentation'),null,'Escape closes the slide show');
+ assert.equal(q.versions.length,before,'presenting must not modify the deck');
+});
+
+test('presentation closes when leaving the slides editor',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Apresentar');
+ assert.ok(q.root.querySelector('.slide-presentation'));
+ q.editor.deactivate();
+ assert.equal(q.root.querySelector('.slide-presentation'),null);
+});
