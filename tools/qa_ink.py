@@ -336,6 +336,18 @@ def main():
             assert output.returncode == 0, "Imported 36-slide PPTX Qt screenshot/typography failed"
             print("QT_IMPORTED_36_SLIDE_REAL_SCREENSHOT_AND_FONT_SIZE_OK", flush=True)
 
+            # User-style math flow: open Equation ribbon, select a line
+            # integral, render and screenshot it in the actual Qt editor.
+            # The source stays in a descriptive image label for now.
+            math_result = subprocess.run(
+                ["node", str(ROOT / "tools/qa_math_gallery_capture.cjs"),
+                 os.environ["QTWEBENGINE_REMOTE_DEBUGGING"]],
+                capture_output=True, text=True, timeout=60,
+            )
+            print(math_result.stdout, math_result.stderr, flush=True)
+            assert math_result.returncode == 0, "Qt SVG mathematical gallery/line integral failed"
+            print("QT_MATH_GALLERY_SCREENSHOTS_OK", flush=True)
+
         except Exception as e:
             import traceback
 
