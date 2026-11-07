@@ -42,7 +42,18 @@ def _math_png(path):
     """Native PNG fixture: renders a fraction bar and numerator/denominator."""
     image = Image.new("RGB", (780, 230), "#F5F9FE")
     canvas = ImageDraw.Draw(image)
-    font = ImageFont.truetype("DejaVuSans.ttf", 48)
+    # CI runners have different system fonts (Windows has Arial, Linux
+    # generally has DejaVu). Pillow's built-in fallback prevents a missing
+    # optional system font from failing the document interoperability test.
+    font = None
+    for candidate in ("DejaVuSans.ttf", "arial.ttf", "LiberationSans-Regular.ttf"):
+        try:
+            font = ImageFont.truetype(candidate, 48)
+            break
+        except OSError:
+            continue
+    if font is None:
+        font = ImageFont.load_default(size=48)
     canvas.text((65, 17), "d/dx", fill="#173A61", font=font)
     canvas.text((375, 17), "x² + 1", fill="#173A61", font=font)
     canvas.line((358, 95, 610, 95), fill="#173A61", width=4)
@@ -101,7 +112,8 @@ def test_math_docx_import_keeps_explanation_and_fraction_images(tmp_path):
     original = source.read_bytes()
     editor = Editor(Config(tmp_path / "docx-studio"))
     note = editor.import_docx(source)
-    # Word deduplicates identical image bytes into a single media part.\n    assert len(note["content"]["media"]) >= 1
+    # Word deduplicates identical image bytes into a single media part.
+    assert len(note["content"]["media"]) >= 1
     paragraphs = str(note["content"]["blocks"])
     assert "Passo 1" in paragraphs
     assert "Passo 2" in paragraphs
