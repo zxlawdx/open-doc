@@ -270,9 +270,18 @@ class SlideModelValidator:
         family = element.get("font_family", "Inter")
         if not isinstance(family, str) or not 1 <= len(family) <= 80:
             raise ValueError("Fonte de slide inválida.")
-        for key in ("font_bold", "font_italic"):
+        for key in ("font_bold", "font_italic", "font_underline"):
             if not isinstance(element.get(key, False), bool):
                 raise ValueError("Estilo de fonte de slide inválido.")
+        if element.get("paragraph_alignment", "left") not in {
+            "left", "center", "right", "justify"
+        }:
+            raise ValueError("Alinhamento de parágrafo inválido.")
+        if element.get("list_style", "none") not in {"none", "bullet", "number"}:
+            raise ValueError("Tipo de lista PPTX inválido.")
+        number(element.get("text_indent_pt", 0), 0, 144)
+        if element.get("line_spacing", 1) not in (1, 1.15, 1.5, 2):
+            raise ValueError("Entrelinhas de slide inválida.")
         number(element.get("font_size_pt", 28), 6, 144)
         number(element.get("stroke_width", 1.5), .5, 20)
         number(element.get("rotation", 0), -360, 360)

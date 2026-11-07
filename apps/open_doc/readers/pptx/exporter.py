@@ -15,7 +15,7 @@ from pptx.dml.color import RGBColor
 from pptx.chart.data import CategoryChartData
 from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION, XL_TICK_LABEL_POSITION
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
-from pptx.enum.text import MSO_AUTO_SIZE
+from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Pt
 
@@ -43,6 +43,51 @@ class SlideDeckExporter:
             first = model["surfaces"][0]
             self.presentation.slide_width = Pt(first["width_pt"])
             self.presentation.slide_height = Pt(first["height_pt"])
+
+    @staticmethod
+    def _paragraph_style(paragraph, obj, *, changed=None):
+        """Apply editable native PPTX paragraph formatting, not rasterized glyphs."""
+        changed = set(changed or (
+            "paragraph_alignment", "list_style", "text_indent_pt",
+            "line_spacing"
+        ))
+        if "paragraph_alignment" in changed:
+            paragraph.alignment = {
+                "left": PP_ALIGN.LEFT, "center": PP_ALIGN.CENTER,
+                "right": PP_ALIGN.RIGHT, "justify": PP_ALIGN.JUSTIFY,
+            }[obj.get("paragraph_alignment", "left")]
+        if "line_spacing" in changed:
+            paragraph.line_spacing = obj.get("line_spacing", 1)
+        if changed & {"list_style", "text_indent_pt"}:
+            from pptx.oxml.ns import qn
+            properties = paragraph._p.get_or_add_pPr()
+            if "text_indent_pt" in changed:
+                indent = float(obj.get("text_indent_pt", 0))
+                if indent:
+                    properties.set("marL", str(Pt(indent + (
+                        18 if obj.get("list_style") != "none" else 0
+                    ))))
+                else:
+                    properties.attrib.pop("marL", None)
+            if "list_style" in changed:
+                for tag in ("buNone", "buChar", "buAutoNum"):
+                    old = properties.find(qn("a:" + tag))
+                    if old is not None:
+                        properties.remove(old)
+                style = obj.get("list_style", "none")
+                if style != "none":
+                    bullet = OxmlElement("a:buChar" if style == "bullet" else "a:buAutoNum")
+                    if style == "bullet":
+                        bullet.set("char", "•")
+                    else:
+                        bullet.set("type", "arabicPeriod")
+                    properties.append(bullet)
+                    if "text_indent_pt" not in changed:
+                        indent = float(obj.get("text_indent_pt", 0))
+                        properties.set("marL", str(Pt(indent + 18)))
+                    properties.set("indent", str(-Pt(18)))
+                else:
+                    properties.attrib.pop("indent", None)
 
     @staticmethod
     def _chart_style(chart, obj, palette):
@@ -301,12 +346,14 @@ class SlideDeckExporter:
                 frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
             for index, line in enumerate(obj.get("text", "").split("\n")):
                 paragraph = frame.add_paragraph() if index else frame.paragraphs[0]
+                self._paragraph_style(paragraph, obj)
                 run = paragraph.add_run()
                 run.text = line
                 run.font.name = obj.get("font_family", "Inter")
                 run.font.size = Pt(obj.get("font_size_pt", 28))
                 run.font.bold = obj.get("font_bold")
                 run.font.italic = obj.get("font_italic")
+                run.font.underline = obj.get("font_underline", False)
                 run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
                 if obj.get("font_letter_spacing_pt") is not None:
                     run._r.get_or_add_rPr().set("spc",
@@ -521,7 +568,10 @@ class SlideDeckExporter:
             changed.remove("table_cells")
         supported = {"x", "y", "width", "height", "rotation", "name",
                      "text", "color", "font_family", "font_size_pt",
-                     "font_bold", "font_italic", "font_letter_spacing_pt", "fill", "stroke", "stroke_width",
+                     "font_bold", "font_italic", "font_underline",
+                     "font_letter_spacing_pt",
+                     "paragraph_alignment", "list_style", "text_indent_pt",
+                     "line_spacing", "fill", "stroke", "stroke_width",
                      "crop_left", "crop_right", "crop_top", "crop_bottom",
                      "flip_h", "flip_v"}
         unsupported = changed - supported
@@ -564,8 +614,17 @@ class SlideDeckExporter:
                             run._r.getparent().remove(run._r)
                     if paragraph_index != 0:
                         paragraph._p.getparent().remove(paragraph._p)
+        paragraph_fields = changed & {
+            "paragraph_alignment", "list_style", "text_indent_pt", "line_spacing"
+        }
+        if paragraph_fields:
+            if not shape.has_text_frame:
+                raise ValueError("O objeto original não possui parágrafos editáveis.")
+            for paragraph in shape.text_frame.paragraphs:
+                self._paragraph_style(paragraph, obj, changed=paragraph_fields)
         font_fields = changed & {"color", "font_family", "font_size_pt",
-                                 "font_bold", "font_italic", "font_letter_spacing_pt"}
+                                 "font_bold", "font_italic", "font_underline",
+                                 "font_letter_spacing_pt"}
         if font_fields:
             if not shape.has_text_frame:
                 raise ValueError("O objeto original não possui fonte editável.")
@@ -581,6 +640,8 @@ class SlideDeckExporter:
                         run.font.bold = obj["font_bold"]
                     if "font_italic" in changed:
                         run.font.italic = obj["font_italic"]
+                    if "font_underline" in changed:
+                        run.font.underline = obj["font_underline"]
                     if "font_letter_spacing_pt" in changed:
                         run._r.get_or_add_rPr().set("spc",
                             str(round(float(obj["font_letter_spacing_pt"]) * 100)))

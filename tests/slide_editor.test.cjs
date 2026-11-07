@@ -438,7 +438,8 @@ test('shape grips resize on all edges and rotation control commits one change',t
 
 test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
  const q=setup(t);
- assert.deepEqual(Array.from(q.controls.querySelectorAll('.slide-ribbon-tab')).map(tab=>tab.textContent),
+ assert.deepEqual(Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+   .filter(tab=>!tab.hidden).map(tab=>tab.textContent),
    ['Slides','Inserir','Formatar','Transições']);
  clickLabel(q.controls,'Retângulo');
  const shape=q.scroller.querySelector('.slide-object-rect');
@@ -795,7 +796,8 @@ test('Slide typography presets and font family are applied to canvas and inline 
      .find(node=>node.firstChild.textContent===label).querySelector('select');
    field.value=value;field.dispatchEvent(new q.w.Event('change'));
  };
- change('Família da fonte','Times New Roman');
+ const font=q.host.querySelector('.slide-inspector .slide-font-option[data-family="Times New Roman"]');
+ assert.ok(font,'font picker exposes live preview choices');font.click();
  change('Estilo do texto','Título 2');
  const object=q.model().surfaces[0].elements[0];
  assert.equal(object.font_family,'Times New Roman');
@@ -875,7 +877,8 @@ test('Selection shortcuts format text, change layers and scale in one edit',t=>{
    input.value=value;input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  };
  assert.equal(bar.hidden,false);
- change(bar.querySelector('select'),'Arial');
+ const font=bar.querySelector('.slide-font-option[data-family="Arial"]');
+ assert.ok(font,'Arial present in accessible visual font picker');font.click();
  change(bar.querySelector('input[type=color]'),'#cc1133');
  button('Negrito').click();
  assert.equal(button('Descer camada').disabled,true);
@@ -946,7 +949,8 @@ test('Viewport refit after a double click keeps the inline editor focused and sa
 test('PowerPoint ribbon groups every SVG action and keeps new shapes on Insert',t=>{
  const q=setup(t);
  const tabs=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'));
- assert.deepEqual(tabs.map(x=>x.textContent),['Slides','Inserir','Formatar','Transições']);
+ assert.deepEqual(tabs.filter(x=>!x.hidden).map(x=>x.textContent),
+   ['Slides','Inserir','Formatar','Transições']);
  const toolbar=q.controls.querySelector('.slide-studio-toolbar');
  assert.equal(toolbar.querySelectorAll(':scope > button').length,0,
    'Unclassified ribbon buttons expand vertically and hide the slide');
@@ -972,8 +976,9 @@ test('PowerPoint ribbon groups every SVG action and keeps new shapes on Insert',
 test('Qt slide CSS keeps toolbar one row and shapes hit-testable',t=>{
  const source=fs.readFileSync(path.join(__dirname,'../apps/open_doc/styles/slide_editor.css'),'utf8');
  assert.match(source,/\.fixed-surface > \.slide-object\s*\{\s*pointer-events:auto/);
- assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?flex-flow:row nowrap/);
- assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?overflow-x:auto/);
+ assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?flex-flow:row wrap/);
+ assert.match(source,/\.slide-ribbon-body\s*\{[\s\S]*?height:110px/);
+ assert.match(source,/\.slide-ribbon-popup\s*\{/);
 });
 
 test('arrow keys navigate only when a slide thumbnail in the left sidebar is focused',t=>{
@@ -1192,6 +1197,89 @@ test('two inserted equations avoid each other and nested math receives suitable 
    'new native formula should not significantly overlap the existing object');
  assert.equal(b.font_size_pt,34);
  assert.ok(b.y+b.height<=1.00001);
+});
+
+
+test('Delete on a focused thumbnail removes its slide, not an object',t=>{
+ const q=setup(t);clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'+ Slide');
+ assert.equal(q.model().surfaces.length,3);
+ const thumb=q.sidebar.querySelector('[data-thumbnail-index="1"]');
+ thumb.focus();
+ thumb.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Delete',bubbles:true,cancelable:true
+ }));
+ assert.equal(q.model().surfaces.length,2);
+ assert.equal(q.model().surfaces[1].index,1);
+ assert.equal(q.w.document.activeElement.dataset.thumbnailIndex,'1');
+ q.sidebar.querySelector('[data-thumbnail-index="0"]').focus();
+ q.w.document.activeElement.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Backspace',bubbles:true,cancelable:true
+ }));
+ assert.equal(q.model().surfaces.length,1);
+ q.sidebar.querySelector('[data-thumbnail-index="0"]').dispatchEvent(
+   new q.w.KeyboardEvent('keydown',{key:'Delete',bubbles:true,cancelable:true})
+ );
+ assert.equal(q.model().surfaces.length,1,'last slide is protected');
+});
+
+test('Ctrl+B and Ctrl+I toggle native text styles even during inline editing',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const style=()=>q.model().surfaces[0].elements[0];
+ const press=(target,key)=>target.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key,ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ press(q.scroller.querySelector('.fixed-surface'),'b');
+ assert.equal(style().font_bold,true);
+ press(q.scroller.querySelector('.fixed-surface'),'i');
+ assert.equal(style().font_italic,true);
+ const text=q.scroller.querySelector('.slide-object-text');
+ text.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ const editor=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(editor);
+ editor.value='Novo título';
+ press(editor,'b');
+ assert.equal(editor.style.fontWeight,'normal','inline toggle previews immediately');
+ press(editor,'i');
+ assert.equal(editor.style.fontStyle,'normal');
+ editor.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Enter',ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ assert.equal(style().text,'Novo título');
+ assert.equal(style().font_bold,false);
+ assert.equal(style().font_italic,false);
+});
+
+test('fixed PowerPoint ribbon provides contextual text formatting and font previews',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ assert.ok(q.controls.querySelector('.slide-context-tab:not([hidden])'));
+ assert.equal(q.editor._ribbonActive,'context');
+ assert.ok(q.controls.querySelector('.slide-ribbon-body .slide-selection-toolbar'),
+   'context toolbar is inside the fixed ribbon, not below it');
+ const picker=q.controls.querySelector('.slide-context-panel .slide-font-picker');
+ assert.ok(picker);
+ assert.match(picker.querySelector('.slide-font-preview-name').style.fontFamily,/Inter/);
+ const other=picker.querySelector('[data-family="Bitstream Charter"]');
+ assert.ok(other);assert.match(other.querySelector('.slide-font-sample').style.fontFamily,/Bitstream Charter/);
+ other.click();
+ assert.equal(q.model().surfaces[0].elements[0].font_family,'Bitstream Charter');
+ const button=label=>Array.from(q.controls.querySelectorAll('.slide-context-panel button'))
+   .find(b=>b.textContent===label);
+ button('Centralizar').click();
+ button('Marcadores').click();
+ button('Aumentar recuo').click();
+ button('Sublinhado').click();
+ const value=q.model().surfaces[0].elements[0];
+ assert.equal(value.paragraph_alignment,'center');
+ assert.equal(value.list_style,'bullet');
+ assert.equal(value.text_indent_pt,12);
+ assert.equal(value.font_underline,true);
+ const tab=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+   .find(b=>b.textContent==='Inserir');
+ tab.click();
+ assert.equal(q.editor._ribbonActive,'Inserir');
+ assert.equal(q.controls.querySelector('.slide-context-panel').hidden,true);
+ assert.equal(q.controls.querySelector('.slide-ribbon-body').children.length,5);
 });
 
 

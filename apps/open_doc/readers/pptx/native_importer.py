@@ -13,6 +13,8 @@ from uuid import uuid4
 from pptx import Presentation
 from pptx.enum.chart import XL_CHART_TYPE
 from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
+from pptx.enum.text import PP_ALIGN
+from pptx.oxml.ns import qn
 from pptx.dml.color import RGBColor
 
 from ...fixed_document.slide_model import SlideModelValidator
@@ -214,6 +216,31 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
             base["text"] = shape.text_frame.text[:10000]
             paragraphs = shape.text_frame.paragraphs
             runs = paragraphs[0].runs if paragraphs else []
+            if paragraphs:
+                first = paragraphs[0]
+                alignment = {
+                    PP_ALIGN.LEFT: "left", PP_ALIGN.CENTER: "center",
+                    PP_ALIGN.RIGHT: "right", PP_ALIGN.JUSTIFY: "justify",
+                }.get(first.alignment)
+                if alignment:
+                    base["paragraph_alignment"] = alignment
+                spacing = first.line_spacing
+                if isinstance(spacing, (int, float)) and spacing in (
+                    1, 1.15, 1.5, 2
+                ):
+                    base["line_spacing"] = spacing
+                props = first._p.pPr
+                if props is not None:
+                    if props.find(qn("a:buChar")) is not None:
+                        base["list_style"] = "bullet"
+                    elif props.find(qn("a:buAutoNum")) is not None:
+                        base["list_style"] = "number"
+                    mar = props.get("marL")
+                    if mar and mar.isdigit():
+                        left_pt = int(mar) / 12700
+                        if base.get("list_style") in ("bullet", "number"):
+                            left_pt -= 18
+                        base["text_indent_pt"] = round(max(0,min(144,left_pt)), 2)
             if runs:
                 font = runs[0].font
                 # PowerPoint text formatting commonly lives on a:defRPr
@@ -238,6 +265,9 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                     base["font_bold"] = bold
                 if italic is not None:
                     base["font_italic"] = italic
+                underline = font.underline
+                if underline is not None:
+                    base["font_underline"] = bool(underline)
                 props = runs[0]._r.rPr
                 raw_tracking = props.get("spc") if props is not None else None
                 if raw_tracking is not None:
