@@ -31,7 +31,8 @@
   }
   function text(svg,x,y,value,options={}){
     const el=node("text",{x,y,"font-size":options.size||11,fill:options.fill||"#43546B",
-      "text-anchor":options.anchor||"middle","font-family":"Arial, sans-serif"},value);
+      "text-anchor":options.anchor||
+          ({left:"start",center:"middle",right:"end"}[font.align]||"middle"),"font-family":"Arial, sans-serif"},value);
     svg.append(el);return el;
   }
 
@@ -270,7 +271,7 @@
               " L"+points[0][0]+" "+baseline+" Z",fill:color,"fill-opacity":.22}));
           }
           root.append(node("path",{d,fill:"none",stroke:color,"stroke-width":2.5}));
-          points.forEach(([x,y])=>root.append(node("circle",{cx:x,cy:y,r:3.3,fill:color})));
+          points.forEach(([x,y],i)=>root.append(node("circle",{cx:x,cy:y,r:3.3,fill:seriesCount===1?colors[i]:color})));
         }
         series.values.forEach((value,i)=>{
           const label=this.valueLabel(value,series.values,chart);
