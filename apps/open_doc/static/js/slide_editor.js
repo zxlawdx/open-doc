@@ -1501,28 +1501,50 @@
         });
         if(selected.type==="math"){
           const fields={
-            text:[["value","Expressão"]],fraction:[["numerator","Numerador"],["denominator","Denominador"]],
+            text:[["value","Expressão"]],
+            fraction:[["numerator","Numerador"],["denominator","Denominador"]],
             nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
-            superscript:[["base","Base"],["power","Expoente"]],sqrt:[["radicand","Radicando"]]
+            superscript:[["base","Base"],["power","Expoente"]],
+            subscript:[["base","Base"],["sub","Índice"]],
+            sqrt:[["radicand","Radicando"]],
+            root:[["index","Índice da raiz"],["radicand","Radicando"]],
+            limit:[["base","Operador"],["lower","Limite"]]
           };
           const title=document.createElement("h4");
-          title.textContent="Componentes matemáticos editáveis";this.inspector.append(title);
-          (selected.math_blocks||[]).forEach((part,index)=>{
-            const group=document.createElement("section");
-            group.className="slide-math-properties";
-            const name=document.createElement("strong");
-            name.textContent=({text:"Texto",fraction:"Fração",nary:"Integral / Somatório",
-              superscript:"Potência",sqrt:"Raiz"})[part.kind]||"Expressão";
-            group.append(name);
-            for(const [key,label] of fields[part.kind]||[]){
-              this._property(label,part[key],"text",value=>{
-                const blocks=clone(selected.math_blocks);
-                blocks[index][key]=value.slice(0,160);
-                this.commands.updateObject(this.current,selected.id,{math_blocks:blocks});
-              },group);
-            }
-            this.inspector.append(group);
-          });
+          title.textContent="Componentes matemáticos editáveis";
+          this.inspector.append(title);
+          const change=path=>value=>{
+            const blocks=clone(this.getModel().surfaces[this.current].elements
+              .find(o=>o.id===selected.id).math_blocks);
+            let node=blocks;
+            for(const key of path.slice(0,-1))node=node[key];
+            node[path[path.length-1]]=value.slice(0,160);
+            this.commands.updateObject(this.current,selected.id,{math_blocks:blocks});
+          };
+          const renderPart=(part,path,parent,depth=0)=>{
+            if(depth>6)return;
+            const group=document.createElement("section");group.className="slide-math-properties";
+            const heading=document.createElement("strong");heading.textContent=part.kind;
+            group.append(heading);
+            const renderVal=(value,key,label)=>{
+              if(Array.isArray(value)){
+                if(key==="rows"){
+                  value.forEach((row,r)=>row.forEach((cell,c)=>{
+                    if(Array.isArray(cell))cell.forEach((inner,k)=>
+                      renderPart(inner,path.concat(["rows",r,c,k]),group,depth+1));
+                    else this._property("Linha "+(r+1)+" coluna "+(c+1),
+                      cell,"text",change(path.concat(["rows",r,c])),group);
+                  }));
+                }else value.forEach((nested,k)=>
+                  renderPart(nested,path.concat([key,k]),group,depth+1));
+              }else this._property(label,value,"text",change(path.concat([key])),group);
+            };
+            if(part.kind==="matrix")renderVal(part.rows,"rows","Matriz");
+            else for(const [key,label] of fields[part.kind]||[])renderVal(part[key],key,label);
+            parent.append(group);
+          };
+          (selected.math_blocks||[]).forEach((part,index)=>
+            renderPart(part,[index],this.inspector));
         }
         if(selected.type==="table"){
           const heading=document.createElement("h4");
