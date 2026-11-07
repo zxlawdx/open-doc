@@ -602,3 +602,31 @@ def test_external_deck_inherited_background_and_explicit_text_color(tmp_path):
     ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", destination)
     assert Presentation(destination).slides[0].shapes[0].text == "Novo título"
     assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_external_deck_inherits_color_from_paragraph_style(tmp_path):
+    """Third-party exporters may store a:rPr/a:solidFill empty and color on a:pPr."""
+    from pptx import Presentation
+    from pptx.util import Inches
+    from pptx.dml.color import RGBColor
+
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = RGBColor(16, 36, 55)
+    shape = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(1))
+    paragraph = shape.text_frame.paragraphs[0]
+    paragraph.text = "Título branco em fundo escuro"
+    paragraph.font.color.rgb = RGBColor(255, 255, 255)
+    # The newly-created run has no explicit RGB; it inherits paragraph text formatting.
+    assert paragraph.runs[0].font.color.rgb is None
+    source = tmp_path / "paragraph-inherited-color.pptx"
+    deck.save(source)
+
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    elem = imported["content"]["surfaces"][0]["elements"][0]
+    assert elem["text"] == "Título branco em fundo escuro"
+    assert elem["color"] == "#FFFFFF"
+    assert imported["content"]["surfaces"][0]["background"] == "#102437"
