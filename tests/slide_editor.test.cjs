@@ -28,7 +28,7 @@ function setup(t, options={}){
  const editor=w.OpenDocSlidesEditor.create({root,host,controls,scroller,sidebar,signal:abort.signal,
    getModel:()=>model,update:value=>{model=value;versions.push(JSON.stringify(value));},
    status:()=>{},getZoom:()=>options.zoom??1,go:index=>{selected=index;editor.goTo(index);},
-   undo:()=>{},redo:()=>{},onRender:()=>{},exportSlide:options.exportSlide});
+   undo:()=>{},redo:()=>{},onRender:()=>{},onViewportResize:options.onViewportResize,exportSlide:options.exportSlide});
  editor.load();
  return {w,root,host,controls,scroller,sidebar,editor,model:()=>model,versions,selected:()=>selected};
 }
@@ -916,4 +916,29 @@ test('Apply to all copies transition and speed in one edit and can clear them',t
  q.editor.commands.updateSlide(1,{transition:'none',transition_speed:'med'});
  apply();
  assert.ok(q.model().surfaces.every(slide=>slide.transition==='none'&&slide.transition_speed==='med'));
+});
+
+test('Viewport refit after a double click keeps the inline editor focused and saves the draft',async t=>{
+ let refits=0;
+ const q=setup(t,{onViewportResize:()=>{refits++;q.editor.render();}});
+ clickLabel(q.controls,'Texto');
+ const click=type=>q.scroller.querySelector('.slide-object-text').dispatchEvent(
+   new q.w.MouseEvent(type,{bubbles:true,cancelable:true,button:0,clientX:100,clientY:90}));
+ click('pointerdown');click('pointerup');click('click');
+ click('pointerdown');click('pointerup');click('click');click('dblclick');
+ const input=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(input);
+ assert.equal(q.w.document.activeElement,input);
+ input.value='A Economia Política do Brasil';
+ input.dispatchEvent(new q.w.Event('input',{bubbles:true}));
+ q.w.dispatchEvent(new q.w.Event('resize'));
+ await new Promise(resolve=>setTimeout(resolve,35));
+ assert.equal(q.scroller.querySelector('.slide-inline-editor'),input);
+ assert.equal(q.w.document.activeElement,input);
+ input.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].text,'A Economia Política do Brasil');
+ await new Promise(resolve=>setTimeout(resolve,35));
+ assert.equal(refits,1);
+ click('dblclick');
+ assert.equal(q.w.document.activeElement,q.scroller.querySelector('.slide-inline-editor'));
 });

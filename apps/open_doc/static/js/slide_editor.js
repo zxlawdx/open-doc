@@ -275,6 +275,7 @@
       this.workspace.setAttribute("aria-label","Slide ativo");
       this.activeCanvas=null;
       this._resizePending=false;
+      this._resizeAfterEditing=false;
       this._onWorkspaceResize=()=>{
         if(!this.active||this._resizePending)return;
         this._resizePending=true;
@@ -282,6 +283,9 @@
           this._resizePending=false;
           if(!this.active)return;
           this._sizeWorkspace();
+          // Fit rebuilds the canvas. Keep the focused textarea attached until
+          // the user commits or cancels the current edit.
+          if(this.inlineEditing){this._resizeAfterEditing=true;return;}
           this.onViewportResize?.();
         });
       };
@@ -505,7 +509,7 @@
         this._finish(event);
       },{signal:this.signal});
       window.addEventListener("pointercancel",()=>{
-        this._endPan();this.drag=null;this.render();
+        this._endPan();this.drag=null;if(!this.inlineEditing)this.render();
       },{signal:this.signal});
       this.root.addEventListener("keyup",event=>{
         if(event.key===" "){this.spacePressed=false;
@@ -597,6 +601,8 @@
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
       this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.colorSample=null;this.scroller.style.cursor="";this.inspector.replaceChildren();
+      this.inlineEditing=null;this._resizeAfterEditing=false;
+      this.selectionToolbar.style.visibility="";
       this.selectionToolbar.hidden=true;this.selectionToolbar.replaceChildren();
       this.activeCanvas=null;this.workspace.replaceChildren();this.workspace.remove();
     }
@@ -681,11 +687,17 @@
         editor.addEventListener("input",fit,{signal:this.signal});
         fit();
       }
-      this.selectionToolbar.hidden=true;
+      this.selectionToolbar.style.visibility="hidden";
       let finished=false;
       const finish=save=>{
-        if(finished)return;finished=true;
+        if(finished||this.inlineEditing!==editor)return;
+        finished=true;
         this.inlineEditing=null;node.style.overflow=previous;
+        this.selectionToolbar.style.visibility="";
+        if(this._resizeAfterEditing){
+          this._resizeAfterEditing=false;
+          this._onWorkspaceResize();
+        }
         if(save&&editor.value!==value)
           this.commands.updateObject(index,id,{text:editor.value.slice(0,10000)});
         else this.render();
