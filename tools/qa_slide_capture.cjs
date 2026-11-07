@@ -66,7 +66,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
 
  // Visual regression: exact economic categories and percentages over an
  // arbitrary slide color, then the comparable white-background rendering.
- const chartCase=await evaluate(\`(()=>{
+ const chartCase=await evaluate(`(()=>{
    if(!window.OpenDocSlideCharts?.ChartPreview)throw Error('Charts module missing');
    const source={
      chart_type:'bar',
@@ -97,7 +97,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    return {names,background:svg.dataset.background,
      viewBox:svg.getAttribute('viewBox'), chartIsVector:!!svg.querySelector('rect'),
      percentVisible:names.filter(name=>name.includes('%'))};
- })()\`);
+ })()`);
  assert.deepEqual(chartCase.names.filter(name=>[
      'Remuneração dos empregados',
      'Excedente operacional bruto e rendimento misto bruto',
@@ -114,14 +114,14 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  await shot('pptx-pib-transparent-full-categories-and-percentages');
  fs.writeFileSync(path.join(destination,'pptx-pib-chart-validation.json'),
    JSON.stringify(chartCase,null,2));
- await evaluate(\`(()=>{
+ await evaluate(`(()=>{
    const preview=document.querySelector('#qa-pib-chart svg');
    preview?.setAttribute('data-background','solid');
    preview?.insertBefore(document.createElementNS('http://www.w3.org/2000/svg','rect'),preview.firstChild);
    const rect=preview?.firstChild;
    if(rect){rect.setAttribute('width','100%');rect.setAttribute('height','100%');rect.setAttribute('fill','#FFFFFF');}
    return true;
- })()\`);
+ })()`);
  await shot('pptx-pib-solid-background-comparison');
  await evaluate("document.querySelector('#qa-pib-chart')?.remove()");
 
