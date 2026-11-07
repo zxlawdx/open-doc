@@ -1107,3 +1107,23 @@ test('new native equations adapt their initial ink color to dark/light slide bac
  const light=q.model().surfaces[0].elements.find(o=>o.id===other);
  assert.equal(light.color,'#192433');
 });
+
+test('two inserted equations avoid each other and nested math receives suitable size',t=>{
+ const q=setup(t),first=q.editor.commands.insertMath(0,{
+   label:'Integral',math_blocks:[{kind:'nary',operator:'∫',lower:'0',
+     upper:'1',body:'x dx'}]
+ });
+ const second=q.editor.commands.insertMath(0,{label:'Fração aninhada',math_blocks:[
+   {kind:'fraction',numerator:[{kind:'sqrt',radicand:[
+     {kind:'superscript',base:'x',power:'2'}
+   ]}],denominator:[{kind:'nary',operator:'∑',lower:'1',upper:'n',body:'k'}]}
+ ]});
+ const items=q.model().surfaces[0].elements;
+ assert.equal(items.length,2);
+ const a=items.find(x=>x.id===first),b=items.find(x=>x.id===second);
+ assert.ok(b.y>=a.y+a.height-.01 || b.y+b.height<=a.y+.01 ||
+   b.x>=a.x+a.width-.01 || b.x+b.width<=a.x+.01,
+   'new native formula should not significantly overlap the existing object');
+ assert.equal(b.font_size_pt,34);
+ assert.ok(b.y+b.height<=1.00001);
+});
