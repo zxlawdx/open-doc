@@ -45,3 +45,19 @@ test('SVG gallery buttons use accessible labels, previews and do not insert befo
  gallery.close();assert.equal(gallery.panel.hidden,true);
  assert.equal(insertions.length,0);assert.equal(statuses.length,0);
 });
+
+test('math gallery inserts semantic editable blocks and never a PNG asset',t=>{
+ const {w,host}=setup(t),insertions=[];
+ const gallery=w.OpenDocMathGallery.install(host,item=>insertions.push(item));
+ gallery.toggle();
+ for(const button of host.querySelectorAll('button[data-math-id]')){
+   button.click();
+   gallery.toggle();
+ }
+ assert.equal(insertions.length,7);
+ assert.ok(insertions.every(item=>item.kind==='math'));
+ assert.ok(insertions.every(item=>Array.isArray(item.math_blocks) && item.math_blocks.length));
+ assert.ok(insertions.every(item=>!('data' in item) && !('mime' in item)));
+ assert.equal(insertions[0].math_blocks.filter(b=>b.kind==='fraction').length,2);
+ assert.equal(insertions[5].math_blocks[0].operator,'∑');
+});

@@ -25,7 +25,7 @@ const port=process.argv[2]||'9234';
  const output=path.resolve(__dirname,'../docs/images/math');
  fs.mkdirSync(output,{recursive:true});
  const click=async css=>evalJS('(()=>{const el=document.querySelector('+JSON.stringify(css)+');if(!el)return false;el.click();return true})()');
- assert.ok(await click('.slide-studio-toolbar button[title^="Inserir integrais"]'),
+ assert.ok(await click('.slide-studio-toolbar button[title^="Inserir equações"]'),
   'Math gallery SVG toolbar action missing');
  const state=await evalJS('(()=>{const p=document.querySelector(".slide-math-gallery");return {visible:!!p&&!p.hidden,count:p?.querySelectorAll("button[data-math-id]").length,icon:!!Array.from(document.querySelectorAll(".slide-studio-toolbar button")).find(x=>x.textContent==="Equações")?.querySelector("svg use")}})()');
  assert.ok(state.visible&&state.count>=7&&state.icon,JSON.stringify(state));
@@ -34,18 +34,19 @@ const port=process.argv[2]||'9234';
  assert.ok(await click('.slide-math-gallery button[data-math-id="line"]'));
  for(let count=0;count<70;count++){
   await new Promise(ok=>setTimeout(ok,150));
-  const ready=await evalJS('(()=>{const el=Array.from(document.querySelectorAll(".fixed-scroll .fixed-surface .slide-object-image img")).find(x=>x.alt.includes("Equação:"));const r=el?.closest(".slide-object-image")?.getBoundingClientRect();return !!r&&r.width>60&&r.height>25&&el.complete&&el.naturalWidth>100})()');
+  const ready=await evalJS('(()=>{const el=document.querySelector(".fixed-scroll .fixed-surface .slide-object-math .slide-native-equation");const r=el?.closest(".slide-object-math")?.getBoundingClientRect();return !!r&&r.width>60&&r.height>25&&el.textContent.includes("∮")})()');
   if(ready)break;
   if(count===69){
-   const diag=await evalJS('(()=>({status:document.querySelector("[data-status]")?.textContent,templateDisabled:document.querySelector(".slide-math-gallery button[data-math-id=line]")?.disabled,panelHidden:document.querySelector(".slide-math-gallery")?.hidden,imageNames:Array.from(document.querySelectorAll(".slide-object-image img")).map(x=>x.alt),errorText:document.body.innerText.slice(-350)}))()');
+   const diag=await evalJS('(()=>({status:document.querySelector("[data-status]")?.textContent,templateDisabled:document.querySelector(".slide-math-gallery button[data-math-id=line]")?.disabled,panelHidden:document.querySelector(".slide-math-gallery")?.hidden,mathObjects:document.querySelectorAll(".slide-object-math").length,mathText:document.querySelector(".slide-native-equation")?.textContent,errorText:document.body.innerText.slice(-350)}))()');
    throw Error('Equation did not insert into slide: '+JSON.stringify(diag));
   }
  }
- const metrics=await evalJS('(()=>{const img=Array.from(document.querySelectorAll(".fixed-scroll .fixed-surface .slide-object-image img")).find(x=>x.alt.includes("Equação:"));const r=img?.closest(".slide-object-image")?.getBoundingClientRect();return {name:img?.alt,decoded:img?.naturalWidth,box:r?{width:r.width,height:r.height}:null,count:document.querySelectorAll(".fixed-scroll .slide-object-image").length,slides:document.querySelectorAll("[data-thumbnail-index]").length}})()');
+ const metrics=await evalJS('(()=>{const el=document.querySelector(".fixed-scroll .fixed-surface .slide-object-math");const r=el?.getBoundingClientRect();return {name:el?.querySelector(".slide-native-equation")?.getAttribute("aria-label"),text:el?.textContent,box:r?{width:r.width,height:r.height}:null,count:document.querySelectorAll(".fixed-scroll .slide-object-math").length,images:document.querySelectorAll(".fixed-scroll .slide-object-image").length,slides:document.querySelectorAll("[data-thumbnail-index]").length}})()');
  assert.ok(metrics.box?.width>350&&metrics.box?.height>90&&metrics.slides===36,
-  'Math image must have readable slide scale: '+JSON.stringify(metrics));
+  'Native math object must have readable slide scale: '+JSON.stringify(metrics));
+ assert.ok(metrics.count===1&&metrics.images===0,'Math must remain native, not a PNG');
  assert.ok(metrics.box.width/metrics.box.height>3.3&&metrics.box.width/metrics.box.height<5.5,
-  'Math image aspect ratio is distorted: '+JSON.stringify(metrics));
+  'Native math object aspect ratio is distorted: '+JSON.stringify(metrics));
  const after=await send('Page.captureScreenshot',{format:'png'});
  fs.writeFileSync(path.join(output,'math-line-integral-slide-qt.png'),Buffer.from(after.data,'base64'));
  fs.writeFileSync(path.join(output,'math-gallery-qt.json'),JSON.stringify({state,metrics},null,2));

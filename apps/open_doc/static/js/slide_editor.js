@@ -7,7 +7,7 @@
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
     round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
-    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico",table:"Tabela",chevron:"Chevron",hexagon:"Hexágono",
+    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico",math:"Equação",table:"Tabela",chevron:"Chevron",hexagon:"Hexágono",
     pentagon:"Pentágono",parallelogram:"Paralelogramo",star:"Estrela",cloud:"Nuvem"})[type]||"Objeto";
   const canEditText=obj=>obj.type==="text"||
     (Boolean(obj.text)&&!["image","line","chart"].includes(obj.type));
@@ -141,11 +141,18 @@
   class SlideDeckCommands {
     constructor(getModel,commit){this.getModel=getModel;this.commit=commit;}
     apply(mutator){
-      const next=clone(this.getModel());
+      // Clone slide structures, not embedded base64 image assets, on each command.
+      const current=this.getModel();
+      const next={...current,surfaces:current.surfaces.map(s=>clone(s)),
+        assets:{...(current.assets||{})}};
       mutator(next.surfaces,next);
       next.surfaces.forEach((s,index)=>s.index=index);
       this.commit(next);
       return next;
+    }
+    _requireEditableSlideStructure(){
+      if(this.getModel().preserve_source)
+        throw Error("Slides de apresentações externas ainda não podem ser inseridos, duplicados, removidos ou reordenados sem comprometer layouts originais.");
     }
     applyTransitionToAll(index){
       const slides=this.getModel().surfaces;
@@ -158,6 +165,7 @@
       });
     }
     insert(after){
+      this._requireEditableSlideStructure();
       return this.apply(slides=>{
         if(slides.length>=200)throw Error("Limite de 200 slides atingido.");
         const base=slides[0];
@@ -167,6 +175,7 @@
       });
     }
     duplicate(index){
+      this._requireEditableSlideStructure();
       return this.apply(slides=>{
         if(slides.length>=200)throw Error("Limite de 200 slides atingido.");
         const copy=clone(slides[index]);
@@ -177,12 +186,14 @@
       });
     }
     remove(index){
+      this._requireEditableSlideStructure();
       return this.apply(slides=>{
         if(slides.length<=1)throw Error("É necessário manter pelo menos um slide.");
         slides.splice(index,1);
       });
     }
     move(index,offset){
+      this._requireEditableSlideStructure();
       const dest=index+offset,slides=this.getModel().surfaces;
       if(dest<0||dest>=slides.length)return;
       this.apply(items=>{const [slide]=items.splice(index,1);items.splice(dest,0,slide);});
@@ -210,6 +221,25 @@
         assets[assetId]={mime:image.mime,data:image.data};
       }
       return assetId;
+    }
+    insertMath(index,definition){
+      const id=window.OpenDocModel.id();
+      const blocks=clone(definition.math_blocks);
+      this.apply(slides=>{
+        const surface=slides[index],elements=surface.elements;
+        if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
+        const bg=(surface.background||"#FFFFFF").replace(/^#/,"");
+        const rgb=/^[0-9a-f]{6}$/i.test(bg)?[0,2,4].map(i=>parseInt(bg.slice(i,i+2),16)/255):[1,1,1];
+        const lum=rgb.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4)
+          .reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+        const textColor=lum<.20?"#F8FAFC":"#192433";
+        elements.push({id,type:"math",name:definition.label||"Equação",
+          x:.12,y:.38,width:.75,height:.28,rotation:0,
+          font_family:"Cambria Math",font_size_pt:42,
+          color:textColor,fill:"#FFFFFF",stroke:"#004AC6",
+          stroke_width:1.5,text:"",math_blocks:blocks});
+      });
+      return id;
     }
     insertChart(index,kind="bar"){
       if(!["bar","line","pie"].includes(kind))throw Error("Tipo de gráfico inválido.");
@@ -317,6 +347,7 @@
       this.active=false;this.selected=null;this.selectedIds=new Set();this.current=0;this.drag=null;
       this.pan=null;this.spacePressed=false;this.imageReplacement=null;
       this.paintActive=false;this.inlineEditing=null;
+      this._thumbCache=new WeakMap();
       // The active workspace owns one physical slide only. The complete deck
       // and independent thumbnail views stay in the document model/sidebar.
       this.workspace=document.createElement("div");
@@ -402,7 +433,7 @@
       this._button("Texto",()=>this.add("text"));
       this._button("Tabela",()=>this.add("table"),"Inserir tabela PPTX editável");
       this._button("Equações",()=>this.mathGallery?.toggle(),
-        "Inserir integrais, somatórios e frações diagramadas");
+        "Inserir equações editáveis como objetos matemáticos OMML");
       this._button("Retângulo",()=>this.add("rect"));
       this._button("Elipse",()=>this.add("ellipse"));
       this._button("Arredondado",()=>this.add("round_rect"));
@@ -456,10 +487,9 @@
       if(window.OpenDocMathGallery){
         this.mathGallery=window.OpenDocMathGallery.install(
           this.host,
-          image=>{
+          definition=>{
             if(!this.active)return;
-            const id=this.commands.insertImage(this.current,image,
-              {x:.12,y:.43,width:.74,height:.32});
+            const id=this.commands.insertMath(this.current,definition);
             this._selectObject(id);this.render();
           },
           message=>this.status(message)
@@ -853,7 +883,7 @@
         if(!surface||!source)return null;
         const frame=document.createElement("div");frame.className="slide-presentation-frame";
         const page=source.cloneNode(true);
-        page.querySelectorAll(".slide-resize-handle,.slide-rotate-handle,.slide-inline-editor,.ink-overlay").forEach(node=>node.remove());
+        page.querySelectorAll(".slide-resize-handle,.slide-rotate-handle,.slide-scale-handle,.slide-inline-editor,.ink-overlay").forEach(node=>node.remove());
         page.querySelectorAll("[data-selected]").forEach(node=>node.removeAttribute("data-selected"));
         const width=surface.width_pt*4/3,height=surface.height_pt*4/3;
         // The authoring canvas stores CSS-pixel positions at the editor zoom.
@@ -1075,6 +1105,36 @@
           }
           viewport.append(picture);node.append(viewport);
         }
+      }else if(obj.type==="math"){
+        const formula=document.createElement("span");
+        formula.className="slide-native-equation";
+        formula.setAttribute("role","math");
+        formula.setAttribute("aria-label",obj.name||"Equação matemática editável");
+        for(const block of obj.math_blocks||[]){
+          const part=document.createElement("span");
+          part.className="slide-math-"+block.kind;
+          if(block.kind==="text")part.textContent=block.value;
+          else if(block.kind==="fraction"){
+            const top=document.createElement("span"),bottom=document.createElement("span");
+            top.className="slide-math-numerator";top.textContent=block.numerator;
+            bottom.className="slide-math-denominator";bottom.textContent=block.denominator;
+            part.append(top,bottom);
+          }else if(block.kind==="nary"){
+            const bounds=document.createElement("span"),op=document.createElement("span");
+            const upper=document.createElement("span"),lower=document.createElement("span");
+            bounds.className="slide-math-operator";upper.textContent=block.upper;
+            upper.className="slide-math-upper";op.textContent=block.operator;
+            op.className="slide-math-sign";lower.textContent=block.lower;
+            lower.className="slide-math-lower";bounds.append(upper,op,lower);
+            const body=document.createElement("span");body.textContent=block.body;
+            part.append(bounds,body);
+          }else if(block.kind==="superscript"){
+            part.append(document.createTextNode(block.base));
+            const sup=document.createElement("sup");sup.textContent=block.power;part.append(sup);
+          }else if(block.kind==="sqrt")part.textContent="√("+block.radicand+")";
+          formula.append(part);
+        }
+        node.append(formula);
       }else if(obj.type==="table"){
         const table=document.createElement("table");
         table.className="slide-native-table";
@@ -1102,6 +1162,11 @@
           handle.setAttribute("aria-label","Redimensionar: "+direction);node.append(handle);
         }
         if(obj.type!=="chart"){
+          const scaleGrip=document.createElement("span");
+          scaleGrip.className="slide-scale-handle";scaleGrip.dataset.scale="true";
+          scaleGrip.setAttribute("aria-label","Escalar proporcionalmente o objeto");
+          scaleGrip.title="Arraste para escalar mantendo a proporção";
+          node.append(scaleGrip);
           const rotate=document.createElement("span");
           rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
           rotate.setAttribute("aria-label","Girar objeto");
@@ -1138,6 +1203,16 @@
       });
     }
     _thumb(button,surface,index){
+      const fingerprint=JSON.stringify([surface.width_pt,surface.height_pt,
+        surface.background,surface.elements,this.sidebar.clientWidth]);
+      if(this._thumbCache.get(button)===fingerprint && button.firstChild){
+        button.dataset.thumbnailIndex=String(index);
+        button.setAttribute("aria-current",String(index===this.current));
+        button.setAttribute("aria-label","Ir para slide "+(index+1));
+        button.onclick=()=>this.go(index);
+        return;
+      }
+      this._thumbCache.set(button,fingerprint);
       button.replaceChildren();
       const preview=document.createElement("span");
       preview.className="slide-thumb-preview";
@@ -1424,6 +1499,31 @@
           const name=value.trim().slice(0,80);
           if(name)this.commands.updateObject(this.current,selected.id,{name});
         });
+        if(selected.type==="math"){
+          const fields={
+            text:[["value","Expressão"]],fraction:[["numerator","Numerador"],["denominator","Denominador"]],
+            nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
+            superscript:[["base","Base"],["power","Expoente"]],sqrt:[["radicand","Radicando"]]
+          };
+          const title=document.createElement("h4");
+          title.textContent="Componentes matemáticos editáveis";this.inspector.append(title);
+          (selected.math_blocks||[]).forEach((part,index)=>{
+            const group=document.createElement("section");
+            group.className="slide-math-properties";
+            const name=document.createElement("strong");
+            name.textContent=({text:"Texto",fraction:"Fração",nary:"Integral / Somatório",
+              superscript:"Potência",sqrt:"Raiz"})[part.kind]||"Expressão";
+            group.append(name);
+            for(const [key,label] of fields[part.kind]||[]){
+              this._property(label,part[key],"text",value=>{
+                const blocks=clone(selected.math_blocks);
+                blocks[index][key]=value.slice(0,160);
+                this.commands.updateObject(this.current,selected.id,{math_blocks:blocks});
+              },group);
+            }
+            this.inspector.append(group);
+          });
+        }
         if(selected.type==="table"){
           const heading=document.createElement("h4");
           heading.textContent="Células da tabela";this.inspector.append(heading);
@@ -1591,10 +1691,11 @@
       if(!box.width||!box.height)return;
       const handle=event.target.closest("[data-resize]")?.dataset.resize||null;
       const rotating=Boolean(event.target.closest("[data-rotate]"));
+      const scaling=Boolean(event.target.closest("[data-scale]"));
       const centerX=box.left+(obj.x+obj.width/2)*box.width;
       const centerY=box.top+(obj.y+obj.height/2)*box.height;
       this.drag={index,id:obj.id,startX:event.clientX,startY:event.clientY,
-        initial:clone(obj),box,node,handle,rotating,centerX,centerY,
+        initial:clone(obj),box,node,handle,rotating,scaling,centerX,centerY,
         startingAngle:Math.atan2(event.clientY-centerY,event.clientX-centerX),value:null};
       event.preventDefault();event.stopPropagation();
     }
@@ -1606,6 +1707,17 @@
         const angle=Math.atan2(event.clientY-state.centerY,event.clientX-state.centerX);
         item.rotation=clamp(Math.round((state.initial.rotation||0)
           +(angle-state.startingAngle)*180/Math.PI),-360,360);
+      }else if(state.scaling){
+        // Dedicated proportional grip, separate from independent edge resizing.
+        const relative=(event.clientX-state.startX)/state.box.width+
+          (event.clientY-state.startY)/state.box.height;
+        const max=Math.min((1-item.x)/state.initial.width,(1-item.y)/state.initial.height);
+        const min=Math.max(.01/state.initial.width,.01/state.initial.height);
+        const factor=clamp(1+relative*1.5,min,max);
+        item.width=state.initial.width*factor;
+        item.height=state.initial.height*factor;
+        if(item.type==="text"||item.type==="math")
+          item.font_size_pt=clamp((state.initial.font_size_pt||28)*factor,6,144);
       }else if(state.handle){
         const h=state.handle;
         const left=state.initial.x,right=left+state.initial.width;
@@ -1641,6 +1753,8 @@
       }
       const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,
         height:drag.value.height,rotation:drag.value.rotation};
+      if(drag.scaling && (drag.initial.type==="text"||drag.initial.type==="math"))
+        patch.font_size_pt=drag.value.font_size_pt;
       if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,
         width:drag.initial.width,height:drag.initial.height,rotation:drag.initial.rotation}))return;
       this.commands.updateObject(drag.index,drag.id,patch);

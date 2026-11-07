@@ -17,6 +17,7 @@ from pptx.dml.color import RGBColor
 
 from ...fixed_document.slide_model import SlideModelValidator
 from .image_effects import import_image_effects
+from .native_math import read_math
 
 MARKER = "OpenDoc:EditableSlide-v1"
 
@@ -180,6 +181,10 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                     base["font_bold"] = bold
                 if italic is not None:
                     base["font_italic"] = italic
+    if base.get("type") == "text":
+        blocks = read_math(shape)
+        if blocks is not None:
+            base.update(type="math", math_blocks=blocks, text="")
     return base
 
 
