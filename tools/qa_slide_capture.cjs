@@ -218,6 +218,43 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    await shot('pptx-one-slide-'+width);
  }
  console.log('QT_PPTX_SINGLE_ACTIVE_CANVAS_THUMBNAILS_GEOMETRY_2_RESOLUTIONS_OK');
+
+ // New visual regression coverage: test real table and shape icons in Qt.
+ await send('Emulation.setDeviceMetricsOverride',{width:1600,height:900,deviceScaleFactor:1,mobile:false});
+ for(const label of ['Tabela','Estrela']){
+   const clicked=await evaluate(`(()=>{
+     const button=Array.from(document.querySelectorAll('.slide-studio-toolbar button'))
+       .find(b=>b.textContent.trim()===${JSON.stringify(label)});
+     if(!button)return false;
+     button.click();return true;
+   })()`);
+   assert.ok(clicked,'Missing toolbar action '+label);
+ }
+ const qaObjects=await evaluate(`(()=>{
+   const slide=document.querySelector('.fixed-scroll .fixed-surface');
+   const table=slide?.querySelector('.slide-object-table table');
+   const star=slide?.querySelector('.slide-object-star svg');
+   const icons=['Tabela','Estrela','Nuvem','Hexágono','Pentágono','Chevron','Paralelogramo']
+     .map(label=>{
+       const button=Array.from(document.querySelectorAll('.slide-studio-toolbar button'))
+         .find(b=>b.textContent.trim()===label);
+       return {label,svg:button?.querySelector('svg use')?.getAttribute('href')||''};
+     });
+   const page=slide?.getBoundingClientRect(),rect=table?.getBoundingClientRect();
+   return {rows:table?.rows.length,cells:table?.querySelectorAll('td,th').length,
+     star:!!star,icons,fits:!!(page&&rect&&rect.width>20&&rect.height>20&&
+     rect.left>=page.left-1&&rect.right<=page.right+1)};
+ })()`);
+ assert.equal(qaObjects.rows,2,'Qt table must render two rows');
+ assert.equal(qaObjects.cells,4,'Qt table must render four cells');
+ assert.ok(qaObjects.star&&qaObjects.fits,'Table or star missing/overflowing slide');
+ for(const icon of qaObjects.icons)
+   assert.ok(icon.svg.includes('#'),'Missing SVG symbol: '+icon.label);
+ await shot('pptx-new-table-shapes-svg-1600');
+ fs.writeFileSync(path.join(destination,'pptx-new-table-shapes-svg.json'),
+   JSON.stringify(qaObjects,null,2));
+ console.log('QT_PPTX_TABLE_SHAPES_SVG_SCREENSHOT_OK');
+
  // Restore the original slide to allow the subsequent persistence/export
  // smoke to append text to the four existing shapes on slide 1.
  await click('.fixed-sidebar [data-thumbnail-index="0"]');
