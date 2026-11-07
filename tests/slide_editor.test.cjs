@@ -1139,3 +1139,31 @@ test('imported multi-run PPTX edits one segment without flattening styled text',
  assert.equal(edited.text_runs[0][1].color,'#2266BB');
  assert.equal(edited.text_runs[0][1].font_italic,true);
 });
+
+test('stress: editing a single object in a 120-slide deck keeps other slides immutable',t=>{
+ const q=setup(t);
+ const first=q.model().surfaces[0];
+ for(let index=1;index<120;index++){
+   const slide={index,width_pt:960,height_pt:540,background:'#FFFFFF',
+     notes:'',strokes:[],text_overlays:[],elements:[{
+       id:'obj-'+index,type:'text',x:.1,y:.1,width:.4,height:.2,
+       text:'Página '+index,font_family:'Inter',font_size_pt:28,
+       color:'#191C1E',fill:'#FFFFFF',stroke:'#004AC6'
+     }]};
+   q.model().surfaces.push(slide);
+ }
+ q.model().assets={sample:{mime:'image/png',data:'AA'.repeat(150000)}};
+ const before=q.model().surfaces.slice();
+ const asset=q.model().assets.sample;
+ const commits=q.versions.length;
+ q.editor.commands.insertObject(0,'text');
+ const after=q.model().surfaces;
+ assert.notEqual(after[0],first,'active slide must be copied');
+ for(let index=1;index<120;index++)
+   assert.equal(after[index],before[index],
+     'untouched slide '+index+' should not be serialized or copied');
+ assert.equal(q.model().assets.sample,asset,'assets must be shared, not copied');
+ assert.equal(q.versions.length,commits+1,'one user operation is one history update');
+ assert.equal(after[0].elements.length,1);
+ assert.equal(after[1].elements[0].text,'Página 1');
+});
