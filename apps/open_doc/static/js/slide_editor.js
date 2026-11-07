@@ -288,7 +288,10 @@
           x:.14,y:.2,width:.72,height:.58,rotation:0,stroke_width:1.5,
           color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
           chart_type:kind,chart_title:"Resultados",chart_palette:"blue",
-          chart_categories:["2024","2025","2026"],chart_values:[18,25,32]
+          chart_categories:["Categoria A","Categoria B","Categoria C"],
+          chart_values:[25,35,40],chart_background:"transparent",
+          chart_color_mode:"palette",chart_data_labels:"percent",
+          chart_label_font_size:12,chart_label_wrap:true
         });
       },index);
       return id;
@@ -582,7 +585,7 @@
       if(!obj)return;
       if(obj.type==="image"||obj.type==="chart")
         return this.status(obj.type==="chart"
-          ?"Para colorir o gráfico, escolha uma paleta nas propriedades."
+          ?"Escolha uma paleta dinâmica ou uma cor por categoria no painel Cores e fundo."
           :"O balde não altera os pixels de uma imagem.");
       const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
       this.commands.updateObject(index,id,{[property]:this.paintColor.value});
@@ -1104,7 +1107,10 @@
       if(vector)node.append(vector);
       if(obj.type==="chart"){
         if(window.OpenDocSlideCharts?.ChartPreview)
-          node.append(window.OpenDocSlideCharts.ChartPreview.render(obj));
+          node.append(window.OpenDocSlideCharts.ChartPreview.render(obj,{
+            width:obj.width*this.getModel().surfaces[index].width_pt*4/3,
+            height:obj.height*this.getModel().surfaces[index].height_pt*4/3
+          }));
         else {
           const placeholder=document.createElement("span");
           placeholder.textContent="Gráfico · "+(obj.chart_title||"Sem título");
