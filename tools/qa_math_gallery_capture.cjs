@@ -50,6 +50,23 @@ const port=process.argv[2]||'9234';
  const after=await send('Page.captureScreenshot',{format:'png'});
  fs.writeFileSync(path.join(output,'math-line-integral-slide-qt.png'),Buffer.from(after.data,'base64'));
  fs.writeFileSync(path.join(output,'math-gallery-qt.json'),JSON.stringify({state,metrics},null,2));
+ // Real Qt interaction: input nested LaTeX and verify actual editable DOM
+ // fraction/root/summation, without an image asset or canvas rasterization.
+ assert.ok(await click('.slide-studio-toolbar button[title^="Inserir equações"]'));
+ const latex="\\frac{\\sqrt{x^2+1}}{\\sum_{k=1}^{n}{k}}";
+ const entered=await evalJS('(()=>{const field=document.querySelector(".slide-math-latex-input");if(!field)return false;field.value='+JSON.stringify(latex)+';field.dispatchEvent(new Event("input",{bubbles:true}));return true})()');
+ assert.ok(entered,'LaTeX input missing from Qt mathematical palette');
+ assert.ok(await click('.slide-math-latex-add'));
+ await new Promise(ok=>setTimeout(ok,300));
+ const nested=await evalJS('(()=>{const formulas=Array.from(document.querySelectorAll(".fixed-scroll .slide-object-math .slide-native-equation"));const item=formulas.find(el=>el.querySelector(".slide-math-fraction .slide-math-sqrt"));const rect=item?.closest(".slide-object-math")?.getBoundingClientRect();const other=formulas.find(el=>el!==item)?.closest(".slide-object-math")?.getBoundingClientRect();const overlap=rect&&other?Math.max(0,Math.min(rect.right,other.right)-Math.max(rect.left,other.left))*Math.max(0,Math.min(rect.bottom,other.bottom)-Math.max(rect.top,other.top)):null;return {count:formulas.length,hasNested:!!item,hasSum:!!item?.querySelector(".slide-math-nary"),hasImage:!!item?.querySelector("img"),overlap,text:item?.textContent||"",blocks:OpenDocApp.editor().snapshot().content.surfaces[OpenDocApp.editor().snapshot().content.surfaces.length-1]?.elements?.filter(e=>e.type==="math").length}})()');
+ assert.ok(nested.hasNested&&nested.hasSum&&!nested.hasImage&&nested.overlap===0,
+   'Qt nested LaTeX must remain a native equation object: '+JSON.stringify(nested));
+ const nestedScreenshot=await send('Page.captureScreenshot',{format:'png'});
+ fs.writeFileSync(path.join(output,'math-nested-latex-slide-qt.png'),
+   Buffer.from(nestedScreenshot.data,'base64'));
+ fs.writeFileSync(path.join(output,'math-nested-latex-qt.json'),
+   JSON.stringify(nested,null,2));
+ console.log('QT_NATIVE_MATH_NESTED_LATEX_EDITABLE_OK',JSON.stringify(nested));
  console.log('QT_PPTX_MATH_GALLERY_LINE_INTEGRAL_SCREENSHOTS_OK',JSON.stringify(metrics));
  ws.close();
 })().catch(err=>{console.error(err);process.exit(1)});

@@ -240,9 +240,38 @@
         const lum=rgb.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4)
           .reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
         const textColor=lum<.20?"#F8FAFC":"#192433";
+        // Choose a free area instead of stacking every new equation in the
+        // same position. Ignore full-slide background rectangles.
+        const sites=[
+          {x:.12,y:.38,width:.75,height:.28},
+          {x:.12,y:.68,width:.75,height:.28},
+          {x:.12,y:.05,width:.75,height:.28},
+          {x:.50,y:.40,width:.45,height:.28},
+          {x:.05,y:.40,width:.45,height:.28},
+          {x:.50,y:.69,width:.45,height:.26},
+          {x:.05,y:.69,width:.45,height:.26}
+        ];
+        const content=elements.filter(item=>!(item.width>.90&&item.height>.90));
+        const intersect=(a,b)=>{
+          const margin=.012;
+          const width=Math.max(0,Math.min(a.x+a.width+margin,b.x+b.width+margin)-
+            Math.max(a.x-margin,b.x-margin));
+          const height=Math.max(0,Math.min(a.y+a.height+margin,b.y+b.height+margin)-
+            Math.max(a.y-margin,b.y-margin));
+          return width*height;
+        };
+        const position=sites.map((site,i)=>({
+          site,score:content.reduce((total,item)=>total+intersect(site,item),0)+i*.004
+        })).sort((a,b)=>a.score-b.score)[0].site;
+        const complexity=value=>Array.isArray(value)
+          ?Math.max(0,...value.map(complexity))
+          :value&&typeof value==="object"
+          ?1+Math.max(0,...Object.values(value).map(complexity))
+          :0;
+        const size=complexity(blocks)>=3?34:42;
         elements.push({id,type:"math",name:definition.label||"Equação",
-          x:.12,y:.38,width:.75,height:.28,rotation:0,
-          font_family:"Cambria Math",font_size_pt:42,
+          ...position,rotation:0,
+          font_family:"Cambria Math",font_size_pt:size,
           color:textColor,fill:"#FFFFFF",stroke:"#004AC6",
           stroke_width:1.5,text:"",math_blocks:blocks});
       },index);
@@ -1113,35 +1142,18 @@
           viewport.append(picture);node.append(viewport);
         }
       }else if(obj.type==="math"){
-        const formula=document.createElement("span");
-        formula.className="slide-native-equation";
-        formula.setAttribute("role","math");
-        formula.setAttribute("aria-label",obj.name||"Equação matemática editável");
-        for(const block of obj.math_blocks||[]){
-          const part=document.createElement("span");
-          part.className="slide-math-"+block.kind;
-          if(block.kind==="text")part.textContent=block.value;
-          else if(block.kind==="fraction"){
-            const top=document.createElement("span"),bottom=document.createElement("span");
-            top.className="slide-math-numerator";top.textContent=block.numerator;
-            bottom.className="slide-math-denominator";bottom.textContent=block.denominator;
-            part.append(top,bottom);
-          }else if(block.kind==="nary"){
-            const bounds=document.createElement("span"),op=document.createElement("span");
-            const upper=document.createElement("span"),lower=document.createElement("span");
-            bounds.className="slide-math-operator";upper.textContent=block.upper;
-            upper.className="slide-math-upper";op.textContent=block.operator;
-            op.className="slide-math-sign";lower.textContent=block.lower;
-            lower.className="slide-math-lower";bounds.append(upper,op,lower);
-            const body=document.createElement("span");body.textContent=block.body;
-            part.append(bounds,body);
-          }else if(block.kind==="superscript"){
-            part.append(document.createTextNode(block.base));
-            const sup=document.createElement("sup");sup.textContent=block.power;part.append(sup);
-          }else if(block.kind==="sqrt")part.textContent="√("+block.radicand+")";
-          formula.append(part);
+        if(window.OpenDocMathGallery?.renderBlocks){
+          const math=window.OpenDocMathGallery.renderBlocks(obj.math_blocks||[]);
+          math.setAttribute("aria-label",obj.name||"Equação matemática editável");
+          node.append(math);
+        }else{
+          // Minimal fallback for isolated/legacy unit-test hosts.
+          const span=document.createElement("span");
+          span.className="slide-native-equation";
+          span.setAttribute("role","math");
+          span.textContent=(obj.math_blocks||[]).map(b=>b.value||b.operator||b.kind).join(" ");
+          node.append(span);
         }
-        node.append(formula);
       }else if(obj.type==="table"){
         const table=document.createElement("table");
         table.className="slide-native-table";
@@ -1537,28 +1549,50 @@
         });
         if(selected.type==="math"){
           const fields={
-            text:[["value","Expressão"]],fraction:[["numerator","Numerador"],["denominator","Denominador"]],
+            text:[["value","Expressão"]],
+            fraction:[["numerator","Numerador"],["denominator","Denominador"]],
             nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
-            superscript:[["base","Base"],["power","Expoente"]],sqrt:[["radicand","Radicando"]]
+            superscript:[["base","Base"],["power","Expoente"]],
+            subscript:[["base","Base"],["sub","Índice"]],
+            sqrt:[["radicand","Radicando"]],
+            root:[["index","Índice da raiz"],["radicand","Radicando"]],
+            limit:[["base","Operador"],["lower","Limite"]]
           };
           const title=document.createElement("h4");
-          title.textContent="Componentes matemáticos editáveis";this.inspector.append(title);
-          (selected.math_blocks||[]).forEach((part,index)=>{
-            const group=document.createElement("section");
-            group.className="slide-math-properties";
-            const name=document.createElement("strong");
-            name.textContent=({text:"Texto",fraction:"Fração",nary:"Integral / Somatório",
-              superscript:"Potência",sqrt:"Raiz"})[part.kind]||"Expressão";
-            group.append(name);
-            for(const [key,label] of fields[part.kind]||[]){
-              this._property(label,part[key],"text",value=>{
-                const blocks=clone(selected.math_blocks);
-                blocks[index][key]=value.slice(0,160);
-                this.commands.updateObject(this.current,selected.id,{math_blocks:blocks});
-              },group);
-            }
-            this.inspector.append(group);
-          });
+          title.textContent="Componentes matemáticos editáveis";
+          this.inspector.append(title);
+          const change=path=>value=>{
+            const blocks=clone(this.getModel().surfaces[this.current].elements
+              .find(o=>o.id===selected.id).math_blocks);
+            let node=blocks;
+            for(const key of path.slice(0,-1))node=node[key];
+            node[path[path.length-1]]=value.slice(0,160);
+            this.commands.updateObject(this.current,selected.id,{math_blocks:blocks});
+          };
+          const renderPart=(part,path,parent,depth=0)=>{
+            if(depth>6)return;
+            const group=document.createElement("section");group.className="slide-math-properties";
+            const heading=document.createElement("strong");heading.textContent=part.kind;
+            group.append(heading);
+            const renderVal=(value,key,label)=>{
+              if(Array.isArray(value)){
+                if(key==="rows"){
+                  value.forEach((row,r)=>row.forEach((cell,c)=>{
+                    if(Array.isArray(cell))cell.forEach((inner,k)=>
+                      renderPart(inner,path.concat(["rows",r,c,k]),group,depth+1));
+                    else this._property("Linha "+(r+1)+" coluna "+(c+1),
+                      cell,"text",change(path.concat(["rows",r,c])),group);
+                  }));
+                }else value.forEach((nested,k)=>
+                  renderPart(nested,path.concat([key,k]),group,depth+1));
+              }else this._property(label,value,"text",change(path.concat([key])),group);
+            };
+            if(part.kind==="matrix")renderVal(part.rows,"rows","Matriz");
+            else for(const [key,label] of fields[part.kind]||[])renderVal(part[key],key,label);
+            parent.append(group);
+          };
+          (selected.math_blocks||[]).forEach((part,index)=>
+            renderPart(part,[index],this.inspector));
         }
         if(selected.type==="table"){
           const heading=document.createElement("h4");
