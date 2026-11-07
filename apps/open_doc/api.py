@@ -109,6 +109,11 @@ def document_versions(context=None):
     return _handle(lambda: _documents().versions(_data(context)))
 
 
+@api.post("/open_doc/document/pdf-view")
+def save_pdf_view(context=None):
+    return _handle(lambda: _documents().save_pdf_view(_data(context)))
+
+
 @api.post("/open_doc/document/recovery")
 def recovery_document(context=None):
     return _handle(lambda: _documents().recover(_data(context)))

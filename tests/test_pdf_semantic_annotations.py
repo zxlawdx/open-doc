@@ -182,3 +182,28 @@ def test_sticky_notes_require_single_quad(tmp_path):
     model["annotations"] = [note]
     with pytest.raises(ValueError):
         validate_annotations(model)
+
+
+def test_reader_view_survives_restart_without_document_revision(tmp_path):
+    config = Config(tmp_path)
+    fixed = configure(config).fixed_documents
+    note = fixed.import_pdf(source_pdf(tmp_path))
+    view = {"page": 0, "offset": 0.35, "left": 20, "zoom": 1.75}
+    fixed.save_pdf_view(note["id"], view)
+
+    restarted = configure(Config(tmp_path)).fixed_documents
+    loaded = restarted.current()
+    assert loaded["reader_view"] == view
+    assert loaded["revision"] == note["revision"]
+    assert loaded["content"] == note["content"]
+    for invalid in (
+        {**view, "zoom": float("nan")},
+        {**view, "offset": 1.5},
+        {**view, "page": True},
+    ):
+        with pytest.raises(ValueError):
+            restarted.save_pdf_view(note["id"], invalid)
+    assert restarted.current()["reader_view"] == view
+    restarted.delete(note["id"], note["revision"])
+    with pytest.raises(ValueError):
+        restarted.save_pdf_view(note["id"], view)
