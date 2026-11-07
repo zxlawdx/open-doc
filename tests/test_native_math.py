@@ -6,6 +6,7 @@ import pytest
 from pptx import Presentation
 
 from apps.open_doc.fixed_document.validation import validate
+from apps.open_doc.fixed_document.slide_model import SlideModelValidator
 from apps.open_doc.readers.pptx.native_importer import read_editable_deck
 from apps.open_doc.readers.pptx.exporter import export_pptx
 from apps.open_doc.services.container import configure
@@ -64,7 +65,7 @@ def test_editing_imported_equation_preserves_native_omml(tmp_path):
     edited = deepcopy(imported)
     blocks = edited["surfaces"][0]["elements"][0]["math_blocks"]
     blocks[1]["numerator"] = "x³ + 1"
-    validate(dict(edited, source_kind="pptx"))
+    SlideModelValidator().validate(dict(edited, source_kind="pptx"))
     out = tmp_path / "edited.pptx"
     export_pptx(src, edited, out)
     again = read_editable_deck(out)
