@@ -35,8 +35,9 @@ class SlideDeckExporter:
         self.native = model.get("editable_deck") is True
         # Reimport exactly the native subset without losing editability.
         # Non-OpenDoc originals remain read-only until explicitly converted.
-        self.presentation = Presentation() if self.native else Presentation(source)
-        if self.native:
+        self.preserve_source = bool(self.native and model.get('preserve_source'))
+        self.presentation = Presentation(source) if self.preserve_source or not self.native else Presentation()
+        if self.native and not self.preserve_source:
             self.presentation.core_properties.keywords = "OpenDoc:EditableSlide-v1"
             first = model["surfaces"][0]
             self.presentation.slide_width = Pt(first["width_pt"])
@@ -225,8 +226,141 @@ class SlideDeckExporter:
         self._raster_ink(slide, surface)
         self._text_overlays(slide, surface)
 
+
+    def _patch_original_shape(self, shape, obj):
+        """Edit only requested properties, leaving all untouched OOXML intact.
+
+        Templates often contain formatting, theme references and relationship
+        metadata absent from the compact Open Doc model.
+        """
+        original = obj["source_original"]
+        changed = {key for key, value in obj.items()
+                   if key not in {"id", "source_original", "source_shape_index"}
+                   and original.get(key) != value}
+        if not changed:
+            return
+        supported = {"x", "y", "width", "height", "rotation", "name",
+                     "text", "color", "font_family", "font_size_pt",
+                     "font_bold", "font_italic", "fill", "stroke", "stroke_width",
+                     "crop_left", "crop_right", "crop_top", "crop_bottom",
+                     "flip_h", "flip_v"}
+        unsupported = changed - supported
+        if unsupported:
+            raise ValueError("A edição exige suporte adicional para propriedades originais: "
+                             + ", ".join(sorted(unsupported)))
+        width, height = self.presentation.slide_width, self.presentation.slide_height
+        for field, scale in (("x", width), ("y", height),
+                             ("width", width), ("height", height)):
+            if field in changed:
+                setattr(shape, {"x": "left", "y": "top"}.get(field, field),
+                        int(obj[field] * scale))
+        if "rotation" in changed:
+            shape.rotation = obj["rotation"]
+        if "name" in changed:
+            shape.name = obj["name"]
+        if "text" in changed:
+            if not shape.has_text_frame:
+                raise ValueError("O objeto original não possui texto editável.")
+            shape.text = obj["text"]
+        font_fields = changed & {"color", "font_family", "font_size_pt",
+                                 "font_bold", "font_italic"}
+        if font_fields:
+            if not shape.has_text_frame:
+                raise ValueError("O objeto original não possui fonte editável.")
+            for paragraph in shape.text_frame.paragraphs:
+                for run in paragraph.runs:
+                    if "color" in changed:
+                        run.font.color.rgb = rgb(obj["color"])
+                    if "font_family" in changed:
+                        run.font.name = obj["font_family"]
+                    if "font_size_pt" in changed:
+                        run.font.size = Pt(obj["font_size_pt"])
+                    if "font_bold" in changed:
+                        run.font.bold = obj["font_bold"]
+                    if "font_italic" in changed:
+                        run.font.italic = obj["font_italic"]
+        if "fill" in changed:
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = rgb(obj["fill"])
+        if "stroke" in changed:
+            shape.line.color.rgb = rgb(obj["stroke"])
+        if "stroke_width" in changed:
+            shape.line.width = Pt(obj["stroke_width"])
+        for key in ("crop_left", "crop_right", "crop_top", "crop_bottom"):
+            if key in changed:
+                if not hasattr(shape, key):
+                    raise ValueError("Recorte não suportado por este objeto.")
+                setattr(shape, key, obj[key])
+        if changed & {"flip_h", "flip_v"}:
+            if not hasattr(shape, "_pic"):
+                raise ValueError("Espelhamento não suportado por este objeto.")
+            xfrm = shape._pic.spPr.get_or_add_xfrm()
+            if "flip_h" in changed:
+                xfrm.flipH = obj["flip_h"]
+            if "flip_v" in changed:
+                xfrm.flipV = obj["flip_v"]
+
+    def _write_preserving_source(self):
+        """Patch original slides instead of rebuilding theme/master/layouts.
+
+        Structural slide changes are rejected until reordering and slide
+        master inheritance are implemented without loss.
+        """
+        surfaces = self.model["surfaces"]
+        if len(surfaces) != len(self.presentation.slides) or any(
+            surface.get("source_slide_index") != index
+            for index, surface in enumerate(surfaces)
+        ):
+            raise ValueError(
+                "A edição da estrutura dos slides externos ainda não preserva "
+                "todos os modelos originais; o arquivo não foi modificado."
+            )
+        for surface, slide in zip(surfaces, self.presentation.slides):
+            original_shapes = list(slide.shapes)
+            original_indices = set()
+            ordered_elements = []
+            for obj in surface.get("elements", []):
+                if "source_shape_index" in obj:
+                    index = obj["source_shape_index"]
+                    if (not isinstance(index, int) or
+                        index < 0 or index >= len(original_shapes) or
+                        index in original_indices or
+                        not isinstance(obj.get("source_original"), dict)):
+                        raise ValueError("Referência ao objeto original inválida.")
+                    original_indices.add(index)
+                    shape = original_shapes[index]
+                    self._patch_original_shape(shape, obj)
+                else:
+                    shape = self._native_shape(slide, obj)
+                ordered_elements.append(shape._element)
+            tree = slide.shapes._spTree
+            for old in original_shapes:
+                tree.remove(old._element)
+            for element in ordered_elements:
+                if element.getparent() is tree:
+                    tree.remove(element)
+                tree.append(element)
+            if surface.get("background", "#FFFFFF") != self._source_background(slide):
+                # If the user's editor changed the background, apply that change.
+                baseline = surface.get("source_background")
+                if baseline is not None and surface["background"] != baseline:
+                    slide.background.fill.solid()
+                    slide.background.fill.fore_color.rgb = rgb(surface["background"])
+            if surface.get("notes") is not None and slide.has_notes_slide:
+                original_notes = slide.notes_slide.notes_text_frame.text
+                if surface["notes"] != original_notes:
+                    slide.notes_slide.notes_text_frame.text = surface["notes"]
+            self._overlay(slide, surface)
+
+    @staticmethod
+    def _source_background(slide):
+        from .native_importer import _fill_color
+        return _fill_color(slide.background.fill, "#FFFFFF")
+
     def write(self, destination):
-        if self.native:
+        if self.preserve_source:
+            self._write_preserving_source()
+        elif self.native:
             for surface in self.model["surfaces"]:
                 slide = self.presentation.slides.add_slide(self.presentation.slide_layouts[6])
                 slide.background.fill.solid()
