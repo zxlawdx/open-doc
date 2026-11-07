@@ -206,6 +206,38 @@
   box-sizing:border-box;width:100%;height:100%;pointer-events:none;
   border:1px solid #CBD5E1;border-radius:5px;background:#fff;
 }
+.open-doc .slide-chart-preview[data-background="transparent"]{
+  background:transparent;border-color:transparent;
+}
+.open-doc .slide-chart-settings{
+  border:1px solid var(--color-border);border-radius:9px;
+  padding:8px 10px;margin-top:9px;min-width:0;
+}
+.open-doc .slide-chart-settings>summary{
+  font-size:13px;font-weight:650;cursor:pointer;
+  padding:6px;min-height:28px;list-style:disclosure-closed;
+}
+.open-doc .slide-chart-settings[open]>summary{margin-bottom:11px}
+.open-doc .slide-chart-setting{display:flex;align-items:center;justify-content:space-between;
+  gap:8px;min-height:39px;padding:3px 0;font-size:12px;
+  color:var(--color-text-secondary);flex-wrap:wrap;
+}
+.open-doc .slide-chart-setting input:not([type=checkbox]),
+.open-doc .slide-chart-setting select{
+  width:min(100%,185px);min-width:110px;min-height:34px;
+  padding:6px;border:1px solid var(--color-border);border-radius:7px;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+}
+.open-doc .slide-chart-setting input[type=checkbox]{width:18px;height:18px}
+.open-doc .slide-chart-grid textarea{
+  width:100%;min-width:0;box-sizing:border-box;resize:vertical;
+  min-height:44px;padding:7px 6px;border:1px solid var(--color-border);
+  border-radius:7px;background:var(--of-surface-low);color:var(--color-text-primary);
+  font:inherit;line-height:1.45;
+}
+.open-doc .slide-chart-grid input[type=color]{width:34px;min-width:34px;padding:2px}
+.open-doc .slide-chart-grid td:nth-child(3){width:44px}
+.open-doc .slide-chart-settings:focus-within{border-color:var(--color-primary)}
 .open-doc .slide-chart-data{
   display:flex;flex-direction:column;gap:13px;margin-top:17px;
   padding:15px 0;border-top:1px solid var(--color-border);
