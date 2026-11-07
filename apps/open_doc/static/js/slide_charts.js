@@ -410,7 +410,7 @@
         }
         input.value=String(chart[key]??defaultValue);
         input.addEventListener("change",()=>{
-          commit({[key]:input.value==="true"?true:input.value==="false"?false:input.value});
+          commit({[key]:key==="chart_label_rotation"?Number(input.value):input.value});
         },{signal});return groupLabel(group,caption,input);
       };
       const numeric=(group,caption,key,min,max,step,initial)=>{
