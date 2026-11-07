@@ -314,3 +314,8 @@
   .open-doc .equation-symbols{grid-template-columns:repeat(4,minmax(0,1fr))}
   .open-doc .equation-calc-actions{flex-wrap:wrap}
 }
+
+/* Mathematical template gallery: mobile layout belongs to responsive.css. */
+@media(max-width:680px){
+  .open-doc .slide-math-gallery{grid-template-columns:1fr;left:4vw;top:100px}
+}
