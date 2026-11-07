@@ -40,7 +40,7 @@ STYLE_ORDER = (
 
 def main() -> None:
     """Recompila utilitários e preserva o tema escrito à mão."""
-    target = ROOT / "apps" / "open_doc" / "static" / "css" / "main.css"
+    target = ROOT / "apps" / "open_doc" / "static" / "css" / "runtime.css"
     custom_css = "\n".join(
         (ROOT / "apps/open_doc/styles" / name).read_text(encoding="utf-8")
         for name in STYLE_ORDER
@@ -59,10 +59,14 @@ def main() -> None:
         raise RuntimeError("Falha ao compilar Tailwind com Vela.")
 
     compiled = (output / "css" / "vela.bundle.css").read_text(encoding="utf-8")
-    target.write_text(
-        compiled + "\n" + custom_css + "\n",
-        encoding="utf-8",
-    )
+    # Build output is deliberately untracked: rebuilding must never block git pull.
+    # Replace atomically so a failed write cannot leave a partial stylesheet.
+    temporary = target.with_suffix(".css.tmp")
+    try:
+        temporary.write_text(compiled + "\n" + custom_css + "\n", encoding="utf-8")
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
