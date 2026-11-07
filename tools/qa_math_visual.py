@@ -27,6 +27,7 @@ from config.wsgi import create_app
 from apps.open_doc.services.preferences_service import Config
 from apps.open_doc.services.container import services
 from test_math_differential_cross_formats import examples,_math_png,_pptx_fixture
+from apps.open_doc.readers.pptx.native_math import build_word_omath
 
 
 def wait(window, expression):
@@ -50,7 +51,7 @@ def main():
                 )
                 probe={
                     "pptx": "document.querySelector('[data-slide-editor=true] .slide-object-image')!==null",
-                    "docx": "document.querySelector('[data-rich]')?.textContent.includes('Passo 1')",
+                    "docx": "document.querySelector('[data-rich] [data-node-type=math]')!==null && document.querySelector('[data-rich]')?.textContent.includes('Passo 1')",
                     "pdf": "Array.from(document.querySelectorAll('.fixed-document .fixed-scroll .fixed-surface canvas[data-render-complete=true]')).some(c=>{const b=c.getBoundingClientRect();return b.width>80&&b.height>30})"
                 }[kind]
                 wait(window,probe)
@@ -85,7 +86,11 @@ def main():
             doc.add_heading("Cálculo diferencial: frações",0)
             for title,_,_ in examples():
                 doc.add_heading("Derivada "+title,level=2)
-                doc.add_picture(str(png),width=DocInches(5.6))
+                doc.add_paragraph()._p.append(build_word_omath([
+                    {"kind":"fraction","numerator":"x² + 1","denominator":"x + 1"},
+                    {"kind":"text","value":" = "},
+                    {"kind":"nary","operator":"∫","lower":"0","upper":"π","body":"sen(x) dx"}
+                ]))
                 doc.add_paragraph("Passo 1: identifique numerador e denominador.")
                 doc.add_paragraph("Passo 2: derive e simplifique.")
             doc.save(docx)
