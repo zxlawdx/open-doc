@@ -261,7 +261,19 @@ class SlideDeckExporter:
         if "text" in changed:
             if not shape.has_text_frame:
                 raise ValueError("O objeto original não possui texto editável.")
-            shape.text = obj["text"]
+            paragraphs = shape.text_frame.paragraphs
+            # A single existing run can be edited without destroying its
+            # OOXML style (font fallback, spacing, effects and theme links).
+            if (len(paragraphs) == 1 and len(paragraphs[0].runs) == 1
+                    and "\\n" not in obj["text"]):
+                paragraphs[0].runs[0].text = obj["text"]
+            else:
+                # Rich-text edits need segment-level mapping; replacing the
+                # whole frame would silently flatten the professor's styling.
+                raise ValueError(
+                    "Texto com múltiplos estilos/parágrafos exige edição "
+                    "por trechos; não foi substituído para evitar perda."
+                )
         font_fields = changed & {"color", "font_family", "font_size_pt",
                                  "font_bold", "font_italic"}
         if font_fields:
