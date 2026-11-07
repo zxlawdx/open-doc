@@ -150,6 +150,10 @@
       this.commit(next);
       return next;
     }
+    _requireEditableSlideStructure(){
+      if(this.getModel().preserve_source)
+        throw Error("Slides de apresentações externas ainda não podem ser inseridos, duplicados, removidos ou reordenados sem comprometer layouts originais.");
+    }
     applyTransitionToAll(index){
       const slides=this.getModel().surfaces;
       const transition=slides[index].transition||"none";
@@ -161,6 +165,7 @@
       });
     }
     insert(after){
+      this._requireEditableSlideStructure();
       return this.apply(slides=>{
         if(slides.length>=200)throw Error("Limite de 200 slides atingido.");
         const base=slides[0];
@@ -170,6 +175,7 @@
       });
     }
     duplicate(index){
+      this._requireEditableSlideStructure();
       return this.apply(slides=>{
         if(slides.length>=200)throw Error("Limite de 200 slides atingido.");
         const copy=clone(slides[index]);
@@ -180,12 +186,14 @@
       });
     }
     remove(index){
+      this._requireEditableSlideStructure();
       return this.apply(slides=>{
         if(slides.length<=1)throw Error("É necessário manter pelo menos um slide.");
         slides.splice(index,1);
       });
     }
     move(index,offset){
+      this._requireEditableSlideStructure();
       const dest=index+offset,slides=this.getModel().surfaces;
       if(dest<0||dest>=slides.length)return;
       this.apply(items=>{const [slide]=items.splice(index,1);items.splice(dest,0,slide);});
