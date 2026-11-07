@@ -266,7 +266,7 @@
         }else{
           const d=points.map(([x,y],i)=>(i?"L":"M")+x+" "+y).join(" ");
           if(kind==="area"){
-            root.append(node("path",{d:d+" L"+points.at(-1)[0]+" "+baseline+
+            root.append(node("path",{d:d+" L"+points[points.length-1][0]+" "+baseline+
               " L"+points[0][0]+" "+baseline+" Z",fill:color,"fill-opacity":.22}));
           }
           root.append(node("path",{d,fill:"none",stroke:color,"stroke-width":2.5}));
