@@ -32,12 +32,12 @@ const out=path.resolve(__dirname,'../docs/images/math');
   'const rendered=Array.from(document.querySelectorAll(".fixed-document .fixed-scroll .fixed-surface canvas[data-render-complete=true]"))',
    '.find(c=>{const r=c.getBoundingClientRect();return r.width>80&&r.height>30});',
   'const media='+JSON.stringify(kind)+'==="pptx" ? slide?.querySelector(".slide-object-image img") : ',
-  JSON.stringify(kind)+'==="docx" ? document.querySelector("[data-rich] img") : rendered;',
+  JSON.stringify(kind)+'==="docx" ? document.querySelector("[data-rich] [data-node-type=math]") : rendered;',
   'const rect=media?.getBoundingClientRect();',
   'return {title:document.querySelector("[data-title]")?.value||"",',
    'mode:document.querySelector("[data-slide-editor]")?.dataset.slideEditor,',
    'slideCount:document.querySelectorAll("[data-thumbnail-index]").length,',
-   'richText:!!rich,mediaVisible:!!media,',
+   'richText:!!rich,mathNodes:rich?.querySelectorAll("[data-node-type=math]").length||0,mediaVisible:!!media,',
    'imageRect:rect?{width:rect.width,height:rect.height,x:rect.x,y:rect.y}:null,',
    'status:document.querySelector("[data-status]")?.textContent||""};',
   '})()'
@@ -48,6 +48,7 @@ const out=path.resolve(__dirname,'../docs/images/math');
  assert.ok(metrics.imageRect?.width>80&&metrics.imageRect?.height>30,
    'Formula too small/collapsed: '+JSON.stringify(metrics));
  if(kind==='pptx')assert.ok(metrics.slideCount>=5,'Missing slide thumbnails');
+ if(kind==='docx')assert.ok(metrics.mathNodes>=1,'DOCX math must be native DOM objects');
  fs.mkdirSync(out,{recursive:true});
  const png=await send('Page.captureScreenshot',{format:'png'});
  fs.writeFileSync(path.join(out,'math-fractions-'+kind+'-qt.png'),Buffer.from(png.data,'base64'));
