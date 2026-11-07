@@ -404,3 +404,31 @@
 .open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide[data-snap-kind="center"]{
   filter:drop-shadow(0 0 1px white);
 }
+
+/* Offline formula palette. Positioned above the slide as a bounded overlay;
+   does not extend the Ribbon or reduce the editor viewport. */
+.open-doc .slide-math-gallery{
+  position:fixed;z-index:10020;top:150px;left:min(310px,10vw);
+  width:min(580px,85vw);max-height:min(650px,76vh);
+  overflow-y:auto;overflow-x:hidden;
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;padding:16px;
+  background:var(--surface,#fff);color:var(--text,#14233b);
+  border:1px solid #aeb8c7;border-radius:12px;
+  box-shadow:0 16px 55px #0004;
+}
+.open-doc .slide-math-gallery[hidden]{display:none!important}
+.open-doc .slide-math-gallery h3,.open-doc .slide-math-gallery p{grid-column:1/-1;margin:0}
+.open-doc .slide-math-gallery p{font-size:12px;line-height:1.4}
+.open-doc .slide-math-template{
+  display:flex;flex-direction:column;gap:6px;align-items:stretch;
+  min-width:0;border:1px solid #d9e0e9;border-radius:8px;
+  padding:7px;background:#fff;color:#162d48;cursor:pointer;
+  text-align:left;font-size:13px;font-weight:600;
+}
+.open-doc .slide-math-template:hover,
+.open-doc .slide-math-template:focus-visible{outline:2px solid #1674ca}
+.open-doc .slide-math-template img{
+  width:100%;height:auto;max-height:88px;object-fit:contain;
+}
+@media(max-width:680px){.open-doc .slide-math-gallery{grid-template-columns:1fr;left:4vw;top:100px}}
