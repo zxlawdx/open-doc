@@ -432,7 +432,18 @@
       const makeGroup=(title,open=false)=>{
         const group=document.createElement("details");group.className="slide-chart-settings";
         group.open=open;const summary=document.createElement("summary");summary.textContent=title;
-        group.append(summary);return group;
+        const icons={
+          "Dados e categorias":"table",
+          "Rótulos e tipografia":"type-text",
+          "Cores e fundo":"palette",
+          "Layout e apresentação":"fit"
+        };
+        const svg=document.createElementNS(SVG,"svg");
+        svg.setAttribute("aria-hidden","true");svg.classList.add("slide-chart-group-icon");
+        const use=document.createElementNS(SVG,"use");
+        const base=document.querySelector(".brand-mark use")?.getAttribute("href")?.split("#")[0]||"";
+        use.setAttribute("href",base+"#"+icons[title]);svg.append(use);
+        summary.prepend(svg);group.append(summary);return group;
       };
       const data=makeGroup("Dados e categorias",true);
       const bodyNodes=Array.from(section.children);
