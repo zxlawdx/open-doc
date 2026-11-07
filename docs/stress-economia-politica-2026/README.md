@@ -1,11 +1,11 @@
-# Corpus de stress Open Doc — versão 2
+# Corpus de stress Open Doc — versão 3 (cores PPTX explícitas)
 
 A apresentação e o resumo foram redesenhados após o QA visual: contraste, hierarquia de texto, diagramação 16:9 e tipografia acadêmica no DOCX.
 
 Arquivos no pacote entregue em conversa (os arquivos binários ainda **não foram enviados ao repositório**):
 
-- `economia_politica_brasil_36_slides_v2.pptx` — 36 slides, elementos textuais e formas editáveis.
-- `economia_politica_brasil_36_slides_v2.pdf` — 36 páginas, referência visual.
+- `economia_politica_brasil_36_slides_v3.pptx` — 36 slides, elementos textuais e formas editáveis.
+- `economia_politica_brasil_36_slides_v3.pdf` — 36 páginas, referência visual.
 - `sintese_economia_politica_abnt_v2.docx` — síntese formatada para ABNT.
 - `sintese_economia_politica_abnt_v2.pdf` — impressão de referência do DOCX.
 
@@ -29,3 +29,7 @@ git push origin test/stress-qa-docx-pptx-pdf-20261106
 ## Limites
 
 Este material foi produzido fora do Open Doc. Renderização com LibreOffice foi validada; não constitui prova de compatibilidade completa na UI do Open Doc. Referências estatísticas no roteiro precisam de checagem nas fontes primárias.
+
+## Diagnóstico visual reproduzido (2026-11-07)
+
+O PPTX V2 continha **363 runs sem RGB explícito**, com a cor registrada apenas em `a:defRPr` no parágrafo e `a:solidFill` vazio nos runs. A renderização no LibreOffice herdava a cor corretamente; o leitor PPTX externo do Open Doc exibiu texto preto sobre fundo azul-marinho. A V3 corrige o próprio corpus escrevendo a cor em cada `a:rPr`, sem CSS global nem alterar outros templates. O importador nativo foi corrigido para respeitar cor do parágrafo quando o run não tem uma própria. Ainda é necessária validação da V3 na interface Windows do Open Doc e do renderizador HTML para outras fontes de herança de tema.
