@@ -168,6 +168,12 @@ class SlideDeckExporter:
                 if obj.get("chart_label_letter_spacing"):
                     face._rPr.set("spc", str(round(
                         obj["chart_label_letter_spacing"] * 100)))
+                axis_alignment = {
+                    "left": "l", "center": "ctr", "right": "r"
+                }[obj.get("chart_label_align", "center")]
+                labels = axis._element.xpath("./c:lblAlgn")
+                if labels:
+                    labels[0].set("val", axis_alignment)
                 rotation = obj.get("chart_label_rotation", 0)
                 if rotation:
                     axis._element.txPr.bodyPr.set("rot", str(rotation * 60000))
