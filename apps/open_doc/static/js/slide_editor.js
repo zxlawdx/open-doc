@@ -44,6 +44,7 @@
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
     Balde:"paint-bucket","Pintar seleção":"palette",Prévia:"play",Apresentar:"play",
     "Exportar slide":"download",Desfazer:"undo",Refazer:"redo",
+    "Aplicar a todos os slides":"layers",
     "Conta-gotas":"eyedropper","Aplicar fundo":"palette","Aplicar tom":"palette",
     "Restaurar ajustes de cor e opacidade":"undo","Substituir imagem":"image",
     "Subir camada":"arrow-up","Descer camada":"arrow-down","Duplicar objeto":"duplicate",
@@ -97,6 +98,16 @@
       next.surfaces.forEach((s,index)=>s.index=index);
       this.commit(next);
       return next;
+    }
+    applyTransitionToAll(index){
+      const slides=this.getModel().surfaces;
+      const transition=slides[index].transition||"none";
+      const speed=slides[index].transition_speed||"med";
+      if(slides.every(slide=>(slide.transition||"none")===transition&&
+        (slide.transition_speed||"med")===speed))return;
+      this.apply(items=>{
+        for(const slide of items)Object.assign(slide,{transition,transition_speed:speed});
+      });
     }
     insert(after){
       return this.apply(slides=>{
@@ -348,6 +359,10 @@
       ])this._button(label,()=>this.insertChart(kind),"Inserir gráfico PPTX nativo e editável");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
+      this._button("Aplicar a todos os slides",()=>{
+        this.commands.applyTransitionToAll(this.current);
+        this.status("A transição do slide atual foi aplicada à apresentação.");
+      },"Copiar o efeito e a velocidade do slide atual para todos os slides");
       this._button("Prévia",()=>this.previewTransition(),"Prévia da transição no slide atual");
       this.presentButton=this._button("Apresentar",()=>this.startPresentation(this.current),"Apresentar a partir do slide selecionado (Shift+F5); F5 inicia no primeiro.");
       const paintLabel=document.createElement("label");paintLabel.className="slide-paint-selector";
@@ -385,7 +400,7 @@
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
         {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
-        {label:"Transições",labels:["Prévia","Apresentar"]}
+        {label:"Transições",labels:["Aplicar a todos os slides","Prévia","Apresentar"]}
       ];
       const panels=[];
       for(const item of categories){

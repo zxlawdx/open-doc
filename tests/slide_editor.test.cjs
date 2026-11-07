@@ -896,3 +896,24 @@ test('Selection shortcuts format text, change layers and scale in one edit',t=>{
  assert.equal(current.width,text.width/2);
  assert.equal(current.height,text.height/2);
 });
+
+test('Apply to all copies transition and speed in one edit and can clear them',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'+ Slide');clickLabel(q.controls,'+ Slide');
+ q.editor.commands.updateSlide(0,{transition:'fade',transition_speed:'fast'});
+ q.editor.commands.updateSlide(1,{transition:'wipe-left',transition_speed:'slow'});
+ q.editor.goTo(1);
+ const tab=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+   .find(button=>button.textContent==='Transições');
+ tab.click();
+ const apply=()=>clickLabel(q.controls,'Aplicar a todos os slides');
+ const before=q.versions.length;
+ apply();
+ assert.equal(q.versions.length,before+1);
+ assert.ok(q.model().surfaces.every(slide=>slide.transition==='wipe-left'&&slide.transition_speed==='slow'));
+ apply();
+ assert.equal(q.versions.length,before+1);
+ q.editor.commands.updateSlide(1,{transition:'none',transition_speed:'med'});
+ apply();
+ assert.ok(q.model().surfaces.every(slide=>slide.transition==='none'&&slide.transition_speed==='med'));
+});
