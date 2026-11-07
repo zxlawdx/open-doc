@@ -332,12 +332,12 @@
       section.append(caption);
       const table=document.createElement("table");table.className="slide-chart-grid";
       table.setAttribute("aria-label","Tabela dos dados do gráfico");
-      const head=document.createElement("thead");head.innerHTML="<tr><th>Categoria</th><th>Valor</th><th></th></tr>";
+      const head=document.createElement("thead");head.innerHTML="<tr><th>Categoria</th><th>Valor</th><th>Cor</th><th></th></tr>";
       const body=document.createElement("tbody");table.append(head,body);
       chart.chart_categories.forEach((category,index)=>{
         const tr=document.createElement("tr"),catTd=document.createElement("td"),valTd=document.createElement("td"),
-          delTd=document.createElement("td");
-        const cat=document.createElement("input");cat.type="text";cat.maxLength=60;cat.value=category;
+          colorTd=document.createElement("td"),delTd=document.createElement("td");
+        const cat=document.createElement("textarea");cat.rows=2;cat.maxLength=240;cat.value=category;
         cat.setAttribute("aria-label","Categoria "+(index+1));
         const val=document.createElement("input");val.type="number";val.step="any";
         val.min=chart.chart_type==="pie"?"0":"-100000000";val.max="100000000";
@@ -361,8 +361,17 @@
             commit({chart_categories:cats,chart_values:vals});}
           catch(error){status(error.message);}
         },{signal});
-        catTd.append(cat);valTd.append(val);delTd.append(remove);
-        tr.append(catTd,valTd,delTd);body.append(tr);
+        const color=document.createElement("input");color.type="color";
+        color.value=ChartLayoutEngine.colors(chart,chart.chart_categories.length)[index];
+        color.setAttribute("aria-label","Cor da categoria "+(index+1));
+        color.title="Cor individual de "+category;
+        color.addEventListener("change",()=>{
+          const colors=ChartLayoutEngine.colors(chart,chart.chart_categories.length);
+          colors[index]=color.value.toUpperCase();
+          commit({chart_color_mode:"custom",chart_item_colors:colors});
+        },{signal});
+        catTd.append(cat);valTd.append(val);colorTd.append(color);delTd.append(remove);
+        tr.append(catTd,valTd,colorTd,delTd);body.append(tr);
       });
       section.append(table);
       const add=document.createElement("button");add.type="button";add.textContent="+ Adicionar categoria";
@@ -373,6 +382,107 @@
         const values=chart.chart_values.concat([chart.chart_type==="pie"?1:0]);
         commit({chart_categories:categories,chart_values:values});
       },{signal});section.append(add);
+
+      // Progressive disclosure: the frequently used data editor stays open.
+      // Advanced controls are grouped, rather than scrolling through one
+      // very long unstructured sidebar (recognition, consistency, control).
+      const makeGroup=(title,open=false)=>{
+        const group=document.createElement("details");group.className="slide-chart-settings";
+        group.open=open;const summary=document.createElement("summary");summary.textContent=title;
+        group.append(summary);return group;
+      };
+      const data=makeGroup("Dados e categorias",true);
+      const bodyNodes=Array.from(section.children);
+      for(const child of bodyNodes)data.append(child);
+      section.append(data);
+      const format=makeGroup("Rótulos e tipografia",true);
+      const appearance=makeGroup("Cores e fundo",false);
+      const layout=makeGroup("Layout e apresentação",false);
+      const groupLabel=(group,caption,input)=>{
+        const label=document.createElement("label");label.className="slide-chart-setting";
+        label.textContent=caption;label.append(input);group.append(label);return input;
+      };
+      const choose=(group,caption,key,items,defaultValue)=>{
+        const input=document.createElement("select");input.setAttribute("aria-label",caption);
+        for(const [value,label] of items){
+          const option=document.createElement("option");option.value=value;option.textContent=label;
+          input.append(option);
+        }
+        input.value=String(chart[key]??defaultValue);
+        input.addEventListener("change",()=>{
+          commit({[key]:input.value==="true"?true:input.value==="false"?false:input.value});
+        },{signal});return groupLabel(group,caption,input);
+      };
+      const numeric=(group,caption,key,min,max,step,initial)=>{
+        const input=document.createElement("input");input.type="number";
+        input.min=String(min);input.max=String(max);input.step=String(step);
+        input.value=String(chart[key]??initial);input.setAttribute("aria-label",caption);
+        input.addEventListener("change",()=>{
+          const value=Number(input.value);
+          if(!Number.isFinite(value)||value<min||value>max){
+            status(caption+": informe um valor entre "+min+" e "+max+".");return;
+          }
+          commit({[key]:value});
+        },{signal});return groupLabel(group,caption,input);
+      };
+      const toggle=(group,caption,key,defaultValue)=>{
+        const input=document.createElement("input");input.type="checkbox";
+        input.checked=Boolean(chart[key]??defaultValue);
+        input.setAttribute("aria-label",caption);
+        input.addEventListener("change",()=>commit({[key]:input.checked}),{signal});
+        return groupLabel(group,caption,input);
+      };
+      const colorField=(group,caption,key,initial)=>{
+        const input=document.createElement("input");input.type="color";
+        input.value=chart[key]||initial;input.setAttribute("aria-label",caption);
+        input.addEventListener("change",()=>commit({[key]:input.value.toUpperCase()}),{signal});
+        return groupLabel(group,caption,input);
+      };
+      const font=document.createElement("input");font.type="text";font.maxLength=80;
+      font.value=chart.chart_label_font||"Arial";font.setAttribute("list","slide-chart-fonts");
+      font.setAttribute("aria-label","Família da fonte dos rótulos");
+      const fonts=document.createElement("datalist");fonts.id="slide-chart-fonts";
+      for(const family of ["Arial","Calibri","Inter","Liberation Sans","Liberation Serif",
+        "DejaVu Sans","DejaVu Serif","Verdana","Times New Roman"]){
+        const opt=document.createElement("option");opt.value=family;fonts.append(opt);
+      }
+      font.addEventListener("change",()=>{
+        if(font.value.trim())commit({chart_label_font:font.value.trim()});
+      },{signal});
+      groupLabel(format,"Família da fonte",font);format.append(fonts);
+      numeric(format,"Tamanho da fonte (pt)","chart_label_font_size",7,24,1,12);
+      numeric(format,"Espaçamento entre letras (pt)","chart_label_letter_spacing",-2,8,.1,0);
+      colorField(format,"Cor dos rótulos","chart_label_color","#43546B");
+      toggle(format,"Negrito","chart_label_bold",false);
+      toggle(format,"Itálico","chart_label_italic",false);
+      toggle(format,"Quebra automática de linha","chart_label_wrap",true);
+      toggle(format,"Mostrar rótulos das categorias","chart_label_visible",true);
+      choose(format,"Rotação dos rótulos","chart_label_rotation",
+        [[0,"Automático / 0°"],[30,"30°"],[45,"45°"],[60,"60°"],[90,"90°"]],"0");
+      choose(format,"Alinhamento dos rótulos","chart_label_align",
+        [["left","Esquerda"],["center","Centro"],["right","Direita"]],"center");
+      choose(format,"Rótulos de valores","chart_data_labels",[
+        ["none","Ocultar"],["value","Valores"],["percent","Percentuais"],
+        ["both","Valores e percentuais"]],"percent");
+      choose(format,"Interpretação dos percentuais","chart_percent_mode",[
+        ["share","Participação no total (calculado)"],
+        ["provided","Valores já estão em porcentagem"]],"share");
+      choose(appearance,"Distribuição das cores","chart_color_mode",[
+        ["palette","Automática pela paleta"],["custom","Uma cor para cada categoria"]],"palette");
+      colorField(appearance,"Cor do fundo","chart_background_color","#FFFFFF");
+      choose(appearance,"Fundo do gráfico","chart_background",[
+        ["solid","Cor sólida"],["transparent","Transparente — mostrar o slide"]],"solid");
+      numeric(layout,"Margem extra (px)","chart_margin",0,80,1,0);
+      choose(layout,"Tipo de margem","chart_margin_mode",[
+        ["auto","Automática"],["custom","Personalizada"]],"auto");
+      choose(layout,"Posição da legenda","chart_legend_position",[
+        ["auto","Automática"],["right","Direita"],["bottom","Inferior"]],"auto");
+      toggle(layout,"Layout automático","chart_layout_auto",true);
+      const note=document.createElement("p");note.className="slide-chart-hint";
+      note.textContent="Os percentuais calculados não modificam os valores originais. "+
+        "Cada alteração gera uma etapa de desfazer. Os rótulos completos permanecem editáveis.";
+      format.append(note);
+      section.append(format,appearance,layout);
       container.append(section);return section;
     }
   }
