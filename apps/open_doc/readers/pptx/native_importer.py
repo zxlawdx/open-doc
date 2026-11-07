@@ -158,14 +158,28 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
             runs = paragraphs[0].runs if paragraphs else []
             if runs:
                 font = runs[0].font
-                base["font_family"] = str(font.name or "Inter")[:80]
-                if font.size:
-                    base["font_size_pt"] = max(6.0, min(144.0, float(font.size.pt)))
-                base["color"] = _rgb(font.color, _rgb(paragraphs[0].font.color, base["color"]))
-                if font.bold is not None:
-                    base["font_bold"] = font.bold
-                if font.italic is not None:
-                    base["font_italic"] = font.italic
+                # PowerPoint text formatting commonly lives on a:defRPr
+                # (paragraph default run properties), not the individual
+                # a:rPr. Treat an unset run property as inherited rather
+                # than substituting small black text in the editor.
+                paragraph_font = paragraphs[0].font
+                base["font_family"] = str(
+                    font.name or paragraph_font.name or "Inter"
+                )[:80]
+                effective_size = font.size or paragraph_font.size
+                if effective_size is not None:
+                    base["font_size_pt"] = max(
+                        6.0, min(144.0, float(effective_size.pt))
+                    )
+                base["color"] = _rgb(
+                    font.color, _rgb(paragraph_font.color, base["color"])
+                )
+                bold = font.bold if font.bold is not None else paragraph_font.bold
+                italic = font.italic if font.italic is not None else paragraph_font.italic
+                if bold is not None:
+                    base["font_bold"] = bold
+                if italic is not None:
+                    base["font_italic"] = italic
     return base
 
 
