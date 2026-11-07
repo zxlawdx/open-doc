@@ -1,6 +1,6 @@
 import json
 import sys
-from pathlib import Path
+from pathlib import PurePosixPath
 
 import pytest
 
@@ -130,3 +130,9 @@ def test_packaged_entrypoint_uses_document_argument(monkeypatch, tmp_path):
     monkeypatch.setattr(wsgi, "create_app", create_app)
     wsgi.run()
     assert events == [executable, document, "started"]
+
+
+def test_linux_desktop_entry_escapes_exec_metacharacters():
+    executable = PurePosixPath('/opt/vela/Open-Doc/Open $Doc "50%"')
+    entry = associations._desktop_entry(executable)
+    assert r'Exec="/opt/vela/Open-Doc/Open \\$Doc \\"50%%\\"" %f' in entry.splitlines()
