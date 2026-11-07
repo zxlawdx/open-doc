@@ -825,7 +825,8 @@
       const editor=document.createElement("textarea");
       editor.className="slide-inline-editor";editor.value=value||"";
       Object.assign(editor.style,{fontFamily:node.style.fontFamily,fontSize:node.style.fontSize,
-        fontWeight:node.style.fontWeight,fontStyle:node.style.fontStyle});
+        fontWeight:node.style.fontWeight,fontStyle:node.style.fontStyle,
+        letterSpacing:node.style.letterSpacing});
       editor.maxLength=10000;editor.setAttribute("aria-label","Editar texto diretamente no slide");
       const previous=node.style.overflow;
       for(const child of Array.from(node.childNodes)){
@@ -1247,7 +1248,8 @@
         transform:"rotate("+Number(obj.rotation||0)+"deg) scale("+(obj.flip_h?-1:1)+","+(obj.flip_v?-1:1)+")",
         fontSize:(obj.font_size_pt||28)*4/3*zoom*(thumb?.16:1)+"px",
         fontFamily:JSON.stringify(obj.font_family||"Inter")+",sans-serif",
-        fontWeight:obj.font_bold?"bold":"normal",fontStyle:obj.font_italic?"italic":"normal"
+        fontWeight:obj.font_bold?"bold":"normal",fontStyle:obj.font_italic?"italic":"normal",
+        letterSpacing:((obj.font_letter_spacing_pt||0)*4/3*zoom*(thumb?.16:1))+"px"
       });
     }
     _thumb(button,surface,index){
@@ -1416,6 +1418,11 @@
           .setAttribute("aria-pressed",String(Boolean(selected.font_bold)));
         button("Itálico",()=>update({font_italic:!selected.font_italic}))
           .setAttribute("aria-pressed",String(Boolean(selected.font_italic)));
+        const tracking=this._property("Espaçamento entre letras (pt)",
+          selected.font_letter_spacing_pt??0,"number",
+          value=>update({font_letter_spacing_pt:clamp(Number(value)||0,-2,20)}),bar);
+        tracking.min="-2";tracking.max="20";tracking.step="0.1";
+        tracking.title="Distância adicional entre caracteres. Zero usa o espaçamento normal.";
         this._colorProperty("Cor do texto",selected.color,value=>update({color:value}),bar);
       }
       const layer=slide.elements.indexOf(selected);
@@ -1457,6 +1464,10 @@
       styleLabel.append(style);this.inspector.append(styleLabel);
       this._toggleProperty("Negrito",selected.font_bold,value=>update({font_bold:value}));
       this._toggleProperty("Itálico",selected.font_italic,value=>update({font_italic:value}));
+      const spacing=this._property("Espaçamento entre letras (pt)",
+        selected.font_letter_spacing_pt??0,"number",
+        value=>update({font_letter_spacing_pt:clamp(Number(value)||0,-2,20)}));
+      spacing.min="-2";spacing.max="20";spacing.step="0.1";
     }
     _property(label,value,kind,onChange,container=this.inspector){
       const wrapper=document.createElement("label");wrapper.textContent=label;
