@@ -57,6 +57,42 @@
   });
   nativeEditButton.title='Substituir texto real de PDFs digitais com fonte compatível';
   nativeEditButton.hidden=true;
+  const queuedPdfEdits=[];
+  let queuedPdfDocumentId=null;
+  const batchPdfButton=button('Salvar lote PDF',async()=>{
+    if(!queuedPdfEdits.length)return;
+    if(note?.id!==queuedPdfDocumentId){
+      queuedPdfEdits.length=0;queuedPdfDocumentId=null;
+      batchPdfButton.hidden=true;
+      status('O documento foi alterado; a fila anterior foi descartada.');
+      return;
+    }
+    batchPdfButton.disabled=true;
+    try{
+      await flush();
+      const result=await window.pywebview.api.edit_pdf_native(
+        note.id,note.revision,{kind:'batch',
+          operations:queuedPdfEdits.map(item=>({...item}))});
+      if(result.error)throw Error(result.error);
+      if(result.cancelled)return;
+      if(result.document){
+        queuedPdfEdits.length=0;queuedPdfDocumentId=null;
+        batchPdfButton.hidden=true;removePdfEditButton.hidden=true;
+        await load(result.document);
+        status('Lote de correções aplicado e PDF reaberto: '+result.path);
+      }
+    }catch(error){status('Lote PDF: '+error.message);}
+    finally{batchPdfButton.disabled=false;}
+  });
+  batchPdfButton.hidden=true;
+  const removePdfEditButton=button('Retirar última correção',()=>{
+    queuedPdfEdits.pop();
+    if(!queuedPdfEdits.length)queuedPdfDocumentId=null;
+    batchPdfButton.textContent='Salvar lote PDF ('+queuedPdfEdits.length+')';
+    batchPdfButton.hidden=removePdfEditButton.hidden=!queuedPdfEdits.length;
+    status(queuedPdfEdits.length+' correções aguardando gravação.');
+  });
+  removePdfEditButton.hidden=true;
   const pdfButton=button('Salvar PDF',()=>exportDocument('pdf'));const pptxButton=button('Salvar PPTX',()=>exportDocument('pptx'));
   const nativeTextButton=button('Substituir por texto exato',()=>{
     nativeTextPanel.hidden=!nativeTextPanel.hidden;
@@ -162,8 +198,30 @@
     expanded.append(checkbox,document.createTextNode('Permitir texto maior (conferir encaixe)'));
     const actions=document.createElement('div');actions.className='pdf-native-editor-actions';
     const save=document.createElement('button');save.type='submit';save.textContent='Salvar PDF corrigido';
+    const addBatch=document.createElement('button');addBatch.type='button';
+    addBatch.textContent='Adicionar ao lote';
+    addBatch.addEventListener('click',()=>{
+      if(!input.value||input.value===old){
+        status('Altere o texto antes de adicioná-lo ao lote.');return;
+      }
+      if(input.value.length>old.length*1.1&&!checkbox.checked){
+        status('Marque a permissão para ampliar o texto.');return;
+      }
+      if(queuedPdfEdits.length>=20){status('Limite de 20 correções por lote.');return;}
+      if(queuedPdfDocumentId&&queuedPdfDocumentId!==note.id){
+        status('Salve a fila existente antes de trocar de documento.');return;
+      }
+      queuedPdfDocumentId=note.id;
+      queuedPdfEdits.push({
+        kind:'replace_text',page:Number(surface.dataset.pageIndex),
+        old,new:input.value,allow_expansion:checkbox.checked
+      });
+      batchPdfButton.textContent='Salvar lote PDF ('+queuedPdfEdits.length+')';
+      batchPdfButton.hidden=false;removePdfEditButton.hidden=false;
+      panel.remove();status(queuedPdfEdits.length+' correções na fila. Salve tudo em uma cópia.');
+    });
     const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancelar';
-    cancel.addEventListener('click',()=>panel.remove());actions.append(save,cancel);
+    cancel.addEventListener('click',()=>panel.remove());actions.append(save,addBatch,cancel);
     panel.append(label,expanded,actions);
     const rect=word.getBoundingClientRect(),area=surface.getBoundingClientRect();
     const left=Math.max(6,Math.min(surface.clientWidth-330,rect.left-area.left));
