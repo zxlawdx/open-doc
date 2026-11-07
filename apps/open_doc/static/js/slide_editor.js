@@ -261,7 +261,7 @@
           :value&&typeof value==="object"
           ?1+Math.max(0,...Object.values(value).map(complexity))
           :0;
-        const size=complexity(blocks)>=5?34:42;
+        const size=complexity(blocks)>=3?34:42;
         elements.push({id,type:"math",name:definition.label||"Equação",
           ...position,rotation:0,
           font_family:"Cambria Math",font_size_pt:size,
