@@ -98,7 +98,10 @@
         if(row.length)rows.push(row);
         if(!rows.length||rows.some(r=>r.length!==rows[0].length))
           throw Error("Matriz irregular.");
-        this.at+=5;const end=this.arg();
+        this.at+=5;const endStart=this.at;
+        while(this.at<this.source.length&&this.source[this.at]!=="}")this.at++;
+        if(this.at>=this.source.length)throw Error("Ambiente LaTeX sem fechamento.");
+        const end=this.source.slice(endStart,this.at);this.require("}");
         if(end!==env)throw Error("Ambiente LaTeX não encerrado.");
         return {kind:"matrix",rows};
       }
