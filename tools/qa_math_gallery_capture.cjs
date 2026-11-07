@@ -36,7 +36,10 @@ const port=process.argv[2]||'9234';
   await new Promise(ok=>setTimeout(ok,150));
   const ready=await evalJS('(()=>{const el=Array.from(document.querySelectorAll(".slide-object-image img")).find(x=>x.alt.includes("Equação:"));const r=el?.getBoundingClientRect();return !!r&&r.width>60&&r.height>25})()');
   if(ready)break;
-  if(count===69)throw Error('Equation did not insert into slide as visible image');
+  if(count===69){
+   const diag=await evalJS('(()=>({status:document.querySelector("[data-status]")?.textContent,templateDisabled:document.querySelector(".slide-math-gallery button[data-math-id=line]")?.disabled,panelHidden:document.querySelector(".slide-math-gallery")?.hidden,imageNames:Array.from(document.querySelectorAll(".slide-object-image img")).map(x=>x.alt),errorText:document.body.innerText.slice(-350)}))()');
+   throw Error('Equation did not insert into slide: '+JSON.stringify(diag));
+  }
  }
  const metrics=await evalJS('(()=>{const img=Array.from(document.querySelectorAll(".slide-object-image img")).find(x=>x.alt.includes("Equação:"));const r=img?.getBoundingClientRect();return {name:img?.alt,box:r?{width:r.width,height:r.height}:null,count:document.querySelectorAll(".slide-object-image").length,slides:document.querySelectorAll("[data-thumbnail-index]").length}})()');
  assert.ok(metrics.box?.width>60&&metrics.slides===36,JSON.stringify(metrics));
