@@ -1301,7 +1301,7 @@
         });
       }else if(obj.type==="text"){
         if(obj.list_style&&obj.list_style!=="none"){
-          const rows=String(obj.text||"").split("\\n");
+          const rows=String(obj.text||"").split("\n");
           rows.forEach((line,index)=>{
             const item=document.createElement("div");item.className="slide-text-list-item";
             item.textContent=(obj.list_style==="number"?(index+1)+". ":"• ")+line;
