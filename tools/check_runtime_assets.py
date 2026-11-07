@@ -118,7 +118,11 @@ def check(root: Path = ROOT) -> dict:
     manifest = validate_vendor(root)
     try:
         if not (root / "apps/open_doc/static/css/main.css").is_file():
-            raise ValueError("CSS ausente.")
+            raise ValueError("Tailwind pré-compilado ausente.")
+        if not (root / "apps/open_doc/static/css/runtime.css").is_file():
+            raise ValueError("CSS do editor não compilado.")
+        if not (root / "staticfiles/open_doc/css/runtime.css").is_file():
+            raise ValueError("CSS do editor não coletado.")
         if not (root / "staticfiles/css/vela.bundle.css").is_file():
             raise ValueError("CSS offline do shell Vela ausente.")
         return manifest
