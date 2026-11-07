@@ -81,6 +81,29 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
   assert.ok(b.x>=result.page.x-1&&b.y>=result.page.y-1&&b.x+b.width<=result.page.x+result.page.width+1&&b.y+b.height<=result.page.y+result.page.height+1,JSON.stringify(result));
  }
  assert.ok(result.hitPoint.y>=0&&result.hitPoint.y<result.viewport.height,'SVG target outside Qt viewport: '+JSON.stringify(result));
+ if(result.hit!==result.ellipseId){
+   fs.mkdirSync(destination,{recursive:true});
+   await shot('slide-svg-hit-failure');
+   const details=await evaluate(`(()=>{
+     const node=document.querySelector('.fixed-surface[data-page-index="0"] .slide-object-ellipse');
+     const box=node.getBoundingClientRect(),x=box.left+box.width/2,y=box.top+box.height/2;
+     const ancestry=[];let current=node;
+     while(current&&ancestry.length<12){
+       const style=getComputedStyle(current),r=current.getBoundingClientRect();
+       ancestry.push({tag:current.tagName,className:String(current.className).slice(0,120),
+         pointerEvents:style.pointerEvents,overflow:style.overflow,
+         zIndex:style.zIndex,position:style.position,
+         rect:{x:r.x,y:r.y,width:r.width,height:r.height}});
+       current=current.parentElement;
+     }
+     return {point:{x,y},stack:document.elementsFromPoint(x,y).slice(0,12).map(el=>({
+       tag:el.tagName,className:String(el.className).slice(0,120),
+       pointerEvents:getComputedStyle(el).pointerEvents,
+       slideElement:el.closest('[data-slide-element]')?.dataset.slideElement||null
+     })),ancestry};
+   })()`);
+   fs.writeFileSync(path.join(destination,'slide-svg-hit-failure.json'),JSON.stringify({result,details},null,2));
+ }
  assert.equal(result.hit,result.ellipseId,'Top SVG shape must be selectable: '+JSON.stringify(result));
  assert.equal(result.rect.fill,'#DAE2FD');
  assert.equal(result.ellipse.fill.toUpperCase(),'#F4B183');
@@ -167,6 +190,20 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  await pause(200);
  const imageGeometry=await evaluate("(()=>{const item=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');const box=item.getBoundingClientRect();const x=box.left+box.width/2,y=box.top+box.height/2;const top=document.elementFromPoint(x,y);return {x:box.x,y:box.y,width:box.width,height:box.height,hit:top?.closest('[data-slide-element]')?.dataset.slideElement,hitElement:top?.outerHTML.slice(0,350),imageId:item.dataset.slideElement,viewport:{width:innerWidth,height:innerHeight}};})()");
  assert.ok(imageGeometry.width>20&&imageGeometry.height>20,'Qt slide image has zero size: '+JSON.stringify(imageGeometry));
+ if(imageGeometry.hit!==imageGeometry.imageId){
+   fs.mkdirSync(destination,{recursive:true});
+   await shot('slide-image-hit-failure');
+   const details=await evaluate(`(()=>{
+     const item=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');
+     const b=item.getBoundingClientRect(),x=b.left+b.width/2,y=b.top+b.height/2;
+     return {point:{x,y},stack:document.elementsFromPoint(x,y).slice(0,12).map(el=>({
+       tag:el.tagName,className:String(el.className).slice(0,120),
+       pointerEvents:getComputedStyle(el).pointerEvents,
+       slideElement:el.closest('[data-slide-element]')?.dataset.slideElement||null
+     }))};
+   })()`);
+   fs.writeFileSync(path.join(destination,'slide-image-hit-failure.json'),JSON.stringify({imageGeometry,details},null,2));
+ }
  assert.equal(imageGeometry.hit,imageGeometry.imageId,'Qt slide image not selectable');
  const imageShot=await send('Page.captureScreenshot',{format:'png'});
  fs.writeFileSync(path.join(destination,'slide-native-image.png'),Buffer.from(imageShot.data,'base64'));
