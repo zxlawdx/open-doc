@@ -542,7 +542,7 @@
 .open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group > button .slide-action-label{
   overflow:hidden;text-overflow:ellipsis;
 }
-.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-compact .slide-ribbon-group > button:has(.slide-action-icon) .slide-action-label{
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-compact .slide-ribbon-group > button.slide-icon-button .slide-action-label{
   display:none;
 }
 .open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-compact .slide-ribbon-group > button{
