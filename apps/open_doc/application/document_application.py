@@ -146,9 +146,9 @@ class DocumentApplication:
         operation = data["operation"]
         result = self.context.editor.versions(
             identifier, operation, fixed=fixed, version_id=data.get("version_id"),
-            revision=data.get("revision"), name=data.get("name"),
+            revision=data.get("revision"), name=data.get("name"), slide_index=data.get("slide_index"),
         )
-        if operation == "restore":
+        if operation in {"restore", "restore_slide"}:
             service = self.context.fixed_documents if fixed else self.context.editor
             result["document"] = service.get(identifier)
         return result

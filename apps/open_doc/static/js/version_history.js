@@ -5,12 +5,13 @@
     before_restore: "Antes da restauração", restored: "Restauração"
   };
 
-  function describe(snapshot) {
+  function describe(snapshot, slideIndex) {
     const model = snapshot.content_json ? JSON.parse(snapshot.content_json) : null;
     const lines = [snapshot.title];
     if (snapshot.markdown !== null) lines.push(...snapshot.markdown.split("\n"));
     if (model?.surfaces) {
       for (const [index, surface] of model.surfaces.entries()) {
+        if (slideIndex !== undefined && index !== slideIndex) continue;
         const label = model.source_kind === "pptx" ? "Slide" : "Página";
         const context = label + " " + (index + 1);
         const details = [surface.width_pt + " × " + surface.height_pt + " pt"];
@@ -40,9 +41,9 @@
     return lines;
   }
 
-  function compare(container, selected, current) {
-    const before = describe(selected);
-    const after = describe(current);
+  function compare(container, selected, current, slideIndex) {
+    const before = describe(selected, slideIndex);
+    const after = describe(current, slideIndex);
     container.replaceChildren();
     for (const [title, lines, other] of [
       ["Versão selecionada", before, after], ["Documento atual", after, before]
@@ -92,6 +93,10 @@
     const notice = document.createElement("p");
     const preview = document.createElement("div");
     const actions = document.createElement("div");
+    const slidePicker = document.createElement("select");
+    const slideField = field("Slide para comparar e restaurar", slidePicker);
+    slideField.style.display = "none";
+    let comparison = null;
     const controls = [];
     let busy = false;
     preview.className = "version-history-comparison";
@@ -124,7 +129,7 @@
       modal.dataset.historyBusy = String(busy);
       modal.querySelector("[data-dialog-cancel]").disabled = busy;
       modal.querySelector("[data-dialog-confirm]").disabled = busy;
-      picker.disabled = search.disabled = name.disabled = busy;
+      picker.disabled = search.disabled = name.disabled = slidePicker.disabled = busy;
       for (const {control, available} of controls) control.disabled = busy || !available();
     }
     async function run(action) {
@@ -135,6 +140,12 @@
       try { await action(); }
       catch (error) { notice.textContent = error.message; }
       finally { busy = false; updateControls(); }
+    }
+    function clearComparison() {
+      comparison = null;
+      slideField.style.display = "none";
+      slidePicker.replaceChildren();
+      preview.replaceChildren();
     }
     function refresh(preferred = picker.value) {
       const query = search.value.trim().toLocaleLowerCase();
@@ -149,7 +160,7 @@
         picker.append(option);
       }
       if ([...picker.options].some(option => option.value === preferred)) picker.value = preferred;
-      preview.replaceChildren();
+      clearComparison();
       updateControls();
     }
 
@@ -165,8 +176,21 @@
     button("Renomear", "edit", () => change("rename"), hasSelection);
     button("Duplicar versão", "copy", () => change("duplicate"), hasSelection);
     button("Comparar", "layers", async () => {
-      const result = await call("inspect", {version_id: picker.value});
-      compare(preview, result.selected, result.current);
+      clearComparison();
+      comparison = await call("inspect", {version_id: picker.value});
+      const {selected, current} = comparison;
+      if (editor.snapshot().content?.editable_deck) {
+        const oldModel = JSON.parse(selected.content_json);
+        const model = JSON.parse(current.content_json);
+        if (oldModel.editable_deck && model.editable_deck) {
+          slidePicker.add(new Option("Todos os slides", ""));
+          for (let i = 0; i < Math.min(oldModel.surfaces.length, model.surfaces.length); i++) {
+            slidePicker.add(new Option("Slide " + (i + 1), String(i)));
+          }
+          if (slidePicker.options.length > 1) slideField.style.display = "";
+        }
+      }
+      compare(preview, selected, current);
     }, hasSelection);
     button("Restaurar", "undo", async () => {
       if (!window.confirm("Restaurar a versão selecionada? O estado atual será guardado no histórico.")) return;
@@ -175,14 +199,28 @@
       close();
       status("Versão restaurada. O estado anterior foi preservado.");
     }, hasSelection);
+    button("Restaurar este slide", "undo", async () => {
+      const slideIndex = Number(slidePicker.value);
+      if (!window.confirm("Restaurar somente o slide " + (slideIndex + 1) + "? O estado atual será guardado no histórico.")) return;
+      const result = await call("restore_slide", {version_id: picker.value, slide_index: slideIndex});
+      editor.load(result.document);
+      close();
+      status("Slide " + (slideIndex + 1) + " restaurado.");
+    }, () => Boolean(comparison && slidePicker.value));
     button("Excluir versão", "trash", async () => {
       if (window.confirm("Excluir a versão mais recente do histórico?")) await change("delete");
     }, () => hasSelection() && versions[0]?.id === picker.value);
 
     search.addEventListener("input", () => refresh());
-    picker.addEventListener("change", () => { preview.replaceChildren(); updateControls(); });
+    picker.addEventListener("change", () => { clearComparison(); updateControls(); });
+    slidePicker.addEventListener("change", () => {
+      if (!comparison) return;
+      const index = slidePicker.value ? Number(slidePicker.value) : undefined;
+      compare(preview, comparison.selected, comparison.current, index);
+      updateControls();
+    });
     body.append(field("Pesquisar versões", search), field("Versão", picker),
-      field("Nome da versão", name), actions, notice, preview);
+      field("Nome da versão", name), slideField, actions, notice, preview);
     refresh();
     search.focus();
     await pending;

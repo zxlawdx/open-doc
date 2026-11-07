@@ -318,10 +318,20 @@ def main():
             retained("FINAL_OVERFLOW_QA")
             for line in overflow_lines:
                 assert_text(line)
-            assert (
-                window.evaluate_js("document.querySelectorAll('.document-page').length")
-                > pages_before
-            )
+            # Repagination is scheduled separately from text retention.
+            # Wait for the observable result and still fail if no page is created.
+            try:
+                wait(
+                    window,
+                    f"document.querySelectorAll('.document-page').length > {pages_before}",
+                )
+            except AssertionError as error:
+                details = window.evaluate_js(
+                    "JSON.stringify(OpenDocApp.editor().pagination()?.diagnostics())"
+                )
+                raise AssertionError(
+                    f"Overflow did not add a page (started with {pages_before}): {details}"
+                ) from error
             assert window.evaluate_js(
                 "__fullRenders===0 && __images.every(i=>i.isConnected)"
             )

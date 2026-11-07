@@ -56,7 +56,8 @@ def test_linux_registers_existing_mime_types_and_changes_only_selected_default(
     associations.register(executable)
     associations.register(executable)
     desktop = tmp_path / "applications" / "Open-Doc.desktop"
-    assert f'Exec="{executable}" %f' in desktop.read_text(encoding="utf-8")
+    escaped = str(executable).replace("\\", "\\" * 4)
+    assert f'Exec="{escaped}" %f' in desktop.read_text(encoding="utf-8")
     assert "MimeType=" + ";".join(
         associations.FILE_TYPES.values()
     ) + ";" in desktop.read_text(encoding="utf-8")

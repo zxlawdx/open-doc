@@ -204,3 +204,56 @@ def test_history_roundtrip_through_http_for_each_editor(tmp_path, kind, monkeypa
     assert result["document"]["revision"] == changed["revision"] + 1
     if kind == "pdf":
         assert result["document"]["reader_view"] == reader_view
+
+
+def test_restore_one_slide_keeps_newer_edits_and_recovery_point(tmp_path):
+    from apps.open_doc.application.context import configure
+    from test_native_slide_editor import element
+
+    context = configure(Config(tmp_path))
+    fixed = context.fixed_documents
+    document = fixed.create_presentation("Apresentação")
+    original = deepcopy(document["content"])
+    second = {**deepcopy(original["surfaces"][0]), "index": 1}
+    original["surfaces"].append(second)
+    original["surfaces"][0]["elements"] = [element()]
+    document = fixed.save(
+        document["id"], document["title"], original, document["revision"]
+    )
+    versions = context.documents.versions({"id": document["id"], "operation": "list"})
+    version_id = versions["versions"][0]["id"]
+    edited = deepcopy(original)
+    edited["surfaces"][0]["elements"][0]["text"] = "Texto revisado"
+    edited["surfaces"][1]["elements"] = [element()]
+    newer = fixed.save(document["id"], "Título recente", edited, document["revision"])
+
+    restore = {
+        "id": document["id"],
+        "operation": "restore_slide",
+        "version_id": version_id,
+        "revision": newer["revision"],
+        "slide_index": 0,
+    }
+    with pytest.raises(ValueError, match="duas versões"):
+        context.documents.versions({**restore, "slide_index": 2})
+    result = context.documents.versions(restore)
+    restored = result["document"]
+    assert restored["title"] == newer["title"]
+    assert restored["revision"] == newer["revision"] + 1
+    assert restored["content"]["surfaces"] == [
+        original["surfaces"][0],
+        edited["surfaces"][1],
+    ]
+    undo_id = next(
+        v["id"] for v in result["versions"] if v["reason"] == "before_restore"
+    )
+    before = context.documents.versions(
+        {
+            "id": document["id"],
+            "operation": "inspect",
+            "version_id": undo_id,
+        }
+    )
+    assert json.loads(before["selected"]["content_json"]) == edited
+    with pytest.raises(RevisionConflict):
+        context.documents.versions(restore)

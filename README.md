@@ -114,6 +114,14 @@ execute `python main.py "caminho/para/arquivo.docx"`. O menu de associações é
 destinado à versão instalada. Uma instalação anterior precisa ser atualizada
 com um novo build para receber o recurso.
 
+### Restaurar apenas um slide
+
+Em uma apresentação editável, abra **Arquivo → Histórico de versões**,
+selecione uma versão e clique em **Comparar**. Escolha o número do slide
+para ver o resumo de conteúdo daquela posição nas duas versões. Confira o
+conteúdo e use **Restaurar este slide**. A operação mantém os demais slides
+e guarda o estado completo anterior como um ponto de recuperação.
+
 ## Recursos em detalhe
 
 - Criar, renomear, reabrir e listar documentos recentes a partir do SQLite.
