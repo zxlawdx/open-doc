@@ -51,7 +51,7 @@ def main():
                 probe={
                     "pptx": "document.querySelector('[data-slide-editor=true] .slide-object-image')!==null",
                     "docx": "document.querySelector('[data-rich]')?.textContent.includes('Passo 1')",
-                    "pdf": "document.querySelector('.fixed-surface canvas')!==null"
+                    "pdf": "Array.from(document.querySelectorAll('.fixed-document .fixed-scroll .fixed-surface canvas[data-render-complete=true]')).some(c=>{const b=c.getBoundingClientRect();return b.width>80&&b.height>30})"
                 }[kind]
                 wait(window,probe)
                 output=subprocess.run(
