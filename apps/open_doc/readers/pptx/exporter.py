@@ -263,6 +263,35 @@ class SlideDeckExporter:
                 raise ValueError("O objeto original não contém matemática OMML.")
             write_math(shape, obj["math_blocks"])
             changed.remove("math_blocks")
+        if "text_runs" in changed:
+            if not shape.has_text_frame:
+                raise ValueError("O objeto original não possui runs de texto.")
+            target_runs = obj["text_runs"]
+            source_runs = original.get("text_runs")
+            paragraphs = shape.text_frame.paragraphs
+            if (not isinstance(target_runs, list)
+                    or not isinstance(source_runs, list)
+                    or len(target_runs) != len(paragraphs)
+                    or len(target_runs) != len(source_runs)):
+                raise ValueError("Não é seguro reestruturar parágrafos externos.")
+            for line_index, line in enumerate(target_runs):
+                actual = paragraphs[line_index].runs
+                if len(line) != len(actual) or len(line) != len(source_runs[line_index]):
+                    raise ValueError("Não é seguro alterar a quantidade de runs.")
+                for index, item in enumerate(line):
+                    prev = source_runs[line_index][index]
+                    if {key: val for key, val in item.items() if key != "text"} != {
+                        key: val for key, val in prev.items() if key != "text"
+                    }:
+                        raise ValueError("Modificar estilos de runs externos exige suporte adicional.")
+                    if actual[index].text != item["text"]:
+                        actual[index].text = item["text"]
+            joined = "\n".join("".join(run["text"] for run in line)
+                               for line in target_runs)
+            if "text" in changed and obj["text"] != joined:
+                raise ValueError("Texto agregado diverge dos runs preservados.")
+            changed.discard("text")
+            changed.remove("text_runs")
         if "table_cells" in changed:
             if not shape.has_table:
                 raise ValueError("O objeto original não contém tabela editável.")

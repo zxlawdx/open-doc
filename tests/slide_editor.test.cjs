@@ -1107,3 +1107,63 @@ test('new native equations adapt their initial ink color to dark/light slide bac
  const light=q.model().surfaces[0].elements.find(o=>o.id===other);
  assert.equal(light.color,'#192433');
 });
+
+test('imported multi-run PPTX edits one segment without flattening styled text',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ const before=q.model().surfaces[0].elements[0];
+ const original={...before,text:'Título vermelho e subtítulo azul',text_runs:[[
+  {text:'Título vermelho ',font_family:'Arial',font_size_pt:30,
+   font_bold:true,font_italic:false,color:'#BB2222'},
+  {text:'e subtítulo azul',font_family:'Georgia',font_size_pt:22,
+   font_bold:false,font_italic:true,color:'#2266BB'}
+ ]]};
+ q.editor.commands.updateObject(0,before.id,{...original,
+  source_original:JSON.parse(JSON.stringify(original))});
+ q.editor._selectObject(before.id);q.editor.render();
+ let spans=Array.from(q.scroller.querySelectorAll('.slide-styled-paragraph span'));
+ assert.equal(spans.length,2);
+ assert.equal(spans[0].style.fontWeight,'700');
+ assert.equal(spans[1].style.fontStyle,'italic');
+ assert.equal(spans[1].style.color,'rgb(34, 102, 187)');
+ const field=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+  .find(x=>x.textContent.startsWith('Parágrafo 1 · Trecho 1'));
+ assert.ok(field,'formatted runs must be individually editable');
+ const input=field.querySelector('input');
+ input.value='Texto atualizado ';
+ input.dispatchEvent(new q.w.Event('change'));
+ const edited=q.model().surfaces[0].elements[0];
+ assert.equal(edited.text,'Texto atualizado e subtítulo azul');
+ assert.equal(edited.text_runs[0][0].text,'Texto atualizado ');
+ assert.equal(edited.text_runs[0][1].text,'e subtítulo azul');
+ assert.equal(edited.text_runs[0][1].color,'#2266BB');
+ assert.equal(edited.text_runs[0][1].font_italic,true);
+});
+
+test('stress: editing a single object in a 120-slide deck keeps other slides immutable',t=>{
+ const q=setup(t);
+ const first=q.model().surfaces[0];
+ for(let index=1;index<120;index++){
+   const slide={index,width_pt:960,height_pt:540,background:'#FFFFFF',
+     notes:'',strokes:[],text_overlays:[],elements:[{
+       id:'obj-'+index,type:'text',x:.1,y:.1,width:.4,height:.2,
+       text:'Página '+index,font_family:'Inter',font_size_pt:28,
+       color:'#191C1E',fill:'#FFFFFF',stroke:'#004AC6'
+     }]};
+   q.model().surfaces.push(slide);
+ }
+ q.model().assets={sample:{mime:'image/png',data:'AA'.repeat(150000)}};
+ const before=q.model().surfaces.slice();
+ const asset=q.model().assets.sample;
+ const commits=q.versions.length;
+ q.editor.commands.insertObject(0,'text');
+ const after=q.model().surfaces;
+ assert.notEqual(after[0],first,'active slide must be copied');
+ for(let index=1;index<120;index++)
+   assert.equal(after[index],before[index],
+     'untouched slide '+index+' should not be serialized or copied');
+ assert.equal(q.model().assets.sample,asset,'assets must be shared, not copied');
+ assert.equal(q.versions.length,commits+1,'one user operation is one history update');
+ assert.equal(after[0].elements.length,1);
+ assert.equal(after[1].elements[0].text,'Página 1');
+});
