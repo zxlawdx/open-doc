@@ -1266,3 +1266,45 @@ test('PPTX text letter spacing persists on object and renders on canvas',t=>{
  assert.ok(parseFloat(text.style.letterSpacing)>0);
  assert.equal(q.model().surfaces[0].elements[0].id,id);
 });
+
+
+test('Adaptive chart labels survive ten categories, manual breaks, resize and multiple series',t=>{
+ const q=setup(t),engine=q.w.OpenDocSlideCharts;
+ const cats=Array.from({length:12},(_,i)=>
+   i===6?'Excedente operacional bruto\nrendimento misto bruto':
+   'Categoria econômica '+(i+1)+' com denominação completa');
+ const series=[
+   {name:'Período inicial',values:cats.map((_,i)=>i+2)},
+   {name:'Período seguinte',values:cats.map((_,i)=>(i+3)*2)}
+ ];
+ const source={chart_type:'bar',chart_categories:cats,chart_values:series[0].values,
+   chart_series:series,chart_title:'Comparação temporal',chart_label_font_size:11,
+   chart_label_wrap:true,chart_color_mode:'palette'};
+ const small=engine.ChartPreview.render(source,{width:420,height:270});
+ const big=engine.ChartPreview.render(source,{width:880,height:480});
+ assert.notEqual(small.getAttribute('viewBox'),big.getAttribute('viewBox'));
+ for(const svg of [small,big]){
+   const rendered=Array.from(svg.querySelectorAll('text')).map(text=>
+     Array.from(text.querySelectorAll('tspan')).map(span=>span.textContent)
+       .join(' ').replace(/\s+/g,' ').trim());
+   assert.ok(rendered.includes('Categoria econômica 12 com denominação completa'),
+     'No category may be silently omitted when there are 12 entries');
+   assert.ok(rendered.includes('Excedente operacional bruto rendimento misto bruto'));
+   assert.equal(svg.querySelector('canvas,img'),null,'chart remains vector');
+ }
+ clickLabel(q.controls,'Gráfico: Barras');
+ const add=q.host.querySelector('.slide-chart-add-series');
+ assert.ok(add);add.click();
+ assert.equal(q.model().surfaces[0].elements[0].chart_series.length,2);
+ let category=q.host.querySelector('.slide-chart-grid tbody tr:first-child textarea');
+ category.value='Categoria extensa com\nquebra manual';
+ category.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ const value=q.host.querySelector('[aria-label="Série 2 — categoria 1"]');
+ assert.ok(value);value.value='72';
+ value.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ const chart=q.model().surfaces[0].elements[0];
+ assert.equal(chart.chart_series[1].values[0],72);
+ assert.equal(chart.chart_categories[0],'Categoria extensa com\nquebra manual');
+ assert.equal(chart.chart_series[0].values.length,3);
+ assert.equal(chart.chart_series[1].values.length,3);
+});
