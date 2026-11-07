@@ -613,6 +613,19 @@
       this.root.addEventListener("keydown",event=>{
         if(!this.active)return;
         if(event.target.closest("input,textarea,[contenteditable=true]"))return;
+        // Navigation with keyboard arrows is scoped ONLY to the left
+        // thumbnail sidebar. Canvas arrows still nudge the selected object.
+        const thumbnail=event.target.closest("[data-thumbnail-index]");
+        if(thumbnail&&this.sidebar.contains(thumbnail)&&
+           ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)
+           &&!event.ctrlKey&&!event.metaKey&&!event.altKey){
+          const direction=(event.key==="ArrowUp"||event.key==="ArrowLeft")?-1:1;
+          const next=clamp(this.current+direction,0,this.getModel().surfaces.length-1);
+          event.preventDefault();event.stopPropagation();
+          if(next!==this.current)this.go(next);
+          this.sidebar.querySelector('[data-thumbnail-index="'+next+'"]')?.focus();
+          return;
+        }
         if(event.key===" "){event.preventDefault();this.spacePressed=true;
           if(!this.pan)this.scroller.style.cursor="grab";return;}
         if(event.key==="F5"){
