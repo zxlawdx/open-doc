@@ -50,7 +50,15 @@ class SlideDeckExporter:
         w = max(1, int(obj["width"] * width))
         h = max(1, int(obj["height"] * height))
         kind = obj["type"]
-        if kind == "chart":
+        if kind == "table":
+            cells = obj["table_cells"]
+            shape = slide.shapes.add_table(
+                len(cells), len(cells[0]), left, top, w, h
+            )
+            for row_index, row in enumerate(cells):
+                for col_index, value in enumerate(row):
+                    shape.table.cell(row_index, col_index).text = value
+        elif kind == "chart":
             native_data=CategoryChartData()
             native_data.categories=obj["chart_categories"]
             native_data.add_series("Valores", obj["chart_values"])
@@ -126,13 +134,13 @@ class SlideDeckExporter:
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj.get("fill", "#DAE2FD"))
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
-        if kind not in {"text", "image", "chart"}:
+        if kind not in {"text", "image", "chart", "table"}:
             shape.line.width = Pt(obj.get("stroke_width", 1.5))
-        if kind!="chart":
+        if kind not in {"chart", "table"}:
             shape.rotation = obj.get("rotation", 0)
         if obj.get("name"):
             shape.name = obj["name"]
-        if kind == "text" or obj.get("text"):
+        if kind == "text" or (kind != "table" and obj.get("text")):
             frame = shape.text_frame
             frame.clear()
             frame.word_wrap = True
@@ -239,6 +247,29 @@ class SlideDeckExporter:
                    and original.get(key) != value}
         if not changed:
             return
+        if "table_cells" in changed:
+            if not shape.has_table:
+                raise ValueError("O objeto original não contém tabela editável.")
+            cells = obj["table_cells"]
+            table = shape.table
+            if len(cells) != len(table.rows) or any(
+                len(row) != len(table.columns) for row in cells
+            ):
+                raise ValueError(
+                    "Alterar estrutura de tabela externa ainda não é seguro."
+                )
+            for row_index, row in enumerate(cells):
+                for col_index, value in enumerate(row):
+                    cell = table.cell(row_index, col_index)
+                    if cell.text != value:
+                        # Touch only the changed cell; other cells retain
+                        # their exact native OOXML (fills, borders, runs).
+                        paragraph = cell.text_frame.paragraphs[0]
+                        if len(cell.text_frame.paragraphs) == 1 and len(paragraph.runs) == 1:
+                            paragraph.runs[0].text = value
+                        else:
+                            cell.text = value
+            changed.remove("table_cells")
         supported = {"x", "y", "width", "height", "rotation", "name",
                      "text", "color", "font_family", "font_size_pt",
                      "font_bold", "font_italic", "fill", "stroke", "stroke_width",
