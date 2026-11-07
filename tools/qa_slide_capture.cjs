@@ -53,11 +53,22 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  const ribbon=await evaluate(`(()=>{
    const toolbar=document.querySelector('.slide-studio-toolbar');
    const controls=document.querySelector('.fixed-controls');
-   const insert=toolbar?.querySelector('.slide-ribbon-group:not([hidden])');
    const stage=document.querySelector('.fixed-scroll');
    const direct=Array.from(toolbar?.children||[]).filter(n=>n.tagName==='BUTTON');
+   const heights={};
+   for(const tab of Array.from(toolbar?.querySelectorAll('.slide-ribbon-tab:not([hidden])')||[])){
+     tab.click();
+     const visible=toolbar.querySelector('.slide-ribbon-group:not([hidden])');
+     heights[tab.textContent]=visible?.getBoundingClientRect().height||0;
+   }
+   const insertTab=Array.from(toolbar.querySelectorAll('.slide-ribbon-tab'))
+     .find(tab=>tab.textContent==='Inserir');
+   insertTab?.click();
+   const insert=toolbar.querySelector('.slide-ribbon-group:not([hidden])');
    const p=insert?.getBoundingClientRect(),v=stage?.getBoundingClientRect();
-   return {ribbonHeight:p?.height||0,stageHeight:v?.height||0,
+   return {ribbonHeight:p?.height||0,tabHeights:heights,
+     horizontalOverflow:Math.max(0,toolbar.scrollWidth-toolbar.clientWidth),
+     stageHeight:v?.height||0,
      controlsHeight:controls?.getBoundingClientRect().height||0,
      directButtons:direct.map(n=>n.textContent),
      visibleInsert:Array.from(insert?.querySelectorAll('button')||[]).map(n=>n.textContent)};
@@ -67,8 +78,13 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    JSON.stringify(ribbon,null,2));
  assert.deepEqual(ribbon.directButtons,[],
    'Floating ungrouped ribbon buttons cover the canvas: '+JSON.stringify(ribbon));
- assert.ok(ribbon.ribbonHeight>20&&ribbon.ribbonHeight<65,
-   'Insert ribbon must occupy one compact row: '+JSON.stringify(ribbon));
+ assert.ok(ribbon.ribbonHeight>=85&&ribbon.ribbonHeight<=105,
+   'New fixed-height ribbon panel must remain bounded: '+JSON.stringify(ribbon));
+ assert.ok(Object.values(ribbon.tabHeights).every(height=>
+   Math.abs(height-ribbon.ribbonHeight)<=2),
+   'Tabs must keep the same ribbon height: '+JSON.stringify(ribbon));
+ assert.ok(ribbon.horizontalOverflow<=2,
+   'PowerPoint ribbon must not require horizontal dragging: '+JSON.stringify(ribbon));
  assert.ok(ribbon.stageHeight>180,
    'Qt grid regression: ribbon collapsed .fixed-scroll to zero height; slide is not clickable: '+JSON.stringify(ribbon));
  const result=await evaluate(`(()=>{

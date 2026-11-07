@@ -490,3 +490,126 @@
   min-height:64px;margin-top:6px;resize:vertical;font-family:monospace}
 .open-doc .slide-math-latex-add{background:#124c9e;color:white;border:0;
   border-radius:7px;padding:9px;cursor:pointer;justify-self:start}
+
+
+/* Fixed Word-style ribbon for PPTX. All panels consume the same fixed space.
+   Never turn the shape catalog into a horizontal scrollbar on QtWebEngine. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  box-sizing:border-box;
+  height:152px!important;min-height:152px!important;max-height:152px!important;
+  display:block;overflow:visible!important;padding:0 12px!important;
+  border-bottom:1px solid var(--color-border-soft);
+  position:relative;z-index:12;
+  background:var(--color-panel);
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls > :not(.slide-studio-toolbar){
+  display:none!important;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{
+  box-sizing:border-box;display:flex!important;flex-direction:column;
+  width:100%;height:150px;min-height:150px;max-height:150px;
+  margin:0;padding:0;gap:0;overflow:visible!important;border:0;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar[hidden]{display:none!important}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-tabs{
+  box-sizing:border-box;height:39px;min-height:39px;max-height:39px;flex-shrink:0;
+  gap:2px;overflow:hidden;white-space:nowrap;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-tab{
+  box-sizing:border-box;min-height:35px!important;height:35px;
+  padding:6px 12px!important;flex:0 0 auto;font-size:12px;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-body{
+  box-sizing:border-box;width:100%;height:110px;max-height:110px;
+  flex:0 0 110px;display:block;overflow:visible!important;
+  padding:8px 0;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group{
+  box-sizing:border-box;display:flex;flex-flow:row wrap;align-content:flex-start;
+  align-items:center;justify-content:flex-start;gap:5px;
+  width:100%;height:92px;min-height:92px;max-height:92px;
+  max-width:100%;margin:0;padding:0;
+  overflow:visible!important;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group[hidden]{
+  display:none!important;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group > button{
+  flex:0 0 auto;display:inline-flex;min-width:35px;max-width:160px;
+  min-height:35px;height:35px;padding:5px 9px;
+  overflow:hidden;white-space:nowrap;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group > button .slide-action-label{
+  overflow:hidden;text-overflow:ellipsis;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-compact .slide-ribbon-group > button.slide-icon-button .slide-action-label{
+  display:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-compact .slide-ribbon-group > button{
+  width:36px;max-width:36px;padding:5px;
+}
+.open-doc .slide-ribbon-menu{position:relative;display:inline-block;z-index:20;flex:0 0 auto;}
+.open-doc .slide-ribbon-menu summary{
+  min-height:34px;display:flex;align-items:center;cursor:pointer;
+  border:1px solid var(--color-border-soft);border-radius:8px;
+  padding:5px 11px;font-size:12px;white-space:nowrap;
+  background:var(--of-surface-low);color:var(--color-text-primary);
+}
+.open-doc .slide-ribbon-menu[open] summary{border-color:var(--color-primary);color:var(--color-primary);}
+.open-doc .slide-ribbon-popup{
+  position:absolute;z-index:40;top:calc(100% + 3px);left:0;
+  box-sizing:border-box;display:grid;grid-template-columns:repeat(2,minmax(116px,1fr));
+  gap:4px;padding:8px;width:290px;max-width:min(90vw,330px);
+  border:1px solid var(--color-border);border-radius:10px;
+  box-shadow:0 12px 24px rgba(0,0,0,.20);
+  background:var(--color-panel);
+}
+.open-doc .slide-ribbon-popup button{
+  display:flex;align-items:center;justify-content:flex-start;gap:6px;
+  min-height:34px;padding:5px 8px;text-align:left;white-space:normal;
+}
+.open-doc .slide-ribbon-popup .slide-action-label{white-space:normal}
+.open-doc .slide-context-panel{gap:5px;overflow:visible;}
+.open-doc .slide-context-panel > label{
+  display:inline-flex;flex-direction:row;align-items:center;gap:5px;
+  min-height:36px;font-size:11px;
+}
+.open-doc .slide-context-panel > label input[type=number]{width:64px}
+.open-doc .slide-context-panel .slide-font-widget{flex:0 0 auto;}
+.open-doc .slide-font-widget{display:inline-flex;align-items:center;gap:5px;min-width:0;}
+.open-doc .slide-font-widget .slide-font-label{font-size:11px;white-space:nowrap;}
+.open-doc .slide-font-picker{position:relative;display:inline-block;width:220px;max-width:100%;}
+.open-doc .slide-font-picker summary{
+  height:36px;box-sizing:border-box;border:1px solid var(--color-border);
+  border-radius:8px;padding:7px 9px;background:var(--of-surface-low);
+  color:var(--color-text-primary);font-size:13px;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;gap:7px;
+  overflow:hidden;white-space:nowrap;
+}
+.open-doc .slide-font-picker summary .slide-font-preview-name{
+  flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+}
+.open-doc .slide-font-list{
+  box-sizing:border-box;position:absolute;top:calc(100% + 3px);left:0;
+  width:290px;max-width:min(86vw,340px);max-height:320px;overflow-y:auto;
+  background:var(--color-panel);border:1px solid var(--color-border);
+  border-radius:10px;padding:7px;z-index:45;
+  box-shadow:0 10px 24px rgba(0,0,0,.22);
+}
+.open-doc .slide-font-search{
+  position:sticky;top:0;box-sizing:border-box;width:100%;height:35px;
+  padding:6px 9px;margin-bottom:6px;border:1px solid var(--color-border);
+  border-radius:6px;background:var(--color-panel);color:var(--color-text-primary);
+}
+.open-doc .slide-font-option{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border:0;background:transparent;width:100%;padding:8px 9px;
+  min-height:42px;cursor:pointer;text-align:left;border-radius:6px;
+}
+.open-doc .slide-font-option[aria-selected=true],
+.open-doc .slide-font-option:hover{
+  background:var(--color-primary-soft);
+}
+.open-doc .slide-font-sample{font-size:19px;white-space:nowrap;}
+.open-doc .slide-font-option-name{font-size:11px;max-width:135px;
+  overflow:hidden;text-overflow:ellipsis;color:var(--color-text-secondary);}

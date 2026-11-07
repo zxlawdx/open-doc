@@ -319,3 +319,12 @@
 @media(max-width:680px){
   .open-doc .slide-math-gallery{grid-template-columns:1fr;left:4vw;top:100px}
 }
+
+/* PPTX ribbon rules on narrow displays. */
+@media (max-width:900px){
+  .open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-tab{
+    padding:5px 8px!important;
+  }
+  .open-doc .slide-font-picker{width:150px;}
+  .open-doc .slide-context-panel > label .slide-font-label{display:none;}
+}

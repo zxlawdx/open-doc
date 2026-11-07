@@ -88,7 +88,12 @@
     "Conta-gotas":"eyedropper","Aplicar fundo":"palette","Aplicar tom":"palette",
     "Restaurar ajustes de cor e opacidade":"undo","Substituir imagem":"image",
     "Subir camada":"arrow-up","Descer camada":"arrow-down","Duplicar objeto":"duplicate",
-    "Excluir objeto":"trash","Aplicar escala":"fit",Negrito:"bold",Itálico:"italic"
+    "Excluir objeto":"trash","Aplicar escala":"fit",Negrito:"bold",Itálico:"italic",
+    Anterior:"arrow-left",Próximo:"arrow-right",
+    Esquerda:"align-left",Centralizar:"align-center",Direita:"align-right",
+    Justificar:"align-justify",Marcadores:"list",Numeração:"list-numbered",
+    "Aumentar recuo":"indent-increase","Diminuir recuo":"indent-decrease",
+    Sublinhado:"underline"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
   class SlideSvgRenderer {
@@ -436,8 +441,11 @@
       this._bindEvents();
     }
     _button(label,action,title=label,container=this.toolbar){
-      const button=document.createElement("button");button.type="button";button.textContent=label;
+      const button=document.createElement("button");button.type="button";
+      const caption=document.createElement("span");caption.className="slide-action-label";
+      caption.textContent=label;button.append(caption);
       if(ACTION_ICONS[label]){
+        button.classList.add("slide-icon-button");
         const svg=document.createElementNS(SVG_NS,"svg");
         svg.classList.add("slide-action-icon");svg.setAttribute("aria-hidden","true");
         Object.assign(svg.style,{width:"17px",height:"17px",display:"inline-block",
@@ -458,6 +466,8 @@
       },{signal:this.signal});container.append(button);return button;
     }
     _buildToolbar(){
+      this._button("Anterior",()=>this.go(clamp(this.current-1,0,this.getModel().surfaces.length-1)),"Ir para o slide anterior");
+      this._button("Próximo",()=>this.go(clamp(this.current+1,0,this.getModel().surfaces.length-1)),"Ir para o próximo slide");
       this._button("+ Slide",()=>{this.commands.insert(this.current);this.current++;this._selectObject(null);this.go(this.current);});
       this._button("Duplicar",()=>{this.commands.duplicate(this.current);this.current++;this._selectObject(null);this.go(this.current);});
       this._button("Excluir slide",()=>{this.commands.remove(this.current);this.current=clamp(this.current,0,this.getModel().surfaces.length-1);this._selectObject(null);});
@@ -533,43 +543,103 @@
       }
       this._organizeRibbon();
     }
+
+    _ribbonMenu(group,label,names){
+      // Overflow commands live in a real menu instead of a horizontally
+      // scrolling strip. They retain their original click handlers.
+      const menu=document.createElement("details");
+      menu.className="slide-ribbon-menu";
+      const trigger=document.createElement("summary");
+      trigger.textContent=label+" ▾";trigger.title="Mais opções: "+label;
+      menu.append(trigger);
+      const popup=document.createElement("div");popup.className="slide-ribbon-popup";
+      for(const action of Array.from(group.children)){
+        if(action.tagName==="BUTTON"&&names.includes(action.textContent)){
+          popup.append(action);
+          action.addEventListener("click",()=>{menu.open=false;},{signal:this.signal});
+        }
+      }
+      menu.append(popup);group.append(menu);
+    }
     _organizeRibbon(){
       const actions=Array.from(this.toolbar.querySelectorAll("button"));
-      const tabs=document.createElement("div");tabs.className="slide-ribbon-tabs";
+      const tabs=document.createElement("div");
+      tabs.className="slide-ribbon-tabs";tabs.setAttribute("role","tablist");
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
-        {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
+        {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide","Anterior","Próximo"]},
         {label:"Inserir",labels:["Texto","Tabela","Equações","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Aplicar a todos os slides","Prévia","Apresentar"]}
       ];
       const panels=[];
       for(const item of categories){
-        const tab=document.createElement("button");tab.type="button";tab.textContent=item.label;
-        tab.className="slide-ribbon-tab";tabs.append(tab);
-        const group=document.createElement("div");group.className="slide-ribbon-group";group.hidden=true;
+        const tab=document.createElement("button");
+        tab.type="button";tab.textContent=item.label;
+        tab.className="slide-ribbon-tab";tab.setAttribute("role","tab");tabs.append(tab);
+        const group=document.createElement("div");
+        group.className="slide-ribbon-group";group.hidden=true;
+        group.setAttribute("role","tabpanel");
         group.setAttribute("aria-label","Ferramentas de "+item.label);
-        for(const action of actions){
-          if(item.labels.includes(action.textContent))group.append(action);
-        }
+        for(const action of actions)if(item.labels.includes(action.textContent))group.append(action);
         if(item.label==="Formatar")group.prepend(this.toolbar.querySelector(".slide-paint-selector"));
         body.append(group);panels.push([tab,group]);
-        tab.addEventListener("click",()=>activate(item.label),{signal:this.signal});
+        tab.addEventListener("click",()=>this._activateRibbon(item.label),{signal:this.signal});
       }
-      const activate=label=>{
-        panels.forEach(([tab,panel],i)=>{
-          const enabled=categories[i].label===label;
-          tab.setAttribute("aria-selected",String(enabled));panel.hidden=!enabled;
-        });
-      };
-      // Never leave an unclassified action as a direct toolbar child:
-      // in column-mode ribbons it expands to full width and collapses
-      // the slide viewport (regression seen on Windows and Linux).
+      const insert=panels[1][1];
+      this._ribbonMenu(insert,"Formas",[
+        "Arredondado","Triângulo","Losango","Chevron","Hexágono",
+        "Pentágono","Paralelogramo","Estrela","Nuvem"
+      ]);
+      this._ribbonMenu(insert,"Gráficos",[
+        "Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"
+      ]);
       const classified=new Set(categories.flatMap(item=>item.labels));
-      for(const action of actions){
-        if(!classified.has(action.textContent))panels[1][1].append(action);
+      for(const action of actions)if(!classified.has(action.textContent))insert.append(action);
+      // The selection toolbar shares this stable-height ribbon panel.
+      // No new row is inserted when an object gains or loses selection.
+      const contextTab=document.createElement("button");
+      contextTab.type="button";contextTab.textContent="Texto";
+      contextTab.className="slide-ribbon-tab slide-context-tab";
+      contextTab.setAttribute("role","tab");contextTab.hidden=true;tabs.append(contextTab);
+      this.contextTab=contextTab;
+      this.contextPanel=this.selectionToolbar;
+      this.contextPanel.classList.add("slide-ribbon-group","slide-context-panel");
+      this.contextPanel.setAttribute("role","tabpanel");
+      body.append(this.contextPanel);
+      panels.push([contextTab,this.contextPanel]);
+      contextTab.addEventListener("click",()=>this._activateRibbon("context"),{signal:this.signal});
+      this._ribbonPanels=panels;
+      this._ribbonLabels=[...categories.map(item=>item.label),"context"];
+      this._ribbonSelectedObject=null;
+      this.toolbar.prepend(tabs,body);this._activateRibbon("Inserir");
+      if(window.ResizeObserver){
+        this.ribbonObserver=new window.ResizeObserver(()=>this._compactRibbon());
+        this.ribbonObserver.observe(this.toolbar);
+        this.signal.addEventListener("abort",()=>this.ribbonObserver.disconnect(),{once:true});
       }
-      this.toolbar.prepend(tabs,body);activate("Inserir");
+      this._compactRibbon();
+    }
+    _compactRibbon(){
+      this.toolbar.classList.toggle("slide-ribbon-compact",this.toolbar.clientWidth<1100);
+    }
+    _activateRibbon(label){
+      this._ribbonActive=label;
+      this._ribbonPanels.forEach(([tab,panel],i)=>{
+        const enabled=this._ribbonLabels[i]===label;
+        tab.setAttribute("aria-selected",String(enabled));
+        panel.hidden=!enabled || (label==="context"&&!this.selected);
+      });
+    }
+    _syncContextRibbon(selected){
+      this.contextTab.hidden=!selected;
+      this.contextTab.textContent=selected&&canEditText(selected)?"Texto":"Objeto";
+      const identifier=selected?selected.id:null;
+      if(identifier!==this._ribbonSelectedObject){
+        this._ribbonSelectedObject=identifier;
+        if(selected)this._activateRibbon("context");
+        else if(this._ribbonActive==="context")this._activateRibbon("Inserir");
+      }
     }
     insertChart(kind){
       const id=this.commands.insertChart(this.current,kind);
@@ -613,6 +683,21 @@
       this.selected=Array.from(this.selectedIds).pop()||null;
     }
     _bindEvents(){
+      // QtWebEngine may leave focus on the document body after a pointer
+      // selection. Handle text style shortcuts at window capture level so
+      // Ctrl+B never opens Bookmarks instead of formatting the selected box.
+      window.addEventListener("keydown",event=>{
+        if(!this.active||!this.selected)return;
+        const object=this.getModel().surfaces[this.current]?.elements
+          .find(item=>item.id===this.selected);
+        if(!object||!canEditText(object))return;
+        if(!(event.ctrlKey||event.metaKey)||event.altKey||
+           !["b","i"].includes(event.key.toLowerCase()))return;
+        if(event.target.closest?.("input,textarea,[contenteditable=true]"))return;
+        event.preventDefault();event.stopPropagation();
+        const key=event.key.toLowerCase()==="b"?"font_bold":"font_italic";
+        this.commands.updateObject(this.current,object.id,{[key]:!object[key]});
+      },{signal:this.signal,capture:true});
       // Scope drop handling to a real slide: dropping on toolbar/sidebar never
       // imports a file or overwrites another object.
       this.scroller.addEventListener("dragover",event=>{
@@ -697,6 +782,22 @@
         // Navigation with keyboard arrows is scoped ONLY to the left
         // thumbnail sidebar. Canvas arrows still nudge the selected object.
         const thumbnail=event.target.closest("[data-thumbnail-index]");
+        if(thumbnail&&this.sidebar.contains(thumbnail)&&
+           (event.key==="Delete"||event.key==="Backspace")&&
+           !event.ctrlKey&&!event.metaKey&&!event.altKey){
+          event.preventDefault();event.stopPropagation();
+          const index=Number(thumbnail.dataset.thumbnailIndex);
+          try{
+            if(!Number.isInteger(index)||index<0||
+               index>=this.getModel().surfaces.length)return;
+            this.commands.remove(index);
+            this.current=clamp(index,0,this.getModel().surfaces.length-1);
+            this._selectObject(null);this.render();
+            this.sidebar.querySelector('[data-thumbnail-index="'+this.current+'"]')?.focus();
+            this.status("Slide excluído.");
+          }catch(error){this.status(error.message);}
+          return;
+        }
         if(thumbnail&&this.sidebar.contains(thumbnail)&&
            ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)
            &&!event.ctrlKey&&!event.metaKey&&!event.altKey){
@@ -833,6 +934,7 @@
       }
       node.append(editor);node.style.overflow="hidden";
       this.inlineEditing=editor;
+      const styleDraft={};
       const minimum=node.style.minHeight;
       if(node.classList.contains("slide-object-text")){
         const fit=()=>{
@@ -855,11 +957,26 @@
           this._resizeAfterEditing=false;
           this._onWorkspaceResize();
         }
-        if(save&&editor.value!==value)
-          this.commands.updateObject(index,id,{text:editor.value.slice(0,10000)});
+        const patch={...styleDraft};
+        if(editor.value!==value)patch.text=editor.value.slice(0,10000);
+        if(save&&Object.keys(patch).length)this.commands.updateObject(index,id,patch);
         else this.render();
       };
       editor.addEventListener("keydown",event=>{
+        if((event.ctrlKey||event.metaKey)&&!event.altKey&&
+           ["b","i"].includes(event.key.toLowerCase())){
+          event.preventDefault();event.stopPropagation();
+          const key=event.key.toLowerCase()==="b"?"font_bold":"font_italic";
+          const previous=this.getModel().surfaces[index].elements.find(item=>item.id===id);
+          if(!previous)return;
+          const enabled=!(key in styleDraft?styleDraft[key]:Boolean(previous[key]));
+          styleDraft[key]=enabled;
+          const property=key==="font_bold"?"fontWeight":"fontStyle";
+          const display=key==="font_bold"?(enabled?"bold":"normal"):
+            (enabled?"italic":"normal");
+          editor.style[property]=display;node.style[property]=display;
+          return;
+        }
         if(event.key==="Escape"){event.preventDefault();finish(false);}
         if((event.ctrlKey||event.metaKey)&&event.key==="Enter"){
           event.preventDefault();finish(true);
@@ -1186,7 +1303,16 @@
           });
           node.append(paragraph);
         });
-      }else if(obj.type==="text")node.textContent=obj.text||"";
+      }else if(obj.type==="text"){
+        if(obj.list_style&&obj.list_style!=="none"){
+          const rows=String(obj.text||"").split("\n");
+          rows.forEach((line,index)=>{
+            const item=document.createElement("div");item.className="slide-text-list-item";
+            item.textContent=(obj.list_style==="number"?(index+1)+". ":"• ")+line;
+            node.append(item);
+          });
+        }else node.textContent=obj.text||"";
+      }
       else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";
         if(Array.isArray(obj.text_runs)&&obj.text_runs.length){
           obj.text_runs.forEach((paragraph,index)=>{
@@ -1247,7 +1373,11 @@
         transform:"rotate("+Number(obj.rotation||0)+"deg) scale("+(obj.flip_h?-1:1)+","+(obj.flip_v?-1:1)+")",
         fontSize:(obj.font_size_pt||28)*4/3*zoom*(thumb?.16:1)+"px",
         fontFamily:JSON.stringify(obj.font_family||"Inter")+",sans-serif",
-        fontWeight:obj.font_bold?"bold":"normal",fontStyle:obj.font_italic?"italic":"normal"
+        fontWeight:obj.font_bold?"bold":"normal",fontStyle:obj.font_italic?"italic":"normal",
+        textDecoration:obj.font_underline?"underline":"none",
+        textAlign:obj.paragraph_alignment||"left",
+        lineHeight:String(obj.line_spacing||1.18),
+        paddingLeft:obj.text_indent_pt?((obj.text_indent_pt*4/3*zoom*(thumb?.16:1))+"px"):"6px"
       });
     }
     _thumb(button,surface,index){
@@ -1386,25 +1516,61 @@
       button.setAttribute("aria-label","Conta-gotas · "+label);
       return input;
     }
+
     _fontProperty(selected,update,container){
       const family=selected.font_family||"Inter";
-      const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri","Georgia","Verdana","Courier New",
+      const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri",
+        "Georgia","Verdana","Courier New","Liberation Serif","Liberation Sans",
+        "DejaVu Sans","DejaVu Serif","Bitstream Charter",
         ...Array.from(this.root.querySelectorAll('[data-font-family] option'),option=>option.value)]);
-      const select=document.createElement("select");
-      for(const font of fonts){
-        if(!font)continue;
-        const option=document.createElement("option");
-        option.value=option.textContent=font;select.append(option);
+      const sorted=Array.from(fonts).filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+      const wrapper=document.createElement("div");wrapper.className="slide-font-widget";
+      const caption=document.createElement("span");caption.className="slide-font-label";
+      caption.textContent="Família da fonte";wrapper.append(caption);
+      const picker=document.createElement("details");picker.className="slide-font-picker";
+      const summary=document.createElement("summary");
+      summary.setAttribute("aria-label","Família da fonte: "+family);
+      const name=document.createElement("span");name.className="slide-font-preview-name";
+      name.textContent=family;name.style.fontFamily=JSON.stringify(family)+",sans-serif";
+      const arrow=document.createElement("span");arrow.setAttribute("aria-hidden","true");
+      arrow.textContent="▾";summary.append(name,arrow);picker.append(summary);
+      const list=document.createElement("div");list.className="slide-font-list";
+      const search=document.createElement("input");search.type="search";
+      search.className="slide-font-search";search.placeholder="Pesquisar fonte";
+      search.setAttribute("aria-label","Pesquisar família da fonte");list.append(search);
+      const items=[];
+      for(const font of sorted){
+        const button=document.createElement("button");button.type="button";
+        button.className="slide-font-option";button.dataset.family=font;
+        button.setAttribute("aria-selected",String(font===family));
+        button.title=font;
+        const preview=document.createElement("span");preview.className="slide-font-sample";
+        preview.textContent="Aa Bb";preview.style.fontFamily=JSON.stringify(font)+",sans-serif";
+        const label=document.createElement("span");label.className="slide-font-option-name";
+        label.textContent=font;button.append(preview,label);
+        button.addEventListener("click",()=>{
+          picker.open=false;
+          if(font!==family)update({font_family:font});
+        },{signal:this.signal});
+        list.append(button);items.push(button);
       }
-      select.value=family;
-      select.addEventListener("change",()=>update({font_family:select.value}),{signal:this.signal});
-      const label=document.createElement("label");label.textContent="Família da fonte";label.append(select);
-      container.append(label);
+      search.addEventListener("input",()=>{
+        const query=search.value.trim().toLocaleLowerCase("pt-BR");
+        for(const button of items){
+          button.hidden=!button.dataset.family.toLocaleLowerCase("pt-BR").includes(query);
+        }
+      },{signal:this.signal});
+      picker.addEventListener("toggle",()=>{
+        if(picker.open)search.focus();
+      },{signal:this.signal});
+      picker.append(list);wrapper.append(picker);container.append(wrapper);
     }
     _selectionProperties(slide,selected){
       const bar=this.selectionToolbar;
-      bar.replaceChildren();bar.hidden=!selected||Boolean(this.inlineEditing);
-      if(bar.hidden)return;
+      bar.replaceChildren();
+      this._syncContextRibbon(selected);
+      bar.hidden=!selected||Boolean(this.inlineEditing)||this._ribbonActive!=="context";
+      if(!selected||this.inlineEditing)return;
       const update=patch=>this.commands.updateObject(this.current,selected.id,patch);
       const button=(label,action)=>this._button(label,action,label,bar);
       if(canEditText(selected)){
@@ -1416,6 +1582,47 @@
           .setAttribute("aria-pressed",String(Boolean(selected.font_bold)));
         button("Itálico",()=>update({font_italic:!selected.font_italic}))
           .setAttribute("aria-pressed",String(Boolean(selected.font_italic)));
+        button("Sublinhado",()=>update({font_underline:!selected.font_underline}))
+          .setAttribute("aria-pressed",String(Boolean(selected.font_underline)));
+        const alignment=selected.paragraph_alignment||"left";
+        for(const [caption,value] of [
+          ["Esquerda","left"],["Centralizar","center"],
+          ["Direita","right"],["Justificar","justify"]
+        ]){
+          const control=button(caption,()=>update({paragraph_alignment:value}));
+          control.setAttribute("aria-pressed",String(alignment===value));
+          control.title="Alinhar: "+caption;
+        }
+        const listStyle=selected.list_style||"none";
+        for(const [caption,value] of [
+          ["Marcadores","bullet"],["Numeração","number"]
+        ]){
+          const control=button(caption,()=>update({
+            list_style:listStyle===value?"none":value
+          }));
+          control.setAttribute("aria-pressed",String(listStyle===value));
+        }
+        const indent=selected.text_indent_pt||0;
+        button("Diminuir recuo",()=>update({
+          text_indent_pt:clamp(indent-12,0,144)
+        }));
+        button("Aumentar recuo",()=>update({
+          text_indent_pt:clamp(indent+12,0,144)
+        }));
+        const spacing=document.createElement("label");
+        spacing.className="slide-spacing-field";spacing.textContent="Entrelinhas";
+        const spacingSelect=document.createElement("select");
+        spacingSelect.setAttribute("aria-label","Espaçamento entre linhas");
+        for(const value of ["1","1.15","1.5","2"]){
+          const option=document.createElement("option");
+          option.value=value;option.textContent=value.replace(".",",")+"×";
+          spacingSelect.append(option);
+        }
+        spacingSelect.value=String(selected.line_spacing||1);
+        spacingSelect.addEventListener("change",()=>update({
+          line_spacing:Number(spacingSelect.value)
+        }),{signal:this.signal});
+        spacing.append(spacingSelect);bar.append(spacing);
         this._colorProperty("Cor do texto",selected.color,value=>update({color:value}),bar);
       }
       const layer=slide.elements.indexOf(selected);
