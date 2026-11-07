@@ -412,6 +412,68 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    JSON.stringify(qaObjects,null,2));
  console.log('QT_PPTX_TABLE_SHAPES_SVG_SCREENSHOT_OK');
 
+
+ // Regression from Linux Mint: bullets, inline edit, and removing bullets
+ // must render exactly one paragraph layer and never freeze the editor.
+ const bulletScene=await evaluate(`(()=>{
+   const toolbar=document.querySelector('.slide-studio-toolbar');
+   const textButton=Array.from(toolbar.querySelectorAll('button'))
+     .find(b=>b.textContent.trim()==='Texto');
+   if(!textButton)throw Error('Missing new text command');
+   textButton.click();
+   const field=document.querySelector('.slide-inspector textarea');
+   if(!field)throw Error('Missing text inspector editor');
+   field.value='A economia estuda produção e consumo.\n\nA política econômica organiza relações sociais.';
+   field.dispatchEvent(new Event('change',{bubbles:true}));
+   const button=Array.from(document.querySelectorAll('.slide-context-panel button'))
+     .find(b=>b.textContent.trim()==='Marcadores');
+   if(!button)throw Error('Missing bullet command');
+   button.click();
+   const obj=document.querySelector('.fixed-scroll .slide-object-text[data-selected=true]');
+   if(!obj)throw Error('No selected text on slide');
+   return {paragraphs:obj.querySelectorAll('.slide-text-paragraph').length,
+     markers:obj.querySelectorAll('.slide-text-marker').length,
+     content:obj.querySelector('.slide-text-content')?.textContent};
+ })()`);
+ assert.equal(bulletScene.paragraphs,3);
+ assert.equal(bulletScene.markers,2);
+ await shot('pptx-bullet-list-qt-normal');
+
+ const editing=await evaluate(`(()=>{
+   const obj=document.querySelector('.fixed-scroll .slide-object-text[data-selected=true]');
+   obj.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+   const textarea=obj.querySelector('.slide-inline-editor');
+   const old=obj.querySelector('.slide-text-content');
+   if(!textarea||!old)throw Error('List did not enter editable mode');
+   return {field:textarea.value,oldLayerHidden:getComputedStyle(old).display==='none',
+     oldVisible:old.getBoundingClientRect().height};
+ })()`);
+ assert.ok(editing.oldLayerHidden,'Old bullet DOM must be hidden during editing');
+ assert.equal(editing.oldVisible,0);
+ await shot('pptx-bullet-list-qt-inline-no-overlay');
+
+ const removed=await evaluate(`(()=>{
+   const editor=document.querySelector('.slide-inline-editor');
+   editor.value='A economia estuda produção e consumo.\n\nRelações sociais revisadas.';
+   editor.dispatchEvent(new KeyboardEvent('keydown',{
+     key:'Enter',ctrlKey:true,bubbles:true,cancelable:true}));
+   const button=Array.from(document.querySelectorAll('.slide-context-panel button'))
+     .find(b=>b.textContent.trim()==='Marcadores');
+   if(!button)throw Error('No bullet toggle after editing');
+   button.click();
+   const obj=document.querySelector('.fixed-scroll .slide-object-text[data-selected=true]');
+   return {markers:obj.querySelectorAll('.slide-text-marker').length,
+     paragraphs:obj.querySelectorAll('.slide-text-paragraph').length,
+     source:obj.querySelector('.slide-text-content')?.textContent};
+ })()`);
+ assert.equal(removed.markers,0,'Removing bullets must clear every marker');
+ assert.equal(removed.paragraphs,3);
+ assert.ok(removed.source.includes('Relações sociais revisadas.'));
+ await shot('pptx-bullet-list-qt-after-removal');
+ fs.writeFileSync(path.join(destination,'pptx-bullet-list-qt.json'),
+   JSON.stringify({bulletScene,editing,removed},null,2));
+ console.log('QT_PPTX_BULLET_LIST_INLINE_TEXT_NO_OVERLAY_OK');
+
  // Restore the original slide to allow the subsequent persistence/export
  // smoke to append text to the four existing shapes on slide 1.
  await click('.fixed-sidebar [data-thumbnail-index="0"]');
