@@ -19,6 +19,13 @@ def export_image_effects(blip, picture):
         blip.append(luminance)
     if picture.get("image_grayscale"):
         blip.append(OxmlElement("a:grayscl"))
+    if picture.get("image_tint"):
+        duotone = OxmlElement("a:duotone")
+        for color in ("000000", picture["image_tint"][1:].upper()):
+            endpoint = OxmlElement("a:srgbClr")
+            endpoint.set("val", color)
+            duotone.append(endpoint)
+        blip.append(duotone)
 
 
 def import_image_effects(blip):
@@ -37,6 +44,12 @@ def import_image_effects(blip):
             adjustments["image_contrast"] = int(effect.get("contrast", "0")) / 1000
         elif effect.tag == qn("a:grayscl"):
             adjustments["image_grayscale"] = True
+        elif effect.tag == qn("a:duotone"):
+            dark, light = effect
+            if (any(color.tag != qn("a:srgbClr") or len(color) for color in effect)
+                    or dark.get("val") != "000000"):
+                raise ValueError("Duotone fora do subconjunto editável.")
+            adjustments["image_tint"] = "#" + light.get("val", "")
         else:
             raise ValueError("Efeito de imagem fora do subconjunto editável.")
     return adjustments

@@ -359,7 +359,7 @@ def test_native_image_crop_is_persisted_and_stays_editable_in_powerpoint(tmp_pat
         "crop_top": .10, "crop_bottom": .15,
         "flip_h": True, "x": .14, "width": .42,
         "image_opacity": 65, "image_brightness": 20,
-        "image_contrast": -15, "image_grayscale": True,
+        "image_contrast": -15, "image_grayscale": True, "image_tint": "#CC0000",
     }]
     validate(model)
     saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
@@ -383,11 +383,12 @@ def test_native_image_crop_is_persisted_and_stays_editable_in_powerpoint(tmp_pat
     assert blip.find(qn("a:alphaModFix")).get("amt") == "65000"
     assert blip.find(qn("a:lum")).attrib == {"bright": "20000", "contrast": "-15000"}
     assert blip.find(qn("a:grayscl")) is not None
+    assert [stop.get("val") for stop in blip.find(qn("a:duotone"))] == ["000000", "CC0000"]
 
     imported = ctx.fixed_documents.import_pptx(result)
     assert imported["content"]["editable_deck"] is True
     image = imported["content"]["surfaces"][0]["elements"][0]
-    for key in ("image_opacity", "image_brightness", "image_contrast", "image_grayscale"):
+    for key in ("image_opacity", "image_brightness", "image_contrast", "image_grayscale", "image_tint"):
         assert image[key] == model["surfaces"][0]["elements"][0][key]
 
 
@@ -466,7 +467,8 @@ def test_exported_native_pptx_can_be_reimported_and_edited_in_open_doc(tmp_path)
     model["surfaces"][0]["transition"] = "push-left"
     model["surfaces"][0]["transition_speed"] = "slow"
     model["surfaces"][0]["elements"] = [
-        element("title-1", "text"),
+        {**element("title-1", "text"), "font_family": "Times New Roman",
+         "font_size_pt": 36, "font_bold": True, "font_italic": True},
         {**element("shape-1", "rect"), "text": "", "fill": "#F4B183"},
         {**element("shape-2", "ellipse"), "text": "", "fill": "#AA77FF"},
         {**element("chart-1", "chart"), "text": "", "rotation": 0,
@@ -492,6 +494,10 @@ def test_exported_native_pptx_can_be_reimported_and_edited_in_open_doc(tmp_path)
     assert slide["transition"] == "push-left"
     assert len(slide["elements"]) == 4
     assert [x["type"] for x in slide["elements"]] == ["text", "rect", "ellipse", "chart"]
+    title = slide["elements"][0]
+    assert title["font_family"] == "Times New Roman"
+    assert title["font_size_pt"] == 36
+    assert title["font_bold"] and title["font_italic"]
     assert slide["elements"][3]["chart_values"] == [15, 27, 34]
 
     changed = deepcopy(imported["content"])

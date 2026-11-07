@@ -139,6 +139,10 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                 if font.size:
                     base["font_size_pt"] = max(6.0, min(144.0, float(font.size.pt)))
                 base["color"] = _rgb(font.color, base["color"])
+                if font.bold is not None:
+                    base["font_bold"] = font.bold
+                if font.italic is not None:
+                    base["font_italic"] = font.italic
     return base
 
 

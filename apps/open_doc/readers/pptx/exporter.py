@@ -138,6 +138,8 @@ class SlideDeckExporter:
             run.text = obj.get("text", "")
             run.font.name = obj.get("font_family", "Inter")
             run.font.size = Pt(obj.get("font_size_pt", 28))
+            run.font.bold = obj.get("font_bold")
+            run.font.italic = obj.get("font_italic")
             run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
         return shape
 

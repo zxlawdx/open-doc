@@ -134,6 +134,8 @@ class SlideModelValidator:
                 raise ValueError("Imagem não encontrada no catálogo de recursos.")
             if not isinstance(element.get("flip_h", False), bool) or not isinstance(element.get("flip_v", False), bool):
                 raise ValueError("Espelhamento de imagem inválido.")
+            if element.get("image_tint") is not None:
+                self._color(element["image_tint"], "tom da imagem")
             number(element.get("image_opacity", 100), 0, 100)
             number(element.get("image_brightness", 0), -100, 100)
             number(element.get("image_contrast", 0), -100, 100)
@@ -162,6 +164,9 @@ class SlideModelValidator:
         family = element.get("font_family", "Inter")
         if not isinstance(family, str) or not 1 <= len(family) <= 80:
             raise ValueError("Fonte de slide inválida.")
+        for key in ("font_bold", "font_italic"):
+            if not isinstance(element.get(key, False), bool):
+                raise ValueError("Estilo de fonte de slide inválido.")
         number(element.get("font_size_pt", 28), 6, 144)
         number(element.get("stroke_width", 1.5), .5, 20)
         number(element.get("rotation", 0), -360, 360)
