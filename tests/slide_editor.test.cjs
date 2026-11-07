@@ -877,7 +877,8 @@ test('Selection shortcuts format text, change layers and scale in one edit',t=>{
    input.value=value;input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  };
  assert.equal(bar.hidden,false);
- change(bar.querySelector('select'),'Arial');
+ const font=bar.querySelector('.slide-font-option[data-family="Arial"]');
+ assert.ok(font,'Arial present in accessible visual font picker');font.click();
  change(bar.querySelector('input[type=color]'),'#cc1133');
  button('Negrito').click();
  assert.equal(button('Descer camada').disabled,true);
