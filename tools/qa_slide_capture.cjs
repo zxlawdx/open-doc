@@ -423,7 +423,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    textButton.click();
    const field=document.querySelector('.slide-inspector textarea');
    if(!field)throw Error('Missing text inspector editor');
-   field.value='A economia estuda produção e consumo.\n\nA política econômica organiza relações sociais.';
+   field.value='A economia estuda produção e consumo.\\n\\nA política econômica organiza relações sociais.';
    field.dispatchEvent(new Event('change',{bubbles:true}));
    const button=Array.from(document.querySelectorAll('.slide-context-panel button'))
      .find(b=>b.textContent.trim()==='Marcadores');
@@ -454,7 +454,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
 
  const removed=await evaluate(`(()=>{
    const editor=document.querySelector('.slide-inline-editor');
-   editor.value='A economia estuda produção e consumo.\n\nRelações sociais revisadas.';
+   editor.value='A economia estuda produção e consumo.\\n\\nRelações sociais revisadas.';
    editor.dispatchEvent(new KeyboardEvent('keydown',{
      key:'Enter',ctrlKey:true,bubbles:true,cancelable:true}));
    const button=Array.from(document.querySelectorAll('.slide-context-panel button'))
