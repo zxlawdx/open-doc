@@ -71,7 +71,7 @@ def test_math_pptx_import_preserves_fractions_media_and_editable_text(tmp_path):
     _math_png(png)
     source = tmp_path / "fractions.pptx"
     _pptx_fixture(source, png)
-    workspace = configure(Config(tmp_path / "studio"))
+    workspace = configure(Config(tmp_path))
     original = source.read_bytes()
     note = workspace.fixed_documents.import_pptx(source)
     assert len(note["content"]["surfaces"]) == 5
@@ -119,7 +119,7 @@ def test_math_pdf_import_preserves_original_source_and_text(tmp_path):
         doc.multi_cell(0, 12, "Step 1: numerator and denominator. Step 2: derivative.")
     doc.output(str(source))
     original = source.read_bytes()
-    ctx = configure(Config(tmp_path / "pdf-studio"))
+    ctx = configure(Config(tmp_path))
     note = ctx.fixed_documents.import_pdf(source)
     assert note["source_kind"] == "pdf"
     assert len(note["content"]["surfaces"]) == 5
