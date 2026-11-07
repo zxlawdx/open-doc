@@ -75,7 +75,8 @@
   const ACTION_ICONS={
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
-    "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
+    "Gráfico: Barras":"chart-bar","Gráfico: Barras horizontais":"chart-bar",
+    "Gráfico: Áreas":"chart-line","Gráfico: Linhas":"chart-line",
     "Gráfico: Pizza":"chart-pie",Tabela:"table",Equações:"math-integral",
     Chevron:"shape-chevron",Hexágono:"shape-hexagon",Pentágono:"shape-pentagon",
     Paralelogramo:"shape-parallelogram",Estrela:"shape-star",Nuvem:"shape-cloud",
@@ -284,7 +285,7 @@
         const elements=slides[index].elements;
         if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
         elements.push({
-          id,type:"chart",name:"Gráfico de "+({bar:"barras",line:"linhas",pie:"pizza"}[kind]),
+          id,type:"chart",name:"Gráfico de "+({bar:"colunas",hbar:"barras horizontais",line:"linhas",area:"áreas",pie:"pizza"}[kind]),
           x:.14,y:.2,width:.72,height:.58,rotation:0,stroke_width:1.5,
           color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
           chart_type:kind,chart_title:"Resultados",chart_palette:"blue",
@@ -488,7 +489,8 @@
       this._button("Nuvem",()=>this.add("cloud"));
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
       for(const [label,kind] of [
-        ["Gráfico: Barras","bar"],["Gráfico: Linhas","line"],["Gráfico: Pizza","pie"]
+        ["Gráfico: Barras","bar"],["Gráfico: Barras horizontais","hbar"],
+        ["Gráfico: Linhas","line"],["Gráfico: Áreas","area"],["Gráfico: Pizza","pie"]
       ])this._button(label,()=>this.insertChart(kind),"Inserir gráfico PPTX nativo e editável");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
@@ -542,7 +544,7 @@
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
-        {label:"Inserir",labels:["Texto","Tabela","Equações","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
+        {label:"Inserir",labels:["Texto","Tabela","Equações","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Barras horizontais","Gráfico: Linhas","Gráfico: Áreas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Aplicar a todos os slides","Prévia","Apresentar"]}
       ];
