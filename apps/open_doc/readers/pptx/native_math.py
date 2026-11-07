@@ -95,6 +95,10 @@ def write_math(shape, blocks):
     """Replace only the textbox math paragraph; the result is Office-native OMML."""
     validate_math_blocks(blocks)
     frame = shape.text_frame
+    # python-pptx keeps non-run children of the first paragraph when clear()
+    # is called. Remove the old math wrapper to avoid duplicate OMML zones.
+    for old in list(shape._element.iter("{%s}m" % A14)):
+        old.getparent().remove(old)
     frame.clear()
     paragraph = frame.paragraphs[0]._p
     wrapper = etree.Element("{%s}m" % A14, nsmap={"a14": A14, "m": M})
