@@ -12,6 +12,43 @@
   const canEditText=obj=>obj.type==="text"||
     (Boolean(obj.text)&&!["image","line","chart"].includes(obj.type));
   const SVG_NS="http://www.w3.org/2000/svg";
+  // Candidate-based Smart Guides. Coordinates are normalized to the slide.
+  // The nearest edge/center wins within a screen-pixel tolerance so zoom
+  // cannot change the perceived snapping distance.
+  function smartSnap(proposed,otherObjects,slideWidthPx,slideHeightPx,tolerancePx=7){
+    const result={...proposed},guides=[];
+    const snapAxis=(axis,size,extentPx)=>{
+      const length=axis==="x"?"width":"height";
+      const leading=result[axis],span=result[length];
+      const moving=[leading,leading+span/2,leading+span];
+      const targets=[{value:0,kind:"page"},{value:.5,kind:"center"},{value:1,kind:"page"}];
+      for(const object of otherObjects){
+        if(!Number.isFinite(object[axis])||!Number.isFinite(object[length]))continue;
+        const edge=object[axis],end=edge+object[length];
+        targets.push({value:edge,kind:"object"},{value:edge+object[length]/2,kind:"object"},
+          {value:end,kind:"object"});
+      }
+      let best=null;
+      for(let i=0;i<moving.length;i++)for(const target of targets){
+        const delta=target.value-moving[i];
+        const distance=Math.abs(delta*extentPx);
+        if(distance>tolerancePx)continue;
+        // Prefer the closest adjustment, with the actual slide center
+        // taking precedence only when the errors are identical.
+        if(!best||distance<best.distance-1e-7||
+          Math.abs(distance-best.distance)<1e-7&&target.kind==="center"&&best.kind!=="center")
+          best={delta,distance,kind:target.kind,value:target.value};
+      }
+      if(best){
+        result[axis]=clamp(result[axis]+best.delta,0,1-span);
+        guides.push({axis,value:best.value,kind:best.kind});
+      }
+    };
+    snapAxis("x",result.width,slideWidthPx);
+    snapAxis("y",result.height,slideHeightPx);
+    return {item:result,guides};
+  }
+
   let tintSequence=0;
   const textStyles=[
     ["Texto normal",28,false],["Título 1",44,true],
@@ -535,7 +572,7 @@
         this._finish(event);
       },{signal:this.signal});
       window.addEventListener("pointercancel",()=>{
-        this._endPan();this.drag=null;if(!this.inlineEditing)this.render();
+        this._endPan();this._clearSnapGuides();this.drag=null;if(!this.inlineEditing)this.render();
       },{signal:this.signal});
       this.root.addEventListener("keyup",event=>{
         if(event.key===" "){this.spacePressed=false;
@@ -625,7 +662,7 @@
     deactivate(){
       this.stopPresentation();
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
-      this._selectObject(null);this.drag=null;this.pan=null;
+      this._clearSnapGuides();this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.colorSample=null;this.scroller.style.cursor="";this.inspector.replaceChildren();
       this.inlineEditing=null;this._resizeAfterEditing=false;
       this.selectionToolbar.style.visibility="";
@@ -1483,6 +1520,23 @@
       this.scroller.style.cursor=this.spacePressed?"grab":"";
       event?.preventDefault();return true;
     }
+    _clearSnapGuides(){
+      this.activeCanvas?.querySelectorAll(".slide-smart-guide").forEach(node=>node.remove());
+    }
+    _drawSnapGuides(guides,surface){
+      this._clearSnapGuides();
+      for(const guide of guides){
+        const line=document.createElement("div");
+        line.className="slide-smart-guide slide-smart-guide-"+guide.axis;
+        line.dataset.snapKind=guide.kind;
+        line.dataset.snapAxis=guide.axis;
+        line.dataset.snapValue=String(guide.value);
+        Object.assign(line.style,guide.axis==="x"
+          ?{left:(guide.value*100)+"%",top:"0",height:"100%"}
+          :{top:(guide.value*100)+"%",left:"0",width:"100%"});
+        surface.append(line);
+      }
+    }
     _start(event){
       if(!this.active||event.button!==0||event.shiftKey||this.paintActive)return;
       if(event.target.closest(".slide-inline-editor"))return;
@@ -1537,12 +1591,21 @@
       }else{
         item.x=clamp(state.initial.x+dx,0,1-state.initial.width);
         item.y=clamp(state.initial.y+dy,0,1-state.initial.height);
+        if(!event.altKey){
+          const others=this.getModel().surfaces[state.index].elements
+            .filter(obj=>obj.id!==state.id);
+          const snapped=smartSnap(item,others,state.box.width,state.box.height);
+          item.x=snapped.item.x;item.y=snapped.item.y;
+          this._drawSnapGuides(snapped.guides,state.node.closest(".fixed-surface"));
+        }else this._clearSnapGuides();
       }
+      if(state.rotating||state.handle)this._clearSnapGuides();
       state.value=item;
       this._styleObject(state.node,item,state.index);
     }
     _finish(event){
       const drag=this.drag;if(!drag)return;
+      this._clearSnapGuides();
       this.drag=null;
       if(!drag.value){
         if(drag.node.dataset.selected!=="true")this.render();
@@ -1557,5 +1620,5 @@
     }
   }
 
-  window.OpenDocSlidesEditor={create:options=>new SlideStudio(options),SlideDeckCommands,SlideSvgRenderer};
+  window.OpenDocSlidesEditor={create:options=>new SlideStudio(options),SlideDeckCommands,SlideSvgRenderer,smartSnap};
 })();
