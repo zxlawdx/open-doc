@@ -21,13 +21,29 @@
     onViewportResize:()=>{if(slideFitMode && model?.editable_deck)fit(slideFitMode==='page');},
     onRender:()=>{
       pageNodes=Array.from(scroller.querySelectorAll('.fixed-surface'));
-      pageField.max=model.surfaces.length;
+      syncPageNavigation(slidesEditor.current);
       texts();
     }
   });
   const pageField=document.createElement('input');pageField.type='number';pageField.min='1';pageField.value='1';pageField.setAttribute('aria-label','Ir para página');
   function button(label,fn){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',()=>Promise.resolve(fn()).catch(e=>status(e.message)),{signal});controls.append(b);return b;}
-  button('Anterior',()=>go(Number(pageField.value)-2));controls.append(pageField);pageField.addEventListener('change',()=>go(Number(pageField.value)-1),{signal});button('Próxima',()=>go(Number(pageField.value)));
+  // Use the native slide selection, even when the user navigated with thumbnails.
+  const previousButton=button('Anterior',()=>go(activePageIndex()-1));
+  controls.append(pageField);
+  pageField.addEventListener('change',()=>go(Number(pageField.value)-1),{signal});
+  const nextButton=button('Próxima',()=>go(activePageIndex()+1));
+  function activePageIndex(){
+    if(model?.editable_deck&&slidesEditor?.active)return slidesEditor.current;
+    if(note?.source_kind==='pptx'&&pptx)return pptxPreviewIndex;
+    return Number(pageField.value||1)-1;
+  }
+  function syncPageNavigation(index){
+    const count=model?.surfaces?.length||0;
+    previousButton.disabled=!count||index<=0;
+    nextButton.disabled=!count||index>=count-1;
+    pageField.value=count?String(index+1):'1';
+    pageField.max=count||1;
+  }
   button('Ajustar largura',()=>fit(false));button('Página inteira',()=>fit(true));button('−',()=>scale(zoom/1.2));button('+',()=>scale(zoom*1.2));
   const search=document.createElement('input');search.type='search';search.placeholder='Localizar no PDF';search.setAttribute('aria-label','Localizar no PDF');controls.append(search);button('Buscar',find);const extractButton=button('Extrair páginas',()=>extractPages().catch(error=>status(error.message)));
   const nativeEditButton=button('Editar PDF',()=>{
@@ -109,7 +125,7 @@
     const total=model?.surfaces?.length||0;
     if(!total)return;
     index=Math.max(0,Math.min(total-1,index));
-    pageField.value=index+1;
+    syncPageNavigation(index);
     if(model?.editable_deck){
       slidesEditor?.goTo(index);
       scroller.scrollLeft=0;scroller.scrollTop=0;
@@ -430,7 +446,7 @@
     root.dispatchEvent(new CustomEvent('open-doc:layout'));
   }
 
-  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;nativeTextButton.hidden=note.source_kind!=='pdf';nativeTextPanel.hidden=true;nativeEditMode=false;nativeEditButton.textContent='Editar PDF';nativeEditButton.setAttribute('aria-pressed','false');nativeEditButton.hidden=note.source_kind!=='pdf';pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];pageField.max=model.surfaces.length;pageField.value='1';
+  async function load(value){slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;nativeTextButton.hidden=note.source_kind!=='pdf';nativeTextPanel.hidden=true;nativeEditMode=false;nativeEditButton.textContent='Editar PDF';nativeEditButton.setAttribute('aria-pressed','false');nativeEditButton.hidden=note.source_kind!=='pdf';pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];syncPageNavigation(0);
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
    if(note.source_kind==='pptx' && model.editable_deck){
      root.dataset.readerState='ready';
