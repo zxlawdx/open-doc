@@ -56,10 +56,13 @@ def test_linux_registers_existing_mime_types_and_changes_only_selected_default(
     associations.register(executable)
     associations.register(executable)
     desktop = tmp_path / "applications" / "Open-Doc.desktop"
-    assert f'Exec="{executable}" %f' in desktop.read_text(encoding="utf-8")
-    assert "MimeType=" + ";".join(
-        associations.FILE_TYPES.values()
-    ) + ";" in desktop.read_text(encoding="utf-8")
+    entry = desktop.read_text(encoding="utf-8")
+    # The Linux registration is also simulated on Windows, where tmp_path
+    # contains backslashes. Exec quoting and desktop-entry escaping each
+    # require another level of escaping.
+    escaped_path = str(executable).replace("\\", "\\" * 4)
+    assert f'Exec="{escaped_path}" %f' in entry.splitlines()
+    assert "MimeType=" + ";".join(associations.FILE_TYPES.values()) + ";" in entry
     assert calls == [["update-desktop-database", str(desktop.parent)]]
     associations.set_linux_default(executable, ".pdf")
     assert calls[-1] == ["xdg-mime", "default", desktop.name, "application/pdf"]
