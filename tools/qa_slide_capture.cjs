@@ -271,7 +271,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
      return {pages:viewport.querySelectorAll('.fixed-surface').length,
        thumbs:document.querySelectorAll('.fixed-sidebar [data-thumbnail-index]').length,
        ratio:p.width/p.height,expected:slide.width_pt/slide.height_pt,
-       centerX:(p.left+p.right)/2,workspaceCenterX:(v.left+v.right)/2,
+       centerX:(p.left+p.right)/2,workspaceCenterX:v.left+viewport.clientWidth/2,
        fits:p.width<=v.width+1&&p.height<=v.height+1,
        sidebarWidth:side.getBoundingClientRect().width,
        inspectorWidth:inspector.getBoundingClientRect().width,
