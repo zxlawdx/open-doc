@@ -7,7 +7,8 @@
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
     round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
-    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico",table:"Tabela"})[type]||"Objeto";
+    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico",table:"Tabela",chevron:"Chevron",hexagon:"Hexágono",
+    pentagon:"Pentágono",parallelogram:"Paralelogramo",star:"Estrela",cloud:"Nuvem"})[type]||"Objeto";
   const canEditText=obj=>obj.type==="text"||
     (Boolean(obj.text)&&!["image","line","chart"].includes(obj.type));
   const SVG_NS="http://www.w3.org/2000/svg";
@@ -39,6 +40,8 @@
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
     "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
     "Gráfico: Pizza":"chart-pie",Tabela:"table",
+    Chevron:"shape-chevron",Hexágono:"shape-hexagon",Pentágono:"shape-pentagon",
+    Paralelogramo:"shape-parallelogram",Estrela:"shape-star",Nuvem:"shape-cloud",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
@@ -61,7 +64,9 @@
       svg.setAttribute("preserveAspectRatio","none");
       svg.setAttribute("aria-hidden","true");
       const tag=({rect:"rect",round_rect:"rect",ellipse:"ellipse",
-        line:"line",arrow:"polygon",triangle:"polygon",diamond:"polygon"})[obj.type];
+        line:"line",arrow:"polygon",triangle:"polygon",diamond:"polygon",
+        chevron:"polygon",hexagon:"polygon",pentagon:"polygon",parallelogram:"polygon",
+        star:"polygon",cloud:"path"})[obj.type];
       if(!tag)return null;
       const shape=document.createElementNS(SVG_NS,tag);
       const geometry=({
@@ -71,7 +76,13 @@
         line:{x1:0,y1:100,x2:100,y2:0},
         arrow:{points:"4,38 62,38 62,14 98,50 62,86 62,62 4,62"},
         triangle:{points:"50,0 100,100 0,100"},
-        diamond:{points:"50,0 100,50 50,100 0,50"}
+        diamond:{points:"50,0 100,50 50,100 0,50"},
+        chevron:{points:"0,0 70,0 100,50 70,100 0,100 30,50"},
+        hexagon:{points:"25,0 75,0 100,50 75,100 25,100 0,50"},
+        pentagon:{points:"50,0 100,38 81,100 19,100 0,38"},
+        parallelogram:{points:"28,0 100,0 72,100 0,100"},
+        star:{points:"50,2 62,36 98,36 69,58 80,96 50,74 20,96 31,58 2,36 38,36"},
+        cloud:{d:"M22 78C1 78 0 49 22 45C14 19 47 8 59 30C75 15 99 33 94 52C111 77 83 92 66 82H27Q24 82 22 78Z"}
       })[obj.type];
       for(const [key,value] of Object.entries(geometry))
         shape.setAttribute(key,String(value));
@@ -359,6 +370,12 @@
       this._button("Seta",()=>this.add("arrow"));
       this._button("Triângulo",()=>this.add("triangle"));
       this._button("Losango",()=>this.add("diamond"));
+      this._button("Chevron",()=>this.add("chevron"));
+      this._button("Hexágono",()=>this.add("hexagon"));
+      this._button("Pentágono",()=>this.add("pentagon"));
+      this._button("Paralelogramo",()=>this.add("parallelogram"));
+      this._button("Estrela",()=>this.add("star"));
+      this._button("Nuvem",()=>this.add("cloud"));
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
       for(const [label,kind] of [
         ["Gráfico: Barras","bar"],["Gráfico: Linhas","line"],["Gráfico: Pizza","pie"]
