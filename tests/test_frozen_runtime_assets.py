@@ -30,6 +30,9 @@ class FrozenAssetValidationTests(TestCase):
                 }), encoding="utf-8")
             (root / "apps/open_doc/static/css").mkdir(parents=True)
             (root / "apps/open_doc/static/css/main.css").write_text("body{}")
+            (root / "apps/open_doc/static/css/runtime.css").write_text("body{}")
+            (root / "staticfiles/open_doc/css").mkdir(parents=True)
+            (root / "staticfiles/open_doc/css/runtime.css").write_text("body{}")
             (root / "staticfiles/css").mkdir(parents=True)
             (root / "staticfiles/css/vela.bundle.css").write_text("body{}")
             with patch.object(assets.sys, "frozen", True, create=True):

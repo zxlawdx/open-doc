@@ -78,6 +78,10 @@ def test_prepare_uses_vela_collector_without_node(monkeypatch, tmp_path: Path):
     assert called["skip_tailwind"] is True
     assert called["allow_install"] is False
     assert css.read_text("utf-8") == original
+    runtime = tmp_path / "apps/open_doc/static/css/runtime.css"
+    assert runtime.is_file()
+    assert "--tw-" in runtime.read_text(encoding="utf-8")
+    assert "semantic-overlay" in runtime.read_text(encoding="utf-8")
     assert "--tw-" in (tmp_path / "staticfiles/css/vela.bundle.css").read_text("utf-8")
 
 
@@ -96,7 +100,7 @@ def test_real_vela_offline_collectstatic_runs_without_node(tmp_path: Path, monke
     monkeypatch.setenv("PATH", "")
     prepare(tmp_path)
     assert check(tmp_path)["target"] == "chrome83"
-    generated = tmp_path / "staticfiles/open_doc/css/main.css"
+    generated = tmp_path / "staticfiles/open_doc/css/runtime.css"
     assert generated.is_file()
     assert "semantic-overlay" in generated.read_text(encoding="utf-8")
 
