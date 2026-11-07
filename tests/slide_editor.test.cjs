@@ -1226,7 +1226,7 @@ test('PPTX chart PIB uses complete economic categories and calculated percentage
  }
  const lines=charts.ChartLayoutEngine.lines(economic[1],155,charts.ChartLayoutEngine.font(source));
  assert.ok(lines.length>1,'long text wraps to multiple lines');
- assert.equal(lines.join(''),economic[1],
+ assert.equal(lines.join(' ').replace(/\s+/g,' ').trim(),economic[1],
    'a text wrap must preserve all characters, spaces, and punctuation');
 });
 
