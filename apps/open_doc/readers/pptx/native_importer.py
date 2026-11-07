@@ -7,6 +7,7 @@ shapes/animations when exported from the editable model.
 from __future__ import annotations
 
 import base64
+from copy import deepcopy
 from uuid import uuid4
 
 from pptx import Presentation
@@ -179,17 +180,20 @@ def read_editable_deck(path) -> dict | None:
             notes = ""
             if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
                 notes = slide.notes_slide.notes_text_frame.text[:5000]
-            surface = dict(index=index, preview_kind="pptx-native",
+            surface = dict(index=index, source_slide_index=index, preview_kind="pptx-native",
                            width_pt=width / 12700, height_pt=height / 12700,
                            strokes=[], text_overlays=[], background=color,
                            notes=notes, transition=effect, transition_speed=speed,
                            elements=[])
             if len(slide.shapes) > 500:
                 return None
-            for shape in slide.shapes:
-                surface["elements"].append(_shape_element(shape, width, height, assets))
+            for source_index, shape in enumerate(slide.shapes):
+                element = _shape_element(shape, width, height, assets)
+                element["source_shape_index"] = source_index
+                element["source_original"] = deepcopy(element)
+                surface["elements"].append(element)
             surfaces.append(surface)
-        model = dict(editable_deck=True, assets=assets, surfaces=surfaces)
+        model = dict(editable_deck=True, preserve_source=True, assets=assets, surfaces=surfaces)
         SlideModelValidator().validate(dict(source_kind="pptx", **model))
     except (AttributeError, KeyError, TypeError, ValueError, IndexError, OverflowError):
         return None
