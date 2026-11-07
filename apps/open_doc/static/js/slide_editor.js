@@ -89,6 +89,7 @@
     "Restaurar ajustes de cor e opacidade":"undo","Substituir imagem":"image",
     "Subir camada":"arrow-up","Descer camada":"arrow-down","Duplicar objeto":"duplicate",
     "Excluir objeto":"trash","Aplicar escala":"fit",Negrito:"bold",Itálico:"italic",
+    Anterior:"arrow-left",Próximo:"arrow-right",
     Esquerda:"align-left",Centralizar:"align-center",Direita:"align-right",
     Justificar:"align-justify",Marcadores:"list",Numeração:"list-numbered",
     "Aumentar recuo":"indent-increase","Diminuir recuo":"indent-decrease"
@@ -463,6 +464,8 @@
       },{signal:this.signal});container.append(button);return button;
     }
     _buildToolbar(){
+      this._button("Anterior",()=>this.go(clamp(this.current-1,0,this.getModel().surfaces.length-1)),"Ir para o slide anterior");
+      this._button("Próximo",()=>this.go(clamp(this.current+1,0,this.getModel().surfaces.length-1)),"Ir para o próximo slide");
       this._button("+ Slide",()=>{this.commands.insert(this.current);this.current++;this._selectObject(null);this.go(this.current);});
       this._button("Duplicar",()=>{this.commands.duplicate(this.current);this.current++;this._selectObject(null);this.go(this.current);});
       this._button("Excluir slide",()=>{this.commands.remove(this.current);this.current=clamp(this.current,0,this.getModel().surfaces.length-1);this._selectObject(null);});
@@ -562,7 +565,7 @@
       tabs.className="slide-ribbon-tabs";tabs.setAttribute("role","tablist");
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
-        {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
+        {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide","Anterior","Próximo"]},
         {label:"Inserir",labels:["Texto","Tabela","Equações","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Aplicar a todos os slides","Prévia","Apresentar"]}
