@@ -226,12 +226,17 @@
       const id=window.OpenDocModel.id();
       const blocks=clone(definition.math_blocks);
       this.apply(slides=>{
-        const elements=slides[index].elements;
+        const surface=slides[index],elements=surface.elements;
         if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
+        const bg=(surface.background||"#FFFFFF").replace(/^#/,"");
+        const rgb=/^[0-9a-f]{6}$/i.test(bg)?[0,2,4].map(i=>parseInt(bg.slice(i,i+2),16)/255):[1,1,1];
+        const lum=rgb.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4)
+          .reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+        const textColor=lum<.20?"#F8FAFC":"#192433";
         elements.push({id,type:"math",name:definition.label||"Equação",
           x:.12,y:.38,width:.75,height:.28,rotation:0,
-          font_family:"Cambria Math",font_size_pt:28,
-          color:"#191C1E",fill:"#FFFFFF",stroke:"#004AC6",
+          font_family:"Cambria Math",font_size_pt:42,
+          color:textColor,fill:"#FFFFFF",stroke:"#004AC6",
           stroke_width:1.5,text:"",math_blocks:blocks});
       });
       return id;
