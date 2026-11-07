@@ -12,8 +12,8 @@ from pathlib import Path
 from PIL import ImageFont
 from pptx import Presentation
 
-_LITERAL_TEX = re.compile(r"\\\\(?:text|frac|begin|end)\\s*\\{")
-_TRUNCATED = re.compile(r"(?:…|\\.\\.\\.)\\s*$")
+_LITERAL_TEX = re.compile(r"\\(?:text|frac|begin|end)\s*\{")
+_TRUNCATED = re.compile(r"(?:…|\.\.\.)\s*$")
 
 
 def _font(pt, bold=False):
