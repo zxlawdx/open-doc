@@ -21,6 +21,7 @@ from pptx.util import Pt
 
 from ...ink.raster import render_layer
 from .image_effects import export_image_effects
+from .native_math import write_math, read_math
 
 
 def rgb(value: str) -> RGBColor:
@@ -112,6 +113,10 @@ class SlideDeckExporter:
             xfrm = shape._pic.spPr.get_or_add_xfrm()
             xfrm.flipH = obj.get("flip_h", False)
             xfrm.flipV = obj.get("flip_v", False)
+        elif kind == "math":
+            shape = slide.shapes.add_textbox(left, top, w, h)
+            write_math(shape, obj["math_blocks"])
+            shape.fill.background()
         elif kind == "text":
             shape = slide.shapes.add_textbox(left, top, w, h)
             shape.fill.background()
@@ -140,13 +145,13 @@ class SlideDeckExporter:
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj.get("fill", "#DAE2FD"))
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
-        if kind not in {"text", "image", "chart", "table"}:
+        if kind not in {"text", "image", "chart", "table", "math"}:
             shape.line.width = Pt(obj.get("stroke_width", 1.5))
         if kind not in {"chart", "table"}:
             shape.rotation = obj.get("rotation", 0)
         if obj.get("name"):
             shape.name = obj["name"]
-        if kind == "text" or (kind != "table" and obj.get("text")):
+        if kind == "text" or (kind not in {"table", "math"} and obj.get("text")):
             frame = shape.text_frame
             frame.clear()
             frame.word_wrap = True
@@ -253,6 +258,11 @@ class SlideDeckExporter:
                    and original.get(key) != value}
         if not changed:
             return
+        if "math_blocks" in changed:
+            if read_math(shape) is None:
+                raise ValueError("O objeto original não contém matemática OMML.")
+            write_math(shape, obj["math_blocks"])
+            changed.remove("math_blocks")
         if "table_cells" in changed:
             if not shape.has_table:
                 raise ValueError("O objeto original não contém tabela editável.")

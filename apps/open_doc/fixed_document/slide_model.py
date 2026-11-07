@@ -14,6 +14,7 @@ from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 
 from ..ink.validation import number
+from ..readers.pptx.native_math import validate_math_blocks
 
 HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 MAX_SLIDES = 200
@@ -102,8 +103,10 @@ class SlideModelValidator:
         if not isinstance(uid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", uid) or uid in ids:
             raise ValueError("Identificador de elemento inválido ou duplicado.")
         ids.add(uid)
-        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image", "chart", "table", "chevron", "hexagon", "pentagon", "parallelogram", "star", "cloud"}:
+        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image", "chart", "table", "chevron", "hexagon", "pentagon", "parallelogram", "star", "cloud", "math"}:
             raise ValueError("Tipo de elemento não suportado.")
+        if element.get("type") == "math":
+            validate_math_blocks(element.get("math_blocks"))
         if element.get("type") == "table":
             cells = element.get("table_cells")
             if (not isinstance(cells, list) or not 1 <= len(cells) <= 30

@@ -1,5 +1,5 @@
-/* Offline equation gallery. Formulas are inserted as high-resolution PNG images.
- * This is not a native OMML equation editor: original TeX stays in object name.
+/* Offline structured equation gallery: inserts editable mathematical objects.
+ * Each component is exported as native OOXML OMML (not a picture).
  */
 "use strict";
 (() => {
@@ -12,6 +12,21 @@
   {id:"sum",label:"Somatório",tex:"\\sum_{k=1}^{n}k=\\frac{n(n+1)}{2}",op:"∑",top:"n",bottom:"k = 1",operand:"k =",resultUpper:"n(n + 1)",resultLower:"2",note:"Soma dos n primeiros inteiros positivos"},
   {id:"double",label:"Integral dupla",tex:"\\iint_D(x+y)\\,dA",op:"∬",bottom:"D",operand:"(x + y) dA",note:"Integral sobre uma região D"}
  ];
+ const BLOCKS={
+  fraction:[{kind:"text",value:"d/dx ("},{kind:"fraction",numerator:"x² + 1",denominator:"x + 1"},
+    {kind:"text",value:") = "},{kind:"fraction",numerator:"x² + 2x − 1",denominator:"(x + 1)²"}],
+  integral:[{kind:"nary",operator:"∫",lower:"",upper:"",body:"x² dx"},
+    {kind:"text",value:" = "},{kind:"fraction",numerator:"x³",denominator:"3"},{kind:"text",value:" + C"}],
+  trig:[{kind:"nary",operator:"∫",lower:"",upper:"",body:"sen(x) dx"},
+    {kind:"text",value:" = −cos(x) + C"}],
+  definite:[{kind:"nary",operator:"∫",lower:"0",upper:"π",body:"sen(x) dx"},
+    {kind:"text",value:" = 2"}],
+  line:[{kind:"nary",operator:"∮",lower:"C",upper:"",body:"(x dy − y dx)"},
+    {kind:"text",value:" = 2π"}],
+  sum:[{kind:"nary",operator:"∑",lower:"k = 1",upper:"n",body:"k"},
+    {kind:"text",value:" = "},{kind:"fraction",numerator:"n(n + 1)",denominator:"2"}],
+  double:[{kind:"nary",operator:"∬",lower:"D",upper:"",body:"(x + y) dA"}]
+ };
  const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
  const label=(x,y,s,size=38,anchor="start")=>'<text x="'+x+'" y="'+y+'" text-anchor="'+anchor+'" fill="#17365c" font-family="Cambria Math,STIX Two Math,DejaVu Serif,Georgia,serif" font-size="'+size+'">'+esc(s)+'</text>';
  function svg(id){
@@ -82,7 +97,7 @@
   panel.setAttribute("aria-label","Modelos de equações");
   const heading=document.createElement("h3");heading.textContent="Equações matemáticas";
   const hint=document.createElement("p");
-  hint.textContent="Fórmulas diagramadas e inseridas como imagens. Edição matemática nativa ainda não disponível.";
+  hint.textContent="Insere componentes matemáticos editáveis (frações, integrais, somatórios, potências). Exportação PPTX em OMML nativo.";
   panel.append(heading,hint);
   for(const def of DEFINITIONS){
    const button=document.createElement("button");button.type="button";
@@ -92,19 +107,17 @@
    const preview=document.createElement("img");preview.alt=def.tex;
    preview.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg(def.id));
    button.append(name,preview);
-   button.addEventListener("click",async()=>{
-    button.disabled=true;
+   button.addEventListener("click",()=>{
     try{
-     const data=await toPng(def.id);
-     insert({mime:"image/png",data,name:"Equação: "+def.tex});
-     panel.hidden=true;status?.("Equação diagramada inserida como imagem.");
+     insert({kind:"math",label:def.label,
+       math_blocks:JSON.parse(JSON.stringify(BLOCKS[def.id]))});
+     panel.hidden=true;status?.("Equação nativa e editável inserida.");
     }catch(error){status?.(error.message);}
-    finally{button.disabled=false;}
    });
    panel.append(button);
   }
   host.append(panel);
   return {panel,toggle:()=>{panel.hidden=!panel.hidden;},close:()=>{panel.hidden=true;}};
  }
- window.OpenDocMathGallery={DEFINITIONS,svg,toPng,install};
+ window.OpenDocMathGallery={DEFINITIONS,BLOCKS,svg,toPng,install};
 })();

@@ -432,3 +432,30 @@
   width:100%;height:auto;max-height:125px;object-fit:contain;
 }
 
+
+/* Editable Office-native math preview; all nodes are text and CSS, no bitmap. */
+.open-doc .slide-native-equation{display:inline-flex;align-items:center;flex-wrap:wrap;
+  gap:.16em;width:100%;font-family:"Cambria Math","STIX Two Math",serif;
+  color:inherit;line-height:1.1;pointer-events:none;}
+.open-doc .slide-math-fraction{display:inline-flex;flex-direction:column;
+  align-items:center;vertical-align:middle;font-size:.80em;white-space:nowrap;}
+.open-doc .slide-math-numerator{border-bottom:1.5px solid currentColor;
+  padding:0 .16em .14em;text-align:center;}
+.open-doc .slide-math-denominator{padding:.14em .16em 0;text-align:center;}
+.open-doc .slide-math-nary{display:inline-flex;align-items:center;gap:.25em;}
+.open-doc .slide-math-operator{display:inline-flex;flex-direction:column;
+  align-items:center;justify-content:center;line-height:1;}
+.open-doc .slide-math-upper,.open-doc .slide-math-lower{font-size:.42em;min-height:.65em;}
+.open-doc .slide-math-sign{font-size:1.7em;line-height:.95;}
+.open-doc .slide-math-superscript sup{font-size:.65em;}
+.open-doc .slide-math-properties{border:1px solid #8190a633;border-radius:6px;
+  padding:8px;margin:7px 0;display:flex;flex-direction:column;gap:5px;}
+.open-doc .slide-math-properties label{display:flex;flex-direction:column;gap:3px;}
+/* Separate proportional-scale grip, visually distinct from rotate and edge handles. */
+.open-doc .slide-scale-handle{position:absolute;z-index:12;right:-19px;bottom:-19px;
+  width:16px;height:16px;box-sizing:border-box;background:#004ac6;
+  border:2px solid #fff;border-radius:50%;cursor:nwse-resize;touch-action:none;
+  box-shadow:0 1px 5px #0006;pointer-events:auto;}
+.open-doc .slide-scale-handle::after{content:"↗";position:absolute;inset:-4px 0 0 0;
+  color:#fff;font-size:13px;text-align:center;font-weight:800;}
+.open-doc .slide-presentation .slide-scale-handle{display:none!important}

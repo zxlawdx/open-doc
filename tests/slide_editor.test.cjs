@@ -1031,3 +1031,50 @@ test('smart alignment guides find slide center and nearby object edges at any zo
  const outside=snap({x:.35,y:.38,width:.2,height:.15},[],1000,600,7);
  assert.equal(outside.guides.length,0);
 });
+
+test('native mathematical object supports inspector edits and proportional scale handle',t=>{
+ const q=setup(t);
+ const formula={label:'Integral definida',math_blocks:[
+   {kind:'nary',operator:'∫',lower:'0',upper:'π',body:'sen(x) dx'},
+   {kind:'text',value:' = 2'}
+ ]};
+ const id=q.editor.commands.insertMath(0,formula);
+ q.editor._selectObject(id);q.editor.render();
+ const obj=q.model().surfaces[0].elements[0];
+ assert.equal(obj.type,'math');
+ assert.equal(obj.math_blocks[0].operator,'∫');
+ assert.equal(q.scroller.querySelectorAll('.slide-native-equation').length,1);
+ assert.ok(q.scroller.querySelector('.slide-scale-handle[data-scale]'));
+ assert.ok(!q.model().assets || Object.keys(q.model().assets).length===0,
+   'native equation must not insert a bitmap asset');
+ const input=Array.from(q.host.querySelectorAll('.slide-math-properties label'))
+   .find(n=>n.textContent.startsWith('Integrando'));
+ assert.ok(input);
+ input.querySelector('input').value='cos(x) dx';
+ input.querySelector('input').dispatchEvent(new q.w.Event('change'));
+ assert.equal(q.model().surfaces[0].elements[0].math_blocks[0].body,'cos(x) dx');
+ q.editor._selectObject(id);q.editor.render();
+ const surface=q.scroller.querySelector('.fixed-surface');
+ surface.getBoundingClientRect=()=>({left:0,top:0,width:800,height:450,right:800,bottom:450});
+ const grip=q.scroller.querySelector('.slide-scale-handle');
+ grip.dispatchEvent(new q.w.MouseEvent('pointerdown',
+   {button:0,bubbles:true,clientX:200,clientY:120}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointermove',
+   {bubbles:true,clientX:240,clientY:140}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',
+   {bubbles:true,clientX:240,clientY:140}));
+ const next=q.model().surfaces[0].elements[0];
+ assert.ok(next.width>obj.width && next.height>obj.height);
+ assert.ok(Math.abs(next.width/next.height-obj.width/obj.height)<1e-8);
+ assert.ok(next.font_size_pt>obj.font_size_pt);
+});
+
+test('unchanged thumbnails keep their DOM identity on object edits',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'+ Slide');
+ const a=q.sidebar.querySelector('[data-thumbnail-index="0"] .slide-thumb-preview');
+ const b=q.sidebar.querySelector('[data-thumbnail-index="1"] .slide-thumb-preview');
+ clickLabel(q.controls,'Retângulo');
+ assert.equal(q.sidebar.querySelector('[data-thumbnail-index="0"] .slide-thumb-preview'),a);
+ assert.notEqual(q.sidebar.querySelector('[data-thumbnail-index="1"] .slide-thumb-preview'),b);
+});
