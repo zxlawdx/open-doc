@@ -791,3 +791,71 @@ def test_extended_pptx_shapes_roundtrip_as_editable(kind, shape_name, tmp_path):
     imported = ctx.fixed_documents.import_pptx(dest)
     assert imported["capabilities"]["edit_slides"] is True
     assert imported["content"]["surfaces"][0]["elements"][0]["type"] == kind
+
+
+def test_36_slide_dark_template_imports_with_thin_rules_and_inherited_51pt_title(tmp_path):
+    """Regression for economy-politics V3: one thin stripe used to reject all 36 slides.
+
+    All content remains native, editable, and retains the original page size.
+    Paragraph font defaults must not turn 51-pt white text into 28-pt black.
+    """
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.shapes import MSO_SHAPE
+    deck = Presentation()
+    deck.slide_width = Inches(13.333)
+    deck.slide_height = Inches(7.5)
+    for index in range(36):
+        slide = deck.slides.add_slide(deck.slide_layouts[6])
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = RGBColor(16, 36, 55)
+        stripe = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0,
+                                        Inches(.12), Inches(7.5))
+        stripe.fill.solid()
+        stripe.fill.fore_color.rgb = RGBColor(33, 183, 167)
+        rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(.75),
+                                      Inches(5.30), Inches(1.5), Inches(.07))
+        rule.fill.solid()
+        rule.fill.fore_color.rgb = RGBColor(33, 183, 167)
+        box = slide.shapes.add_textbox(Inches(.72), Inches(1.05),
+                                       Inches(11.9), Inches(3.5))
+        paragraph = box.text_frame.paragraphs[0]
+        paragraph.font.size = Pt(51)
+        paragraph.font.name = "Aptos"
+        paragraph.font.bold = True
+        paragraph.font.color.rgb = RGBColor(255, 255, 255)
+        run = paragraph.add_run()
+        run.text = "QUEM PRODUZ, QUEM PAGA E QUEM GANHA? " + str(index + 1)
+        assert run.font.size is None
+    source = tmp_path / "economia-politica-36-inherited.pptx"
+    deck.save(source)
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    assert imported["content"]["editable_deck"] is True
+    assert imported["content"]["preserve_source"] is True
+    assert len(imported["content"]["surfaces"]) == 36
+    for slide in imported["content"]["surfaces"]:
+        assert slide["width_pt"] == pytest.approx(959.976, abs=1)
+        assert slide["height_pt"] == pytest.approx(540, abs=1)
+        assert len(slide["elements"]) == 3
+        title = slide["elements"][2]
+        assert title["font_size_pt"] == 51
+        assert title["font_family"] == "Aptos"
+        assert title["font_bold"] is True
+        assert title["color"] == "#FFFFFF"
+        assert slide["elements"][0]["width"] < .01
+        assert slide["elements"][1]["height"] < .01
+    changed = deepcopy(imported["content"])
+    changed["surfaces"][0]["elements"][2]["text"] = "TÍTULO EDITADO NO OPEN DOC"
+    saved = ctx.fixed_documents.save(
+        imported["id"], imported["title"], changed, imported["revision"]
+    )
+    dest = tmp_path / "roundtrip-36.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", dest)
+    after = Presentation(dest)
+    assert len(after.slides) == 36
+    assert after.slides[0].shapes[2].text == "TÍTULO EDITADO NO OPEN DOC"
+    assert after.slides[1].shapes[2].text == deck.slides[1].shapes[2].text
+    assert after.slides[0].shapes[2].text_frame.paragraphs[0].font.size.pt == 51
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
