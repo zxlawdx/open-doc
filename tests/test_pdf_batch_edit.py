@@ -26,7 +26,8 @@ def test_batch_modifies_two_places_without_touching_source(tmp_path):
     original = source.read_bytes()
     destination = tmp_path / "batch.pdf"
     operations = [
-        {"kind": "replace_text", "page": 0, "old": "Aluno", "new": "Equipe"},
+        {"kind": "replace_text", "page": 0, "old": "Aluno", "new": "Equipe",
+         "allow_expansion": True},
         {"kind": "replace_text", "page": 0, "old": "Professor", "new": "Orientador",
          "allow_expansion": True},
     ]
