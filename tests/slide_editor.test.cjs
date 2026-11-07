@@ -757,3 +757,86 @@ test('presenter can navigate to an offscreen slide without creating a second edi
    'presenter navigation must not create physical editor pages');
  q.editor.stopPresentation();
 });
+
+test('Image color and opacity adjustments affect only the picture and can be reset',t=>{
+ const q=setup(t);
+ const id=q.editor.commands.insertImage(0,{mime:'image/png',data:'YQ==',name:'Foto'});
+ q.editor._selectObject(id);q.editor.render();
+ const property=label=>Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(element=>element.textContent===label).querySelector('input');
+ const change=(label,value)=>{
+   const input=property(label);
+   if(input.type==='checkbox')input.checked=value;
+   else input.value=String(value);
+   input.dispatchEvent(new q.w.Event('change'));
+ };
+ change('Opacidade (%)',40);
+ change('Brilho (%)',20);
+ change('Contraste (%)',-15);
+ change('Preto e branco',true);
+ const picture=()=>q.scroller.querySelector('.fixed-surface .slide-image-crop img');
+ assert.equal(picture().style.opacity,'0.4');
+ assert.equal(picture().style.filter,'brightness(120%) contrast(85%) grayscale(100%)');
+ assert.equal(picture().src,'data:image/png;base64,YQ==');
+ change('Tom da imagem','#cc0000');
+ assert.equal(q.model().surfaces[0].elements[0].image_tint,'#cc0000');
+ assert.match(picture().style.filter,/url\(#/);
+ const reset=Array.from(q.host.querySelectorAll('.slide-inspector button'))
+   .find(button=>button.textContent==='Restaurar ajustes de cor e opacidade');
+ assert.ok(reset);reset.click();
+ assert.equal(picture().style.opacity,'1');
+ assert.equal(picture().style.filter,'');
+});
+
+test('Slide typography presets and font family are applied to canvas and inline editor',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const change=(label,value)=>{
+   const field=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+     .find(node=>node.firstChild.textContent===label).querySelector('select');
+   field.value=value;field.dispatchEvent(new q.w.Event('change'));
+ };
+ change('Família da fonte','Times New Roman');
+ change('Estilo do texto','Título 2');
+ const object=q.model().surfaces[0].elements[0];
+ assert.equal(object.font_family,'Times New Roman');
+ assert.equal(object.font_size_pt,36);
+ assert.equal(object.font_bold,true);
+ const text=q.scroller.querySelector('.slide-object-text');
+ text.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ const inline=text.querySelector('.slide-inline-editor');
+ assert.match(inline.style.fontFamily,/Times New Roman/);
+ assert.equal(inline.style.fontWeight,'bold');
+});
+
+test('Rapid clicks on a shape without text leave the SVG visible',t=>{
+ const q=setup(t);clickLabel(q.controls,'Retângulo');
+ const shape=q.scroller.querySelector('.slide-object-rect');
+ for(let i=0;i<2;i++)shape.dispatchEvent(new q.w.MouseEvent('pointerdown',
+   {bubbles:true,cancelable:true,button:0}));
+ assert.ok(shape.querySelector('.slide-vector-shape'));
+ assert.equal(q.scroller.querySelector('.slide-inline-editor'),null);
+ const id=q.model().surfaces[0].elements[0].id;
+ q.editor.commands.updateObject(0,id,{text:'Rótulo'});
+ const labeled=q.scroller.querySelector('.slide-object-rect');
+ labeled.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ assert.ok(labeled.querySelector('.slide-vector-shape'));
+ assert.equal(labeled.querySelector('.slide-inline-editor').value,'Rótulo');
+ assert.equal(labeled.querySelector('.slide-shape-label'),null);
+});
+
+test('Hex background and slide eyedropper apply without adding a rectangle',t=>{
+ const q=setup(t);
+ const label=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(node=>node.textContent==='Cor de fundo (hex)');
+ label.querySelector('input').value='#A81710';
+ const button=Array.from(q.host.querySelectorAll('.slide-inspector button'))
+   .find(node=>node.textContent==='Aplicar fundo');
+ button.click();
+ assert.equal(q.model().surfaces[0].background,'#A81710');
+ assert.equal(q.model().surfaces[0].elements.length,0);
+ assert.equal(q.scroller.querySelector('.fixed-surface').style.backgroundColor,'rgb(168, 23, 16)');
+ clickLabel(q.controls,'Texto');
+ q.host.querySelector('[aria-label="Conta-gotas · Cor do texto"]').click();
+ q.scroller.querySelector('.fixed-surface').click();
+ assert.equal(q.model().surfaces[0].elements[0].color,'#A81710');
+});

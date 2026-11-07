@@ -8,7 +8,32 @@
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
     round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
     triangle:"Triângulo",diamond:"Losango",chart:"Gráfico"})[type]||"Objeto";
+  const canEditText=obj=>obj.type==="text"||
+    (Boolean(obj.text)&&!["image","line","chart"].includes(obj.type));
   const SVG_NS="http://www.w3.org/2000/svg";
+  let tintSequence=0;
+  const textStyles=[
+    ["Texto normal",28,false],["Título 1",44,true],
+    ["Título 2",36,true],["Título 3",30,true],["Legenda",18,false]
+  ];
+  function pictureTint(viewport,color){
+    const svg=document.createElementNS(SVG_NS,"svg");
+    svg.setAttribute("aria-hidden","true");
+    Object.assign(svg.style,{position:"absolute",width:"0",height:"0"});
+    const defs=document.createElementNS(SVG_NS,"defs");
+    const filter=document.createElementNS(SVG_NS,"filter");
+    filter.id="open-doc-image-tint-"+(++tintSequence);
+    filter.setAttribute("color-interpolation-filters","sRGB");
+    const matrix=document.createElementNS(SVG_NS,"feColorMatrix");
+    const values=[1,3,5].flatMap(offset=>{
+      const channel=parseInt(color.slice(offset,offset+2),16)/255;
+      return [.2126*channel,.7152*channel,.0722*channel,0,0];
+    });
+    matrix.setAttribute("type","matrix");
+    matrix.setAttribute("values",[...values,0,0,0,1,0].join(" "));
+    filter.append(matrix);defs.append(filter);svg.append(defs);viewport.append(svg);
+    return "url(#"+filter.id+")";
+  }
   const ACTION_ICONS={
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
@@ -442,6 +467,7 @@
         this.importImage(file).catch(error=>this.status(error.message));
       },{signal:this.signal});
       this.scroller.addEventListener("pointerdown",event=>{
+        if(this.colorSample&&event.button===0){event.preventDefault();return;}
         if(this._beginPan(event))return;
         this._start(event);
       },{signal:this.signal});
@@ -469,6 +495,13 @@
         this.current=targetIndex;
         const item=event.target.closest("[data-slide-element]");
         if(event.target.closest(".slide-inline-editor"))return;
+        if(this.colorSample){
+          const apply=this.colorSample;
+          this.colorSample=null;this.scroller.style.cursor="";
+          try{apply(this._sampleSlideColor(event,item,this.getModel().surfaces[targetIndex]));}
+          catch(error){this.status(error.message);}
+          return;
+        }
         if(this.paintActive&&item){
           this._paintObject(targetIndex,item.dataset.slideElement);this.render();return;
         }
@@ -481,7 +514,7 @@
         if(!item)return;
         const index=Number(item.closest(".fixed-surface").dataset.pageIndex),id=item.dataset.slideElement;
         const obj=this.getModel().surfaces[index].elements.find(e=>e.id===id);
-        if(!obj||(obj.type!=="text"&&!obj.text))return;
+        if(!obj||!canEditText(obj))return;
         event.preventDefault();event.stopPropagation();
         this._editText(index,id,item,obj.text);
       },{signal:this.signal});
@@ -499,6 +532,7 @@
             .catch(error=>this.status(error.message));return;
         }
         if(event.key==="Escape"){
+          if(this.colorSample){this.colorSample=null;this.scroller.style.cursor="";event.preventDefault();return;}
           if(this.paintActive){this.paintActive=false;this.paintButton.setAttribute("aria-pressed","false");}
           this.lastTextTap=null;this._selectObject(null);this.render();return;
         }
@@ -537,7 +571,7 @@
       this.stopPresentation();
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
       this._selectObject(null);this.drag=null;this.pan=null;
-      this.spacePressed=false;this.scroller.style.cursor="";this.inspector.replaceChildren();
+      this.spacePressed=false;this.colorSample=null;this.scroller.style.cursor="";this.inspector.replaceChildren();
       this.activeCanvas=null;this.workspace.replaceChildren();this.workspace.remove();
     }
     selectSearchResult(index,id){
@@ -601,9 +635,14 @@
       if(this.inlineEditing)return;
       const editor=document.createElement("textarea");
       editor.className="slide-inline-editor";editor.value=value||"";
+      Object.assign(editor.style,{fontFamily:node.style.fontFamily,fontSize:node.style.fontSize,
+        fontWeight:node.style.fontWeight,fontStyle:node.style.fontStyle});
       editor.maxLength=10000;editor.setAttribute("aria-label","Editar texto diretamente no slide");
       const previous=node.style.overflow;
-      node.replaceChildren(editor);node.style.overflow="hidden";
+      for(const child of Array.from(node.childNodes)){
+        if(child.nodeType===3||child.classList?.contains("slide-shape-label"))child.remove();
+      }
+      node.append(editor);node.style.overflow="hidden";
       this.inlineEditing=editor;
       let finished=false;
       const finish=save=>{
@@ -883,11 +922,20 @@
             width:(100/visibleWidth)+"%",height:(100/visibleHeight)+"%",
             left:(-100*crop.left/visibleWidth)+"%",
             top:(-100*crop.top/visibleHeight)+"%",
-            objectFit:"fill",pointerEvents:"none"});
+            objectFit:"fill",pointerEvents:"none",
+            opacity:String((obj.image_opacity??100)/100)});
+          if(obj.image_brightness||obj.image_contrast||obj.image_grayscale){
+            picture.style.filter="brightness("+(100+(obj.image_brightness??0))+"%) contrast("+
+              (100+(obj.image_contrast??0))+"%) grayscale("+(obj.image_grayscale?100:0)+"%)";
+          }
+          if(obj.image_tint){
+            const tint=pictureTint(viewport,obj.image_tint);
+            picture.style.filter=[picture.style.filter,tint].filter(Boolean).join(" ");
+          }
           viewport.append(picture);node.append(viewport);
         }
       }else if(obj.type==="text")node.textContent=obj.text||"";
-      else if(obj.text){const label=document.createElement("span");label.textContent=obj.text;node.append(label);}
+      else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
         for(const direction of ["nw","n","ne","e","se","s","sw","w"]){
           const handle=document.createElement("span");
@@ -924,7 +972,8 @@
         borderColor:"transparent",
         transform:"rotate("+Number(obj.rotation||0)+"deg) scale("+(obj.flip_h?-1:1)+","+(obj.flip_v?-1:1)+")",
         fontSize:(obj.font_size_pt||28)*4/3*zoom*(thumb?.16:1)+"px",
-        fontFamily:JSON.stringify(obj.font_family||"Inter")+",sans-serif"
+        fontFamily:JSON.stringify(obj.font_family||"Inter")+",sans-serif",
+        fontWeight:obj.font_bold?"bold":"normal",fontStyle:obj.font_italic?"italic":"normal"
       });
     }
     _thumb(button,surface,index){
@@ -1014,13 +1063,80 @@
       this.onRender?.(slides);
       this._properties();
     }
+    _sampleSlideColor(event,item,slide){
+      const obj=item&&slide.elements.find(element=>element.id===item.dataset.slideElement);
+      if(!obj)return slide.background||"#FFFFFF";
+      if(obj.type!=="image"){
+        if(obj.type==="chart")throw Error("Escolha uma foto, forma, texto ou o fundo do slide.");
+        if(obj.type==="text")return obj.color;
+        return obj.type==="line"?obj.stroke:obj.fill;
+      }
+      const photo=item.querySelector("img");
+      if(!photo?.naturalWidth)throw Error("A imagem ainda está carregando.");
+      const rect=item.getBoundingClientRect(),angle=-(obj.rotation||0)*Math.PI/180;
+      const x=event.clientX-rect.left-rect.width/2,y=event.clientY-rect.top-rect.height/2;
+      const u=.5+(x*Math.cos(angle)-y*Math.sin(angle))*(obj.flip_h?-1:1)/item.offsetWidth;
+      const v=.5+(x*Math.sin(angle)+y*Math.cos(angle))*(obj.flip_v?-1:1)/item.offsetHeight;
+      const left=obj.crop_left||0,top=obj.crop_top||0;
+      const sx=Math.floor((left+clamp(u,0,1)*(1-left-(obj.crop_right||0)))*photo.naturalWidth);
+      const sy=Math.floor((top+clamp(v,0,1)*(1-top-(obj.crop_bottom||0)))*photo.naturalHeight);
+      const canvas=document.createElement("canvas");canvas.width=canvas.height=1;
+      const ctx=canvas.getContext("2d");
+      ctx.drawImage(photo,Math.min(sx,photo.naturalWidth-1),Math.min(sy,photo.naturalHeight-1),1,1,0,0,1,1);
+      const pixel=ctx.getImageData(0,0,1,1).data;
+      if(!pixel[3])throw Error("Esse ponto é transparente. Escolha outro ponto da imagem.");
+      return "#"+Array.from(pixel.slice(0,3),value=>value.toString(16).padStart(2,"0")).join("");
+    }
+    _colorProperty(label,value,change){
+      const input=this._property(label,value,"color",change);
+      const button=document.createElement("button");button.type="button";button.textContent="Conta-gotas";
+      button.setAttribute("aria-label","Conta-gotas · "+label);
+      const index=this.current,id=this.selected;
+      const apply=color=>{if(this.active&&this.current===index&&this.selected===id)change(color);};
+      button.addEventListener("click",async()=>{
+        if(window.EyeDropper){
+          try{apply((await new window.EyeDropper().open()).sRGBHex);return;}
+          catch(error){if(error.name==="AbortError")return;}
+        }
+        this.colorSample=apply;this.scroller.style.cursor="crosshair";
+        this.status("Clique numa foto, forma, texto ou fundo do slide para pegar a cor. Esc cancela.");
+      },{signal:this.signal});
+      this.inspector.append(button);return input;
+    }
+    _textProperties(selected){
+      const update=patch=>this.commands.updateObject(this.current,selected.id,patch);
+      const family=selected.font_family||"Inter";
+      const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri","Georgia","Verdana","Courier New",
+        ...Array.from(this.root.querySelectorAll('[data-font-family] option'),option=>option.value)]);
+      const select=document.createElement("select");
+      for(const font of fonts){if(!font)continue;const option=document.createElement("option");
+        option.value=option.textContent=font;select.append(option);}
+      select.value=family;
+      select.addEventListener("change",()=>update({font_family:select.value}),{signal:this.signal});
+      const label=document.createElement("label");label.textContent="Família da fonte";label.append(select);
+      this.inspector.append(label);
+      const style=document.createElement("select");
+      for(const [value] of [["Estilo personalizado"],...textStyles]){
+        const option=document.createElement("option");option.value=option.textContent=value;style.append(option);
+      }
+      style.value=textStyles.find(([,size,bold])=>size===(selected.font_size_pt||28)
+        && bold===Boolean(selected.font_bold)&&!selected.font_italic)?.[0]||"Estilo personalizado";
+      style.addEventListener("change",()=>{
+        const preset=textStyles.find(([name])=>name===style.value);
+        if(preset)update({font_size_pt:preset[1],font_bold:preset[2],font_italic:false});
+      },{signal:this.signal});
+      const styleLabel=document.createElement("label");styleLabel.textContent="Estilo do texto";
+      styleLabel.append(style);this.inspector.append(styleLabel);
+      this._toggleProperty("Negrito",selected.font_bold,value=>update({font_bold:value}));
+      this._toggleProperty("Itálico",selected.font_italic,value=>update({font_italic:value}));
+    }
     _property(label,value,kind,onChange){
       const wrapper=document.createElement("label");wrapper.textContent=label;
       const input=document.createElement(kind==="textarea"?"textarea":"input");
       if(kind!=="textarea")input.type=kind;
       if(kind==="number"){input.min="0";input.max="100";input.step="1";}
       input.value=String(value);
-      input.addEventListener("change",()=>onChange(input.value),{signal:this.signal});
+      if(onChange)input.addEventListener("change",()=>onChange(input.value),{signal:this.signal});
       wrapper.append(input);this.inspector.append(wrapper);return input;
     }
     _toggleProperty(label,checked,onChange){
@@ -1038,7 +1154,17 @@
       this.current=clamp(this.current,0,slides.length-1);
       const slide=slides[this.current],title=document.createElement("h3");title.textContent="Propriedades · Slide "+(this.current+1);
       this.inspector.append(title);
-      this._property("Cor de fundo",slide.background||"#FFFFFF","color",value=>this.commands.updateSlide(this.current,{background:value}));
+      const changeBackground=value=>this.commands.updateSlide(this.current,{background:value});
+      this._colorProperty("Cor de fundo",slide.background||"#FFFFFF",changeBackground);
+      const applyBackground=value=>{
+        const hex=value.trim().replace(/^#/,"");
+        if(!/^[0-9a-f]{6}$/i.test(hex)){this.status("Informe uma cor no formato #RRGGBB.");return;}
+        changeBackground("#"+hex.toUpperCase());
+      };
+      const backgroundHex=this._property("Cor de fundo (hex)",slide.background||"#FFFFFF","text");
+      const applyColor=document.createElement("button");applyColor.type="button";applyColor.textContent="Aplicar fundo";
+      applyColor.addEventListener("click",()=>applyBackground(backgroundHex.value),{signal:this.signal});
+      this.inspector.append(applyColor);
       const transitionTitle=document.createElement("h4");transitionTitle.textContent="Transição de entrada deste slide";
       this.inspector.append(transitionTitle);
       const transitionLabel=document.createElement("label");transitionLabel.textContent="Efeito";
@@ -1109,6 +1235,33 @@
             this.imageInput.click();
           },{signal:this.signal});
           this.inspector.append(replaceButton);
+          for(const [key,label,minimum,initial] of [
+            ["image_opacity","Opacidade (%)",0,100],
+            ["image_brightness","Brilho (%)",-100,0],
+            ["image_contrast","Contraste (%)",-100,0]
+          ]){
+            const input=this._property(label,selected[key]??initial,"number",value=>{
+              const amount=value===""?initial:clamp(Number(value),minimum,100);
+              this.commands.updateObject(this.current,selected.id,{[key]:amount});
+            });
+            input.min=String(minimum);
+          }
+          const tint=this._colorProperty("Tom da imagem",selected.image_tint||"#FFFFFF",
+            value=>this.commands.updateObject(this.current,selected.id,{image_tint:value}));
+          const applyTint=document.createElement("button");
+          applyTint.type="button";applyTint.textContent="Aplicar tom";
+          applyTint.addEventListener("click",()=>this.commands.updateObject(this.current,selected.id,{
+            image_tint:tint.value
+          }),{signal:this.signal});
+          this.inspector.append(applyTint);
+          this._toggleProperty("Preto e branco",selected.image_grayscale,
+            checked=>this.commands.updateObject(this.current,selected.id,{image_grayscale:checked}));
+          const reset=document.createElement("button");
+          reset.type="button";reset.textContent="Restaurar ajustes de cor e opacidade";
+          reset.addEventListener("click",()=>this.commands.updateObject(this.current,selected.id,{
+            image_opacity:100,image_brightness:0,image_contrast:0,image_grayscale:false,image_tint:null
+          }),{signal:this.signal});
+          this.inspector.append(reset);
           this._toggleProperty("Espelhar horizontalmente",selected.flip_h||false,
             checked=>this.commands.updateObject(this.current,selected.id,{flip_h:checked}));
           this._toggleProperty("Espelhar verticalmente",selected.flip_v||false,
@@ -1128,12 +1281,14 @@
           }
         }
         if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
-        if(selected.type==="text"||selected.text)
-          this._property("Cor do texto",selected.color,"color",value=>this.commands.updateObject(this.current,selected.id,{color:value}));
+        if(selected.type==="text"||selected.text){
+          this._textProperties(selected);
+          this._colorProperty("Cor do texto",selected.color,value=>this.commands.updateObject(this.current,selected.id,{color:value}));
+        }
         if(selected.type!=="text"&&selected.type!=="image"&&selected.type!=="chart"){
           if(selected.type!=="line"&&selected.type!=="arrow")
-            this._property("Preenchimento",selected.fill,"color",value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
-          this._property("Contorno",selected.stroke,"color",value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
+            this._colorProperty("Preenchimento",selected.fill,value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
+          this._colorProperty("Contorno",selected.stroke,value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
           const strokeField=this._property("Espessura do contorno (pt)",selected.stroke_width||1.5,"number",value=>this.commands.updateObject(this.current,selected.id,{stroke_width:clamp(Number(value)||1.5,.5,20)}));
           strokeField.min=".5";strokeField.max="20";strokeField.step=".5";
         }
@@ -1199,7 +1354,7 @@
       // DOM nodes can be replaced after the first pointer-up. Match stable IDs
       // so two taps activate inline text editing even on legacy QtWebEngine.
       const now=Date.now(),previous=this.lastTextTap;
-      const editable=obj.type==="text"||typeof obj.text==="string";
+      const editable=canEditText(obj);
       if(editable&&previous?.id===obj.id&&previous.index===index&&now-previous.time<650
         &&!event.target.closest("[data-resize],[data-rotate]")){
         this.lastTextTap=null;this.drag=null;this._selectObject(obj.id);

@@ -19,6 +19,7 @@ from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Pt
 
 from ...ink.raster import render_layer
+from .image_effects import export_image_effects
 
 
 def rgb(value: str) -> RGBColor:
@@ -92,6 +93,7 @@ class SlideDeckExporter:
             shape = slide.shapes.add_picture(picture_data, left, top, w, h)
             # Native OOXML a:srcRect is non-destructive: the full image is
             # preserved in the presentation and crop can be readjusted later.
+            export_image_effects(shape._pic.blipFill.blip, obj)
             shape.crop_left = obj.get("crop_left", 0)
             shape.crop_right = obj.get("crop_right", 0)
             shape.crop_top = obj.get("crop_top", 0)
@@ -136,6 +138,8 @@ class SlideDeckExporter:
             run.text = obj.get("text", "")
             run.font.name = obj.get("font_family", "Inter")
             run.font.size = Pt(obj.get("font_size_pt", 28))
+            run.font.bold = obj.get("font_bold")
+            run.font.italic = obj.get("font_italic")
             run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
         return shape
 
