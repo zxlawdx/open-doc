@@ -942,3 +942,36 @@ test('Viewport refit after a double click keeps the inline editor focused and sa
  click('dblclick');
  assert.equal(q.w.document.activeElement,q.scroller.querySelector('.slide-inline-editor'));
 });
+
+test('PowerPoint ribbon groups every SVG action and keeps new shapes on Insert',t=>{
+ const q=setup(t);
+ const tabs=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'));
+ assert.deepEqual(tabs.map(x=>x.textContent),['Slides','Inserir','Formatar','Transições']);
+ const toolbar=q.controls.querySelector('.slide-studio-toolbar');
+ assert.equal(toolbar.querySelectorAll(':scope > button').length,0,
+   'Unclassified ribbon buttons expand vertically and hide the slide');
+ const insert=Array.from(toolbar.querySelectorAll('.slide-ribbon-group'))
+   .find(group=>group.getAttribute('aria-label')==='Ferramentas de Inserir');
+ assert.ok(insert);
+ const labels=['Tabela','Chevron','Hexágono','Pentágono','Paralelogramo','Estrela','Nuvem'];
+ for(const label of labels){
+  const b=Array.from(insert.querySelectorAll('button')).find(x=>x.textContent===label);
+  assert.ok(b,'Missing Insert action '+label);
+  const use=b.querySelector('svg use');
+  assert.ok(use,'Missing SVG icon for '+label);
+  assert.ok(use.getAttribute('href')?.includes('#shape-')||label==='Tabela'&&use.getAttribute('href')?.endsWith('#table'),
+    'Unexpected SVG icon on '+label);
+ }
+ assert.equal(insert.hidden,false);
+ clickLabel(q.controls,'Tabela');
+ clickLabel(q.controls,'Estrela');
+ assert.equal(q.scroller.querySelectorAll('.slide-native-table').length,1);
+ assert.equal(q.scroller.querySelectorAll('.slide-object-star svg').length,1);
+});
+
+test('Qt slide CSS keeps toolbar one row and shapes hit-testable',t=>{
+ const source=fs.readFileSync(path.join(__dirname,'../apps/open_doc/styles/slide_editor.css'),'utf8');
+ assert.match(source,/\.fixed-surface > \.slide-object\s*\{\s*pointer-events:auto/);
+ assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?flex-flow:row nowrap/);
+ assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?overflow-x:auto/);
+});
