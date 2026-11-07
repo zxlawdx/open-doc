@@ -105,6 +105,32 @@ class SlideModelValidator:
         ids.add(uid)
         if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image", "chart", "table", "chevron", "hexagon", "pentagon", "parallelogram", "star", "cloud", "math"}:
             raise ValueError("Tipo de elemento não suportado.")
+        if element.get("text_runs") is not None:
+            text_runs = element["text_runs"]
+            if (element["type"] != "text" or not isinstance(text_runs, list)
+                    or len(text_runs) > 100):
+                raise ValueError("Runs de texto de slide inválidos.")
+            num_runs = 0
+            for paragraph in text_runs:
+                if not isinstance(paragraph, list) or len(paragraph) > 200:
+                    raise ValueError("Parágrafo PPTX inválido.")
+                num_runs += len(paragraph)
+                for run in paragraph:
+                    if not isinstance(run, dict) or set(run) != {
+                        "text", "font_family", "font_size_pt", "font_bold",
+                        "font_italic", "color"
+                    }:
+                        raise ValueError("Estrutura de run PPTX inválida.")
+                    if not isinstance(run["text"], str) or len(run["text"]) > 10000:
+                        raise ValueError("Texto de run PPTX inválido.")
+                    if not isinstance(run["font_family"], str) or len(run["font_family"]) > 80:
+                        raise ValueError("Fonte do run PPTX inválida.")
+                    number(run["font_size_pt"], 6, 144)
+                    self._color(run["color"], "cor do run")
+                    if type(run["font_bold"]) is not bool or type(run["font_italic"]) is not bool:
+                        raise ValueError("Estilo do run PPTX inválido.")
+            if num_runs > 2000 or sum(len(r["text"]) for p in text_runs for r in p)>10000:
+                raise ValueError("Texto PPTX complexo demais.")
         if element.get("type") == "math":
             validate_math_blocks(element.get("math_blocks"))
         if element.get("type") == "table":

@@ -181,6 +181,31 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                     base["font_bold"] = bold
                 if italic is not None:
                     base["font_italic"] = italic
+        if shape.has_text_frame and any(p.runs for p in shape.text_frame.paragraphs):
+            # Capture each original text run separately. The editor may change
+            # its text while untouched run formatting/OOXML remains original.
+            formatted = []
+            for paragraph in shape.text_frame.paragraphs:
+                entries = []
+                for run in paragraph.runs:
+                    font = run.font
+                    inherited = paragraph.font
+                    size = font.size or inherited.size
+                    entries.append({
+                        "text": run.text,
+                        "font_family": str(font.name or inherited.name or
+                                           base["font_family"])[:80],
+                        "font_size_pt": max(6.0, min(144.0, float(size.pt))) if
+                                        size is not None else base["font_size_pt"],
+                        "font_bold": bool(font.bold if font.bold is not None
+                                          else inherited.bold),
+                        "font_italic": bool(font.italic if font.italic is not None
+                                            else inherited.italic),
+                        "color": _rgb(font.color, _rgb(inherited.color,
+                                                       base["color"])),
+                    })
+                formatted.append(entries)
+            base["text_runs"] = formatted
     if base.get("type") == "text":
         blocks = read_math(shape)
         if blocks is not None:

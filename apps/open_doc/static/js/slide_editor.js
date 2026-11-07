@@ -1152,6 +1152,21 @@
             tr.append(td);
           });table.append(tr);
         });node.append(table);
+      }else if(obj.type==="text"&&Array.isArray(obj.text_runs)&&obj.text_runs.length){
+        // Text formatting follows each native PowerPoint run; no HTML injection.
+        obj.text_runs.forEach((line,lineIndex)=>{
+          const paragraph=document.createElement("span");
+          paragraph.className="slide-styled-paragraph";
+          line.forEach(run=>{
+            const text=document.createElement("span");text.textContent=run.text;
+            text.style.fontFamily=JSON.stringify(run.font_family);
+            text.style.fontWeight=run.font_bold?"700":"400";
+            text.style.fontStyle=run.font_italic?"italic":"normal";
+            text.style.fontSize=run.font_size_pt+"pt";
+            text.style.color=run.color;paragraph.append(text);
+          });
+          node.append(paragraph);
+        });
       }else if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
@@ -1586,7 +1601,25 @@
             input.min="0";input.max="95";input.step="1";
           }
         }
-        if(selected.type==="text"||selected.text)this._property("Texto",selected.text||"","textarea",value=>this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
+        if(selected.type==="text"&&selected.source_original&&
+           Array.isArray(selected.text_runs)&&
+           (selected.text_runs.length>1||selected.text_runs.some(r=>r.length>1))){
+          const heading=document.createElement("h4");heading.textContent="Trechos formatados";
+          this.inspector.append(heading);
+          selected.text_runs.forEach((paragraph,p)=>paragraph.forEach((run,r)=>{
+            this._property("Parágrafo "+(p+1)+" · Trecho "+(r+1),
+              run.text,"text",value=>{
+                const runs=clone(selected.text_runs);
+                runs[p][r].text=value.slice(0,10000);
+                this.commands.updateObject(this.current,selected.id,{
+                  text_runs:runs,
+                  text:runs.map(row=>row.map(x=>x.text).join("")).join("\n")
+                });
+              });
+          }));
+        }else if(selected.type==="text"||selected.text)
+          this._property("Texto",selected.text||"","textarea",value=>
+            this.commands.updateObject(this.current,selected.id,{text:value.slice(0,10000)}));
         if(selected.type==="text"||selected.text){
           this._textProperties(selected);
           this._colorProperty("Cor do texto",selected.color,value=>this.commands.updateObject(this.current,selected.id,{color:value}));
