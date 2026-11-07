@@ -139,6 +139,9 @@ class DocumentApplication:
             data.get("content_format", "markdown"),
         )
 
+    def save_pdf_view(self, data: dict[str, Any]) -> dict[str, Any]:
+        return self.context.fixed_documents.save_pdf_view(data["id"], data["view"])
+
     def recover(self, data: dict[str, Any]) -> dict[str, Any]:
         identifier = data["id"]
         if self.context.fixed_documents.exists(identifier):

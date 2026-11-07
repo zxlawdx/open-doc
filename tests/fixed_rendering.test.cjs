@@ -399,3 +399,38 @@ test('PDF inline editor sends a real native replacement command and respects Sav
  assert.equal(button.getAttribute('aria-pressed'),'false');
  assert.equal(root.querySelector('.pdf-native-editor'),null);
 });
+
+test('undo while a fixed-document save is pending persists the restored draft', async t => {
+ const dom=new JSDOM(html(),{runScripts:'outside-only',url:'http://localhost'});
+ const w=dom.window,root=w.document.querySelector('[data-app]'),abort=new w.AbortController();
+ t.after(()=>{abort.abort();w.close();});
+ for(const script of ['compat.js','document_model.js','history.js','recovery.js','fixed_document.js']){
+   w.eval(source(script));
+ }
+ w.pywebview={api:{set_dirty:()=>{}}};
+ let finishFirst;
+ const writes=[];
+ const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'test',
+   asset:s=>s,status:()=>{},request:(path,draft)=>{
+     assert.equal(path,'document/save');
+     writes.push({title:draft.title,revision:draft.revision});
+     return writes.length===1
+       ?new Promise(resolve=>{finishFirst=()=>resolve({revision:2});})
+       :Promise.resolve({revision:3});
+   }});
+ const document={id:'note',title:'Original',revision:1,source_kind:'pdf',
+   capabilities:{preview:false},content:{surfaces:[]}};
+ await editor.load(document);
+ const input=root.querySelector('[data-title]');
+ input.value='Editado';
+ input.dispatchEvent(new w.Event('input'));
+ const saving=editor.flush();
+ while(!finishFirst)await Promise.resolve();
+ editor.format('undo');
+ assert.equal(input.value,'Original');
+ finishFirst();
+ await saving;
+ assert.deepEqual(writes,[{title:'Editado',revision:1},{title:'Original',revision:2}]);
+ assert.equal(editor.snapshot().revision,3);
+ assert.equal(editor.isClean(),true);
+});
