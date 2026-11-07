@@ -89,9 +89,9 @@ def test_chart_colors_and_values_can_change_without_replacing_category_names(tmp
     obj.update(chart_values=[45.3, 39.2, 15.5],
                chart_item_colors=["#114488", "#008844", "#BB2222"],
                chart_data_labels="both")
-    SlideModelValidator().validate(changed)
+    SlideModelValidator().validate({"source_kind": "pptx", **changed})
     destination = tmp_path / "alterado.pptx"
-    SlideDeckExporter(None, changed).write(destination)
+    SlideDeckExporter(first, changed).write(destination)
     chart = Presentation(destination).slides[0].shapes[0].chart
     assert [entry.label for entry in chart.plots[0].categories] == CATEGORIES
     assert list(chart.series[0].values) == pytest.approx([45.3, 39.2, 15.5])
