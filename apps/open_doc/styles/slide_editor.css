@@ -336,12 +336,12 @@
 
 
 /* PPTX Qt hit testing and compact ribbon (Nov 2026 regression).
-   The layer itself is transparent to ink/viewport controls, but every
-   editable shape must independently accept pointer input. */
+   Objects are direct children of the physical slide, unlike the background
+   layer, and must remain independently clickable. */
 .open-doc .fixed-document[data-slide-editor="true"] .slide-object-layer{
   pointer-events:none;
 }
-.open-doc .fixed-document[data-slide-editor="true"] .slide-object-layer > .slide-object{
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-surface > .slide-object{
   pointer-events:auto;
 }
 .open-doc .fixed-document[data-slide-editor="true"] .slide-object .slide-vector-shape,
