@@ -33,6 +33,7 @@ class DocumentApplication:
             or self.context.editor.current(),
             "autosave_seconds": AUTOSAVE_SECONDS,
             "assets": self.context.assets,
+            "startup_error": self.context.startup_error,
         }
 
     def list_library(self) -> dict[str, Any]:

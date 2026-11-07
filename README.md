@@ -96,6 +96,24 @@ O comando `collectstatic` verifica as dependências Node do projeto. A opção
 impedir essa instalação automática. `python main.py` usa o mesmo bootstrap
 do Vela.
 
+### Abrir PDF, DOCX e PPTX pelo sistema
+
+Depois de instalar a versão empacotada pelo Vela, abra o Open Doc uma vez.
+Ele registra os três formatos em **Abrir com**, sem alterar a escolha atual
+do usuário. Para mudar a preferência, use **Arquivo → Aplicativo padrão…**.
+
+- **Windows:** o menu abre Configurações → Aplicativos padrão. Pesquise
+  `.pdf`, `.docx` ou `.pptx` e escolha **Open Doc** para cada extensão.
+- **Linux:** escolha um formato no menu e confirme. O sistema usa `xdg-mime`
+  (pacote `xdg-utils`). Também é possível escolher pelo **Abrir com** do
+  gerenciador de arquivos.
+
+O arquivo recebido do sistema abre como uma cópia de trabalho, da mesma forma
+que **Abrir / importar**. Para testar a abertura com um clone já preparado,
+execute `python main.py "caminho/para/arquivo.docx"`. O menu de associações é
+destinado à versão instalada. Uma instalação anterior precisa ser atualizada
+com um novo build para receber o recurso.
+
 ## Recursos em detalhe
 
 - Criar, renomear, reabrir e listar documentos recentes a partir do SQLite.

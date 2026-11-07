@@ -26,6 +26,7 @@ class ApplicationContext:
     handwriting: Any
     documents: Any = None
     assets: Any = None
+    startup_error: str | None = None
 
 
 _context: ApplicationContext | None = None

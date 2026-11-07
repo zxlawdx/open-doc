@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import sys
+from subprocess import SubprocessError
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +69,26 @@ class OpenDocBridge(BaseBridge):
             return self._documents.bootstrap()
         except (OSError, ValueError):
             return {"error": "Não foi possível ler o workspace."}
+
+    def default_apps(self, extension: str | None = None) -> dict[str, Any]:
+        from apps.open_doc.services import file_associations
+
+        executable = file_associations.installed_executable()
+        if executable is None:
+            return {"error": "Use a versão instalada do Open Doc para configurar Abrir com."}
+        try:
+            file_associations.register(executable)
+            if sys.platform == "win32" and extension is None:
+                os.startfile("ms-settings:defaultapps")
+                return {"opened": True}
+            if sys.platform.startswith("linux") and extension is None:
+                return {"extensions": list(file_associations.FILE_TYPES)}
+            file_associations.set_linux_default(executable, extension)
+            return {"selected": extension}
+        except ValueError as exc:
+            return {"error": str(exc)}
+        except (KeyError, OSError, SubprocessError):
+            return {"error": "O sistema não confirmou a alteração do aplicativo padrão."}
 
     def import_document(self) -> dict[str, Any]:
         import webview

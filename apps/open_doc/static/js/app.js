@@ -273,6 +273,31 @@
         await editor.flush();
         status('Documento salvo na biblioteca local. Use Arquivo > Exportar para escolher a pasta e o formato.');
       }),
+      'default-apps': () => operate(async () => {
+        const result = await window.pywebview.api.default_apps();
+        if (result.error) throw Error(result.error);
+        if (result.opened) {
+          status('Nas Configurações do Windows, escolha Open Doc para PDF, DOCX ou PPTX.');
+          return;
+        }
+        const answer = dialog('Aplicativo padrão', 'Escolha o formato que deve abrir com o Open Doc.');
+        const label = document.createElement('label');
+        label.textContent = 'Formato';
+        const select = document.createElement('select');
+        select.dataset.dialogSelect = '';
+        const placeholder = new Option('Selecione um formato', '');
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        select.append(placeholder);
+        for (const extension of result.extensions) select.add(new Option(extension.toUpperCase(), extension));
+        label.append(select);
+        root.querySelector('[data-dialog-body]').append(label);
+        select.focus();
+        if (!(await answer) || !select.value) return;
+        const selected = await window.pywebview.api.default_apps(select.value);
+        if (selected.error) throw Error(selected.error);
+        status('Open Doc definido como padrão para ' + selected.selected.toUpperCase() + '.');
+      }),
       'version-history': () => operate(async () => {
         if (!window.OpenDocVersionHistory) await loadScript('version_history.js');
         await window.OpenDocVersionHistory.open({
@@ -420,6 +445,7 @@
     design = await auxiliary('interface de documentos', 'OpenDocDesign', 'design_system.js', module => module.create({root,action,signal}));
     showView(false);
     installTooltips();
+    if (bootstrap.startup_error) status(bootstrap.startup_error);
     root.dataset.ready = 'true';
   }
   mount().catch(error => { console.error('Open Doc: inicialização', error); status(error.message); });
