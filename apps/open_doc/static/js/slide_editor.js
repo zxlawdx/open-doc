@@ -1169,7 +1169,7 @@
             text.style.fontFamily=JSON.stringify(run.font_family);
             text.style.fontWeight=run.font_bold?"700":"400";
             text.style.fontStyle=run.font_italic?"italic":"normal";
-            text.style.fontSize=run.font_size_pt+"pt";
+            text.style.fontSize=run.font_size_pt/(obj.font_size_pt||28)+"em";
             text.style.color=run.color;paragraph.append(text);
           });
           node.append(paragraph);
@@ -1184,7 +1184,7 @@
               segment.style.fontFamily=JSON.stringify(run.font_family);
               segment.style.fontWeight=run.font_bold?"700":"400";
               segment.style.fontStyle=run.font_italic?"italic":"normal";
-              segment.style.fontSize=run.font_size_pt+"pt";
+              segment.style.fontSize=run.font_size_pt/(obj.font_size_pt||28)+"em";
               segment.style.color=run.color;line.append(segment);
             });label.append(line);
           });

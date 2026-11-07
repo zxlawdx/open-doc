@@ -1109,7 +1109,7 @@ test('new native equations adapt their initial ink color to dark/light slide bac
 });
 
 test('imported multi-run PPTX edits one segment without flattening styled text',t=>{
- const q=setup(t);
+ const q=setup(t,{zoom:.5});
  clickLabel(q.controls,'Texto');
  const before=q.model().surfaces[0].elements[0];
  const original={...before,text:'Título vermelho e subtítulo azul',text_runs:[[
@@ -1126,6 +1126,12 @@ test('imported multi-run PPTX edits one segment without flattening styled text',
  assert.equal(spans[0].style.fontWeight,'700');
  assert.equal(spans[1].style.fontStyle,'italic');
  assert.equal(spans[1].style.color,'rgb(34, 102, 187)');
+ const thumbnail=q.sidebar.querySelector('.slide-styled-paragraph span');
+ const scale=(span)=>parseFloat(span.style.fontSize)*parseFloat(span.closest('.slide-object').style.fontSize);
+ assert.equal(spans[0].style.fontSize.endsWith('em'),true);
+ assert.ok(Math.abs(scale(spans[0])-20)<.001,'30pt run at 50% must render at 20px');
+ assert.ok(Math.abs(scale(thumbnail)-6.4)<.001,'the same run must scale to the thumbnail');
+
  const field=Array.from(q.host.querySelectorAll('.slide-inspector label'))
   .find(x=>x.textContent.startsWith('Parágrafo 1 · Trecho 1'));
  assert.ok(field,'formatted runs must be individually editable');
