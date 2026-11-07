@@ -227,7 +227,7 @@
       });
       return id;
     }
-    insertImage(index,image){
+    insertImage(index,image,layout=null){
       const id=window.OpenDocModel.id();
       this.apply((slides,deck)=>{
         const elements=slides[index].elements;
@@ -235,7 +235,8 @@
         const assetId=this._storeImageAsset(deck,image);
         const offset=(elements.length%8)*.04;
         elements.push({id,type:"image",asset_id:assetId,name:image.name||"Imagem",
-          x:.2+offset,y:.24+offset,width:.36,height:.30,text:"",
+          x:layout?.x??(.2+offset),y:layout?.y??(.24+offset),
+          width:layout?.width??.36,height:layout?.height??.30,text:"",
           color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
           font_family:"Inter",font_size_pt:20,stroke_width:1.5,rotation:0,
           flip_h:false,flip_v:false,
@@ -457,7 +458,8 @@
           this.host,
           image=>{
             if(!this.active)return;
-            const id=this.commands.insertImage(this.current,image);
+            const id=this.commands.insertImage(this.current,image,
+              {x:.12,y:.43,width:.74,height:.32});
             this._selectObject(id);this.render();
           },
           message=>this.status(message)
