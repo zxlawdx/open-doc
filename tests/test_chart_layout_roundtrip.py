@@ -131,3 +131,41 @@ def test_chart_validation_blocks_invalid_formats(key, value):
     deck["surfaces"][0]["elements"][0][key] = value
     with pytest.raises(ValueError):
         SlideModelValidator().validate(deck)
+
+
+@pytest.mark.parametrize("shape", [(960, 540), (720, 540), (1024, 768)])
+def test_many_categories_and_multiple_series_preserve_values_in_aspect_ratios(
+    tmp_path, shape
+):
+    deck = model("hbar")
+    surface = deck["surfaces"][0]
+    surface["width_pt"], surface["height_pt"] = shape
+    obj = surface["elements"][0]
+    obj["chart_categories"] = [
+        f"Componente econômico número {index} com denominação detalhada"
+        for index in range(1, 13)
+    ]
+    obj["chart_values"] = [float(i) for i in range(1, 13)]
+    obj["chart_item_colors"] = []
+    obj["chart_color_mode"] = "palette"
+    obj["chart_series"] = [
+        {"name": "Período A", "values": obj["chart_values"][:]},
+        {"name": "Período B", "values": [float(i*2) for i in range(1, 13)]},
+    ]
+    SlideModelValidator().validate(deck)
+    target = tmp_path / f"multiplas-{shape[0]}-{shape[1]}.pptx"
+    SlideDeckExporter(None, deck).write(target)
+    result = Presentation(target)
+    chart = result.slides[0].shapes[0].chart
+    assert len(chart.series) == 2
+    assert len(chart.plots[0].categories) == 12
+    assert [label.label for label in chart.plots[0].categories] == obj["chart_categories"]
+    assert list(chart.series[0].values) == pytest.approx(obj["chart_series"][0]["values"])
+    assert list(chart.series[1].values) == pytest.approx(obj["chart_series"][1]["values"])
+    new = read_editable_deck(target)
+    assert new is not None
+    imported = new["surfaces"][0]["elements"][0]
+    assert imported["chart_series"][1]["name"] == "Período B"
+    assert imported["chart_series"][1]["values"] == pytest.approx(
+        obj["chart_series"][1]["values"]
+    )
