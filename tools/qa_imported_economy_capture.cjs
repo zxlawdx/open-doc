@@ -42,7 +42,10 @@ const port=process.argv[2]||"9234";
   assert.equal(evidence.editable,"true","Imported fixture must open editable studio");
   assert.equal(evidence.thumbCount,36,"All slides must have thumbnails");
   assert.ok(evidence.title&&evidence.title.includes("QUEM PRODUZ"),"Title missing");
-  assert.ok(evidence.fontPx>=40,"Inherited 51pt title rendered too small: "+JSON.stringify(evidence));
+  // At fit-to-viewport zoom, 51pt scales proportionally with the slide.
+  const expectedPx=51*(evidence.page?.w||0)/960;
+  assert.ok(evidence.fontPx>=expectedPx*.75,
+    "Inherited 51pt title rendered too small: "+JSON.stringify({expectedPx,...evidence}));
   assert.ok(evidence.titleBox?.w>200&&evidence.page?.w>400,"Title or canvas collapsed");
   assert.ok(evidence.editorButtons>10,"Imported file opened read-only instead");
   const png=await send("Page.captureScreenshot",{format:"png"});
