@@ -233,9 +233,38 @@
         const lum=rgb.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4)
           .reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
         const textColor=lum<.20?"#F8FAFC":"#192433";
+        // Choose a free area instead of stacking every new equation in the
+        // same position. Ignore full-slide background rectangles.
+        const sites=[
+          {x:.12,y:.38,width:.75,height:.28},
+          {x:.12,y:.68,width:.75,height:.28},
+          {x:.12,y:.05,width:.75,height:.28},
+          {x:.50,y:.40,width:.45,height:.28},
+          {x:.05,y:.40,width:.45,height:.28},
+          {x:.50,y:.69,width:.45,height:.26},
+          {x:.05,y:.69,width:.45,height:.26}
+        ];
+        const content=elements.filter(item=>!(item.width>.90&&item.height>.90));
+        const intersect=(a,b)=>{
+          const margin=.012;
+          const width=Math.max(0,Math.min(a.x+a.width+margin,b.x+b.width+margin)-
+            Math.max(a.x-margin,b.x-margin));
+          const height=Math.max(0,Math.min(a.y+a.height+margin,b.y+b.height+margin)-
+            Math.max(a.y-margin,b.y-margin));
+          return width*height;
+        };
+        const position=sites.map((site,i)=>({
+          site,score:content.reduce((total,item)=>total+intersect(site,item),0)+i*.004
+        })).sort((a,b)=>a.score-b.score)[0].site;
+        const complexity=value=>Array.isArray(value)
+          ?Math.max(0,...value.map(complexity))
+          :value&&typeof value==="object"
+          ?1+Math.max(0,...Object.values(value).map(complexity))
+          :0;
+        const size=complexity(blocks)>=5?34:42;
         elements.push({id,type:"math",name:definition.label||"Equação",
-          x:.12,y:.38,width:.75,height:.28,rotation:0,
-          font_family:"Cambria Math",font_size_pt:42,
+          ...position,rotation:0,
+          font_family:"Cambria Math",font_size_pt:size,
           color:textColor,fill:"#FFFFFF",stroke:"#004AC6",
           stroke_width:1.5,text:"",math_blocks:blocks});
       });
