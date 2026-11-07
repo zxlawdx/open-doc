@@ -166,6 +166,9 @@ class SlideDeckExporter:
                 run.font.bold = obj.get("font_bold")
                 run.font.italic = obj.get("font_italic")
                 run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
+                if obj.get("font_letter_spacing_pt") is not None:
+                    run._r.get_or_add_rPr().set("spc",
+                        str(round(float(obj["font_letter_spacing_pt"]) * 100)))
         return shape
 
     @staticmethod
@@ -317,7 +320,7 @@ class SlideDeckExporter:
             changed.remove("table_cells")
         supported = {"x", "y", "width", "height", "rotation", "name",
                      "text", "color", "font_family", "font_size_pt",
-                     "font_bold", "font_italic", "fill", "stroke", "stroke_width",
+                     "font_bold", "font_italic", "font_letter_spacing_pt", "fill", "stroke", "stroke_width",
                      "crop_left", "crop_right", "crop_top", "crop_bottom",
                      "flip_h", "flip_v"}
         unsupported = changed - supported
@@ -361,7 +364,7 @@ class SlideDeckExporter:
                     if paragraph_index != 0:
                         paragraph._p.getparent().remove(paragraph._p)
         font_fields = changed & {"color", "font_family", "font_size_pt",
-                                 "font_bold", "font_italic"}
+                                 "font_bold", "font_italic", "font_letter_spacing_pt"}
         if font_fields:
             if not shape.has_text_frame:
                 raise ValueError("O objeto original não possui fonte editável.")
@@ -377,6 +380,9 @@ class SlideDeckExporter:
                         run.font.bold = obj["font_bold"]
                     if "font_italic" in changed:
                         run.font.italic = obj["font_italic"]
+                    if "font_letter_spacing_pt" in changed:
+                        run._r.get_or_add_rPr().set("spc",
+                            str(round(float(obj["font_letter_spacing_pt"]) * 100)))
         if "fill" in changed:
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj["fill"])
