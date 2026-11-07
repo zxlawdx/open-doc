@@ -10,14 +10,14 @@
     orange:["#F07938","#FFC16D","#BE4F2E","#EACB90","#F9DFCA"],
     contrast:["#004AC6","#B64264","#267D4D","#D18919","#784FC5"]
   };
-  const TITLES={bar:"Barras",line:"Linhas",pie:"Pizza"};
+  const TITLES={bar:"Colunas",hbar:"Barras horizontais",line:"Linhas",area:"Áreas",pie:"Pizza",combo:"Combinado"};
   function valid(kind,categories,values){
     if(!TITLES[kind])throw Error("Tipo de gráfico inválido.");
     if(!Array.isArray(categories)||!Array.isArray(values)
       ||categories.length<1||categories.length>24||categories.length!==values.length)
       throw Error("Use de 1 a 24 linhas de dados no gráfico.");
-    if(categories.some(value=>typeof value!=="string"||!value.trim()||value.length>60))
-      throw Error("Informe rótulos de categoria com até 60 caracteres.");
+    if(categories.some(value=>typeof value!=="string"||!value.trim()||value.length>240))
+      throw Error("Informe rótulos de categoria com até 240 caracteres.");
     if(values.some(value=>typeof value!=="number"||!Number.isFinite(value)||Math.abs(value)>100000000))
       throw Error("Valores numéricos devem estar entre -100 milhões e 100 milhões.");
     if(kind==="pie"&&(values.some(value=>value<0)||!values.some(value=>value>0)))
@@ -34,71 +34,269 @@
       "text-anchor":options.anchor||"middle","font-family":"Arial, sans-serif"},value);
     svg.append(el);return el;
   }
-  class ChartPreview{
-    static render(chart){
-      const el=node("svg",{viewBox:"0 0 420 240",role:"img",
-        "aria-label":"Gráfico "+TITLES[chart.chart_type||"bar"]+": "+(chart.chart_title||"sem título")});
-      el.classList.add("slide-chart-preview");
-      const cats=chart.chart_categories||[],vals=chart.chart_values||[];
-      const kind=chart.chart_type||"bar";
-      const colors=PALETTES[chart.chart_palette]||PALETTES.blue;
-      el.append(node("rect",{x:0,y:0,width:420,height:240,fill:"#FFFFFF"}));
-      if(chart.chart_title)text(el,210,19,chart.chart_title,{size:14,fill:"#192B40"});
-      if(!cats.length)return el;
-      const bottom=205,top=38,left=45,right=398,plotH=bottom-top,plotW=right-left;
-      if(kind==="pie"){
-        const total=vals.reduce((a,b)=>a+b,0);
-        if(total<=0)return el;
-        let angle=-Math.PI/2;const cx=167,cy=122,r=75;
-        vals.forEach((v,i)=>{
-          if(v<=0)return;
-          const sweep=2*Math.PI*v/total,finish=angle+sweep;
-          const x1=cx+r*Math.cos(angle),y1=cy+r*Math.sin(angle);
-          const x2=cx+r*Math.cos(finish),y2=cy+r*Math.sin(finish);
-          const d=v===total
-            ? "M "+cx+" "+(cy-r)+" A "+r+" "+r+" 0 1 1 "+cx+" "+(cy+r)
-              +" A "+r+" "+r+" 0 1 1 "+cx+" "+(cy-r)+" Z"
-            : "M "+cx+" "+cy+" L "+x1+" "+y1+" A "+r+" "+r+" 0 "
-              +(sweep>Math.PI?1:0)+" 1 "+x2+" "+y2+" Z";
-          el.append(node("path",{d,fill:colors[i%colors.length],stroke:"#FFF","stroke-width":1.5}));
-          angle=finish;
-        });
-        cats.slice(0,9).forEach((label,i)=>{
-          el.append(node("rect",{x:263,y:47+i*19,width:10,height:10,fill:colors[i%colors.length]}));
-          text(el,279,56+i*19,label.slice(0,18),{size:11,anchor:"start"});
-        });
-        return el;
+
+  /* Data and geometry stay separate: the SVG is a view of the original labels.
+   * Never slice, truncate or reinterpret category strings as calendar years. */
+  class ChartLayoutEngine{
+    static font(chart){
+      return {
+        family:chart.chart_label_font||"Arial",
+        size:Math.max(7,Math.min(24,Number(chart.chart_label_font_size)||12)),
+        spacing:Number(chart.chart_label_letter_spacing)||0,
+        color:chart.chart_label_color||"#43546B",
+        bold:Boolean(chart.chart_label_bold),italic:Boolean(chart.chart_label_italic),
+        align:chart.chart_label_align||"center",
+        rotation:Number(chart.chart_label_rotation)||0,
+        wrap:chart.chart_label_wrap!==false
+      };
+    }
+    static measure(value,font){
+      return Array.from(String(value)).reduce((w,ch)=>{
+        if("ilI.,:;!| '".includes(ch))return w+font.size*.30;
+        if("MW@#%".includes(ch))return w+font.size*.84;
+        return w+font.size*.57;
+      },0)+Math.max(0,String(value).length-1)*font.spacing;
+    }
+    static lines(label,width,font){
+      // Respect user newlines, and split long unbreakable words without
+      // throwing away letters. Break decisions are deterministic in Qt/JSDOM.
+      if(!font.wrap)return String(label).split("\n");
+      const lines=[];
+      for(const raw of String(label).split("\n")){
+        if(!raw){lines.push("");continue;}
+        const words=raw.split(/(\s+)/u);
+        let current="";
+        const flush=()=>{if(current){lines.push(current);current="";}};
+        for(const token of words){
+          if(!token)continue;
+          if(this.measure(current+token,font)<=width || !current){
+            if(this.measure(token,font)<=width){current+=token;continue;}
+            if(current)flush();
+            for(const character of Array.from(token)){
+              if(current&&this.measure(current+character,font)>width)flush();
+              current+=character;
+            }
+          }else{
+            flush();current=token.trimStart();
+          }
+        }
+        flush();
       }
-      const min=Math.min(0,...vals),max=Math.max(0,...vals);
-      const span=Math.max(1,max-min),axisY=top+(max/span)*plotH;
-      for(let tick=0;tick<=4;tick++){
-        const y=top+(tick/4)*plotH;
-        el.append(node("line",{x1:left,y1:y,x2:right,y2:y,stroke:"#E0E7EF","stroke-width":1}));
-        const amount=max-span*tick/4;
-        text(el,left-6,y+4,Number(amount.toFixed(1)).toLocaleString("pt-BR"),{
-          size:9,anchor:"end"
-        });
-      }
-      el.append(node("line",{x1:left,y1:axisY,x2:right,y2:axisY,stroke:"#8697A9","stroke-width":1.4}));
-      const toY=value=>top+(max-value)/span*plotH;
-      const centers=cats.map((_,i)=>left+(i+.5)*plotW/cats.length);
-      if(kind==="bar"){
-        const barW=Math.max(3,Math.min(42,(plotW/cats.length)*.58));
-        vals.forEach((v,i)=>{
-          const y=toY(v);
-          el.append(node("rect",{x:centers[i]-barW/2,y:Math.min(y,axisY),
-            width:barW,height:Math.max(1,Math.abs(axisY-y)),fill:colors[i%colors.length]}));
-        });
-      }else{
-        const d=vals.map((v,i)=>(i?"L ":"M ")+centers[i]+" "+toY(v)).join(" ");
-        el.append(node("path",{d,stroke:colors[0],fill:"none",
-          "stroke-linejoin":"round","stroke-linecap":"round","stroke-width":3}));
-        vals.forEach((v,i)=>el.append(node("circle",{
-          cx:centers[i],cy:toY(v),r:4,fill:colors[0],stroke:"#FFF","stroke-width":1.5
-        })));
-      }
-      cats.forEach((label,i)=>text(el,centers[i],227,label.slice(0,9),{size:10}));
+      return lines.length?lines:[""];
+    }
+    static series(chart){
+      if(Array.isArray(chart.chart_series)&&chart.chart_series.length)
+        return chart.chart_series.map((s,i)=>({name:s.name||"Série "+(i+1),values:s.values}));
+      return [{name:"Valores",values:chart.chart_values||[]}];
+    }
+    static colors(chart,count){
+      const pal=PALETTES[chart.chart_palette]||PALETTES.blue;
+      return Array.from({length:count},(_,i)=>
+        chart.chart_color_mode==="custom"&&chart.chart_item_colors?.[i]
+          ?chart.chart_item_colors[i]:pal[i%pal.length]);
+    }
+    static format(value){
+      return Number(value).toLocaleString("pt-BR",{maximumFractionDigits:2});
+    }
+    static percent(value,values,chart){
+      if(chart.chart_percent_mode==="provided")return this.format(value)+"%";
+      const sum=values.filter(n=>n>0).reduce((a,b)=>a+b,0);
+      return sum>0&&value>=0?this.format(value/sum*100)+"%":"—";
+    }
+    static valueLabel(value,values,chart){
+      const mode=chart.chart_data_labels??"percent";
+      if(mode==="none")return "";
+      const number=this.format(value)+(chart.chart_unit||"");
+      const percent=this.percent(value,values,chart);
+      return mode==="value"?number:mode==="both"?number+" ("+percent+")":percent;
+    }
+    static text(svg,x,y,string,font,options={}){
+      const lines=Array.isArray(string)?string:[String(string)];
+      const size=options.size||font.size;
+      const attrs={x,y,fill:options.color||font.color,
+        "font-family":font.family+", sans-serif","font-size":size,
+        "font-weight":font.bold?"700":"400","font-style":font.italic?"italic":"normal",
+        "letter-spacing":font.spacing,"text-anchor":options.anchor||"middle"};
+      if(options.rotation)attrs.transform="rotate("+options.rotation+" "+x+" "+y+")";
+      const el=node("text",attrs);
+      const leading=size*1.2;
+      lines.forEach((line,i)=>{
+        el.append(node("tspan",{x,dy:i?leading:0},line));
+      });
+      const tip=node("title",{},lines.join("\n"));el.append(tip);svg.append(el);
       return el;
+    }
+    static make(chart,dimensions={}){
+      const font=this.font(chart);
+      const width=Math.max(250,Math.min(1800,Number(dimensions.width)||420));
+      const originalHeight=Math.max(160,Math.min(1300,Number(dimensions.height)||240));
+      const cats=chart.chart_categories||[];
+      const all=this.series(chart);
+      const kind=chart.chart_type||"bar";
+      const palette=this.colors(chart,cats.length);
+      const top=chart.chart_title?Math.max(36,font.size*2.5):15;
+      const subtitle=chart.chart_subtitle||"";
+      const subTop=subtitle?font.size*1.6:0;
+      const titleFont={...font,size:Math.max(14,font.size*1.2),bold:true};
+      const root=node("svg",{role:"img","aria-label":"Gráfico: "+(chart.chart_title||"sem título")});
+      root.classList.add("slide-chart-preview");
+      const background=chart.chart_background||"solid";
+      root.dataset.background=background;
+      if(background!=="transparent")root.append(node("rect",{
+        x:0,y:0,width:"100%",height:"100%",fill:chart.chart_background_color||"#FFFFFF"}));
+      if(!cats.length)return root;
+      const n=cats.length;
+      const margin=chart.chart_margin_mode==="custom"?Math.max(0,Number(chart.chart_margin)||0):0;
+      const labelHeight=font.size*1.25;
+      const numericWidth=Math.max(32,this.measure(this.format(Math.max(...all.flatMap(s=>s.values),0)),{...font,size:font.size*.83})+14);
+      const left=Math.max(20+margin,numericWidth+16+margin);
+      const right=16+margin;
+      const isPie=kind==="pie",horizontal=kind==="hbar",scatter=kind==="scatter";
+      let rotation=font.rotation;
+      if(chart.chart_layout_auto!==false && !rotation &&
+         !horizontal && !isPie && !scatter && n>=8)rotation=n>=14?90:45;
+      const maxW=Math.max(15,(width-left-right)/n-5);
+      const catLines=cats.map(c=>this.lines(c,rotation?Math.max(50,maxW*1.5):maxW,font));
+      const maxLines=Math.max(1,...catLines.map(lines=>lines.length));
+      const labelReserve=rotation===90?Math.min(width*.48,Math.max(...cats.map(c=>this.measure(c,font)))+18):
+        rotation>0?Math.min(width*.44,maxLines*labelHeight+maxW*.7):
+          maxLines*labelHeight+16;
+      const legendBelow=chart.chart_legend_position==="bottom";
+      const legendRight=chart.chart_legend_position==="right";
+      const titleSpace=top+subTop+(chart.chart_title?14:0);
+      let height=originalHeight;
+      if(isPie)height=Math.max(height,Math.min(1600,titleSpace+Math.max(190,n*labelHeight*2)+20));
+      else if(horizontal)height=Math.max(height,titleSpace+n*Math.max(30,maxLines*labelHeight+9)+38);
+      else height=Math.max(height,titleSpace+Math.max(90,originalHeight*.33)+labelReserve+36);
+      root.setAttribute("viewBox","0 0 "+width+" "+height);
+      root.setAttribute("preserveAspectRatio","xMidYMid meet");
+      if(chart.chart_title)this.text(root,width/2,top*.58,chart.chart_title,titleFont);
+      if(subtitle)this.text(root,width/2,top+font.size*.8,subtitle,font,{size:font.size*.93});
+      const colors=palette;
+      if(isPie){
+        const total=all[0].values.reduce((a,b)=>a+Math.max(0,b),0);
+        const legendWidth=Math.min(width*.48,Math.max(120,...cats.map(c=>this.measure(c,font)+35)));
+        const sideLegend=(chart.chart_legend_position||"right")!=="bottom"&&width>360;
+        const radius=Math.max(40,Math.min((sideLegend?width-legendWidth:width)/2-25,(height-titleSpace)/2-18,155));
+        const cx=sideLegend?(width-legendWidth)/2:width/2;
+        const cy=titleSpace+Math.max(radius+12,(height-titleSpace-(sideLegend?0:n*labelHeight))/2);
+        let angle=-Math.PI/2;
+        all[0].values.forEach((v,i)=>{
+          if(v<=0||total<=0)return;
+          const sweep=v/total*Math.PI*2,next=angle+sweep;
+          const x1=cx+radius*Math.cos(angle),y1=cy+radius*Math.sin(angle);
+          const x2=cx+radius*Math.cos(next),y2=cy+radius*Math.sin(next);
+          const path=v===total?"M "+cx+" "+(cy-radius)+" A "+radius+" "+radius+" 0 1 1 "+cx+" "+(cy+radius)+" A "+radius+" "+radius+" 0 1 1 "+cx+" "+(cy-radius)+" Z":
+            "M "+cx+" "+cy+" L "+x1+" "+y1+" A "+radius+" "+radius+" 0 "+(sweep>Math.PI?1:0)+" 1 "+x2+" "+y2+" Z";
+          root.append(node("path",{d:path,fill:colors[i],stroke:background==="transparent"?"none":"#FFFFFF","stroke-width":1}));
+          if(chart.chart_data_labels!=="none"){
+            const m=angle+sweep/2;
+            this.text(root,cx+radius*.65*Math.cos(m),cy+radius*.65*Math.sin(m),
+              this.valueLabel(v,all[0].values,chart),{...font,color:"#172C43",bold:true},
+              {size:Math.max(8,font.size*.9)});
+          }
+          angle=next;
+        });
+        if(chart.chart_label_visible!==false){
+          const x=sideLegend?width-legendWidth+18:Math.max(15,width*.08);
+          let y=sideLegend?titleSpace+25:cy+radius+25;
+          cats.forEach((category,i)=>{
+            const lines=this.lines(category,(sideLegend?legendWidth:width*.8)-25,font);
+            root.append(node("rect",{x,y:y-font.size,width:10,height:10,fill:colors[i]}));
+            this.text(root,x+16,y,lines,font,{anchor:"start"});
+            y+=Math.max(labelHeight,lines.length*labelHeight)+10;
+          });
+          if(y+12>height)root.setAttribute("viewBox","0 0 "+width+" "+(y+12));
+        }
+        return root;
+      }
+      const allValues=all.flatMap(s=>s.values);
+      const min=Math.min(0,...allValues),max=Math.max(0,...allValues);
+      const span=Math.max(1,max-min);
+      const bottom=horizontal?height-30:height-labelReserve-14;
+      const plotTop=titleSpace+10;
+      const plotBottom=Math.max(plotTop+60,bottom);
+      const plotLeft=horizontal?Math.min(width*.55,Math.max(left,...cats.map(c=>Math.min(width*.5,this.measure(c,font)+18)))):left;
+      const plotRight=width-right-(legendRight?Math.min(110,width*.22):0);
+      const pw=Math.max(50,plotRight-plotLeft),ph=Math.max(40,plotBottom-plotTop);
+      if(horizontal){
+        const step=ph/n;
+        const barH=Math.max(4,Math.min(30,step*.70));
+        const baseline=plotLeft+(0-min)/span*pw;
+        all.forEach((series,s)=>{
+          series.values.forEach((value,i)=>{
+            const x=plotLeft+(value-min)/span*pw;
+            const h=barH/all.length;
+            root.append(node("rect",{x:Math.min(x,baseline),y:plotTop+(i+.5)*step-barH/2+s*h,
+              width:Math.max(1,Math.abs(x-baseline)),height:h,fill:colors[i]}));
+            const label=this.valueLabel(value,series.values,chart);
+            if(label)this.text(root,Math.max(x,baseline)+4,plotTop+(i+.5)*step+font.size*.32,
+              label,font,{size:Math.max(8,font.size*.85),anchor:"start"});
+          });
+        });
+        if(chart.chart_label_visible!==false)cats.forEach((cat,i)=>{
+          const lines=this.lines(cat,Math.max(65,plotLeft-25),font);
+          const y=plotTop+(i+.5)*step-(lines.length-1)*labelHeight/2;
+          this.text(root,plotLeft-9,y,lines,font,{anchor:"end"});
+        });
+        return root;
+      }
+      const baseline=plotTop+(max/span)*ph;
+      const toY=value=>plotTop+(max-value)/span*ph;
+      for(let tick=0;tick<=4;tick++){
+        const y=plotTop+tick/4*ph;
+        root.append(node("line",{x1:plotLeft,y1:y,x2:plotRight,y2:y,stroke:"#C6D0D9","stroke-width":.8}));
+        this.text(root,plotLeft-5,y+font.size*.3,this.format(max-span*tick/4),font,
+          {anchor:"end",size:Math.max(8,font.size*.82)});
+      }
+      root.append(node("line",{x1:plotLeft,y1:baseline,x2:plotRight,y2:baseline,
+        stroke:"#8697A9","stroke-width":1.2}));
+      const centers=cats.map((_,i)=>plotLeft+(i+.5)*pw/n);
+      const seriesCount=all.length;
+      all.forEach((series,s)=>{
+        const points=series.values.map((v,i)=>[centers[i],toY(v)]);
+        const color=seriesCount===1?colors[0]:colors[s%colors.length];
+        if(kind==="bar"||kind==="combo"&&s===0){
+          const widthForBar=Math.max(2,Math.min(52,pw/n*.67)/seriesCount);
+          series.values.forEach((v,i)=>{
+            const y=toY(v),x=centers[i]-(widthForBar*seriesCount)/2+s*widthForBar;
+            root.append(node("rect",{x,y:Math.min(y,baseline),width:widthForBar*.95,
+              height:Math.max(1,Math.abs(y-baseline)),fill:seriesCount===1?colors[i]:color}));
+          });
+        }else{
+          const d=points.map(([x,y],i)=>(i?"L":"M")+x+" "+y).join(" ");
+          if(kind==="area"){
+            root.append(node("path",{d:d+" L"+points.at(-1)[0]+" "+baseline+
+              " L"+points[0][0]+" "+baseline+" Z",fill:color,"fill-opacity":.22}));
+          }
+          root.append(node("path",{d,fill:"none",stroke:color,"stroke-width":2.5}));
+          points.forEach(([x,y])=>root.append(node("circle",{cx:x,cy:y,r:3.3,fill:color})));
+        }
+        series.values.forEach((value,i)=>{
+          const label=this.valueLabel(value,series.values,chart);
+          if(label)this.text(root,centers[i],toY(value)-8-s*font.size*1.1,
+            label,font,{size:Math.max(8,font.size*.84)});
+        });
+      });
+      if(chart.chart_label_visible!==false)catLines.forEach((lines,i)=>{
+        const x=centers[i],y=plotBottom+font.size*1.25;
+        this.text(root,x,y,lines,font,{rotation});
+      });
+      if(seriesCount>1||legendBelow||legendRight){
+        let lx=legendRight?plotRight+5:plotLeft,ly=legendRight?plotTop+12:height-9;
+        all.forEach((s,i)=>{
+          root.append(node("rect",{x:lx,y:ly-font.size*.8,width:9,height:9,
+            fill:colors[i%colors.length]}));
+          this.text(root,lx+14,ly,s.name,font,{size:Math.max(8,font.size*.82),anchor:"start"});
+          if(legendRight)ly+=font.size*1.5;else lx+=this.measure(s.name,font)+31;
+        });
+      }
+      return root;
+    }
+  }
+  class ChartPreview{
+    static render(chart,dimensions={}){
+      return ChartLayoutEngine.make(chart,dimensions);
     }
   }
   class ChartInspector{
@@ -178,5 +376,5 @@
       container.append(section);return section;
     }
   }
-  window.OpenDocSlideCharts={ChartPreview,ChartInspector,valid,PALETTES};
+  window.OpenDocSlideCharts={ChartLayoutEngine,ChartPreview,ChartInspector,valid,PALETTES};
 })();
