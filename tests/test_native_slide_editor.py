@@ -630,3 +630,64 @@ def test_external_deck_inherits_color_from_paragraph_style(tmp_path):
     assert elem["text"] == "Título branco em fundo escuro"
     assert elem["color"] == "#FFFFFF"
     assert imported["content"]["surfaces"][0]["background"] == "#102437"
+
+
+def test_external_template_preserves_theme_masters_and_unedited_rich_text(tmp_path):
+    """Changing one title must not rebuild or flatten an unedited template."""
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    title = slide.shapes.add_textbox(Inches(.6), Inches(.5), Inches(6), Inches(1))
+    title.text = "Título original"
+    preserved = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(7), Inches(1))
+    paragraph = preserved.text_frame.paragraphs[0]
+    first = paragraph.add_run()
+    first.text = "Vermelho "
+    first.font.color.rgb = RGBColor(220, 30, 30)
+    second = paragraph.add_run()
+    second.text = "e azul"
+    second.font.color.rgb = RGBColor(20, 50, 220)
+    second.font.bold = True
+    source = tmp_path / "professor-theme.pptx"
+    deck.save(source)
+    before = Presentation(source)
+    untouched_xml = bytes(before.slides[0].shapes[1]._element.xml, "utf-8")
+    master_xml = bytes(before.slide_masters[0]._element.xml, "utf-8")
+
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    model = deepcopy(imported["content"])
+    assert model["preserve_source"] is True
+    model["surfaces"][0]["elements"][0]["text"] = "Título atualizado"
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], model, imported["revision"])
+    destination = tmp_path / "export-preserved.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", destination)
+    after = Presentation(destination)
+    assert after.slides[0].shapes[0].text == "Título atualizado"
+    assert bytes(after.slides[0].shapes[1]._element.xml, "utf-8") == untouched_xml
+    assert bytes(after.slide_masters[0]._element.xml, "utf-8") == master_xml
+    assert after.slides[0].shapes[1].text_frame.paragraphs[0].runs[1].font.bold is True
+
+
+def test_external_template_refuses_unsupported_slide_structure_without_exporting(tmp_path):
+    from pptx import Presentation
+    deck = Presentation()
+    deck.slides.add_slide(deck.slide_layouts[6])
+    source = tmp_path / "external.pptx"
+    deck.save(source)
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["content"]["preserve_source"] is True
+    model = deepcopy(imported["content"])
+    model["surfaces"].append(deepcopy(model["surfaces"][0]))
+    model["surfaces"][1]["index"] = 1
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], model, imported["revision"])
+    target = tmp_path / "do-not-corrupt.pptx"
+    with pytest.raises(ValueError, match="estrutura dos slides externos"):
+        ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", target)
+    assert not target.exists()
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
