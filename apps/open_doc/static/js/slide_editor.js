@@ -1168,7 +1168,21 @@
           node.append(paragraph);
         });
       }else if(obj.type==="text")node.textContent=obj.text||"";
-      else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";label.textContent=obj.text;node.append(label);}
+      else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";
+        if(Array.isArray(obj.text_runs)&&obj.text_runs.length){
+          obj.text_runs.forEach((paragraph,index)=>{
+            const line=document.createElement("span");line.style.display="block";
+            paragraph.forEach(run=>{
+              const segment=document.createElement("span");segment.textContent=run.text;
+              segment.style.fontFamily=JSON.stringify(run.font_family);
+              segment.style.fontWeight=run.font_bold?"700":"400";
+              segment.style.fontStyle=run.font_italic?"italic":"normal";
+              segment.style.fontSize=run.font_size_pt+"pt";
+              segment.style.color=run.color;line.append(segment);
+            });label.append(line);
+          });
+        }else label.textContent=obj.text;
+        node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
         for(const direction of ["nw","n","ne","e","se","s","sw","w"]){
           const handle=document.createElement("span");
@@ -1601,7 +1615,7 @@
             input.min="0";input.max="95";input.step="1";
           }
         }
-        if(selected.type==="text"&&selected.source_original&&
+        if(selected.source_original&&
            Array.isArray(selected.text_runs)&&
            (selected.text_runs.length>1||selected.text_runs.some(r=>r.length>1))){
           const heading=document.createElement("h4");heading.textContent="Trechos formatados";
