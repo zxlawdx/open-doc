@@ -1498,20 +1498,54 @@
       button.setAttribute("aria-label","Conta-gotas · "+label);
       return input;
     }
+
     _fontProperty(selected,update,container){
       const family=selected.font_family||"Inter";
-      const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri","Georgia","Verdana","Courier New",
+      const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri",
+        "Georgia","Verdana","Courier New","Liberation Serif","Liberation Sans",
+        "DejaVu Sans","DejaVu Serif","Bitstream Charter",
         ...Array.from(this.root.querySelectorAll('[data-font-family] option'),option=>option.value)]);
-      const select=document.createElement("select");
-      for(const font of fonts){
-        if(!font)continue;
-        const option=document.createElement("option");
-        option.value=option.textContent=font;select.append(option);
+      const sorted=Array.from(fonts).filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+      const wrapper=document.createElement("div");wrapper.className="slide-font-widget";
+      const caption=document.createElement("span");caption.className="slide-font-label";
+      caption.textContent="Família da fonte";wrapper.append(caption);
+      const picker=document.createElement("details");picker.className="slide-font-picker";
+      const summary=document.createElement("summary");
+      summary.setAttribute("aria-label","Família da fonte: "+family);
+      const name=document.createElement("span");name.className="slide-font-preview-name";
+      name.textContent=family;name.style.fontFamily=JSON.stringify(family)+",sans-serif";
+      const arrow=document.createElement("span");arrow.setAttribute("aria-hidden","true");
+      arrow.textContent="▾";summary.append(name,arrow);picker.append(summary);
+      const list=document.createElement("div");list.className="slide-font-list";
+      const search=document.createElement("input");search.type="search";
+      search.className="slide-font-search";search.placeholder="Pesquisar fonte";
+      search.setAttribute("aria-label","Pesquisar família da fonte");list.append(search);
+      const items=[];
+      for(const font of sorted){
+        const button=document.createElement("button");button.type="button";
+        button.className="slide-font-option";button.dataset.family=font;
+        button.setAttribute("aria-selected",String(font===family));
+        button.title=font;
+        const preview=document.createElement("span");preview.className="slide-font-sample";
+        preview.textContent="Aa Bb";preview.style.fontFamily=JSON.stringify(font)+",sans-serif";
+        const label=document.createElement("span");label.className="slide-font-option-name";
+        label.textContent=font;button.append(preview,label);
+        button.addEventListener("click",()=>{
+          picker.open=false;
+          if(font!==family)update({font_family:font});
+        },{signal:this.signal});
+        list.append(button);items.push(button);
       }
-      select.value=family;
-      select.addEventListener("change",()=>update({font_family:select.value}),{signal:this.signal});
-      const label=document.createElement("label");label.textContent="Família da fonte";label.append(select);
-      container.append(label);
+      search.addEventListener("input",()=>{
+        const query=search.value.trim().toLocaleLowerCase("pt-BR");
+        for(const button of items){
+          button.hidden=!button.dataset.family.toLocaleLowerCase("pt-BR").includes(query);
+        }
+      },{signal:this.signal});
+      picker.addEventListener("toggle",()=>{
+        if(picker.open)search.focus();
+      },{signal:this.signal});
+      picker.append(list);wrapper.append(picker);container.append(wrapper);
     }
     _selectionProperties(slide,selected){
       const bar=this.selectionToolbar;
