@@ -76,7 +76,7 @@
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
     "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
-    "Gráfico: Pizza":"chart-pie",Tabela:"table",
+    "Gráfico: Pizza":"chart-pie",Tabela:"table",Equações:"math-integral",
     Chevron:"shape-chevron",Hexágono:"shape-hexagon",Pentágono:"shape-pentagon",
     Paralelogramo:"shape-parallelogram",Estrela:"shape-star",Nuvem:"shape-cloud",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
@@ -400,6 +400,8 @@
         "Exportar o slide selecionado como PPTX editável");
       this._button("Texto",()=>this.add("text"));
       this._button("Tabela",()=>this.add("table"),"Inserir tabela PPTX editável");
+      this._button("Equações",()=>this.mathGallery?.toggle(),
+        "Inserir integrais, somatórios e frações diagramadas");
       this._button("Retângulo",()=>this.add("rect"));
       this._button("Elipse",()=>this.add("ellipse"));
       this._button("Arredondado",()=>this.add("round_rect"));
@@ -450,6 +452,17 @@
         });
         this.status("Cor aplicada aos objetos selecionados.");
       });
+      if(window.OpenDocMathGallery){
+        this.mathGallery=window.OpenDocMathGallery.install(
+          this.host,
+          image=>{
+            if(!this.active)return;
+            const id=this.commands.insertImage(this.current,image);
+            this._selectObject(id);this.render();
+          },
+          message=>this.status(message)
+        );
+      }
       this._organizeRibbon();
     }
     _organizeRibbon(){
@@ -458,7 +471,7 @@
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
-        {label:"Inserir",labels:["Texto","Tabela","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
+        {label:"Inserir",labels:["Texto","Tabela","Equações","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Aplicar a todos os slides","Prévia","Apresentar"]}
       ];
