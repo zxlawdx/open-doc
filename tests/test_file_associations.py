@@ -1,6 +1,6 @@
 import json
 import sys
-from pathlib import Path
+from pathlib import PurePosixPath
 
 import pytest
 
@@ -56,13 +56,11 @@ def test_linux_registers_existing_mime_types_and_changes_only_selected_default(
     associations.register(executable)
     associations.register(executable)
     desktop = tmp_path / "applications" / "Open-Doc.desktop"
-    entry = desktop.read_text(encoding="utf-8")
-    # The Linux registration is also simulated on Windows, where tmp_path
-    # contains backslashes. Exec quoting and desktop-entry escaping each
-    # require another level of escaping.
-    escaped_path = str(executable).replace("\\", "\\" * 4)
-    assert f'Exec="{escaped_path}" %f' in entry.splitlines()
-    assert "MimeType=" + ";".join(associations.FILE_TYPES.values()) + ";" in entry
+    escaped = str(executable).replace("\\", "\\" * 4)
+    assert f'Exec="{escaped}" %f' in desktop.read_text(encoding="utf-8")
+    assert "MimeType=" + ";".join(
+        associations.FILE_TYPES.values()
+    ) + ";" in desktop.read_text(encoding="utf-8")
     assert calls == [["update-desktop-database", str(desktop.parent)]]
     associations.set_linux_default(executable, ".pdf")
     assert calls[-1] == ["xdg-mime", "default", desktop.name, "application/pdf"]
@@ -132,3 +130,9 @@ def test_packaged_entrypoint_uses_document_argument(monkeypatch, tmp_path):
     monkeypatch.setattr(wsgi, "create_app", create_app)
     wsgi.run()
     assert events == [executable, document, "started"]
+
+
+def test_linux_desktop_entry_escapes_exec_metacharacters():
+    executable = PurePosixPath('/opt/vela/Open-Doc/Open $Doc "50%"')
+    entry = associations._desktop_entry(executable)
+    assert r'Exec="/opt/vela/Open-Doc/Open \\$Doc \\"50%%\\"" %f' in entry.splitlines()
