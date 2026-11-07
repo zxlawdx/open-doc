@@ -183,7 +183,7 @@ def read_editable_deck(path) -> dict | None:
             surface = dict(index=index, source_slide_index=index, preview_kind="pptx-native",
                            width_pt=width / 12700, height_pt=height / 12700,
                            strokes=[], text_overlays=[], background=color,
-                           notes=notes, transition=effect, transition_speed=speed,
+                           source_background=color, notes=notes, transition=effect, transition_speed=speed,
                            elements=[])
             if len(slide.shapes) > 500:
                 return None
