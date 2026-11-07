@@ -1107,3 +1107,35 @@ test('new native equations adapt their initial ink color to dark/light slide bac
  const light=q.model().surfaces[0].elements.find(o=>o.id===other);
  assert.equal(light.color,'#192433');
 });
+
+test('imported multi-run PPTX edits one segment without flattening styled text',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');
+ const before=q.model().surfaces[0].elements[0];
+ const original={...before,text:'Título vermelho e subtítulo azul',text_runs:[[
+  {text:'Título vermelho ',font_family:'Arial',font_size_pt:30,
+   font_bold:true,font_italic:false,color:'#BB2222'},
+  {text:'e subtítulo azul',font_family:'Georgia',font_size_pt:22,
+   font_bold:false,font_italic:true,color:'#2266BB'}
+ ]]};
+ q.editor.commands.updateObject(0,before.id,{...original,
+  source_original:JSON.parse(JSON.stringify(original))});
+ q.editor._selectObject(before.id);q.editor.render();
+ let spans=Array.from(q.scroller.querySelectorAll('.slide-styled-paragraph span'));
+ assert.equal(spans.length,2);
+ assert.equal(spans[0].style.fontWeight,'700');
+ assert.equal(spans[1].style.fontStyle,'italic');
+ assert.equal(spans[1].style.color,'rgb(34, 102, 187)');
+ const field=Array.from(q.host.querySelectorAll('.slide-inspector label'))
+  .find(x=>x.textContent.startsWith('Parágrafo 1 · Trecho 1'));
+ assert.ok(field,'formatted runs must be individually editable');
+ const input=field.querySelector('input');
+ input.value='Texto atualizado ';
+ input.dispatchEvent(new q.w.Event('change'));
+ const edited=q.model().surfaces[0].elements[0];
+ assert.equal(edited.text,'Texto atualizado e subtítulo azul');
+ assert.equal(edited.text_runs[0][0].text,'Texto atualizado ');
+ assert.equal(edited.text_runs[0][1].text,'e subtítulo azul');
+ assert.equal(edited.text_runs[0][1].color,'#2266BB');
+ assert.equal(edited.text_runs[0][1].font_italic,true);
+});
