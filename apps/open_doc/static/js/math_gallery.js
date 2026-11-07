@@ -39,21 +39,44 @@
   body+=label(45,229,d.note,21);
   return '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="256" viewBox="0 0 1024 256" role="img" aria-label="'+esc(d.label)+'"><rect width="1024" height="256" fill="white"/>'+body+'</svg>';
  }
- const toPng=id=>new Promise((resolve,reject)=>{
-  const image=new Image();
-  image.onload=()=>{
-   try{
-    const canvas=document.createElement("canvas");canvas.width=2048;canvas.height=512;
-    const ctx=canvas.getContext("2d");if(!ctx)throw Error("Canvas 2D indisponível.");
-    ctx.drawImage(image,0,0,2048,512);
-    const data=canvas.toDataURL("image/png");
-    if(!data.startsWith("data:image/png;base64,"))throw Error("Falha ao rasterizar a equação.");
-    resolve(data.substring(22));
-   }catch(e){reject(e);}
-  };
-  image.onerror=()=>reject(Error("Falha ao renderizar equação SVG."));
-  image.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg(id));
- });
+ // Rasterize the same SVG primitives directly onto Canvas2D. QtWebEngine
+ // may mark data:image/svg+xml loaded in an Image as tainted or fail its
+ // asynchronous decode; direct drawing works offline on Chromium 83.
+ const toPng=id=>{
+  const root=new DOMParser().parseFromString(svg(id),"image/svg+xml");
+  if(root.querySelector("parsererror"))return Promise.reject(Error("SVG matemático inválido."));
+  try{
+   const canvas=document.createElement("canvas");
+   canvas.width=2048;canvas.height=512;
+   const ctx=canvas.getContext("2d");
+   if(!ctx)throw Error("Canvas 2D indisponível.");
+   ctx.scale(2,2);
+   for(const item of root.querySelectorAll("rect,path,text")){
+    if(item.tagName==="rect"){
+     ctx.fillStyle=item.getAttribute("fill")||"#fff";
+     ctx.fillRect(Number(item.getAttribute("x")||0),Number(item.getAttribute("y")||0),
+      Number(item.getAttribute("width")||1024),Number(item.getAttribute("height")||256));
+    }else if(item.tagName==="path"){
+     const match=/^M([0-9.]+) ([0-9.]+)h([0-9.]+)$/.exec(item.getAttribute("d")||"");
+     if(!match)throw Error("Traçado matemático não suportado.");
+     ctx.beginPath();ctx.moveTo(Number(match[1]),Number(match[2]));
+     ctx.lineTo(Number(match[1])+Number(match[3]),Number(match[2]));
+     ctx.strokeStyle=item.getAttribute("stroke")||"#17365c";
+     ctx.lineWidth=Number(item.getAttribute("stroke-width")||3);ctx.stroke();
+    }else{
+     const size=Number(item.getAttribute("font-size")||38);
+     ctx.font=size+"px 'DejaVu Serif', Georgia, serif";
+     ctx.textAlign=({middle:"center",end:"right"})[item.getAttribute("text-anchor")]||"left";
+     ctx.textBaseline="alphabetic";
+     ctx.fillStyle=item.getAttribute("fill")||"#17365c";
+     ctx.fillText(item.textContent||"",Number(item.getAttribute("x")),Number(item.getAttribute("y")));
+    }
+   }
+   const data=canvas.toDataURL("image/png");
+   if(!data.startsWith("data:image/png;base64,"))throw Error("Falha ao rasterizar equação.");
+   return Promise.resolve(data.substring(22));
+  }catch(error){return Promise.reject(error);}
+ };
  function install(host,insert,status){
   const panel=document.createElement("section");panel.className="slide-math-gallery";panel.hidden=true;
   panel.setAttribute("aria-label","Modelos de equações");
