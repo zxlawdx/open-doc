@@ -148,6 +148,32 @@ def main():
                 "QT_INPUT_ENTER_BACKSPACE_DELETE_SPACE_SHIFT_ACCENTS_BOLD_OK",
                 flush=True,
             )
+            window.evaluate_js(
+                """(() => {
+                    const rich = document.querySelector('[data-rich]');
+                    const firstPage = rich.querySelector('[data-page-content]') || rich;
+                    const paragraph = Array.from(firstPage.children)
+                        .find(node => node.textContent === 'Open Doc teclado 123');
+                    if (!paragraph) throw Error('QA: first typed paragraph not found');
+                    rich.focus();
+                    getSelection().selectAllChildren(paragraph);
+                    getSelection().collapseToStart();
+                })()"""
+            )
+            keyboard.key("Tab")
+            keyboard.key("Tab")
+            keyboard.type("Prefixo-")
+            wait(
+                window,
+                """(() => {
+                    const editor = OpenDocApp.editor();
+                    const first = editor.snapshot().content.blocks[0].children;
+                    const text = first.map(run => run.type === 'tab' ? '\\t' : run.text).join('');
+                    return text === '\\t\\tPrefixo-Open Doc teclado 123'
+                        && document.activeElement === document.querySelector('[data-rich]');
+                })()""",
+            )
+            print("QT_INPUT_REPEATED_TAB_PRESERVES_TEXT_AND_CARET_OK", flush=True)
             source = services().config.root / "large-input.docx"
             doc = Document()
             for index in range(20):

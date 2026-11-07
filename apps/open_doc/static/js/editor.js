@@ -650,17 +650,34 @@
         root.dataset.documentKind!=='fixed'&&document.activeElement===rich){
         const selection=getSelection();
         const paragraph=node=>(node?.nodeType===1?node:node?.parentElement)
-          ?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,pre,li');
+          ?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,pre,li,[data-page-content] > div,[data-rich] > div');
         const start=paragraph(selection?.anchorNode);
         if(start&&rich.contains(start)&&start===paragraph(selection.focusNode)&&!start.closest('td,th')){
           event.preventDefault();
-          commands.capture();
           history.checkpoint(buffer());
-          nextKind="format";
-          try{
-            commands.execute('insertHTML',
-              '<span data-node-type="tab" contenteditable="false" style="white-space:pre">&#9;</span>');
-          }finally{nextKind="typing";}
+          // Tab is spacing. Collapse the range before inserting so even a
+          // browser selection next to a previous tab cannot replace text.
+          const range=selection.getRangeAt(0).cloneRange();
+          range.collapse(true);
+          const container=range.startContainer;
+          const previousTab=(container.nodeType===1?container:container.parentElement)
+            ?.closest('[data-node-type="tab"]');
+          if(previousTab)range.setStartAfter(previousTab);
+          const placeholder=start.childNodes.length===1&&start.firstChild.nodeName==='BR'
+            &&!start.firstChild.dataset.nodeType?start.firstChild:null;
+          const tab=document.createElement('span');
+          tab.dataset.nodeType='tab';
+          tab.dataset.nodeId=window.OpenDocModel.id();
+          tab.contentEditable='false';
+          tab.style.whiteSpace='pre';
+          tab.textContent='\t';
+          range.insertNode(tab);
+          placeholder?.remove();
+          range.setStartAfter(tab);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          changed('format',rich);
           return;
         }
       }
