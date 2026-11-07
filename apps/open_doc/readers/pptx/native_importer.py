@@ -65,8 +65,8 @@ def _coordinates(shape, width: int, height: int) -> dict:
     y = max(0.0, min(1.0, shape.top / height))
     w = max(.00001, min(1.0 - x, shape.width / width))
     h = max(.00001, min(1.0 - y, shape.height / height))
-    if w < .01 or h < .01:
-        raise ValueError("Objeto fora do tamanho editável.")
+    if w < .00001 or h < .00001:
+        raise ValueError("Objeto sem dimensões geométricas válidas.")
     return dict(x=round(x, 7), y=round(y, 7),
                 width=round(min(w, 1-x), 7), height=round(min(h, 1-y), 7))
 
