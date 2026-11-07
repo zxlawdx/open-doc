@@ -1396,3 +1396,89 @@ test('Adaptive chart labels survive ten categories, manual breaks, resize and mu
  assert.equal(chart.chart_series[0].values.length,3);
  assert.equal(chart.chart_series[1].values.length,3);
 });
+
+
+test('PPTX bullet list can be applied, edited and removed without overlaying old text',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const raw='A economia estuda produção, circulação,\ndistribuição e consumo.\n\nA economia política investiga as relações\nsociais que organizam esses processos.';
+ const id=q.model().surfaces[0].elements[0].id;
+ q.editor.commands.updateObject(0,id,{text:raw});
+ const action=name=>{
+   const b=Array.from(q.controls.querySelectorAll('.slide-context-panel button'))
+     .find(btn=>btn.textContent===name);
+   assert.ok(b,'Context action exists: '+name);
+   b.click();
+ };
+ action('Marcadores');
+ assert.equal(q.model().surfaces[0].elements[0].list_style,'bullet');
+ let rendered=q.scroller.querySelector('.slide-object-text');
+ assert.equal(rendered.querySelectorAll('.slide-text-paragraph').length,5);
+ assert.equal(rendered.querySelectorAll('.slide-text-marker').length,4,
+   'Empty paragraphs are preserved but must not produce orphan bullets');
+ assert.equal(q.model().surfaces[0].elements[0].text,raw,
+   'Bullet glyphs must not alter the underlying document text');
+ rendered.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ const editor=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(editor);
+ assert.equal(rendered.querySelector('.slide-text-content').style.display,'none',
+   'Decorated old paragraphs may not paint underneath textarea');
+ editor.value=raw.replace('consumo.','consumo e produção.');
+ editor.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Enter',ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ assert.equal(q.scroller.querySelectorAll('.slide-inline-editor').length,0);
+ assert.equal(q.model().surfaces[0].elements[0].text.includes('produção.'),true);
+ assert.equal(q.model().surfaces[0].elements[0].text.includes('•'),false);
+ action('Marcadores');
+ rendered=q.scroller.querySelector('.slide-object-text');
+ assert.equal(rendered.querySelectorAll('.slide-text-marker').length,0);
+ assert.equal(rendered.querySelectorAll('.slide-text-content').length,1);
+ assert.equal(q.model().surfaces[0].elements[0].list_style,'none');
+ assert.ok(q.versions.length>=4,'Each change goes through undoable model commands');
+});
+
+test('PPTX import text runs do not overlap list decorations or stale edited contents',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const id=q.model().surfaces[0].elements[0].id;
+ const rows=[['A economia estuda a produção,',' distribuição e consumo.'],
+             ['O Estado organiza relações',' econômicas e sociais.']];
+ const runs=rows.map(row=>row.map(text=>({
+   text,font_family:'Liberation Serif',font_size_pt:28,font_bold:true,
+   font_italic:false,color:'#FFFFFF'
+ })));
+ const source=rows.map(row=>row.join('')).join('\n');
+ q.editor.commands.updateObject(0,id,{text:source,text_runs:runs,list_style:'bullet'});
+ let node=q.scroller.querySelector('.slide-object-text');
+ assert.equal(node.querySelectorAll('.slide-text-paragraph').length,2);
+ assert.equal(node.querySelectorAll('.slide-text-list-body span').length,4);
+ assert.equal(node.querySelectorAll('.slide-text-marker').length,2);
+ node.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ assert.equal(node.querySelector('.slide-text-content').style.display,'none');
+ const edit=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(edit);
+ edit.value='Texto substituído sem restos visuais';
+ edit.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Enter',ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ node=q.scroller.querySelector('.slide-object-text');
+ assert.equal(node.querySelectorAll('.slide-text-paragraph').length,1,
+   'Stale imported runs cannot reappear over the newly saved text');
+ assert.equal(node.querySelector('.slide-text-list-body').textContent,
+   'Texto substituído sem restos visuais');
+ assert.equal(q.model().surfaces[0].elements[0].text,edit.value);
+});
+
+test('Numbered lists skip blank paragraphs and clearing the list preserves all text',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const id=q.model().surfaces[0].elements[0].id;
+ q.editor.commands.updateObject(0,id,{text:'Primeiro\n\nSegundo'});
+ const number=()=>Array.from(q.controls.querySelectorAll('.slide-context-panel button'))
+   .find(x=>x.textContent==='Numeração').click();
+ number();
+ assert.deepEqual(
+  Array.from(q.scroller.querySelectorAll('.slide-text-marker'),m=>m.textContent),
+  ['1.','2.']);
+ number();
+ assert.equal(q.scroller.querySelectorAll('.slide-text-marker').length,0);
+ assert.equal(q.model().surfaces[0].elements[0].text,'Primeiro\n\nSegundo');
+});
