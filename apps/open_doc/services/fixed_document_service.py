@@ -273,6 +273,13 @@ class FixedDocumentService:
         self._checked(identifier, content)
         self.documents._validate(title, "")
         with self.documents._lock, self.documents._connect() as c:
+            c.execute("BEGIN IMMEDIATE")
+            current = c.execute(
+                "SELECT * FROM fixed_documents WHERE id=?", (identifier,)
+            ).fetchone()
+            if current is None or current["revision"] != revision:
+                raise RevisionConflict("O documento foi alterado em outra janela.")
+            self.documents.history.ensure_baseline(c, current)
             cursor = c.execute(
                 "UPDATE fixed_documents SET title=?,content_json=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",
                 (
@@ -286,6 +293,10 @@ class FixedDocumentService:
             if cursor.rowcount != 1:
                 raise RevisionConflict("O documento foi alterado em outra janela.")
             c.execute("DELETE FROM fixed_recovery WHERE id=?", (identifier,))
+            saved = c.execute(
+                "SELECT * FROM fixed_documents WHERE id=?", (identifier,)
+            ).fetchone()
+            self.documents.history.capture(c, saved, "automatic")
         return self.get(identifier)
 
     def recovery(self, identifier, title, content, revision, discard=False):

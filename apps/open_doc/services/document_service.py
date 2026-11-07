@@ -16,6 +16,7 @@ from threading import RLock
 from typing import Any
 from uuid import UUID, uuid4
 
+from apps.open_doc.infrastructure.version_history import VersionHistory
 from apps.open_doc.services.preferences_service import Config
 
 AUTOSAVE_SECONDS = 30
@@ -49,8 +50,11 @@ class Editor:
             )
         from apps.open_doc.document_model.migration import migrate_documents
 
+        self.history = VersionHistory()
         with self._connect() as connection:
             migrate_documents(connection)
+        with self._connect() as connection:
+            self.history.initialize(connection)
         if not self.list_documents():
             self.create("Sem título", "")
 
@@ -149,6 +153,7 @@ class Editor:
             markdown = rich_to_markdown(content)
         title, markdown = self._validate(title, markdown, rich=encoded is not None)
         with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             current = connection.execute(
                 "SELECT revision, title, markdown, content_json FROM documents WHERE id = ?",
                 (identifier,),
@@ -223,14 +228,17 @@ class Editor:
         title, markdown = self._validate(title, markdown, rich=encoded is not None)
         updated = datetime.now(timezone.utc).isoformat()
         with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             current = connection.execute(
                 "SELECT * FROM documents WHERE id=?", (identifier,)
             ).fetchone()
-            if current and current["content_format"] != "markdown" and encoded is None:
+            if current is None or current["revision"] != revision:
+                raise RevisionConflict("Existe uma revisão mais recente. Salve uma cópia.")
+            self.history.ensure_baseline(connection, current)
+            if current["content_format"] != "markdown" and encoded is None:
                 raise ValueError("Documento rico exige modelo estruturado.")
             if (
-                current
-                and current["content_format"] == "markdown"
+                current["content_format"] == "markdown"
                 and encoded is not None
             ):
                 connection.execute(
@@ -259,7 +267,68 @@ class Editor:
             row = connection.execute(
                 "SELECT * FROM documents WHERE id = ?", (identifier,)
             ).fetchone()
+            self.history.capture(connection, row, "automatic")
         return dict(row)
+
+    def versions(self, identifier, operation, *, fixed=False, **data):
+        identifier = self._identifier(identifier)
+        table = "fixed_documents" if fixed else "documents"
+        recovery = "fixed_recovery" if fixed else "recovery"
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = connection.execute(
+                f"SELECT * FROM {table} WHERE id=?", (identifier,)
+            ).fetchone()
+            if current is None:
+                raise ValueError("Documento não encontrado.")
+            version_id = data.get("version_id")
+            if operation in {"create", "restore"} or (
+                operation == "list" and not self.history.list(connection, identifier)
+            ):
+                self.history.capture(connection, current, "automatic")
+            if operation in {"create", "rename", "duplicate"}:
+                name = data.get("name")
+                if not isinstance(name, str) or not name.strip() or len(name) > 180:
+                    raise ValueError("Informe um nome de até 180 caracteres.")
+                if operation == "create":
+                    self.history.capture(connection, current, "named", name.strip())
+                elif operation == "duplicate":
+                    selected = self.history.read(connection, identifier, version_id)
+                    self.history.append(connection, identifier, selected, "copied", name.strip())
+                else:
+                    self.history.rename(connection, identifier, version_id, name.strip())
+            elif operation == "delete":
+                self.history.delete(connection, identifier, version_id)
+            elif operation == "inspect":
+                selected = self.history.read(connection, identifier, version_id)
+                return {"selected": selected, "current": self.history.fields(current)}
+            elif operation == "restore":
+                if data.get("revision") != current["revision"]:
+                    raise RevisionConflict("O documento mudou. Abra o histórico novamente.")
+                if connection.execute(
+                    f"SELECT 1 FROM {recovery} WHERE id=?", (identifier,)
+                ).fetchone():
+                    raise RevisionConflict("Resolva o rascunho recuperável antes de restaurar.")
+                selected = self.history.read(connection, identifier, version_id)
+                if selected["source_sha256"] != current["source_sha256"]:
+                    raise ValueError("A versão pertence a uma origem diferente.")
+                self.history.capture(connection, current, "before_restore")
+                columns = ["title", "content_json"]
+                if not fixed:
+                    columns.extend(("markdown", "content_format"))
+                assignments = ", ".join(f"{key}=?" for key in columns)
+                connection.execute(
+                    f"UPDATE {table} SET {assignments}, revision=revision+1, updated_at=? WHERE id=?",
+                    (*[selected[key] for key in columns],
+                     datetime.now(timezone.utc).isoformat(), identifier),
+                )
+                restored = connection.execute(
+                    f"SELECT * FROM {table} WHERE id=?", (identifier,)
+                ).fetchone()
+                self.history.capture(connection, restored, "restored")
+            elif operation != "list":
+                raise ValueError("Operação de histórico inválida.")
+            return {"versions": self.history.list(connection, identifier)}
 
     def import_note(self, source: Path) -> dict[str, Any]:
         """Abre uma cópia de Markdown/TXT sem alterar o arquivo importado."""

@@ -104,6 +104,11 @@ def bootstrap() -> dict[str, Any]:
     return _documents().bootstrap()
 
 
+@api.post("/open_doc/document/versions")
+def document_versions(context=None):
+    return _handle(lambda: _documents().versions(_data(context)))
+
+
 @api.post("/open_doc/document/recovery")
 def recovery_document(context=None):
     return _handle(lambda: _documents().recover(_data(context)))

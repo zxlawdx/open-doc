@@ -139,6 +139,19 @@ class DocumentApplication:
             data.get("content_format", "markdown"),
         )
 
+    def versions(self, data: dict[str, Any]) -> dict[str, Any]:
+        identifier = data["id"]
+        fixed = self.context.fixed_documents.exists(identifier)
+        operation = data["operation"]
+        result = self.context.editor.versions(
+            identifier, operation, fixed=fixed, version_id=data.get("version_id"),
+            revision=data.get("revision"), name=data.get("name"),
+        )
+        if operation == "restore":
+            service = self.context.fixed_documents if fixed else self.context.editor
+            result["document"] = service.get(identifier)
+        return result
+
     def recover(self, data: dict[str, Any]) -> dict[str, Any]:
         identifier = data["id"]
         if self.context.fixed_documents.exists(identifier):
