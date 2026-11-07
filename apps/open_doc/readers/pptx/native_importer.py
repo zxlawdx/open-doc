@@ -147,16 +147,13 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
 
 
 def read_editable_deck(path) -> dict | None:
-    """Return a validated editable model only for identified Open Doc exports.
+    """Convert supported decks, including externally created PPTX presentations.
 
-    No lossy conversion for arbitrary user decks: if an imported slide contains
-    animation timing, groups, unsupported graphics, or shapes, preserve it as
-    an immutable original instead. Legacy non-marked decks remain in viewer
-    mode and can later use an explicit, reviewed conversion operation.
+    Never silently remove unknown shapes, groups, or animations. A presentation
+    requiring unsupported features remains a read-only preview; the source
+    is retained unchanged for future conversion support.
     """
     deck = Presentation(path)
-    if MARKER not in (deck.core_properties.keywords or ""):
-        return None
     if not 1 <= len(deck.slides) <= 200:
         return None
     width, height = deck.slide_width, deck.slide_height
