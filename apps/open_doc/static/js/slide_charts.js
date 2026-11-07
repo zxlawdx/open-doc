@@ -409,6 +409,7 @@
       });
       section.append(table);
       const add=document.createElement("button");add.type="button";add.textContent="+ Adicionar categoria";
+      add.className="slide-chart-add-category";
       add.disabled=chart.chart_categories.length>=24;
       add.addEventListener("click",()=>{
         if(chart.chart_categories.length>=24)return status("Limite de 24 categorias por gráfico.");
