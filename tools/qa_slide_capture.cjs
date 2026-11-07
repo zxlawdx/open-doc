@@ -70,7 +70,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  assert.ok(ribbon.ribbonHeight>20&&ribbon.ribbonHeight<65,
    'Insert ribbon must occupy one compact row: '+JSON.stringify(ribbon));
  assert.ok(ribbon.stageHeight>180,
-   'Slide canvas must remain visible below ribbon: '+JSON.stringify(ribbon));
+   'Qt grid regression: ribbon collapsed .fixed-scroll to zero height; slide is not clickable: '+JSON.stringify(ribbon));
  const result=await evaluate(`(()=>{
   const page=document.querySelector('.fixed-surface[data-page-index="0"]');
   const rect=page?.querySelector('.slide-object-rect');
