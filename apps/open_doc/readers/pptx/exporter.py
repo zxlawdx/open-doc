@@ -96,6 +96,11 @@ class SlideDeckExporter:
             # Explicit data label strings remain independent of workbook data.
             # PowerPoint's built-in showPercent is used for pies.
             if show in {"percent", "both"} and kind != "pie":
+                old_labels = series._element.find(
+                    "{http://schemas.openxmlformats.org/drawingml/2006/chart}dLbls"
+                )
+                if old_labels is not None:
+                    series._element.remove(old_labels)
                 labels = OxmlElement("c:dLbls")
                 positive_total = sum(v for v in source_values if v > 0)
                 for i, value in enumerate(source_values):
@@ -391,6 +396,65 @@ class SlideDeckExporter:
                    if key not in {"id", "source_original", "source_shape_index"}
                    and original.get(key) != value}
         if not changed:
+            return
+        if shape.has_chart:
+            chart_options = {
+                "chart_type", "chart_title", "chart_subtitle", "chart_palette",
+                "chart_categories", "chart_values", "chart_series",
+                "chart_background", "chart_background_color",
+                "chart_color_mode", "chart_item_colors",
+                "chart_data_labels", "chart_percent_mode",
+                "chart_label_font", "chart_label_font_size",
+                "chart_label_letter_spacing", "chart_label_color",
+                "chart_label_bold", "chart_label_italic",
+                "chart_label_wrap", "chart_label_visible",
+                "chart_label_rotation", "chart_label_align",
+                "chart_margin_mode", "chart_margin", "chart_layout_auto",
+                "chart_legend_position"
+            }
+            if changed - chart_options - {"x", "y", "width", "height", "name"}:
+                raise ValueError("Propriedade do gráfico original não editável.")
+            if "chart_type" in changed:
+                raise ValueError("Trocar o tipo de gráfico importado ainda exige recriar o gráfico.")
+            chart = shape.chart
+            if changed & {"chart_categories", "chart_values", "chart_series"}:
+                data = CategoryChartData()
+                data.categories = obj["chart_categories"]
+                for series in obj.get("chart_series") or [{
+                    "name": "Valores", "values": obj["chart_values"]
+                }]:
+                    data.add_series(series["name"], series["values"])
+                chart.replace_data(data)
+            if changed & {"chart_title", "chart_subtitle"}:
+                title = obj.get("chart_title", "")
+                subtitle = obj.get("chart_subtitle", "")
+                chart.has_title = bool(title or subtitle)
+                if chart.has_title:
+                    chart.chart_title.text_frame.text = title + (
+                        "\\n" + subtitle if subtitle else ""
+                    )
+            if changed & chart_options:
+                chart.has_legend = (
+                    obj.get("chart_type") == "pie" or
+                    len(obj.get("chart_series") or []) > 1
+                )
+                palette = {
+                    "blue": ["#004AC6", "#6A9EFF", "#90C2FF", "#274F98", "#AFCBFF"],
+                    "green": ["#2B886A", "#72C3A0", "#A2DEC5", "#14634B", "#D0F0DD"],
+                    "orange": ["#F07938", "#FFC16D", "#BE4F2E", "#EACB90", "#F9DFCA"],
+                    "contrast": ["#004AC6", "#B64264", "#267D4D", "#D18919", "#784FC5"],
+                }[obj.get("chart_palette", "blue")]
+                self._chart_style(chart, obj, palette)
+            for field, attr, scale in (
+                ("x", "left", self.presentation.slide_width),
+                ("y", "top", self.presentation.slide_height),
+                ("width", "width", self.presentation.slide_width),
+                ("height", "height", self.presentation.slide_height),
+            ):
+                if field in changed:
+                    setattr(shape, attr, int(obj[field] * scale))
+            if "name" in changed:
+                shape.name = obj["name"]
             return
         if "math_blocks" in changed:
             if read_math(shape) is None:
