@@ -29,9 +29,10 @@ const out=path.resolve(__dirname,'../docs/images/math');
   '(()=>{',
   'const rich=document.querySelector("[data-rich]");',
   'const slide=document.querySelector("[data-slide-editor=true] .fixed-surface");',
+  'const rendered=Array.from(document.querySelectorAll(".fixed-document .fixed-scroll .fixed-surface canvas[data-render-complete=true]"))',
+   '.find(c=>{const r=c.getBoundingClientRect();return r.width>80&&r.height>30});',
   'const media=slide?.querySelector(".slide-object-image img") || ',
-    'document.querySelector("[data-rich] img") || ',
-    'document.querySelector(".fixed-surface canvas");',
+    'document.querySelector("[data-rich] img") || rendered;',
   'const rect=media?.getBoundingClientRect();',
   'return {title:document.querySelector("[data-title]")?.value||"",',
    'mode:document.querySelector("[data-slide-editor]")?.dataset.slideEditor,',
@@ -42,6 +43,7 @@ const out=path.resolve(__dirname,'../docs/images/math');
   '})()'
  ].join('');
  const metrics=await read(script);
+ if(kind==='pdf')assert.equal(metrics.mode,'false','PDF cannot be in native slide editing mode');
  assert.ok(metrics.mediaVisible,'No fraction or page visible: '+JSON.stringify(metrics));
  assert.ok(metrics.imageRect?.width>80&&metrics.imageRect?.height>30,
    'Formula too small/collapsed: '+JSON.stringify(metrics));
