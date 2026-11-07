@@ -43,7 +43,11 @@
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
     Balde:"paint-bucket","Pintar seleção":"palette",Prévia:"play",Apresentar:"play",
-    "Exportar slide":"download",Desfazer:"undo",Refazer:"redo"
+    "Exportar slide":"download",Desfazer:"undo",Refazer:"redo",
+    "Conta-gotas":"eyedropper","Aplicar fundo":"palette","Aplicar tom":"palette",
+    "Restaurar ajustes de cor e opacidade":"undo","Substituir imagem":"image",
+    "Subir camada":"arrow-up","Descer camada":"arrow-down","Duplicar objeto":"duplicate",
+    "Excluir objeto":"trash","Aplicar escala":"fit",Negrito:"bold",Itálico:"italic"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
   class SlideSvgRenderer {
@@ -290,10 +294,16 @@
       this.inspector=document.createElement("aside");this.inspector.className="slide-inspector";this.inspector.hidden=true;
       this.inspector.setAttribute("aria-label","Propriedades e camadas dos slides");
       host.append(this.inspector);controls.append(this.toolbar);
+      this.selectionToolbar=document.createElement("div");
+      this.selectionToolbar.className="slide-selection-toolbar";
+      this.selectionToolbar.setAttribute("role","group");
+      this.selectionToolbar.setAttribute("aria-label","Atalhos do objeto selecionado");
+      this.selectionToolbar.hidden=true;
+      controls.append(this.selectionToolbar);
       this._buildToolbar();
       this._bindEvents();
     }
-    _button(label,action,title=label){
+    _button(label,action,title=label,container=this.toolbar){
       const button=document.createElement("button");button.type="button";button.textContent=label;
       if(ACTION_ICONS[label]){
         const svg=document.createElementNS(SVG_NS,"svg");
@@ -313,7 +323,7 @@
           const result=action();
           if(result&&typeof result.catch==="function")result.catch(error=>this.status(error.message));
         }catch(error){this.status(error.message);}
-      },{signal:this.signal});this.toolbar.append(button);return button;
+      },{signal:this.signal});container.append(button);return button;
     }
     _buildToolbar(){
       this._button("+ Slide",()=>{this.commands.insert(this.current);this.current++;this._selectObject(null);this.go(this.current);});
@@ -572,6 +582,7 @@
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
       this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.colorSample=null;this.scroller.style.cursor="";this.inspector.replaceChildren();
+      this.selectionToolbar.hidden=true;this.selectionToolbar.replaceChildren();
       this.activeCanvas=null;this.workspace.replaceChildren();this.workspace.remove();
     }
     selectSearchResult(index,id){
@@ -644,6 +655,18 @@
       }
       node.append(editor);node.style.overflow="hidden";
       this.inlineEditing=editor;
+      const minimum=node.style.minHeight;
+      if(node.classList.contains("slide-object-text")){
+        const fit=()=>{
+          editor.style.height="0px";
+          const border=node.offsetHeight-node.clientHeight;
+          node.style.minHeight=Math.max(parseFloat(minimum)||0,editor.scrollHeight+border)+"px";
+          editor.style.height="100%";
+        };
+        editor.addEventListener("input",fit,{signal:this.signal});
+        fit();
+      }
+      this.selectionToolbar.hidden=true;
       let finished=false;
       const finish=save=>{
         if(finished)return;finished=true;
@@ -723,7 +746,7 @@
           if(!object)continue;
           Object.assign(object.style,{
             left:element.x*width+"px",top:element.y*height+"px",
-            width:element.width*width+"px",height:element.height*height+"px",
+            width:element.width*width+"px",...this._objectHeight(element,element.height*height+"px"),
             fontSize:(element.font_size_pt||28)*4/3+"px"
           });
         }
@@ -952,6 +975,9 @@
       }
       return node;
     }
+    _objectHeight(obj,height){
+      return obj.type==="text"?{height:"auto",minHeight:height}:{height};
+    }
     _styleObject(node,obj,index=0,thumb=false){
       // Render directly relative to the physical slide, never to the
       // computed percentage size of an intermediate absolutely positioned
@@ -962,9 +988,9 @@
       const pxHeight=surface.height_pt*4/3*zoom;
       const bounds=thumb
         ? {left:obj.x*100+"%",top:obj.y*100+"%",
-           width:obj.width*100+"%",height:obj.height*100+"%"}
+           width:obj.width*100+"%",...this._objectHeight(obj,obj.height*100+"%")}
         : {left:obj.x*pxWidth+"px",top:obj.y*pxHeight+"px",
-           width:obj.width*pxWidth+"px",height:obj.height*pxHeight+"px"};
+           width:obj.width*pxWidth+"px",...this._objectHeight(obj,obj.height*pxHeight+"px")};
       Object.assign(node.style,{
         position:"absolute",boxSizing:"border-box",zIndex:"3",
         ...bounds,
@@ -1087,34 +1113,78 @@
       if(!pixel[3])throw Error("Esse ponto é transparente. Escolha outro ponto da imagem.");
       return "#"+Array.from(pixel.slice(0,3),value=>value.toString(16).padStart(2,"0")).join("");
     }
-    _colorProperty(label,value,change){
-      const input=this._property(label,value,"color",change);
-      const button=document.createElement("button");button.type="button";button.textContent="Conta-gotas";
-      button.setAttribute("aria-label","Conta-gotas · "+label);
+    _colorProperty(label,value,change,container=this.inspector){
+      const input=this._property(label,value,"color",change,container);
       const index=this.current,id=this.selected;
       const apply=color=>{if(this.active&&this.current===index&&this.selected===id)change(color);};
-      button.addEventListener("click",async()=>{
+      const button=this._button("Conta-gotas",async()=>{
         if(window.EyeDropper){
           try{apply((await new window.EyeDropper().open()).sRGBHex);return;}
           catch(error){if(error.name==="AbortError")return;}
         }
         this.colorSample=apply;this.scroller.style.cursor="crosshair";
         this.status("Clique numa foto, forma, texto ou fundo do slide para pegar a cor. Esc cancela.");
-      },{signal:this.signal});
-      this.inspector.append(button);return input;
+      },"Capturar "+label.toLowerCase(),container);
+      button.setAttribute("aria-label","Conta-gotas · "+label);
+      return input;
     }
-    _textProperties(selected){
-      const update=patch=>this.commands.updateObject(this.current,selected.id,patch);
+    _fontProperty(selected,update,container){
       const family=selected.font_family||"Inter";
       const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri","Georgia","Verdana","Courier New",
         ...Array.from(this.root.querySelectorAll('[data-font-family] option'),option=>option.value)]);
       const select=document.createElement("select");
-      for(const font of fonts){if(!font)continue;const option=document.createElement("option");
-        option.value=option.textContent=font;select.append(option);}
+      for(const font of fonts){
+        if(!font)continue;
+        const option=document.createElement("option");
+        option.value=option.textContent=font;select.append(option);
+      }
       select.value=family;
       select.addEventListener("change",()=>update({font_family:select.value}),{signal:this.signal});
       const label=document.createElement("label");label.textContent="Família da fonte";label.append(select);
-      this.inspector.append(label);
+      container.append(label);
+    }
+    _selectionProperties(slide,selected){
+      const bar=this.selectionToolbar;
+      bar.replaceChildren();bar.hidden=!selected||Boolean(this.inlineEditing);
+      if(bar.hidden)return;
+      const update=patch=>this.commands.updateObject(this.current,selected.id,patch);
+      const button=(label,action)=>this._button(label,action,label,bar);
+      if(canEditText(selected)){
+        this._fontProperty(selected,update,bar);
+        const size=this._property("Fonte (pt)",selected.font_size_pt||28,"number",
+          value=>update({font_size_pt:clamp(Number(value)||28,6,144)}),bar);
+        size.min="6";size.max="144";
+        button("Negrito",()=>update({font_bold:!selected.font_bold}))
+          .setAttribute("aria-pressed",String(Boolean(selected.font_bold)));
+        button("Itálico",()=>update({font_italic:!selected.font_italic}))
+          .setAttribute("aria-pressed",String(Boolean(selected.font_italic)));
+        this._colorProperty("Cor do texto",selected.color,value=>update({color:value}),bar);
+      }
+      const layer=slide.elements.indexOf(selected);
+      button("Subir camada",()=>this.commands.shiftLayer(this.current,selected.id,1))
+        .disabled=layer===slide.elements.length-1;
+      button("Descer camada",()=>this.commands.shiftLayer(this.current,selected.id,-1))
+        .disabled=layer===0;
+      const scale=this._property("Escala (%)",100,"number",null,bar);
+      scale.min="1";scale.max="1000";
+      const apply=()=>{
+        const percent=Number(scale.value);
+        if(!Number.isFinite(percent)||percent<=0)return;
+        const factor=clamp(percent/100,
+          Math.max(.01/selected.width,.01/selected.height),
+          Math.min((1-selected.x)/selected.width,(1-selected.y)/selected.height));
+        const patch={width:selected.width*factor,height:selected.height*factor};
+        if(canEditText(selected))patch.font_size_pt=clamp((selected.font_size_pt||28)*factor,6,144);
+        update(patch);
+      };
+      scale.addEventListener("keydown",event=>{
+        if(event.key==="Enter"){event.preventDefault();apply();}
+      },{signal:this.signal});
+      button("Aplicar escala",apply);
+    }
+    _textProperties(selected){
+      const update=patch=>this.commands.updateObject(this.current,selected.id,patch);
+      this._fontProperty(selected,update,this.inspector);
       const style=document.createElement("select");
       for(const [value] of [["Estilo personalizado"],...textStyles]){
         const option=document.createElement("option");option.value=option.textContent=value;style.append(option);
@@ -1130,14 +1200,14 @@
       this._toggleProperty("Negrito",selected.font_bold,value=>update({font_bold:value}));
       this._toggleProperty("Itálico",selected.font_italic,value=>update({font_italic:value}));
     }
-    _property(label,value,kind,onChange){
+    _property(label,value,kind,onChange,container=this.inspector){
       const wrapper=document.createElement("label");wrapper.textContent=label;
       const input=document.createElement(kind==="textarea"?"textarea":"input");
       if(kind!=="textarea")input.type=kind;
       if(kind==="number"){input.min="0";input.max="100";input.step="1";}
       input.value=String(value);
       if(onChange)input.addEventListener("change",()=>onChange(input.value),{signal:this.signal});
-      wrapper.append(input);this.inspector.append(wrapper);return input;
+      wrapper.append(input);container.append(wrapper);return input;
     }
     _toggleProperty(label,checked,onChange){
       const wrapper=document.createElement("label");
@@ -1162,9 +1232,7 @@
         changeBackground("#"+hex.toUpperCase());
       };
       const backgroundHex=this._property("Cor de fundo (hex)",slide.background||"#FFFFFF","text");
-      const applyColor=document.createElement("button");applyColor.type="button";applyColor.textContent="Aplicar fundo";
-      applyColor.addEventListener("click",()=>applyBackground(backgroundHex.value),{signal:this.signal});
-      this.inspector.append(applyColor);
+      this._button("Aplicar fundo",()=>applyBackground(backgroundHex.value),"Aplicar fundo",this.inspector);
       const transitionTitle=document.createElement("h4");transitionTitle.textContent="Transição de entrada deste slide";
       this.inspector.append(transitionTitle);
       const transitionLabel=document.createElement("label");transitionLabel.textContent="Efeito";
@@ -1213,6 +1281,7 @@
         this.inspector.append(groupActions);
       }
       const selected=slide.elements?.find(e=>e.id===this.selected);
+      this._selectionProperties(slide,selected);
       if(selected){
         const heading=document.createElement("h4");heading.textContent="Editar "+labelFor(selected.type);this.inspector.append(heading);
         const sameType=slide.elements.filter(obj=>obj.type===selected.type);
@@ -1228,13 +1297,10 @@
           );
         }
         if(selected.type==="image"){
-          const replaceButton=document.createElement("button");
-          replaceButton.type="button";replaceButton.textContent="Substituir imagem";
-          replaceButton.addEventListener("click",()=>{
+          this._button("Substituir imagem",()=>{
             this.imageReplacement={index:this.current,id:selected.id};
             this.imageInput.click();
-          },{signal:this.signal});
-          this.inspector.append(replaceButton);
+          },"Substituir imagem",this.inspector);
           for(const [key,label,minimum,initial] of [
             ["image_opacity","Opacidade (%)",0,100],
             ["image_brightness","Brilho (%)",-100,0],
@@ -1248,20 +1314,14 @@
           }
           const tint=this._colorProperty("Tom da imagem",selected.image_tint||"#FFFFFF",
             value=>this.commands.updateObject(this.current,selected.id,{image_tint:value}));
-          const applyTint=document.createElement("button");
-          applyTint.type="button";applyTint.textContent="Aplicar tom";
-          applyTint.addEventListener("click",()=>this.commands.updateObject(this.current,selected.id,{
+          this._button("Aplicar tom",()=>this.commands.updateObject(this.current,selected.id,{
             image_tint:tint.value
-          }),{signal:this.signal});
-          this.inspector.append(applyTint);
+          }),"Aplicar tom",this.inspector);
           this._toggleProperty("Preto e branco",selected.image_grayscale,
             checked=>this.commands.updateObject(this.current,selected.id,{image_grayscale:checked}));
-          const reset=document.createElement("button");
-          reset.type="button";reset.textContent="Restaurar ajustes de cor e opacidade";
-          reset.addEventListener("click",()=>this.commands.updateObject(this.current,selected.id,{
+          this._button("Restaurar ajustes de cor e opacidade",()=>this.commands.updateObject(this.current,selected.id,{
             image_opacity:100,image_brightness:0,image_contrast:0,image_grayscale:false,image_tint:null
-          }),{signal:this.signal});
-          this.inspector.append(reset);
+          }),"Restaurar ajustes de cor e opacidade",this.inspector);
           this._toggleProperty("Espelhar horizontalmente",selected.flip_h||false,
             checked=>this.commands.updateObject(this.current,selected.id,{flip_h:checked}));
           this._toggleProperty("Espelhar verticalmente",selected.flip_v||false,
@@ -1298,7 +1358,7 @@
           const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
           rotationField.min="-360";rotationField.max="360";
         }
-        for(const [key,label] of fields)this._property(label,Math.round(selected[key]*100),"number",value=>{
+        for(const [key,label] of fields)this._property(key==="height"&&selected.type==="text"?"Altura mínima (%)":label,Math.round(selected[key]*100),"number",value=>{
           const amount=clamp(Number(value)/100,0,key==="x"||key==="y"?1:1);
           const patch={[key]:amount};
           const next={...selected,...patch};

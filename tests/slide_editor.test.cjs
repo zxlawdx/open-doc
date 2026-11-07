@@ -840,3 +840,59 @@ test('Hex background and slide eyedropper apply without adding a rectangle',t=>{
  q.scroller.querySelector('.fixed-surface').click();
  assert.equal(q.model().surfaces[0].elements[0].color,'#A81710');
 });
+
+test('Text box grows during editing and keeps automatic height across slide views',t=>{
+ const q=setup(t,{zoom:.75});
+ clickLabel(q.controls,'Texto');
+ const box=q.scroller.querySelector('.slide-object-text');
+ assert.equal(box.style.height,'auto');
+ assert.equal(box.style.minHeight,'102.6px');
+ box.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ const input=box.querySelector('.slide-inline-editor');
+ const multiline='Primeira linha\n\nSegunda linha\nTerceira linha';
+ input.value=multiline;
+ Object.defineProperty(input,'scrollHeight',{value:210});
+ input.dispatchEvent(new q.w.Event('input',{bubbles:true}));
+ assert.equal(box.style.minHeight,'210px');
+ input.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].text,multiline);
+ assert.equal(q.scroller.querySelector('.slide-object-text').style.height,'auto');
+ assert.equal(q.sidebar.querySelector('.slide-object-text').style.height,'auto');
+ q.editor.startPresentation();
+ const presented=q.root.querySelector('.slide-presentation .slide-object-text');
+ assert.equal(presented.style.height,'auto');
+ assert.equal(presented.style.minHeight,'136.8px');
+});
+
+test('Selection shortcuts format text, change layers and scale in one edit',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');clickLabel(q.controls,'Retângulo');
+ const text=q.model().surfaces[0].elements[0];
+ q.editor.selectSearchResult(0,text.id);
+ const bar=q.controls.querySelector('.slide-selection-toolbar');
+ const button=label=>Array.from(bar.querySelectorAll('button')).find(node=>node.textContent===label);
+ const change=(input,value)=>{
+   input.value=value;input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ };
+ assert.equal(bar.hidden,false);
+ change(bar.querySelector('select'),'Arial');
+ change(bar.querySelector('input[type=color]'),'#cc1133');
+ button('Negrito').click();
+ assert.equal(button('Descer camada').disabled,true);
+ assert.equal(button('Subir camada').querySelector('use').getAttribute('href'),'#arrow-up');
+ button('Subir camada').click();
+ assert.equal(q.model().surfaces[0].elements.at(-1).id,text.id);
+ button('Descer camada').click();
+ const before=q.versions.length;
+ const scale=Array.from(bar.querySelectorAll('label')).find(node=>node.textContent==='Escala (%)').querySelector('input');
+ scale.value='50';
+ button('Aplicar escala').click();
+ assert.equal(q.versions.length,before+1);
+ const current=q.model().surfaces[0].elements[0];
+ assert.equal(current.font_family,'Arial');
+ assert.equal(current.color,'#cc1133');
+ assert.equal(current.font_bold,true);
+ assert.equal(current.font_size_pt,14);
+ assert.equal(current.width,text.width/2);
+ assert.equal(current.height,text.height/2);
+});
