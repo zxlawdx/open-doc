@@ -311,7 +311,7 @@ class SlideDeckExporter:
                 leading.text = obj["text"]
                 for paragraph in list(shape.text_frame.paragraphs):
                     for run in list(paragraph.runs):
-                        if run is not leading:
+                        if run._r is not leading._r:
                             run._r.getparent().remove(run._r)
                     if paragraph is not first:
                         paragraph._p.getparent().remove(paragraph._p)
