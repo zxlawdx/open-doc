@@ -238,7 +238,8 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                     base["font_bold"] = bold
                 if italic is not None:
                     base["font_italic"] = italic
-                raw_tracking = runs[0]._r.get_or_add_rPr().get("spc")
+                props = runs[0]._r.rPr
+                raw_tracking = props.get("spc") if props is not None else None
                 if raw_tracking is not None:
                     base["font_letter_spacing_pt"] = max(-2, min(20,
                         int(raw_tracking) / 100))
