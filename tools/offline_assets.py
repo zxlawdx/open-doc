@@ -36,9 +36,11 @@ MAX_FILE_BYTES = 60 * 1024 * 1024
 MAX_FILES = 1000
 REQUIRED = {
     "apps/open_doc/static/css/main.css",
+    "apps/open_doc/static/css/runtime.css",
     "apps/open_doc/static/js/vendor/vendor-manifest.json",
     "staticfiles/css/vela.bundle.css",
     "staticfiles/open_doc/css/main.css",
+    "staticfiles/open_doc/css/runtime.css",
     "staticfiles/open_doc/js/vendor/vendor-manifest.json",
 }
 
@@ -99,7 +101,10 @@ def _permitted(name: str) -> bool:
     return (
         name.startswith("staticfiles/")
         or name.startswith("apps/open_doc/static/js/vendor/")
-        or name == "apps/open_doc/static/css/main.css"
+        or name in {
+            "apps/open_doc/static/css/main.css",
+            "apps/open_doc/static/css/runtime.css",
+        }
     )
 
 
@@ -111,6 +116,7 @@ def _compiled_files(root: Path) -> list[Path]:
         if path.is_file()
     )
     files.append(root / "apps/open_doc/static/css/main.css")
+    files.append(root / "apps/open_doc/static/css/runtime.css")
     for path in files:
         if not _permitted(path.relative_to(root).as_posix()):
             raise RuntimeError(f"Arquivo não permitido no pacote offline: {path}")
@@ -156,12 +162,17 @@ def prepare(root: Path = ROOT) -> None:
         (root / "apps/open_doc/styles" / name).read_text(encoding="utf-8")
         for name in STYLE_ORDER
     )
-    main_css = root / "apps/open_doc/static/css/main.css"
-    original_css = main_css.read_bytes()
+    # The checked-in main.css is only an offline Tailwind seed. Do not edit it.
+    runtime_css = root / "apps/open_doc/static/css/runtime.css"
     shell_css = root / "staticfiles/css/vela.bundle.css"
     shell_css.parent.mkdir(parents=True, exist_ok=True)
     shell_css.write_text(compiled + "\n", encoding="utf-8")
-    main_css.write_text(compiled + "\n" + custom + "\n", encoding="utf-8")
+    temporary_css = runtime_css.with_suffix(".css.tmp")
+    try:
+        temporary_css.write_text(compiled + "\n" + custom + "\n", encoding="utf-8")
+        os.replace(temporary_css, runtime_css)
+    finally:
+        temporary_css.unlink(missing_ok=True)
 
     # Use Vela's official API. An empty project ASSETS node configuration
     # skips npm/hooks; Vela still owns collection and static manifest creation.
@@ -180,7 +191,6 @@ def prepare(root: Path = ROOT) -> None:
         )
     finally:
         os.chdir(old_cwd)
-        main_css.write_bytes(original_css)
     if result.get("errors"):
         raise RuntimeError("Vela reportou erro ao coletar assets.")
     check(root)
