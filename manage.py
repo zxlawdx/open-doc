@@ -53,6 +53,7 @@ def _incompatible_vela(cause: Exception | None = None) -> None:
 def main() -> None:
     """Delega os comandos ao CLI oficial, sem implementar outro runtime."""
     os.chdir(BASE_DIR)
+    os.environ.setdefault("VELA_GUI", "qt")
     os.environ.setdefault("PYWEBVIEW_GUI", "qt")
     os.environ.setdefault("QT_API", "pyqt5")
 
