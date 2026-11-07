@@ -687,16 +687,15 @@
       // selection. Handle text style shortcuts at window capture level so
       // Ctrl+B never opens Bookmarks instead of formatting the selected box.
       window.addEventListener("keydown",event=>{
-        if(!this.active||!this.selected||!canEditText(
-          this.getModel().surfaces[this.current].elements.find(o=>o.id===this.selected)
-        ))return;
+        if(!this.active||!this.selected)return;
+        const object=this.getModel().surfaces[this.current]?.elements
+          .find(item=>item.id===this.selected);
+        if(!object||!canEditText(object))return;
         if(!(event.ctrlKey||event.metaKey)||event.altKey||
            !["b","i"].includes(event.key.toLowerCase()))return;
         if(event.target.closest?.("input,textarea,[contenteditable=true]"))return;
         event.preventDefault();event.stopPropagation();
         const key=event.key.toLowerCase()==="b"?"font_bold":"font_italic";
-        const object=this.getModel().surfaces[this.current].elements
-          .find(item=>item.id===this.selected);
         this.commands.updateObject(this.current,object.id,{[key]:!object[key]});
       },{signal:this.signal,capture:true});
       // Scope drop handling to a real slide: dropping on toolbar/sidebar never
