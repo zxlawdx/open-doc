@@ -568,3 +568,37 @@ def test_unsupported_third_party_pptx_stays_read_only_without_data_loss(tmp_path
     assert imported["content"].get("editable_deck") is not True
     assert imported["capabilities"]["edit_slides"] is False
     assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_external_deck_inherited_background_and_explicit_text_color(tmp_path):
+    """A template can inherit a no-fill background and still be editable."""
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+
+    presentation = Presentation()
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    # Default background is _NoFill (accessing fore_color raises TypeError).
+    textbox = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(1))
+    run = textbox.text_frame.paragraphs[0].add_run()
+    run.text = "Template externo editável"
+    run.font.color.rgb = RGBColor(255, 255, 255)
+    run.font.size = Pt(30)
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = RGBColor(15, 30, 45)
+    source = tmp_path / "dark-foreign-template.pptx"
+    presentation.save(source)
+
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    model = imported["content"]
+    assert model["surfaces"][0]["background"] == "#0F1E2D"
+    assert model["surfaces"][0]["elements"][0]["color"] == "#FFFFFF"
+    modified = deepcopy(model)
+    modified["surfaces"][0]["elements"][0]["text"] = "Novo título"
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], modified, imported["revision"])
+    destination = tmp_path / "roundtrip.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", destination)
+    assert Presentation(destination).slides[0].shapes[0].text == "Novo título"
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
