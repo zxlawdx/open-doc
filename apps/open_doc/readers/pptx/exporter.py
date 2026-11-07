@@ -431,7 +431,7 @@ class SlideDeckExporter:
                 chart.has_title = bool(title or subtitle)
                 if chart.has_title:
                     chart.chart_title.text_frame.text = title + (
-                        "\\n" + subtitle if subtitle else ""
+                        "\n" + subtitle if subtitle else ""
                     )
             if changed & chart_options:
                 chart.has_legend = (
