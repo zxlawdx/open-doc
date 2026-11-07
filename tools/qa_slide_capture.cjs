@@ -44,8 +44,8 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  };
  await evaluate(`(()=>{
   const ellipse=document.querySelector('.fixed-surface[data-page-index="0"] .slide-object-ellipse');
-  ellipse?.scrollIntoView({block:'center',inline:'center'});
   document.querySelector('.fixed-scroll')?.scrollTo({top:0,left:0});
+  ellipse?.scrollIntoView({block:'center',inline:'center'});
   return true;
  })()`);
  await pause(200);
@@ -80,6 +80,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
   assert.ok(b.width>15&&b.height>15&&b.display!=='none'&&b.visibility!=='hidden'&&Number(b.opacity)>0,JSON.stringify(result));
   assert.ok(b.x>=result.page.x-1&&b.y>=result.page.y-1&&b.x+b.width<=result.page.x+result.page.width+1&&b.y+b.height<=result.page.y+result.page.height+1,JSON.stringify(result));
  }
+ assert.ok(result.hitPoint.y>=0&&result.hitPoint.y<result.viewport.height,'SVG target outside Qt viewport: '+JSON.stringify(result));
  assert.equal(result.hit,result.ellipseId,'Top SVG shape must be selectable: '+JSON.stringify(result));
  assert.equal(result.rect.fill,'#DAE2FD');
  assert.equal(result.ellipse.fill.toUpperCase(),'#F4B183');
