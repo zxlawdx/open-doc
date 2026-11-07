@@ -42,7 +42,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
    await pause(150);
  };
- const result=await evaluate(`(()=>{
+ await evaluate(`(()=>{\n  const ellipse=document.querySelector('.fixed-surface[data-page-index="0"] .slide-object-ellipse');\n  ellipse?.scrollIntoView({block:'center',inline:'center'});\n  return true;\n })()`);\n await pause(200);\n const result=await evaluate(`(()=>{
   const page=document.querySelector('.fixed-surface[data-page-index="0"]');
   const rect=page?.querySelector('.slide-object-rect');
   const ellipse=page?.querySelector('.slide-object-ellipse');
@@ -61,7 +61,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
      fill:rect.querySelector('svg rect')?.getAttribute('fill'),...info(rect)},
    ellipse:{x:e.left,y:e.top,width:e.width,height:e.height,
      fill:ellipse.querySelector('svg ellipse')?.getAttribute('fill'),...info(ellipse)},
-   hit,ellipseId:ellipse.dataset.slideElement,
+   hit,ellipseId:ellipse.dataset.slideElement,\n   hitElement:document.elementFromPoint(x,y)?.outerHTML.slice(0,350)||null,\n   hitPoint:{x,y},
    viewport:{width:innerWidth,height:innerHeight}
   };
  })()`);
@@ -71,7 +71,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
   assert.ok(b.width>15&&b.height>15&&b.display!=='none'&&b.visibility!=='hidden'&&Number(b.opacity)>0,JSON.stringify(result));
   assert.ok(b.x>=result.page.x-1&&b.y>=result.page.y-1&&b.x+b.width<=result.page.x+result.page.width+1&&b.y+b.height<=result.page.y+result.page.height+1,JSON.stringify(result));
  }
- assert.equal(result.hit,result.ellipseId,'Top SVG shape must be selectable');
+ assert.equal(result.hit,result.ellipseId,'Top SVG shape must be selectable: '+JSON.stringify(result));
  assert.equal(result.rect.fill,'#DAE2FD');
  assert.equal(result.ellipse.fill.toUpperCase(),'#F4B183');
  fs.mkdirSync(destination,{recursive:true});
