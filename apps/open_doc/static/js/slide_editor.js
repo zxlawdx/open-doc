@@ -935,6 +935,8 @@
         letterSpacing:node.style.letterSpacing});
       editor.maxLength=10000;editor.setAttribute("aria-label","Editar texto diretamente no slide");
       const previous=node.style.overflow;
+      const textDisplay=node.querySelector(".slide-text-content");
+      if(textDisplay)textDisplay.style.display="none";
       for(const child of Array.from(node.childNodes)){
         if(child.nodeType===3||child.classList?.contains("slide-shape-label"))child.remove();
       }
@@ -1297,30 +1299,44 @@
             tr.append(td);
           });table.append(tr);
         });node.append(table);
-      }else if(obj.type==="text"&&Array.isArray(obj.text_runs)&&obj.text_runs.length){
-        // Text formatting follows each native PowerPoint run; no HTML injection.
-        obj.text_runs.forEach((line,lineIndex)=>{
-          const paragraph=document.createElement("span");
-          paragraph.className="slide-styled-paragraph";
-          line.forEach(run=>{
-            const text=document.createElement("span");text.textContent=run.text;
-            text.style.fontFamily=JSON.stringify(run.font_family);
-            text.style.fontWeight=run.font_bold?"700":"400";
-            text.style.fontStyle=run.font_italic?"italic":"normal";
-            text.style.fontSize=run.font_size_pt/(obj.font_size_pt||28)+"em";
-            text.style.color=run.color;paragraph.append(text);
-          });
-          node.append(paragraph);
-        });
       }else if(obj.type==="text"){
-        if(obj.list_style&&obj.list_style!=="none"){
-          const rows=String(obj.text||"").split("\n");
-          rows.forEach((line,index)=>{
-            const item=document.createElement("div");item.className="slide-text-list-item";
-            item.textContent=(obj.list_style==="number"?(index+1)+". ":"• ")+line;
-            node.append(item);
-          });
-        }else node.textContent=obj.text||"";
+        // Keep visual list decorations separate from editable text: the
+        // source never includes bullet glyphs and native runs stay editable.
+        const holder=document.createElement("div");
+        holder.className="slide-text-content";
+        const source=String(obj.text||"");
+        const paragraphs=source.split("\n");
+        const nativeRuns=Array.isArray(obj.text_runs)&&obj.text_runs.length&&
+          obj.text_runs.map(row=>row.map(run=>run.text||"").join("")).join("\n")===source;
+        let ordinal=0;
+        paragraphs.forEach((text,index)=>{
+          const row=document.createElement("div");
+          row.className="slide-text-paragraph";
+          if(obj.list_style&&obj.list_style!=="none"&&text.trim()){
+            row.classList.add("slide-text-list-row");
+            const marker=document.createElement("span");
+            marker.className="slide-text-marker";
+            marker.setAttribute("aria-hidden","true");
+            marker.textContent=obj.list_style==="number"?(++ordinal)+".":"•";
+            row.append(marker);
+          }
+          const body=document.createElement("span");
+          body.className="slide-text-list-body";
+          if(nativeRuns){
+            (obj.text_runs[index]||[]).forEach(run=>{
+              const span=document.createElement("span");
+              span.textContent=run.text||"";
+              span.style.fontFamily=JSON.stringify(run.font_family||obj.font_family||"Inter");
+              span.style.fontWeight=run.font_bold?"700":"400";
+              span.style.fontStyle=run.font_italic?"italic":"normal";
+              span.style.fontSize=(run.font_size_pt||obj.font_size_pt||28)/(obj.font_size_pt||28)+"em";
+              if(run.color)span.style.color=run.color;
+              body.append(span);
+            });
+          }else body.textContent=text||"\u00A0";
+          row.append(body);holder.append(row);
+        });
+        node.append(holder);
       }
       else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";
         if(Array.isArray(obj.text_runs)&&obj.text_runs.length){
