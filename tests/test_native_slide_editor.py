@@ -538,13 +538,30 @@ def test_pptx_external_text_edits_survive_reimport_roundtrip(tmp_path):
     assert reopened["content"]["surfaces"][0]["elements"][0]["text"] == "Editado externamente"
 
 
-def test_non_open_doc_pptx_does_not_silently_discard_unsupported_shapes(tmp_path):
+def test_supported_third_party_pptx_imports_as_editable(tmp_path):
     from pptx import Presentation
     from pptx.enum.shapes import MSO_SHAPE
     deck = Presentation()
     slide = deck.slides.add_slide(deck.slide_layouts[6])
     slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 100000, 100000, 500000, 350000)
     source = tmp_path / "unmarked.pptx"
+    deck.save(source)
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["content"].get("editable_deck") is True
+    assert imported["capabilities"]["edit_slides"] is True
+    assert imported["content"]["surfaces"][0]["elements"][0]["type"] == "rect"
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_unsupported_third_party_pptx_stays_read_only_without_data_loss(tmp_path):
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    # The editable model does not support this freeform geometry.
+    slide.shapes.add_shape(MSO_SHAPE.CLOUD, 100000, 100000, 500000, 350000)
+    source = tmp_path / "unsupported-template.pptx"
     deck.save(source)
     ctx = configure(Config(tmp_path))
     imported = ctx.fixed_documents.import_pptx(source)
