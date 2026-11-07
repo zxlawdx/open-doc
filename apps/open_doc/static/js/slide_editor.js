@@ -1323,6 +1323,7 @@
           const body=document.createElement("span");
           body.className="slide-text-list-body";
           if(nativeRuns){
+            body.classList.add("slide-styled-paragraph");
             (obj.text_runs[index]||[]).forEach(run=>{
               const span=document.createElement("span");
               span.textContent=run.text||"";
