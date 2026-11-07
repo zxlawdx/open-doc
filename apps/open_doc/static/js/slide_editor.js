@@ -140,13 +140,20 @@
 
   class SlideDeckCommands {
     constructor(getModel,commit){this.getModel=getModel;this.commit=commit;}
-    apply(mutator){
-      // Clone slide structures, not embedded base64 image assets, on each command.
+    apply(mutator,focusedIndex=null){
+      // Copy-on-write: do not serialize all other slides for each object edit.
       const current=this.getModel();
-      const next={...current,surfaces:current.surfaces.map(s=>clone(s)),
+      const next={...current,surfaces:current.surfaces.map((surface,index)=>
+        focusedIndex===null||index===focusedIndex?clone(surface):surface),
         assets:{...(current.assets||{})}};
       mutator(next.surfaces,next);
-      next.surfaces.forEach((s,index)=>s.index=index);
+      next.surfaces.forEach((surface,index)=>{
+        if(surface.index!==index){
+          if(surface===current.surfaces[index])
+            next.surfaces[index]={...surface,index};
+          else surface.index=index;
+        }
+      });
       this.commit(next);
       return next;
     }
@@ -208,7 +215,7 @@
         ...(type==="table"?{table_cells:[["Cabeçalho 1","Cabeçalho 2"],["Valor 1","Valor 2"]],rotation:0}:{}),
         fill:"#DAE2FD",stroke:"#004AC6",font_family:"Inter",
         font_size_pt:type==="text"?28:20,stroke_width:1.5,rotation:0};
-      this.apply(slides=>slides[index].elements.push(obj));
+      this.apply(slides=>slides[index].elements.push(obj),index);
       return obj.id;
     }
     _storeImageAsset(deck,image){
@@ -238,7 +245,7 @@
           font_family:"Cambria Math",font_size_pt:42,
           color:textColor,fill:"#FFFFFF",stroke:"#004AC6",
           stroke_width:1.5,text:"",math_blocks:blocks});
-      });
+      },index);
       return id;
     }
     insertChart(index,kind="bar"){
@@ -254,7 +261,7 @@
           chart_type:kind,chart_title:"Resultados",chart_palette:"blue",
           chart_categories:["2024","2025","2026"],chart_values:[18,25,32]
         });
-      });
+      },index);
       return id;
     }
     insertImage(index,image,layout=null){
@@ -271,7 +278,7 @@
           font_family:"Inter",font_size_pt:20,stroke_width:1.5,rotation:0,
           flip_h:false,flip_v:false,
           crop_left:0,crop_right:0,crop_top:0,crop_bottom:0});
-      });
+      },index);
       return id;
     }
     replaceImage(index,id,image){
@@ -280,7 +287,7 @@
         const target=slides[index]?.elements.find(obj=>obj.id===id);
         if(!target||target.type!=="image")throw Error("Selecione uma imagem existente.");
         target.asset_id=this._storeImageAsset(deck,image);
-      });
+      },index);
       return id;
     }
     duplicateObject(index,id){
@@ -296,7 +303,7 @@
         copy.y=clamp(copy.y+.03,0,1-copy.height);
         if(copy.name)copy.name=copy.name.slice(0,65)+" (cópia)";
         elements.splice(at+1,0,copy);
-      });
+      },index);
       return newId;
     }
     updateObject(index,id,patch){
@@ -304,19 +311,19 @@
         const obj=slides[index].elements.find(o=>o.id===id);
         if(!obj)throw Error("O objeto selecionado não existe.");
         Object.assign(obj,patch);
-      });
+      },index);
     }
     deleteObject(index,id){
       this.apply(slides=>{
         slides[index].elements=slides[index].elements.filter(o=>o.id!==id);
-      });
+      },index);
     }
     deleteObjects(index,ids){
       const set=new Set(ids);
       if(!set.size)return;
       this.apply(slides=>{
         slides[index].elements=slides[index].elements.filter(obj=>!set.has(obj.id));
-      });
+      },index);
     }
     alignObjects(index,ids,axis){
       const set=new Set(ids);
@@ -327,16 +334,16 @@
         if(!sizeKey)throw Error("Eixo de alinhamento inválido.");
         const center=selected.reduce((sum,obj)=>sum+obj[axis]+obj[sizeKey]/2,0)/selected.length;
         for(const obj of selected)obj[axis]=clamp(center-obj[sizeKey]/2,0,1-obj[sizeKey]);
-      });
+      },index);
     }
     shiftLayer(index,id,delta){
       this.apply(slides=>{
         const objects=slides[index].elements,from=objects.findIndex(o=>o.id===id),to=from+delta;
         if(from<0||to<0||to>=objects.length)return;
         const [obj]=objects.splice(from,1);objects.splice(to,0,obj);
-      });
+      },index);
     }
-    updateSlide(index,patch){this.apply(slides=>Object.assign(slides[index],patch));}
+    updateSlide(index,patch){this.apply(slides=>Object.assign(slides[index],patch),index);}
   }
 
   class SlideStudio {
