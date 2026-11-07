@@ -421,7 +421,7 @@
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
-        {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
+        {label:"Inserir",labels:["Texto","Tabela","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Aplicar a todos os slides","Prévia","Apresentar"]}
       ];
@@ -444,6 +444,13 @@
           tab.setAttribute("aria-selected",String(enabled));panel.hidden=!enabled;
         });
       };
+      // Never leave an unclassified action as a direct toolbar child:
+      // in column-mode ribbons it expands to full width and collapses
+      // the slide viewport (regression seen on Windows and Linux).
+      const classified=new Set(categories.flatMap(item=>item.labels));
+      for(const action of actions){
+        if(!classified.has(action.textContent))panels[1][1].append(action);
+      }
       this.toolbar.prepend(tabs,body);activate("Inserir");
     }
     insertChart(kind){
