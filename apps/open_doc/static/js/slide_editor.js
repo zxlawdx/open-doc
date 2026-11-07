@@ -1106,35 +1106,18 @@
           viewport.append(picture);node.append(viewport);
         }
       }else if(obj.type==="math"){
-        const formula=document.createElement("span");
-        formula.className="slide-native-equation";
-        formula.setAttribute("role","math");
-        formula.setAttribute("aria-label",obj.name||"Equação matemática editável");
-        for(const block of obj.math_blocks||[]){
-          const part=document.createElement("span");
-          part.className="slide-math-"+block.kind;
-          if(block.kind==="text")part.textContent=block.value;
-          else if(block.kind==="fraction"){
-            const top=document.createElement("span"),bottom=document.createElement("span");
-            top.className="slide-math-numerator";top.textContent=block.numerator;
-            bottom.className="slide-math-denominator";bottom.textContent=block.denominator;
-            part.append(top,bottom);
-          }else if(block.kind==="nary"){
-            const bounds=document.createElement("span"),op=document.createElement("span");
-            const upper=document.createElement("span"),lower=document.createElement("span");
-            bounds.className="slide-math-operator";upper.textContent=block.upper;
-            upper.className="slide-math-upper";op.textContent=block.operator;
-            op.className="slide-math-sign";lower.textContent=block.lower;
-            lower.className="slide-math-lower";bounds.append(upper,op,lower);
-            const body=document.createElement("span");body.textContent=block.body;
-            part.append(bounds,body);
-          }else if(block.kind==="superscript"){
-            part.append(document.createTextNode(block.base));
-            const sup=document.createElement("sup");sup.textContent=block.power;part.append(sup);
-          }else if(block.kind==="sqrt")part.textContent="√("+block.radicand+")";
-          formula.append(part);
+        if(window.OpenDocMathGallery?.renderBlocks){
+          const math=window.OpenDocMathGallery.renderBlocks(obj.math_blocks||[]);
+          math.setAttribute("aria-label",obj.name||"Equação matemática editável");
+          node.append(math);
+        }else{
+          // Minimal fallback for isolated/legacy unit-test hosts.
+          const span=document.createElement("span");
+          span.className="slide-native-equation";
+          span.setAttribute("role","math");
+          span.textContent=(obj.math_blocks||[]).map(b=>b.value||b.operator||b.kind).join(" ");
+          node.append(span);
         }
-        node.append(formula);
       }else if(obj.type==="table"){
         const table=document.createElement("table");
         table.className="slide-native-table";
