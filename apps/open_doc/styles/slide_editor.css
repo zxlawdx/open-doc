@@ -370,3 +370,17 @@
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
   min-height:0;
 }
+
+/* QtWebEngine 5.15 / Chromium 83: the insertion ribbon must never consume
+   the entire grid height. CI 42367824588 recorded .fixed-scroll height=0,
+   leaving slide objects painted outside the scroller's hit-test area. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  max-height:180px;overflow-y:auto;align-content:start;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group > button,
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group > *{
+  flex:0 0 auto;width:auto;max-width:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{
+  min-height:0;min-width:0;
+}
