@@ -102,8 +102,23 @@ class SlideModelValidator:
         if not isinstance(uid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", uid) or uid in ids:
             raise ValueError("Identificador de elemento inválido ou duplicado.")
         ids.add(uid)
-        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image", "chart"}:
+        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image", "chart", "table"}:
             raise ValueError("Tipo de elemento não suportado.")
+        if element.get("type") == "table":
+            cells = element.get("table_cells")
+            if (not isinstance(cells, list) or not 1 <= len(cells) <= 30
+                    or not isinstance(cells[0], list)
+                    or not 1 <= len(cells[0]) <= 20):
+                raise ValueError("Dimensões da tabela PPTX inválidas.")
+            columns = len(cells[0])
+            for row in cells:
+                if not isinstance(row, list) or len(row) != columns:
+                    raise ValueError("Tabela PPTX com células irregulares.")
+                for cell in row:
+                    if not isinstance(cell, str) or len(cell) > 2000:
+                        raise ValueError("Conteúdo de célula PPTX inválido.")
+            if element.get("rotation", 0) != 0:
+                raise ValueError("Rotação de tabelas PPTX não suportada.")
         if element.get("type") == "chart":
             chart_kind=element.get("chart_type","bar")
             if chart_kind not in ("bar","line","pie"):
