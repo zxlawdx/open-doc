@@ -1,10 +1,14 @@
-"""Structured, editable mathematical OOXML (OMML) for native PPTX objects.
+"""Bounded, editable Office Math (OMML) trees for PPTX and DOCX.
 
-The math tree is deliberately small and validated. Unsupported external Office
-mathematics is NOT flattened into images or plain text: such decks remain preview-only.
+A formula is a list of typed nodes. Composite arguments may be plain strings
+(legacy documents) or nested lists of nodes. No equation is flattened to PNG.
+Unknown Office Math features are rejected by this reader, so importers retain
+the untouched source rather than silently degrading it.
 """
 from __future__ import annotations
 
+from copy import deepcopy
+from types import SimpleNamespace
 from lxml import etree
 
 M = "http://schemas.openxmlformats.org/officeDocument/2006/math"
@@ -15,54 +19,93 @@ KINDS = {
     "fraction": ("numerator", "denominator"),
     "nary": ("operator", "lower", "upper", "body"),
     "superscript": ("base", "power"),
+    "subscript": ("base", "sub"),
     "sqrt": ("radicand",),
+    "root": ("index", "radicand"),
+    "limit": ("base", "lower"),
+    "matrix": ("rows",),
 }
 OPERATORS = {"∫", "∬", "∮", "∑"}
+MAX_DEPTH = 6
+MAX_NODES = 512
+MAX_COMPONENTS = 32
+MAX_ROWS = 6
+MAX_COLUMNS = 6
 
 
-def _tag(local):
-    return "{%s}%s" % (M, local)
+def _tag(name):
+    return "{%s}%s" % (M, name)
 
 
-def _element(local, parent=None):
-    item = etree.Element(_tag(local))
+def _element(name, parent=None):
+    item = etree.Element(_tag(name))
     if parent is not None:
         parent.append(item)
     return item
 
 
 def validate_math_blocks(blocks):
-    if not isinstance(blocks, list) or not 1 <= len(blocks) <= 32:
-        raise ValueError("Equação deve ter entre 1 e 32 componentes.")
-    for block in blocks:
-        if not isinstance(block, dict) or block.get("kind") not in KINDS:
-            raise ValueError("Componente de equação não suportado.")
-        fields = KINDS[block["kind"]]
-        if set(block) != {"kind", *fields}:
-            raise ValueError("Campos desconhecidos no componente matemático.")
-        for field in fields:
-            value = block[field]
-            if (not isinstance(value, str) or len(value) > 160 or
-                    any(ord(char) < 32 and char not in "\t\n" for char in value)):
-                raise ValueError("Expressão matemática inválida.")
-        if block["kind"] == "nary" and block["operator"] not in OPERATORS:
-            raise ValueError("Operador matemático não suportado.")
-        if block["kind"] == "fraction" and (not block["numerator"] or not block["denominator"]):
-            raise ValueError("Frações exigem numerador e denominador.")
-        if block["kind"] == "sqrt" and not block["radicand"]:
-            raise ValueError("Radicando vazio.")
-        if block["kind"] == "superscript" and (not block["base"] or not block["power"]):
-            raise ValueError("Potência incompleta.")
-    if not any(any(block.get(field, "") for field in KINDS[block["kind"]] if field != "operator")
-               for block in blocks):
-        raise ValueError("Equação matemática vazia.")
+    """Reject oversized/malformed structures before use, including nested ones."""
+    count = [0]
+
+    def validate_list(parts, depth):
+        if depth > MAX_DEPTH or not isinstance(parts, list) or not 1 <= len(parts) <= MAX_COMPONENTS:
+            raise ValueError("Profundidade ou quantidade de componentes matemáticos inválida.")
+        for item in parts:
+            count[0] += 1
+            if count[0] > MAX_NODES or not isinstance(item, dict):
+                raise ValueError("Equação matemática complexa demais.")
+            kind = item.get("kind")
+            if kind not in KINDS or set(item) != {"kind", *KINDS[kind]}:
+                raise ValueError("Componente matemático desconhecido.")
+            if kind == "matrix":
+                rows = item["rows"]
+                if not isinstance(rows, list) or not 1 <= len(rows) <= MAX_ROWS:
+                    raise ValueError("Matriz matemática inválida.")
+                cols = len(rows[0]) if isinstance(rows[0], list) else 0
+                if not 1 <= cols <= MAX_COLUMNS:
+                    raise ValueError("Número de colunas inválido.")
+                for row in rows:
+                    if not isinstance(row, list) or len(row) != cols:
+                        raise ValueError("Matriz matemática irregular.")
+                    for cell in row:
+                        validate_value(cell, depth + 1, required=True)
+                continue
+            for field in KINDS[kind]:
+                val = item[field]
+                if kind == "nary" and field == "operator":
+                    if val not in OPERATORS:
+                        raise ValueError("Operador matemático não suportado.")
+                    continue
+                optional = kind == "nary" and field in {"lower", "upper"}
+                validate_value(val, depth + 1, required=not optional)
+        return True
+
+    def validate_value(value, depth, *, required):
+        if isinstance(value, list):
+            validate_list(value, depth)
+        elif not isinstance(value, str):
+            raise ValueError("Componente matemático inválido.")
+        elif (len(value) > 160 or any(ord(c) < 32 and c not in "\t\n" for c in value)
+              or (required and not value.strip())):
+            raise ValueError("Expressão matemática inválida ou vazia.")
+
+    validate_list(blocks, 0)
 
 
-def _run(parent, value):
-    run = _element("r", parent)
-    text = _element("t", run)
-    text.set("{%s}space" % XML, "preserve")
-    text.text = value
+def _run(parent, text):
+    node = _element("r", parent)
+    leaf = _element("t", node)
+    leaf.set("{%s}space" % XML, "preserve")
+    leaf.text = text
+
+
+def _put(parent, value):
+    if isinstance(value, list):
+        for item in value:
+            _write_block(parent, item)
+    else:
+        _run(parent, value)
 
 
 def _write_block(parent, block):
@@ -71,32 +114,44 @@ def _write_block(parent, block):
         _run(parent, block["value"])
     elif kind == "fraction":
         frac = _element("f", parent)
-        _run(_element("num", frac), block["numerator"])
-        _run(_element("den", frac), block["denominator"])
+        _put(_element("num", frac), block["numerator"])
+        _put(_element("den", frac), block["denominator"])
     elif kind == "nary":
         nary = _element("nary", parent)
         props = _element("naryPr", nary)
         _element("chr", props).set(_tag("val"), block["operator"])
-        for label, value in (("sub", block["lower"]), ("sup", block["upper"]), ("e", block["body"])):
-            _run(_element(label, nary), value)
-    elif kind == "superscript":
-        sup = _element("sSup", parent)
-        _run(_element("e", sup), block["base"])
-        _run(_element("sup", sup), block["power"])
-    elif kind == "sqrt":
+        for name, field in (("sub", "lower"), ("sup", "upper"), ("e", "body")):
+            _put(_element(name, nary), block[field])
+    elif kind in {"superscript", "subscript"}:
+        node = _element("sSup" if kind == "superscript" else "sSub", parent)
+        _put(_element("e", node), block["base"])
+        _put(_element("sup" if kind == "superscript" else "sub", node),
+             block["power"] if kind == "superscript" else block["sub"])
+    elif kind in {"sqrt", "root"}:
         rad = _element("rad", parent)
         props = _element("radPr", rad)
-        _element("degHide", props).set(_tag("val"), "1")
-        _element("deg", rad)
-        _run(_element("e", rad), block["radicand"])
+        if kind == "sqrt":
+            _element("degHide", props).set(_tag("val"), "1")
+        deg = _element("deg", rad)
+        if kind == "root":
+            _put(deg, block["index"])
+        _put(_element("e", rad), block["radicand"])
+    elif kind == "limit":
+        node = _element("limLow", parent)
+        _put(_element("e", node), block["base"])
+        _put(_element("lim", node), block["lower"])
+    elif kind == "matrix":
+        matrix = _element("m", parent)
+        for row in block["rows"]:
+            r = _element("mr", matrix)
+            for cell in row:
+                _put(_element("e", r), cell)
 
 
 def write_math(shape, blocks):
-    """Replace only the textbox math paragraph; the result is Office-native OMML."""
+    """Replace the existing PPTX math wrapper atomically within a text box."""
     validate_math_blocks(blocks)
     frame = shape.text_frame
-    # python-pptx keeps non-run children of the first paragraph when clear()
-    # is called. Remove the old math wrapper to avoid duplicate OMML zones.
     for old in list(shape._element.iter("{%s}m" % A14)):
         old.getparent().remove(old)
     frame.clear()
@@ -108,62 +163,107 @@ def write_math(shape, blocks):
     paragraph.append(wrapper)
 
 
+def _read_run(run):
+    children = [child for child in run if child.tag != _tag("rPr")]
+    if len(children) != 1 or children[0].tag != _tag("t"):
+        raise ValueError("Run matemático complexo não suportado.")
+    return children[0].text or ""
+
+
+def _read_sequence(node):
+    """Return a scalar for old documents and a node list for nested math."""
+    if node is None:
+        raise ValueError("Componente OMML obrigatório ausente.")
+    values = _read_blocks(node)
+    if not values:
+        return ""
+    if len(values) == 1 and values[0]["kind"] == "text":
+        return values[0]["value"]
+    return values
+
+
+def _read_blocks(root):
+    out = []
+    for child in root:
+        kind = child.tag
+        if kind == _tag("r"):
+            out.append({"kind": "text", "value": _read_run(child)})
+        elif kind == _tag("f"):
+            out.append({"kind": "fraction",
+                        "numerator": _read_sequence(child.find(_tag("num"))),
+                        "denominator": _read_sequence(child.find(_tag("den")))})
+        elif kind == _tag("nary"):
+            pr = child.find(_tag("naryPr"))
+            char = pr.find(_tag("chr")) if pr is not None else None
+            operator = char.get(_tag("val")) if char is not None else None
+            out.append({"kind": "nary", "operator": operator,
+                        "lower": _read_sequence(child.find(_tag("sub"))),
+                        "upper": _read_sequence(child.find(_tag("sup"))),
+                        "body": _read_sequence(child.find(_tag("e")))})
+        elif kind in (_tag("sSup"), _tag("sSub")):
+            sup = kind == _tag("sSup")
+            out.append({"kind": "superscript" if sup else "subscript",
+                        "base": _read_sequence(child.find(_tag("e"))),
+                        ("power" if sup else "sub"): _read_sequence(
+                            child.find(_tag("sup" if sup else "sub")))})
+        elif kind == _tag("rad"):
+            props = child.find(_tag("radPr"))
+            hidden = props.find(_tag("degHide")) if props is not None else None
+            simple = hidden is not None and hidden.get(_tag("val")) in ("1", "true")
+            if simple:
+                out.append({"kind": "sqrt",
+                            "radicand": _read_sequence(child.find(_tag("e")))})
+            else:
+                out.append({"kind": "root",
+                            "index": _read_sequence(child.find(_tag("deg"))),
+                            "radicand": _read_sequence(child.find(_tag("e")))})
+        elif kind == _tag("limLow"):
+            out.append({"kind": "limit",
+                        "base": _read_sequence(child.find(_tag("e"))),
+                        "lower": _read_sequence(child.find(_tag("lim")))})
+        elif kind == _tag("m"):
+            rows = []
+            for row in child:
+                if row.tag == _tag("mPr"):
+                    continue
+                if row.tag != _tag("mr"):
+                    raise ValueError("Matriz OMML desconhecida.")
+                cells = []
+                for cell in row:
+                    if cell.tag != _tag("e"):
+                        raise ValueError("Célula OMML desconhecida.")
+                    cells.append(_read_sequence(cell))
+                rows.append(cells)
+            out.append({"kind": "matrix", "rows": rows})
+        else:
+            raise ValueError("Operação OMML ainda não suportada: %s" % child.tag)
+    return out
+
+
 def read_math(shape):
-    """Return known OMML components; raise on unsupported math to avoid data loss."""
+    """Read supported PPTX math. Caller must preserve original if unsupported."""
     wrappers = list(shape._element.iter("{%s}m" % A14))
     if not wrappers:
         return None
     if len(wrappers) != 1:
-        raise ValueError("Múltiplos blocos de equação no objeto PPTX.")
+        raise ValueError("Múltiplos blocos matemáticos no objeto.")
     wrapper = wrappers[0]
     math = wrapper.find(_tag("oMath"))
     if math is None:
         paragraph = wrapper.find(_tag("oMathPara"))
         math = paragraph.find(_tag("oMath")) if paragraph is not None else None
     if math is None:
-        raise ValueError("Estrutura matemática externa desconhecida.")
-    result = []
-    def text(section):
-        if section is None:
-            raise ValueError("Parte obrigatória da equação ausente.")
-        runs = list(section)
-        if len(runs) != 1 or runs[0].tag != _tag("r"):
-            raise ValueError("Expressão matemática aninhada ainda não suportada.")
-        t = runs[0].find(_tag("t"))
-        if t is None:
-            raise ValueError("Texto matemático sem conteúdo.")
-        return t.text or ""
-    for child in math:
-        if child.tag == _tag("r"):
-            result.append({"kind": "text", "value": text_section_run(child)})
-        elif child.tag == _tag("f"):
-            result.append({"kind": "fraction", "numerator": text(child.find(_tag("num"))),
-                           "denominator": text(child.find(_tag("den")))})
-        elif child.tag == _tag("nary"):
-            pr = child.find(_tag("naryPr"))
-            chr_node = pr.find(_tag("chr")) if pr is not None else None
-            op = chr_node.get(_tag("val")) if chr_node is not None else None
-            result.append({"kind": "nary", "operator": op, "lower": text(child.find(_tag("sub"))),
-                           "upper": text(child.find(_tag("sup"))), "body": text(child.find(_tag("e")))})
-        elif child.tag == _tag("sSup"):
-            result.append({"kind": "superscript", "base": text(child.find(_tag("e"))),
-                           "power": text(child.find(_tag("sup")))})
-        elif child.tag == _tag("rad"):
-            result.append({"kind": "sqrt", "radicand": text(child.find(_tag("e")))})
-        else:
-            raise ValueError("Operação matemática externa ainda não suportada.")
+        raise ValueError("Estrutura OMML desconhecida.")
+    result = _read_blocks(math)
     validate_math_blocks(result)
     return result
 
 
 def text_section_run(run):
-    t = run.find(_tag("t"))
-    if t is None:
-        raise ValueError("Run matemático sem texto.")
-    return t.text or ""
+    return _read_run(run)
+
 
 def build_word_omath(blocks):
-    """Office-native inline equation for a DOCX paragraph, not a picture."""
     validate_math_blocks(blocks)
     math = etree.Element(_tag("oMath"), nsmap={"m": M})
     for block in blocks:
@@ -172,11 +272,8 @@ def build_word_omath(blocks):
 
 
 def parse_word_omath(math):
-    """Parse the deliberately bounded supported subset; do not flatten others."""
-    from copy import deepcopy
-    from types import SimpleNamespace
     if math is None or math.tag != _tag("oMath"):
         raise ValueError("Estrutura matemática Word desconhecida.")
-    wrapper = etree.Element("{%s}m" % A14, nsmap={"a14": A14, "m": M})
-    wrapper.append(deepcopy(math))
-    return read_math(SimpleNamespace(_element=wrapper))
+    result = _read_blocks(math)
+    validate_math_blocks(result)
+    return result
