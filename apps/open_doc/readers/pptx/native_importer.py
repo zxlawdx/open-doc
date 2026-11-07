@@ -181,6 +181,10 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                     base["font_bold"] = bold
                 if italic is not None:
                     base["font_italic"] = italic
+                raw_tracking = runs[0]._r.get_or_add_rPr().get("spc")
+                if raw_tracking is not None:
+                    base["font_letter_spacing_pt"] = max(-2, min(20,
+                        int(raw_tracking) / 100))
         if shape.has_text_frame and any(p.runs for p in shape.text_frame.paragraphs):
             # Capture each original text run separately. The editor may change
             # its text while untouched run formatting/OOXML remains original.
