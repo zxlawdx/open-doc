@@ -315,11 +315,11 @@ class SlideDeckExporter:
                 else:
                     leading = first.add_run()
                 leading.text = obj["text"]
-                for paragraph in list(shape.text_frame.paragraphs):
-                    for run in list(paragraph.runs):
-                        if run._r is not leading._r:
+                for paragraph_index, paragraph in enumerate(list(shape.text_frame.paragraphs)):
+                    for run_index, run in enumerate(list(paragraph.runs)):
+                        if paragraph_index != 0 or run_index != 0:
                             run._r.getparent().remove(run._r)
-                    if paragraph is not first:
+                    if paragraph_index != 0:
                         paragraph._p.getparent().remove(paragraph._p)
         font_fields = changed & {"color", "font_family", "font_size_pt",
                                  "font_bold", "font_italic"}
