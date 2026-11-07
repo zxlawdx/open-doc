@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -119,3 +120,81 @@ def test_named_copy_and_safe_delete(tmp_path):
             connection.execute("SELECT count(*) FROM version_payloads").fetchone()[0]
             == 1
         )
+
+
+@pytest.mark.parametrize("kind", ["docx", "pdf", "pptx"])
+def test_history_roundtrip_through_http_for_each_editor(tmp_path, kind, monkeypatch):
+    from docx import Document
+    from fpdf import FPDF
+    from webtest import TestApp
+
+    from apps.open_doc.application.context import get_context
+    from config.wsgi import create_app
+
+    import vela.core.app as runtime
+
+    class Window:
+        def __init__(self, **kwargs):
+            pass
+
+        def run(self):
+            pass
+
+    monkeypatch.setattr(runtime, "DesktopWindow", Window)
+    app = create_app(Config(tmp_path))
+    app.run()
+    ctx = get_context()
+    client = TestApp(app.api_server.app)
+    headers = {"X-Open-Doc-Token": ctx.token}
+
+    if kind == "docx":
+        path = tmp_path / "document.docx"
+        document = Document()
+        document.add_paragraph("Texto original")
+        document.save(path)
+        original = ctx.editor.import_docx(path)
+    elif kind == "pdf":
+        path = tmp_path / "document.pdf"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.output(path)
+        original = ctx.fixed_documents.import_pdf(path)
+    else:
+        original = ctx.fixed_documents.create_presentation("Apresentação")
+
+    def post(endpoint, data, **kwargs):
+        return client.post_json(
+            "/api/open_doc/document/" + endpoint, data, headers=headers, **kwargs
+        ).json
+
+    def history(operation, **kwargs):
+        return post(
+            "versions", {"id": original["id"], "operation": operation, **kwargs}
+        )
+
+    client.post_json(
+        "/api/open_doc/document/versions",
+        {"id": original["id"], "operation": "list"},
+        status=403,
+    )
+    baseline = history("list")["versions"][0]
+    edited = deepcopy(original["content"])
+    if kind == "docx":
+        edited["blocks"][0]["children"][0]["text"] = "Texto revisado"
+    elif kind == "pdf":
+        from test_pdf_semantic_annotations import markup
+
+        edited["annotations"] = [markup()]
+    else:
+        from test_native_slide_editor import element
+
+        edited["surfaces"][0]["elements"] = [element()]
+    changed = post("save", {**original, "title": "Título revisado", "content": edited})
+    inspection = history("inspect", version_id=baseline["id"])
+    assert inspection["current"]["title"] == "Título revisado"
+    assert json.loads(inspection["current"]["content_json"]) == edited
+    assert inspection["selected"]["title"] == original["title"]
+    result = history("restore", version_id=baseline["id"], revision=changed["revision"])
+    assert result["document"]["title"] == original["title"]
+    assert result["document"]["content"] == original["content"]
+    assert result["document"]["revision"] == changed["revision"] + 1

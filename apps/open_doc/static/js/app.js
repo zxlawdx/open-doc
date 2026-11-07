@@ -188,7 +188,7 @@
   }
   function closeDialog(value = null) {
     const backdrop = root.querySelector('[data-dialog]');
-    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help','dialog-equation');
+    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help','dialog-equation','dialog-history');
     // QtWebEngine (Chromium 83) must not rely solely on the [hidden]
     // attribute when a component stylesheet sets display:grid.
     backdrop.hidden = true;
@@ -272,6 +272,13 @@
       save: () => operate(async()=>{
         await editor.flush();
         status('Documento salvo na biblioteca local. Use Arquivo > Exportar para escolher a pasta e o formato.');
+      }),
+      'version-history': () => operate(async () => {
+        if (!window.OpenDocVersionHistory) await loadScript('version_history.js');
+        await window.OpenDocVersionHistory.open({
+          root, editor, request, dialog, close: closeDialog, status,
+          iconUrl: new URL('../icons.svg', scriptUrl).href
+        });
       }),
       copy: () => operate(() => editor.copy()),
       navigator: () => toggleNavigator(),
@@ -385,9 +392,12 @@
     }, {signal});
     root.addEventListener('keydown', event => {
       if (root.querySelector('[data-dialog]').hidden) return;
-      if (event.key === 'Escape') { event.preventDefault(); closeDialog(); }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (root.querySelector('[data-dialog]').dataset.historyBusy !== 'true') closeDialog();
+      }
       if (event.key === 'Tab') {
-        const list = Array.from(root.querySelector('[data-dialog]').querySelectorAll('button,input,select')).filter(element => !element.closest('[hidden]'));
+        const list = Array.from(root.querySelector('[data-dialog]').querySelectorAll('button,input,select')).filter(element => !element.disabled && !element.closest('[hidden]'));
         const index = list.indexOf(document.activeElement);
         if (event.shiftKey && index <= 0) { event.preventDefault(); list[list.length - 1]?.focus(); }
         else if (!event.shiftKey && index === list.length - 1) { event.preventDefault(); list[0]?.focus(); }
