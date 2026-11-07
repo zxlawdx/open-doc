@@ -1090,3 +1090,20 @@ test('imported external PPTX rejects unsafe slide-level structural changes befor
  ])assert.throws(action,/apresentações externas/);
  assert.equal(JSON.stringify(q.model()),before);
 });
+
+test('new native equations adapt their initial ink color to dark/light slide backgrounds',t=>{
+ const q=setup(t);
+ const slide=q.model().surfaces[0],formula={label:'Fração',math_blocks:[
+   {kind:'fraction',numerator:'x²+1',denominator:'x+1'}
+ ]};
+ slide.background='#102437';
+ const id=q.editor.commands.insertMath(0,formula);
+ let obj=slide.elements.find(o=>o.id===id);
+ obj=q.model().surfaces[0].elements.find(o=>o.id===id);
+ assert.equal(obj.color,'#F8FAFC');
+ assert.equal(obj.font_size_pt,42);
+ q.model().surfaces[0].background='#FFFFFF';
+ const other=q.editor.commands.insertMath(0,formula);
+ const light=q.model().surfaces[0].elements.find(o=>o.id===other);
+ assert.equal(light.color,'#192433');
+});
