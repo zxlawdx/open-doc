@@ -18,6 +18,7 @@ def main() -> None:
     """Inicializa a aplicação exclusivamente por VelaApp.run."""
     paths = [Path(argument).absolute() for argument in sys.argv[1:]]
     os.chdir(PROJECT_ROOT)
+    os.environ.setdefault("VELA_GUI", "qt")
     os.environ.setdefault("PYWEBVIEW_GUI", "qt")
     os.environ.setdefault("QT_API", "pyqt5")
     from config.wsgi import run
