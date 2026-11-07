@@ -27,6 +27,12 @@ _SHAPES = {
     MSO_SHAPE.RIGHT_ARROW: "arrow",
     MSO_SHAPE.ISOSCELES_TRIANGLE: "triangle",
     MSO_SHAPE.DIAMOND: "diamond",
+    MSO_SHAPE.CHEVRON: "chevron",
+    MSO_SHAPE.HEXAGON: "hexagon",
+    MSO_SHAPE.PENTAGON: "pentagon",
+    MSO_SHAPE.PARALLELOGRAM: "parallelogram",
+    MSO_SHAPE.STAR_5_POINT: "star",
+    MSO_SHAPE.CLOUD: "cloud",
 }
 _CHARTS = {
     XL_CHART_TYPE.COLUMN_CLUSTERED: "bar",
