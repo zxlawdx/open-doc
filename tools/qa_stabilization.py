@@ -190,7 +190,7 @@ def main():
                         "document.querySelector('canvas[data-render-complete=true]')",
                     )
                 elif kind == "pptx":
-                    wait(window, "document.querySelector('.pptx-content svg')")
+                    wait(window, "document.querySelector('.pptx-content svg') || (document.querySelector('.fixed-document[data-slide-editor=true] .fixed-surface')?.getBoundingClientRect().width > 0)")
                 else:
                     assert window.evaluate_js(
                         "document.querySelector('[data-document-body]').hidden===false"
