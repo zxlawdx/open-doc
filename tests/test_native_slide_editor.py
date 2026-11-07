@@ -560,7 +560,7 @@ def test_unsupported_third_party_pptx_stays_read_only_without_data_loss(tmp_path
     deck = Presentation()
     slide = deck.slides.add_slide(deck.slide_layouts[6])
     # The editable model does not support this freeform geometry.
-    slide.shapes.add_shape(MSO_SHAPE.CLOUD, 100000, 100000, 500000, 350000)
+    slide.shapes.add_shape(MSO_SHAPE.DONUT, 100000, 100000, 500000, 350000)
     source = tmp_path / "unsupported-template.pptx"
     deck.save(source)
     ctx = configure(Config(tmp_path))
@@ -763,3 +763,31 @@ def test_pptx_table_validation_rejects_irregular_and_oversized_cells(tmp_path):
         }]
         with pytest.raises(ValueError, match="tabela|Tabela|célula"):
             validate(model)
+
+
+@pytest.mark.parametrize(
+    ("kind", "shape_name"),
+    [
+        ("chevron", "CHEVRON"), ("hexagon", "HEXAGON"),
+        ("pentagon", "PENTAGON"), ("parallelogram", "PARALLELOGRAM"),
+        ("star", "STAR_5_POINT"), ("cloud", "CLOUD"),
+    ],
+)
+def test_extended_pptx_shapes_roundtrip_as_editable(kind, shape_name, tmp_path):
+    from pptx.enum.shapes import MSO_SHAPE
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    model["surfaces"][0]["elements"] = [{
+        **element(f"shape-{kind}", kind),
+        "text": "", "name": f"Exemplo de {kind}"
+    }]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    dest = tmp_path / (kind + ".pptx")
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", dest)
+    exported = Presentation(dest)
+    assert exported.slides[0].shapes[0].auto_shape_type == getattr(MSO_SHAPE, shape_name)
+    imported = ctx.fixed_documents.import_pptx(dest)
+    assert imported["capabilities"]["edit_slides"] is True
+    assert imported["content"]["surfaces"][0]["elements"][0]["type"] == kind
