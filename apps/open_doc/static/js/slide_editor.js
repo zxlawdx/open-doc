@@ -92,7 +92,8 @@
     Anterior:"arrow-left",Próximo:"arrow-right",
     Esquerda:"align-left",Centralizar:"align-center",Direita:"align-right",
     Justificar:"align-justify",Marcadores:"list",Numeração:"list-numbered",
-    "Aumentar recuo":"indent-increase","Diminuir recuo":"indent-decrease"
+    "Aumentar recuo":"indent-increase","Diminuir recuo":"indent-decrease",
+    Sublinhado:"underline"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
   class SlideSvgRenderer {
@@ -1298,7 +1299,16 @@
           });
           node.append(paragraph);
         });
-      }else if(obj.type==="text")node.textContent=obj.text||"";
+      }else if(obj.type==="text"){
+        if(obj.list_style&&obj.list_style!=="none"){
+          const rows=String(obj.text||"").split("\\n");
+          rows.forEach((line,index)=>{
+            const item=document.createElement("div");item.className="slide-text-list-item";
+            item.textContent=(obj.list_style==="number"?(index+1)+". ":"• ")+line;
+            node.append(item);
+          });
+        }else node.textContent=obj.text||"";
+      }
       else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";
         if(Array.isArray(obj.text_runs)&&obj.text_runs.length){
           obj.text_runs.forEach((paragraph,index)=>{
@@ -1359,7 +1369,11 @@
         transform:"rotate("+Number(obj.rotation||0)+"deg) scale("+(obj.flip_h?-1:1)+","+(obj.flip_v?-1:1)+")",
         fontSize:(obj.font_size_pt||28)*4/3*zoom*(thumb?.16:1)+"px",
         fontFamily:JSON.stringify(obj.font_family||"Inter")+",sans-serif",
-        fontWeight:obj.font_bold?"bold":"normal",fontStyle:obj.font_italic?"italic":"normal"
+        fontWeight:obj.font_bold?"bold":"normal",fontStyle:obj.font_italic?"italic":"normal",
+        textDecoration:obj.font_underline?"underline":"none",
+        textAlign:obj.paragraph_alignment||"left",
+        lineHeight:String(obj.line_spacing||1.18),
+        paddingLeft:obj.text_indent_pt?((obj.text_indent_pt*4/3*zoom*(thumb?.16:1))+"px"):"6px"
       });
     }
     _thumb(button,surface,index){
@@ -1564,6 +1578,47 @@
           .setAttribute("aria-pressed",String(Boolean(selected.font_bold)));
         button("Itálico",()=>update({font_italic:!selected.font_italic}))
           .setAttribute("aria-pressed",String(Boolean(selected.font_italic)));
+        button("Sublinhado",()=>update({font_underline:!selected.font_underline}))
+          .setAttribute("aria-pressed",String(Boolean(selected.font_underline)));
+        const alignment=selected.paragraph_alignment||"left";
+        for(const [caption,value] of [
+          ["Esquerda","left"],["Centralizar","center"],
+          ["Direita","right"],["Justificar","justify"]
+        ]){
+          const control=button(caption,()=>update({paragraph_alignment:value}));
+          control.setAttribute("aria-pressed",String(alignment===value));
+          control.title="Alinhar: "+caption;
+        }
+        const listStyle=selected.list_style||"none";
+        for(const [caption,value] of [
+          ["Marcadores","bullet"],["Numeração","number"]
+        ]){
+          const control=button(caption,()=>update({
+            list_style:listStyle===value?"none":value
+          }));
+          control.setAttribute("aria-pressed",String(listStyle===value));
+        }
+        const indent=selected.text_indent_pt||0;
+        button("Diminuir recuo",()=>update({
+          text_indent_pt:clamp(indent-12,0,144)
+        }));
+        button("Aumentar recuo",()=>update({
+          text_indent_pt:clamp(indent+12,0,144)
+        }));
+        const spacing=document.createElement("label");
+        spacing.className="slide-spacing-field";spacing.textContent="Entrelinhas";
+        const spacingSelect=document.createElement("select");
+        spacingSelect.setAttribute("aria-label","Espaçamento entre linhas");
+        for(const value of ["1","1.15","1.5","2"]){
+          const option=document.createElement("option");
+          option.value=value;option.textContent=value.replace(".",",")+"×";
+          spacingSelect.append(option);
+        }
+        spacingSelect.value=String(selected.line_spacing||1);
+        spacingSelect.addEventListener("change",()=>update({
+          line_spacing:Number(spacingSelect.value)
+        }),{signal:this.signal});
+        spacing.append(spacingSelect);bar.append(spacing);
         this._colorProperty("Cor do texto",selected.color,value=>update({color:value}),bar);
       }
       const layer=slide.elements.indexOf(selected);
