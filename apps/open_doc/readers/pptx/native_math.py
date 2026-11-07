@@ -161,3 +161,22 @@ def text_section_run(run):
     if t is None:
         raise ValueError("Run matemático sem texto.")
     return t.text or ""
+
+def build_word_omath(blocks):
+    """Office-native inline equation for a DOCX paragraph, not a picture."""
+    validate_math_blocks(blocks)
+    math = etree.Element(_tag("oMath"), nsmap={"m": M})
+    for block in blocks:
+        _write_block(math, block)
+    return math
+
+
+def parse_word_omath(math):
+    """Parse the deliberately bounded supported subset; do not flatten others."""
+    from copy import deepcopy
+    from types import SimpleNamespace
+    if math is None or math.tag != _tag("oMath"):
+        raise ValueError("Estrutura matemática Word desconhecida.")
+    wrapper = etree.Element("{%s}m" % A14, nsmap={"a14": A14, "m": M})
+    wrapper.append(deepcopy(math))
+    return read_math(SimpleNamespace(_element=wrapper))

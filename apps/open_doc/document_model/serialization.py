@@ -27,6 +27,22 @@ def rich_to_markdown(model):
                 text = "**" + text + "**"
             if s.get("italic"):
                 text = "_" + text + "_"
+            if kind == "math":
+                math_text = []
+                for part in n.get("math_blocks", []):
+                    p = part.get("kind")
+                    if p == "text":
+                        math_text.append(part["value"])
+                    elif p == "fraction":
+                        math_text.append("(" + part["numerator"] + ")/(" + part["denominator"] + ")")
+                    elif p == "nary":
+                        math_text.append(part["operator"] + "_(" + part["lower"] + ")^(" +
+                                         part["upper"] + ") " + part["body"])
+                    elif p == "superscript":
+                        math_text.append(part["base"] + "^(" + part["power"] + ")")
+                    elif p == "sqrt":
+                        math_text.append("√(" + part["radicand"] + ")")
+                text = "".join(math_text)
             if kind == "hyperlink":
                 text = "[" + inline(n["children"]) + "](" + n["href"] + ")"
             if kind == "break":

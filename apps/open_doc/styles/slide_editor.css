@@ -459,3 +459,17 @@
 .open-doc .slide-scale-handle::after{content:"↗";position:absolute;inset:-4px 0 0 0;
   color:#fff;font-size:13px;text-align:center;font-weight:800;}
 .open-doc .slide-presentation .slide-scale-handle{display:none!important}
+
+/* Rich DOCX inline math nodes remain selectable and are preserved as OMML. */
+.open-doc .rich-native-equation{display:inline-flex;vertical-align:middle;
+  align-items:center;min-height:1.3em;margin:0 .12em;padding:.10em .20em;
+  border:1px dotted transparent;border-radius:5px;cursor:pointer;
+  white-space:normal;user-select:none;}
+.open-doc .rich-native-equation:hover,
+.open-doc .rich-native-equation:focus{border-color:#367ed6;outline:0;}
+.open-doc .rich-native-equation .slide-native-equation{width:auto;font-size:1em;}
+.open-doc .equation-native-components{max-height:180px;overflow-y:auto;display:grid;gap:6px}
+.open-doc .equation-native-components section{display:grid;gap:5px;padding:6px;
+  border:1px solid #8885;border-radius:5px;}
+.open-doc .equation-native-components label{display:flex;gap:6px;justify-content:space-between;}
+.open-doc .equation-native-components input{width:55%;min-width:75px;}
