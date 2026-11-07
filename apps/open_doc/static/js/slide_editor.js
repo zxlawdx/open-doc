@@ -444,6 +444,7 @@
       const caption=document.createElement("span");caption.className="slide-action-label";
       caption.textContent=label;button.append(caption);
       if(ACTION_ICONS[label]){
+        button.classList.add("slide-icon-button");
         const svg=document.createElementNS(SVG_NS,"svg");
         svg.classList.add("slide-action-icon");svg.setAttribute("aria-hidden","true");
         Object.assign(svg.style,{width:"17px",height:"17px",display:"inline-block",
@@ -1517,7 +1518,7 @@
       bar.replaceChildren();
       this._syncContextRibbon(selected);
       bar.hidden=!selected||Boolean(this.inlineEditing)||this._ribbonActive!=="context";
-      if(bar.hidden)return;
+      if(!selected||this.inlineEditing)return;
       const update=patch=>this.commands.updateObject(this.current,selected.id,patch);
       const button=(label,action)=>this._button(label,action,label,bar);
       if(canEditText(selected)){
