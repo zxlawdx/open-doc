@@ -63,6 +63,68 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
      visibleInsert:Array.from(insert?.querySelectorAll('button')||[]).map(n=>n.textContent)};
  })()`);
  await shot('pptx-compact-ribbon-and-canvas');
+
+ // Visual regression: exact economic categories and percentages over an
+ // arbitrary slide color, then the comparable white-background rendering.
+ const chartCase=await evaluate(\`(()=>{
+   if(!window.OpenDocSlideCharts?.ChartPreview)throw Error('Charts module missing');
+   const source={
+     chart_type:'bar',
+     chart_title:'Distribuição do PIB pela ótica da renda — Brasil, 2021',
+     chart_categories:[
+       'Remuneração dos empregados',
+       'Excedente operacional bruto e rendimento misto bruto',
+       'Impostos líquidos de subsídios'
+     ],
+     chart_values:[39.2,45.3,15.5],
+     chart_data_labels:'both',
+     chart_label_font_size:14,
+     chart_label_wrap:true,
+     chart_background:'transparent',
+     chart_color_mode:'custom',
+     chart_item_colors:['#2569D2','#F28B35','#34A876']
+   };
+   const host=document.createElement('div');
+   host.id='qa-pib-chart';
+   host.style.cssText='position:fixed;inset:7vh 8vw;z-index:99999;background:#275B43;'+
+     'border:2px solid #153A30;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);';
+   const svg=window.OpenDocSlideCharts.ChartPreview.render(source,{
+     width:740,height:420
+   });
+   host.append(svg);document.body.append(host);
+   const names=Array.from(svg.querySelectorAll('text')).map(el=>
+     Array.from(el.querySelectorAll('tspan')).map(t=>t.textContent).join(''));
+   return {names,background:svg.dataset.background,
+     viewBox:svg.getAttribute('viewBox'), chartIsVector:!!svg.querySelector('rect'),
+     percentVisible:names.filter(name=>name.includes('%'))};
+ })()\`);
+ assert.deepEqual(chartCase.names.filter(name=>[
+     'Remuneração dos empregados',
+     'Excedente operacional bruto e rendimento misto bruto',
+     'Impostos líquidos de subsídios'
+   ].includes(name)),[
+     'Remuneração dos empregados',
+     'Excedente operacional bruto e rendimento misto bruto',
+     'Impostos líquidos de subsídios'
+   ],'Full economic category names must survive rendering');
+ assert.ok(chartCase.percentVisible.some(item=>item.includes('39,2%')));
+ assert.ok(chartCase.percentVisible.some(item=>item.includes('45,3%')));
+ assert.ok(chartCase.percentVisible.some(item=>item.includes('15,5%')));
+ assert.equal(chartCase.background,'transparent');
+ await shot('pptx-pib-transparent-full-categories-and-percentages');
+ fs.writeFileSync(path.join(destination,'pptx-pib-chart-validation.json'),
+   JSON.stringify(chartCase,null,2));
+ await evaluate(\`(()=>{
+   const preview=document.querySelector('#qa-pib-chart svg');
+   preview?.setAttribute('data-background','solid');
+   preview?.insertBefore(document.createElementNS('http://www.w3.org/2000/svg','rect'),preview.firstChild);
+   const rect=preview?.firstChild;
+   if(rect){rect.setAttribute('width','100%');rect.setAttribute('height','100%');rect.setAttribute('fill','#FFFFFF');}
+   return true;
+ })()\`);
+ await shot('pptx-pib-solid-background-comparison');
+ await evaluate("document.querySelector('#qa-pib-chart')?.remove()");
+
  fs.writeFileSync(path.join(destination,'pptx-compact-ribbon-and-canvas.json'),
    JSON.stringify(ribbon,null,2));
  assert.deepEqual(ribbon.directButtons,[],
