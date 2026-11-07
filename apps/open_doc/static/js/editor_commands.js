@@ -38,7 +38,10 @@
     ));
     function caretBlock(node){
       const element=node?.nodeType===3?node.parentElement:node;
-      return element?.closest?.('[data-node-type="paragraph"],p,li,h1,h2,h3,h4,h5,h6,blockquote,pre,[data-page-content] > div,[data-rich] > div')||null;
+      if(node?.nodeType===1 && Array.from(node.children).some(child=>child.dataset.nodeType==='tab')){
+        return node.closest('p,li,h1,h2,h3,h4,h5,h6,blockquote,pre,[data-page-content] > div,[data-rich] > div');
+      }
+      return element?.closest?.('[data-node-id],p,li,h1,h2,h3,blockquote,pre')||null;
     }
     function bookmark() {
       const selection=window.getSelection();
