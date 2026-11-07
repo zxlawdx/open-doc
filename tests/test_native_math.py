@@ -7,7 +7,8 @@ from pptx import Presentation
 
 from apps.open_doc.fixed_document.validation import validate
 from apps.open_doc.fixed_document.slide_model import SlideModelValidator
-from apps.open_doc.readers.pptx.native_importer import read_editable_deck
+from apps.open_doc.readers.pptx.native_importer import read_editable_deck, _shape_element
+from apps.open_doc.readers.pptx.native_math import read_math
 from apps.open_doc.readers.pptx.exporter import export_pptx
 from apps.open_doc.services.container import configure
 from apps.open_doc.services.preferences_service import Config
@@ -68,7 +69,13 @@ def test_editing_imported_equation_preserves_native_omml(tmp_path):
     SlideModelValidator().validate(dict(edited, source_kind="pptx"))
     out = tmp_path / "edited.pptx"
     export_pptx(src, edited, out)
+    deck_again = Presentation(out)
+    assert len(deck_again.slides[0].shapes) == 1
+    shape_again = deck_again.slides[0].shapes[0]
+    assert read_math(shape_again)[1]["numerator"] == "x³ + 1"
+    assert _shape_element(shape_again, deck_again.slide_width, deck_again.slide_height, {})["type"] == "math"
     again = read_editable_deck(out)
+    assert again is not None
     assert again["surfaces"][0]["elements"][0]["math_blocks"][1]["numerator"] == "x³ + 1"
 
 
