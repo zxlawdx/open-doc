@@ -1549,7 +1549,7 @@
         });
         if(selected.type==="math"){
           const fields={
-            text:[["value","Expressão"]],
+            text:[["value","Expressão"]],bold:[["value","Texto em negrito"]],
             fraction:[["numerator","Numerador"],["denominator","Denominador"]],
             nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
             superscript:[["base","Base"],["power","Expoente"]],

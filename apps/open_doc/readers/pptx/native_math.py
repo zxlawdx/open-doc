@@ -16,6 +16,7 @@ A14 = "http://schemas.microsoft.com/office/drawing/2010/main"
 XML = "http://www.w3.org/XML/1998/namespace"
 KINDS = {
     "text": ("value",),
+    "bold": ("value",),
     "fraction": ("numerator", "denominator"),
     "nary": ("operator", "lower", "upper", "body"),
     "superscript": ("base", "power"),
@@ -25,12 +26,13 @@ KINDS = {
     "limit": ("base", "lower"),
     "matrix": ("rows",),
 }
-OPERATORS = {"∫", "∬", "∮", "∑"}
+OPERATORS = {"∫", "∬", "∭", "∮", "∯", "∑", "∏"}
 MAX_DEPTH = 6
 MAX_NODES = 512
 MAX_COMPONENTS = 32
 MAX_ROWS = 6
 MAX_COLUMNS = 6
+MATRIX_FENCES = {"round": ("(", ")"), "square": ("[", "]")}
 
 
 def _tag(name):
@@ -56,7 +58,14 @@ def validate_math_blocks(blocks):
             if count[0] > MAX_NODES or not isinstance(item, dict):
                 raise ValueError("Equação matemática complexa demais.")
             kind = item.get("kind")
-            if kind not in KINDS or set(item) != {"kind", *KINDS[kind]}:
+            if kind not in KINDS:
+                raise ValueError("Componente matemático desconhecido.")
+            fields = {"kind", *KINDS[kind]}
+            if kind == "matrix" and "fence" in item:
+                if not isinstance(item["fence"], str) or item["fence"] not in MATRIX_FENCES:
+                    raise ValueError("Delimitador de matriz não suportado.")
+                fields.add("fence")
+            if set(item) != fields:
                 raise ValueError("Componente matemático desconhecido.")
             if kind == "matrix":
                 rows = item["rows"]
@@ -77,6 +86,8 @@ def validate_math_blocks(blocks):
                     if val not in OPERATORS:
                         raise ValueError("Operador matemático não suportado.")
                     continue
+                if kind == "bold" and not isinstance(val, str):
+                    raise ValueError("Texto matemático em negrito inválido.")
                 optional = kind == "nary" and field in {"lower", "upper"}
                 validate_value(val, depth + 1, required=not optional)
         return True
@@ -93,8 +104,11 @@ def validate_math_blocks(blocks):
     validate_list(blocks, 0)
 
 
-def _run(parent, text):
+def _run(parent, text, *, bold=False):
     node = _element("r", parent)
+    if bold:
+        props = _element("rPr", node)
+        _element("sty", props).set(_tag("val"), "b")
     leaf = _element("t", node)
     leaf.set("{%s}space" % XML, "preserve")
     leaf.text = text
@@ -110,8 +124,8 @@ def _put(parent, value):
 
 def _write_block(parent, block):
     kind = block["kind"]
-    if kind == "text":
-        _run(parent, block["value"])
+    if kind in {"text", "bold"}:
+        _run(parent, block["value"], bold=kind == "bold")
     elif kind == "fraction":
         frac = _element("f", parent)
         _put(_element("num", frac), block["numerator"])
@@ -141,6 +155,13 @@ def _write_block(parent, block):
         _put(_element("e", node), block["base"])
         _put(_element("lim", node), block["lower"])
     elif kind == "matrix":
+        if "fence" in block:
+            delimiter = _element("d", parent)
+            props = _element("dPr", delimiter)
+            start, end = MATRIX_FENCES[block["fence"]]
+            _element("begChr", props).set(_tag("val"), start)
+            _element("endChr", props).set(_tag("val"), end)
+            parent = _element("e", delimiter)
         matrix = _element("m", parent)
         for row in block["rows"]:
             r = _element("mr", matrix)
@@ -187,7 +208,9 @@ def _read_blocks(root):
     for child in root:
         kind = child.tag
         if kind == _tag("r"):
-            out.append({"kind": "text", "value": _read_run(child)})
+            style = child.find(f"{_tag('rPr')}/{_tag('sty')}")
+            bold = style is not None and style.get(_tag("val")) == "b"
+            out.append({"kind": "bold" if bold else "text", "value": _read_run(child)})
         elif kind == _tag("f"):
             out.append({"kind": "fraction",
                         "numerator": _read_sequence(child.find(_tag("num"))),
@@ -221,6 +244,25 @@ def _read_blocks(root):
             out.append({"kind": "limit",
                         "base": _read_sequence(child.find(_tag("e"))),
                         "lower": _read_sequence(child.find(_tag("lim")))})
+        elif kind == _tag("d"):
+            props = child.find(_tag("dPr"))
+            expressions = child.findall(_tag("e"))
+            if len(expressions) != 1 or (
+                props is not None
+                and any(node.tag not in {_tag("begChr"), _tag("endChr")} for node in props)
+            ):
+                raise ValueError("Delimitador OMML não suportado.")
+            pair = ["(", ")"]
+            if props is not None:
+                for index, tag in enumerate(("begChr", "endChr")):
+                    char = props.find(_tag(tag))
+                    if char is not None:
+                        pair[index] = char.get(_tag("val"), "")
+            fence = next((key for key, value in MATRIX_FENCES.items() if value == tuple(pair)), None)
+            contents = _read_blocks(expressions[0])
+            if not fence or len(contents) != 1 or contents[0]["kind"] != "matrix" or "fence" in contents[0]:
+                raise ValueError("Delimitador OMML não suportado.")
+            out.append({**contents[0], "fence": fence})
         elif kind == _tag("m"):
             rows = []
             for row in child:

@@ -123,7 +123,7 @@
       partsPanel.className="equation-native-components";
       let activeBlocks=selected?JSON.parse(JSON.stringify(selected.math_blocks)):[];
       const displayFields={
-        text:[["value","Expressão"]],
+        text:[["value","Expressão"]],bold:[["value","Texto em negrito"]],
         fraction:[["numerator","Numerador"],["denominator","Denominador"]],
         nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
         superscript:[["base","Base"],["power","Expoente"]],

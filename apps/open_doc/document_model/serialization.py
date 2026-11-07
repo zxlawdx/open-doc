@@ -27,7 +27,7 @@ def rich_to_markdown(model):
     def math_block(part):
         kind = part.get("kind")
         value = lambda field: math_value(part.get(field, ""))
-        if kind == "text":
+        if kind in {"text", "bold"}:
             return value("value")
         if kind == "fraction":
             return "(" + value("numerator") + ")/(" + value("denominator") + ")"

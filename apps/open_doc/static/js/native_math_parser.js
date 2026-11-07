@@ -7,7 +7,7 @@
     infty:"∞",partial:"∂",nabla:"∇",cdot:"·",times:"×",leq:"≤",geq:"≥",
     neq:"≠",sin:"sen",cos:"cos",tan:"tan",ln:"ln",log:"log",exp:"exp",
     pm:"±",rightarrow:"→",in:"∈",mathbb:"ℝ"};
-  const OPERATORS={int:"∫",iint:"∬",oint:"∮",sum:"∑"};
+  const OPERATORS={int:"∫",iint:"∬",iiint:"∭",oint:"∮",oiint:"∯",sum:"∑",prod:"∏"};
   const asValue=nodes=>nodes.length===1&&nodes[0].kind==="text"?nodes[0].value:nodes;
   class Reader {
     constructor(source){
@@ -35,7 +35,7 @@
         return this.source[this.at++];
       }finally{this.depth--;}
     }
-    command(){
+    command(stop="",matrix=false){
       this.require("\\");
       if(this.peek("{")||this.peek("}")||this.peek("_")||this.peek("^")){
         return {kind:"text",value:this.source[this.at++]};
@@ -47,6 +47,11 @@
       if(!match)throw Error("Comando LaTeX inválido.");
       const name=match[0];this.at+=name.length;
       if(name==="left"||name==="right")return {kind:"text",value:""};
+      if(name==="mathbf"){
+        const value=this.arg();
+        if(typeof value!=="string"||!value.trim())throw Error("Use texto simples no argumento de \\mathbf.");
+        return {kind:"bold",value};
+      }
       if(name==="frac")return {kind:"fraction",numerator:this.arg(),denominator:this.arg()};
       if(name==="sqrt"){
         this.skip();
@@ -70,10 +75,10 @@
         this.skip();
         let body="";
         if(this.at<this.source.length&&this.source[this.at]!=="}"){
-          const nodes=this.sequence("}");
+          const nodes=this.sequence(stop||"}",matrix);
           body=asValue(nodes);
         }
-        if(!body || Array.isArray(body)&&!body.length)body=" ";
+        if(!body || Array.isArray(body)&&!body.length)throw Error("Operador sem expressão.");
         return {kind:"nary",operator:OPERATORS[name],lower,upper,body};
       }
       if(name==="lim"){
@@ -96,14 +101,16 @@
           if(!this.peek("\\end{"))throw Error("Separador de matriz inválido.");
         }
         if(row.length)rows.push(row);
-        if(!rows.length||rows.some(r=>r.length!==rows[0].length))
+        if(!rows.length||rows.length>6||rows.some(r=>r.length!==rows[0].length))
           throw Error("Matriz irregular.");
         this.at+=5;const endStart=this.at;
         while(this.at<this.source.length&&this.source[this.at]!=="}")this.at++;
         if(this.at>=this.source.length)throw Error("Ambiente LaTeX sem fechamento.");
         const end=this.source.slice(endStart,this.at);this.require("}");
         if(end!==env)throw Error("Ambiente LaTeX não encerrado.");
-        return {kind:"matrix",rows};
+        const result={kind:"matrix",rows};
+        if(env!=="matrix")result.fence=env==="pmatrix"?"round":"square";
+        return result;
       }
       if(name in SYMBOLS)return {kind:"text",value:SYMBOLS[name]};
       throw Error("Comando LaTeX não suportado: \\"+name);
@@ -111,7 +118,7 @@
     sequence(stop="",matrix=false){
       if(this.depth>6)throw Error("LaTeX aninhado demais.");
       const parts=[];let plain="";
-      const flush=()=>{if(plain){parts.push({kind:"text",value:plain});plain="";}};
+      const flush=()=>{if(plain.trim())parts.push({kind:"text",value:plain});plain="";};
       while(this.at<this.source.length){
         if(stop&&this.peek(stop))break;
         if(matrix&&(this.peek("\\\\")||this.peek("\\end{")))break;
@@ -122,9 +129,9 @@
           parts.push(...interior);continue;
         }
         if(this.peek("\\")){
-          flush();const cmd=this.command();
+          const cmd=this.command(stop,matrix);
           if(cmd.kind==="text")plain+=cmd.value;
-          else parts.push(cmd);
+          else {flush();parts.push(cmd);}
         }else if(this.peek("^")||this.peek("_")){
           flush();const isSup=this.source[this.at++]==="^";
           if(!parts.length)throw Error("Expoente ou índice sem base.");

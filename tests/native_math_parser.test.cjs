@@ -63,3 +63,15 @@ test('gallery LaTeX entry inserts editable formula with no bitmap',t=>{
  assert.ok(!('mime' in insertions[0])&&!('data' in insertions[0]));
  assert.equal(gallery.panel.hidden,true);
 });
+
+test('the required LaTeX corpus stays structured and renders without images',t=>{
+ const w=setup(t);
+ const samples=require('./fixtures/math_latex_roundtrip.json');
+ for(const {latex,blocks} of samples){
+  const parsed=w.OpenDocMathParser.parseLatex(latex);
+  assert.deepEqual(JSON.parse(JSON.stringify(parsed)),blocks,latex);
+  assert.equal(w.OpenDocMathGallery.renderBlocks(parsed).querySelectorAll('img,canvas').length,0,latex);
+ }
+ assert.equal(w.OpenDocMathGallery.renderBlocks(samples[2].blocks)
+  .querySelector('.slide-math-bold').style.fontWeight,'bold');
+});

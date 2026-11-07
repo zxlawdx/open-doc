@@ -482,6 +482,7 @@
 .open-doc .slide-math-root>sup{font-size:.48em}
 .open-doc .slide-math-matrix{display:inline-flex;align-items:center;
   padding:0 .20em;border-left:2px solid currentColor;border-right:2px solid currentColor}
+.open-doc .slide-math-matrix[data-matrix-fence="round"]{border-radius:50% / 30%}
 .open-doc .slide-math-matrix-grid{display:inline-grid;gap:.18em .50em;align-items:center}
 .open-doc .slide-math-matrix-cell{text-align:center;white-space:nowrap}
 .open-doc .slide-math-subscript sub,.open-doc .slide-math-superscript sup{font-size:.66em}

@@ -76,3 +76,65 @@ def test_unknown_external_math_is_not_silently_converted():
     etree.SubElement(xml, "{%s}func" % M)
     with pytest.raises(ValueError):
         parse_word_omath(xml)
+
+
+def test_required_latex_corpus_survives_export_and_reimport(tmp_path):
+    import json
+    from pathlib import Path
+    from zipfile import ZipFile
+
+    from docx import Document
+
+    from apps.open_doc.exporters.docx_exporter import export_docx
+    from apps.open_doc.services.container import configure
+    from apps.open_doc.services.preferences_service import Config
+    from test_native_math import math_element
+
+    samples = json.loads(
+        (Path(__file__).parent / "fixtures" / "math_latex_roundtrip.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    formulas = [sample["blocks"] for sample in samples]
+    config = Config(tmp_path / "workspace")
+    ctx = configure(config)
+    source = tmp_path / "math-source.docx"
+    word = Document()
+    for blocks in formulas:
+        word.add_paragraph()._p.append(build_word_omath(blocks))
+    word.save(source)
+    note = ctx.editor.import_docx(source)
+    docx = tmp_path / "math-roundtrip.docx"
+    export_docx(
+        note["content"], docx, note["title"],
+        package_directory=ctx.editor.package_directory(note["id"]),
+    )
+    reopened_docx = configure(config).editor.import_docx(docx)
+    assert [
+        inline["math_blocks"]
+        for paragraph in reopened_docx["content"]["blocks"]
+        for inline in paragraph.get("children", [])
+        if inline["type"] == "math"
+    ] == formulas
+    with ZipFile(docx) as archive:
+        xml = etree.fromstring(archive.read("word/document.xml"))
+        assert len(xml.findall(f".//{{{M}}}oMath")) == len(formulas)
+
+    ctx = configure(config)
+    note = ctx.fixed_documents.create_presentation("Matemática nativa")
+    model = deepcopy(note["content"])
+    sample_slide = model["surfaces"][0]
+    model["surfaces"] = [
+        {**sample_slide, "index": index, "elements": [math_element(blocks)]}
+        for index, blocks in enumerate(formulas)
+    ]
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    pptx = config.root / "math-roundtrip.pptx"
+    ctx.fixed_documents.export(saved["id"], saved["revision"], "pptx", pptx)
+    reopened_pptx = configure(config).fixed_documents.import_pptx(pptx)
+    assert [
+        slide["elements"][0]["math_blocks"]
+        for slide in reopened_pptx["content"]["surfaces"]
+    ] == formulas
+    with ZipFile(pptx) as archive:
+        assert not any(path.startswith("ppt/media/") for path in archive.namelist())

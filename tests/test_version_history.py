@@ -178,6 +178,10 @@ def test_history_roundtrip_through_http_for_each_editor(tmp_path, kind, monkeypa
         status=403,
     )
     baseline = history("list")["versions"][0]
+    if kind == "pdf":
+        reader_view = {"page": 0, "offset": 0.25, "left": 0, "zoom": 1.25}
+        post("pdf-view", {"id": original["id"], "view": reader_view})
+        assert history("list")["versions"] == [baseline]
     edited = deepcopy(original["content"])
     if kind == "docx":
         edited["blocks"][0]["children"][0]["text"] = "Texto revisado"
@@ -198,3 +202,5 @@ def test_history_roundtrip_through_http_for_each_editor(tmp_path, kind, monkeypa
     assert result["document"]["title"] == original["title"]
     assert result["document"]["content"] == original["content"]
     assert result["document"]["revision"] == changed["revision"] + 1
+    if kind == "pdf":
+        assert result["document"]["reader_view"] == reader_view

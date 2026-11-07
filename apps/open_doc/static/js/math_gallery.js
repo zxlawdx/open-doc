@@ -38,7 +38,10 @@
   }
   for(const block of blocks||[]){
    const part=document.createElement("span");part.className="slide-math-"+block.kind;
-   if(block.kind==="text")part.textContent=block.value;
+   if(block.kind==="text"||block.kind==="bold"){
+    part.textContent=block.value;
+    if(block.kind==="bold")part.style.fontWeight="bold";
+   }
    else if(block.kind==="fraction"){
     const top=document.createElement("span"),bottom=document.createElement("span");
     top.className="slide-math-numerator";bottom.className="slide-math-denominator";
@@ -68,6 +71,7 @@
     const lower=document.createElement("span");lower.className="slide-math-lower";
     appendValue(lower,block.lower);operator.append(lower);part.append(operator);
    }else if(block.kind==="matrix"){
+    if(block.fence)part.dataset.matrixFence=block.fence;
     const grid=document.createElement("span");grid.className="slide-math-matrix-grid";
     grid.style.gridTemplateColumns="repeat("+(block.rows[0]?.length||1)+",auto)";
     for(const row of block.rows||[])for(const cell of row){

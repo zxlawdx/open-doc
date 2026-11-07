@@ -14,6 +14,7 @@
     function mathNode(n){
       const v=key=>mathValue(n[key]);
       switch(n.kind){
+        case 'bold':
         case 'text':return v('value');
         case 'fraction':return '('+v('numerator')+')/('+v('denominator')+')';
         case 'nary':return n.operator+'_('+v('lower')+')^('+v('upper')+')'+v('body');
