@@ -613,10 +613,3 @@
 .open-doc .slide-font-sample{font-size:19px;white-space:nowrap;}
 .open-doc .slide-font-option-name{font-size:11px;max-width:135px;
   overflow:hidden;text-overflow:ellipsis;color:var(--color-text-secondary);}
-@media (max-width:900px){
-  .open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-tab{
-    padding:5px 8px!important;
-  }
-  .open-doc .slide-font-picker{width:150px;}
-  .open-doc .slide-context-panel > label .slide-font-label{display:none;}
-}
