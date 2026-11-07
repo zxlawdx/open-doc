@@ -757,3 +757,30 @@ test('presenter can navigate to an offscreen slide without creating a second edi
    'presenter navigation must not create physical editor pages');
  q.editor.stopPresentation();
 });
+
+test('Image color and opacity adjustments affect only the picture and can be reset',t=>{
+ const q=setup(t);
+ const id=q.editor.commands.insertImage(0,{mime:'image/png',data:'YQ==',name:'Foto'});
+ q.editor._selectObject(id);q.editor.render();
+ const property=label=>Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(element=>element.textContent===label).querySelector('input');
+ const change=(label,value)=>{
+   const input=property(label);
+   if(input.type==='checkbox')input.checked=value;
+   else input.value=String(value);
+   input.dispatchEvent(new q.w.Event('change'));
+ };
+ change('Opacidade (%)',40);
+ change('Brilho (%)',20);
+ change('Contraste (%)',-15);
+ change('Preto e branco',true);
+ const picture=()=>q.scroller.querySelector('.fixed-surface .slide-image-crop img');
+ assert.equal(picture().style.opacity,'0.4');
+ assert.equal(picture().style.filter,'brightness(120%) contrast(85%) grayscale(100%)');
+ assert.equal(picture().src,'data:image/png;base64,YQ==');
+ const reset=Array.from(q.host.querySelectorAll('.slide-inspector button'))
+   .find(button=>button.textContent==='Restaurar ajustes de cor e opacidade');
+ assert.ok(reset);reset.click();
+ assert.equal(picture().style.opacity,'1');
+ assert.equal(picture().style.filter,'');
+});

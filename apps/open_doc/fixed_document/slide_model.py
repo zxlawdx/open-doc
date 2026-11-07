@@ -134,6 +134,11 @@ class SlideModelValidator:
                 raise ValueError("Imagem não encontrada no catálogo de recursos.")
             if not isinstance(element.get("flip_h", False), bool) or not isinstance(element.get("flip_v", False), bool):
                 raise ValueError("Espelhamento de imagem inválido.")
+            number(element.get("image_opacity", 100), 0, 100)
+            number(element.get("image_brightness", 0), -100, 100)
+            number(element.get("image_contrast", 0), -100, 100)
+            if not isinstance(element.get("image_grayscale", False), bool):
+                raise ValueError("Escala de cinza inválida.")
             crop = {key: number(element.get(key, 0), 0, .95)
                     for key in ("crop_left", "crop_right", "crop_top", "crop_bottom")}
             if (crop["crop_left"] + crop["crop_right"] > .9500001 or

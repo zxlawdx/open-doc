@@ -358,6 +358,8 @@ def test_native_image_crop_is_persisted_and_stays_editable_in_powerpoint(tmp_pat
         "crop_left": .25, "crop_right": .20,
         "crop_top": .10, "crop_bottom": .15,
         "flip_h": True, "x": .14, "width": .42,
+        "image_opacity": 65, "image_brightness": 20,
+        "image_contrast": -15, "image_grayscale": True,
     }]
     validate(model)
     saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
@@ -375,6 +377,19 @@ def test_native_image_crop_is_persisted_and_stays_editable_in_powerpoint(tmp_pat
         assert getattr(picture, attr) == pytest.approx(value, abs=1e-5)
     assert picture.image.blob == payload, "Crop must not alter embedded pixels"
     assert picture._pic.spPr.xfrm.flipH is True
+    from pptx.oxml.ns import qn
+
+    blip = picture._pic.blipFill.blip
+    assert blip.find(qn("a:alphaModFix")).get("amt") == "65000"
+    assert blip.find(qn("a:lum")).attrib == {"bright": "20000", "contrast": "-15000"}
+    assert blip.find(qn("a:grayscl")) is not None
+
+    imported = ctx.fixed_documents.import_pptx(result)
+    assert imported["content"]["editable_deck"] is True
+    image = imported["content"]["surfaces"][0]["elements"][0]
+    for key in ("image_opacity", "image_brightness", "image_contrast", "image_grayscale"):
+        assert image[key] == model["surfaces"][0]["elements"][0][key]
+
 
     reopened_path = tmp_path / "crop-resaved-in-powerpoint-format.pptx"
     exported.save(reopened_path)
@@ -389,6 +404,10 @@ def test_native_image_crop_is_persisted_and_stays_editable_in_powerpoint(tmp_pat
         {"crop_left": -.01},
         {"crop_bottom": 1.0},
         {"crop_left": "20%"},
+        {"image_opacity": -1},
+        {"image_brightness": 101},
+        {"image_contrast": float("nan")},
+        {"image_grayscale": "true"},
     ]:
         invalid = deepcopy(model)
         invalid["surfaces"][0]["elements"][0].update(patch)

@@ -883,7 +883,12 @@
             width:(100/visibleWidth)+"%",height:(100/visibleHeight)+"%",
             left:(-100*crop.left/visibleWidth)+"%",
             top:(-100*crop.top/visibleHeight)+"%",
-            objectFit:"fill",pointerEvents:"none"});
+            objectFit:"fill",pointerEvents:"none",
+            opacity:String((obj.image_opacity??100)/100)});
+          if(obj.image_brightness||obj.image_contrast||obj.image_grayscale){
+            picture.style.filter="brightness("+(100+(obj.image_brightness??0))+"%) contrast("+
+              (100+(obj.image_contrast??0))+"%) grayscale("+(obj.image_grayscale?100:0)+"%)";
+          }
           viewport.append(picture);node.append(viewport);
         }
       }else if(obj.type==="text")node.textContent=obj.text||"";
@@ -1109,6 +1114,25 @@
             this.imageInput.click();
           },{signal:this.signal});
           this.inspector.append(replaceButton);
+          for(const [key,label,minimum,initial] of [
+            ["image_opacity","Opacidade (%)",0,100],
+            ["image_brightness","Brilho (%)",-100,0],
+            ["image_contrast","Contraste (%)",-100,0]
+          ]){
+            const input=this._property(label,selected[key]??initial,"number",value=>{
+              const amount=value===""?initial:clamp(Number(value),minimum,100);
+              this.commands.updateObject(this.current,selected.id,{[key]:amount});
+            });
+            input.min=String(minimum);
+          }
+          this._toggleProperty("Preto e branco",selected.image_grayscale,
+            checked=>this.commands.updateObject(this.current,selected.id,{image_grayscale:checked}));
+          const reset=document.createElement("button");
+          reset.type="button";reset.textContent="Restaurar ajustes de cor e opacidade";
+          reset.addEventListener("click",()=>this.commands.updateObject(this.current,selected.id,{
+            image_opacity:100,image_brightness:0,image_contrast:0,image_grayscale:false
+          }),{signal:this.signal});
+          this.inspector.append(reset);
           this._toggleProperty("Espelhar horizontalmente",selected.flip_h||false,
             checked=>this.commands.updateObject(this.current,selected.id,{flip_h:checked}));
           this._toggleProperty("Espelhar verticalmente",selected.flip_v||false,

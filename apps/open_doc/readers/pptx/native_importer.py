@@ -15,6 +15,7 @@ from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
 from pptx.dml.color import RGBColor
 
 from ...fixed_document.slide_model import SlideModelValidator
+from .image_effects import import_image_effects
 
 MARKER = "OpenDoc:EditableSlide-v1"
 
@@ -90,6 +91,7 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
             raise ValueError("Imagem muito grande para edição.")
         asset_id = str(uuid4())
         assets[asset_id] = {"mime": mime, "data": base64.b64encode(payload).decode("ascii")}
+        base.update(import_image_effects(shape._pic.blipFill.blip))
         base.update(type="image", asset_id=asset_id,
                     crop_left=shape.crop_left, crop_right=shape.crop_right,
                     crop_top=shape.crop_top, crop_bottom=shape.crop_bottom,
