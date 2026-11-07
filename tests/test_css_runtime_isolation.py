@@ -20,7 +20,7 @@ def test_collectstatic_css_hook_writes_only_untracked_runtime(monkeypatch, tmp_p
         assert minify is True
         target = Path(output) / "css/vela.bundle.css"
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("/* Tailwind utilities */\n\n", encoding="utf-8")
+        target.write_text("/* Tailwind utilities */\n", encoding="utf-8")
         return True
 
     monkeypatch.setattr(builder, "ROOT", tmp_path)
@@ -30,7 +30,7 @@ def test_collectstatic_css_hook_writes_only_untracked_runtime(monkeypatch, tmp_p
     runtime = css / "runtime.css"
     assert seed.read_text(encoding="utf-8") == "/* committed seed; do not rewrite */\n"
     assert runtime.read_text(encoding="utf-8") == (
-        "/* Tailwind utilities */\n"
+        "/* Tailwind utilities */\n\n"
         "/* original theme */\n\n"
         ".open-doc { color: red; }\n\n"
     )
