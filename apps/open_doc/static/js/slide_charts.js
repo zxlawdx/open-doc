@@ -347,18 +347,52 @@
           const cats=chart.chart_categories.slice(),values=chart.chart_values.slice();
           const numeric=Number(val.value);
           cats[index]=cat.value.trim();values[index]=numeric;
-          try{valid(chart.chart_type,cats,values);
-            commit({chart_categories:cats,chart_values:values});
+          try{
+            valid(chart.chart_type,cats,values);
+            const patch={chart_categories:cats,chart_values:values};
+            if(chart.chart_series?.length){
+              patch.chart_series=chart.chart_series.map((series,at)=>({
+                ...series,values:at===0?values.slice():series.values.slice()
+              }));
+            }
+            commit(patch);
           }catch(error){status(error.message);}
         };
         cat.addEventListener("change",save,{signal});val.addEventListener("change",save,{signal});
+        if(chart.chart_series?.length>1){
+          for(let seriesIndex=1;seriesIndex<chart.chart_series.length;seriesIndex++){
+            const series=chart.chart_series[seriesIndex];
+            const extra=document.createElement("input");extra.type="number";
+            extra.step="any";extra.value=String(series.values[index]);
+            extra.setAttribute("aria-label",series.name+" — categoria "+(index+1));
+            extra.title=series.name;
+            extra.addEventListener("change",()=>{
+              const numeric=Number(extra.value);
+              if(!Number.isFinite(numeric))return status("Valor numérico inválido.");
+              const next=chart.chart_series.map((item,s)=>({
+                ...item,values:item.values.slice()
+              }));
+              next[seriesIndex].values[index]=numeric;
+              commit({chart_series:next});
+            },{signal});
+            valTd.append(extra);
+          }
+        }
         const remove=document.createElement("button");remove.type="button";remove.textContent="×";
         remove.setAttribute("aria-label","Remover linha "+(index+1));remove.disabled=chart.chart_categories.length<=1;
         remove.addEventListener("click",()=>{
           const cats=chart.chart_categories.filter((_,i)=>i!==index);
           const vals=chart.chart_values.filter((_,i)=>i!==index);
-          try{valid(chart.chart_type,cats,vals);
-            commit({chart_categories:cats,chart_values:vals});}
+          try{
+            valid(chart.chart_type,cats,vals);
+            const patch={chart_categories:cats,chart_values:vals};
+            if(chart.chart_series?.length)patch.chart_series=chart.chart_series.map(s=>({
+              ...s,values:s.values.filter((_,i)=>i!==index)
+            }));
+            const colors=(chart.chart_item_colors||[]).filter((_,i)=>i!==index);
+            if(colors.length)patch.chart_item_colors=colors;
+            commit(patch);
+          }
           catch(error){status(error.message);}
         },{signal});
         const color=document.createElement("input");color.type="color";
@@ -380,7 +414,14 @@
         if(chart.chart_categories.length>=24)return status("Limite de 24 categorias por gráfico.");
         const categories=chart.chart_categories.concat(["Nova categoria"]);
         const values=chart.chart_values.concat([chart.chart_type==="pie"?1:0]);
-        commit({chart_categories:categories,chart_values:values});
+        const patch={chart_categories:categories,chart_values:values};
+        if(chart.chart_series?.length)patch.chart_series=chart.chart_series.map(s=>({
+          ...s,values:s.values.concat([0])
+        }));
+        if(chart.chart_item_colors?.length)patch.chart_item_colors=chart.chart_item_colors.concat(
+          [ChartLayoutEngine.colors(chart,categories.length)[categories.length-1]]
+        );
+        commit(patch);
       },{signal});section.append(add);
 
       // Progressive disclosure: the frequently used data editor stays open.
@@ -483,6 +524,41 @@
         "Cada alteração gera uma etapa de desfazer. Os rótulos completos permanecem editáveis.";
       format.append(note);
       section.append(format,appearance,layout);
+      if(chart.chart_type!=="pie"){
+        const addSeries=document.createElement("button");addSeries.type="button";
+        addSeries.textContent="+ Adicionar série de dados";
+        addSeries.className="slide-chart-add-series";
+        addSeries.disabled=(chart.chart_series?.length||1)>=5;
+        addSeries.title="A legenda identifica cada série; os valores permanecem editáveis.";
+        addSeries.addEventListener("click",()=>{
+          const current=ChartLayoutEngine.series(chart);
+          if(current.length>=5)return status("Limite de 5 séries por gráfico.");
+          const additional={name:"Série "+(current.length+1),
+            values:chart.chart_categories.map(()=>0)};
+          commit({chart_series:[...current.map(s=>({
+            name:s.name,values:s.values.slice()
+          })),additional]});
+        },{signal});
+        data.append(addSeries);
+      }
+      if(chart.chart_series?.length>1){
+        const seriesGroup=document.createElement("div");
+        seriesGroup.className="slide-chart-series";
+        chart.chart_series.forEach((entry,index)=>{
+          const line=document.createElement("label");
+          line.textContent="Nome da série "+(index+1);
+          const input=document.createElement("input");input.type="text";
+          input.maxLength=80;input.value=entry.name;
+          input.setAttribute("aria-label","Nome da série "+(index+1));
+          input.addEventListener("change",()=>{
+            const next=chart.chart_series.map(s=>({...s,values:s.values.slice()}));
+            next[index].name=input.value.trim()||entry.name;
+            commit({chart_series:next});
+          },{signal});
+          line.append(input);seriesGroup.append(line);
+        });
+        data.append(seriesGroup);
+      }
       container.append(section);return section;
     }
   }
