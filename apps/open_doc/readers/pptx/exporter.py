@@ -129,6 +129,12 @@ class SlideDeckExporter:
                 "arrow": MSO_SHAPE.RIGHT_ARROW,
                 "triangle": MSO_SHAPE.ISOSCELES_TRIANGLE,
                 "diamond": MSO_SHAPE.DIAMOND,
+                "chevron": MSO_SHAPE.CHEVRON,
+                "hexagon": MSO_SHAPE.HEXAGON,
+                "pentagon": MSO_SHAPE.PENTAGON,
+                "parallelogram": MSO_SHAPE.PARALLELOGRAM,
+                "star": MSO_SHAPE.STAR_5_POINT,
+                "cloud": MSO_SHAPE.CLOUD,
             }
             shape = slide.shapes.add_shape(types[kind], left, top, w, h)
             shape.fill.solid()
