@@ -375,6 +375,52 @@
       source.focus(); changed("format", source);
     }
 
+    let selectedMathId=null;
+    rich.addEventListener("click",event=>{
+      const el=event.target?.closest?.('[data-node-type="math"]');
+      selectedMathId=el?.dataset.nodeId||null;
+    },{signal:controller.signal});
+    function selectedMath(){
+      if(!selectedMathId)return null;
+      const el=Array.from(rich.querySelectorAll('[data-node-type="math"]'))
+        .find(n=>n.dataset.nodeId===selectedMathId);
+      if(!el)return null;
+      try{return {id:selectedMathId,math_blocks:JSON.parse(el.dataset.mathBlocks)};}
+      catch{return null;}
+    }
+    function insertMath(blocks){
+      if(lockedState||suspended||!Array.isArray(blocks)||!blocks.length)return false;
+      if(mode!=="rich")setMode("rich");
+      const M=window.OpenDocModel;
+      const active=selectedMath();
+      const id=active?.id||M.id();
+      const temporary=document.createElement("div");
+      window.OpenDocRichRenderer.render({
+        blocks:[{id:M.id(),type:"paragraph",style:{},
+          children:[{id,type:"math",math_blocks:M.clone(blocks)}]}]
+      },temporary);
+      const object=temporary.querySelector('[data-node-type="math"]');
+      if(!object)return false;
+      history.checkpoint(buffer());
+      if(active){
+        const existing=Array.from(rich.querySelectorAll('[data-node-type="math"]'))
+          .find(n=>n.dataset.nodeId===active.id);
+        if(!existing)return false;
+        existing.replaceWith(object);
+      }else{
+        commands.restore();
+        const selection=getSelection();
+        if(!selection?.rangeCount)return false;
+        const range=selection.getRangeAt(0);
+        if(!rich.contains(range.commonAncestorContainer))return false;
+        range.deleteContents();range.insertNode(object);
+        range.setStartAfter(object);range.collapse(true);
+        selection.removeAllRanges();selection.addRange(range);
+      }
+      selectedMathId=id;
+      changed("format");
+      return true;
+    }
     function insertPlainText(value){
       // Preserve the editor selection captured before the dialog.
       // Browser editing commands integrate with undo and the rich serializer.
@@ -769,7 +815,7 @@
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }
     function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}
-    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPlainText, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
+    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPlainText, insertMath, selectedMath, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;
     if(window.OpenDocPagination)pagination=window.OpenDocPagination.create({root,model:()=>model,pageMetrics:()=>model?.sections?.[0],capture:()=>{commands.capture();return commands.bookmark();},restore:b=>commands.restoreBookmark(b)});
     if(window.OpenDocPageMenu)window.OpenDocPageMenu.create(root,instance,controller.signal);

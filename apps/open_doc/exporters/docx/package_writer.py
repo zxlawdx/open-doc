@@ -8,6 +8,7 @@ from docx import Document
 from apps.open_doc.document_model.serialization import load_document
 from apps.open_doc.parsers.docx.package import DocxPackage, parse_xml
 from apps.open_doc.parsers.docx.namespaces import R, REL, w
+from apps.open_doc.readers.pptx.native_math import build_word_omath
 
 
 def element(tag, values=None):
@@ -421,6 +422,8 @@ class DocxPackageWriter:
 
     def inline(self, n):
         kind = n["type"]
+        if kind == "math":
+            return build_word_omath(n["math_blocks"])
         if kind == "hyperlink":
             out = element("hyperlink")
             if n["href"].startswith("#"):

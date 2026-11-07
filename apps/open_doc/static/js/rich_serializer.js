@@ -25,6 +25,13 @@
       if(c.nodeType===3){if(c.textContent)out.push({id:textId(c),type:'text',text:c.textContent,style:{...inherited},...(rawProperties?{raw_properties:rawProperties}:{})});continue;}
       if(c.nodeType!==1 || c.hasAttribute('data-list-marker') || ['UL','OL'].includes(c.tagName))continue;
       const old=previous(c),kind=c.dataset.nodeType;
+      if(kind==='math'){
+        try{
+          const blocks=c.dataset.mathBlocks?JSON.parse(c.dataset.mathBlocks):old.math_blocks;
+          out.push({id:identity(c),type:'math',math_blocks:window.OpenDocModel.clone(blocks)});
+        }catch{throw Error('Objeto matemático inválido na edição.');}
+        continue;
+      }
       if(['opaque-ooxml','image','note-reference','field','tab','break'].includes(kind) && old.type){out.push({...M.clone(old),id:identity(c)});continue;}
       if(kind==='tab' && c.textContent==='\t'){out.push({id:identity(c),type:'tab'});continue;}
       if(c.tagName==='BR'){if(parent.childNodes.length>1)out.push({id:identity(c),type:'break',break_type:'line'});continue;}

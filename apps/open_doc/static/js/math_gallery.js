@@ -27,6 +27,36 @@
     {kind:"text",value:" = "},{kind:"fraction",numerator:"n(n + 1)",denominator:"2"}],
   double:[{kind:"nary",operator:"∬",lower:"D",upper:"",body:"(x + y) dA"}]
  };
+ function renderBlocks(blocks){
+  const root=document.createElement("span");
+  root.className="slide-native-equation";
+  root.setAttribute("role","math");
+  for(const block of blocks||[]){
+   const part=document.createElement("span");part.className="slide-math-"+block.kind;
+   if(block.kind==="text")part.textContent=block.value;
+   else if(block.kind==="fraction"){
+    const top=document.createElement("span"),bottom=document.createElement("span");
+    top.className="slide-math-numerator";top.textContent=block.numerator;
+    bottom.className="slide-math-denominator";bottom.textContent=block.denominator;
+    part.append(top,bottom);
+   }else if(block.kind==="nary"){
+    const op=document.createElement("span"),hi=document.createElement("span");
+    const sign=document.createElement("span"),lo=document.createElement("span");
+    op.className="slide-math-operator";hi.className="slide-math-upper";
+    sign.className="slide-math-sign";lo.className="slide-math-lower";
+    hi.textContent=block.upper;sign.textContent=block.operator;lo.textContent=block.lower;
+    op.append(hi,sign,lo);
+    const body=document.createElement("span");body.textContent=block.body;
+    part.className+=" slide-math-nary";
+    part.append(op,body);
+   }else if(block.kind==="superscript"){
+    part.append(document.createTextNode(block.base));
+    const sup=document.createElement("sup");sup.textContent=block.power;part.append(sup);
+   }else if(block.kind==="sqrt")part.textContent="√("+block.radicand+")";
+   root.append(part);
+  }
+  return root;
+ }
  const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
  const label=(x,y,s,size=38,anchor="start")=>'<text x="'+x+'" y="'+y+'" text-anchor="'+anchor+'" fill="#17365c" font-family="Cambria Math,STIX Two Math,DejaVu Serif,Georgia,serif" font-size="'+size+'">'+esc(s)+'</text>';
  function svg(id){
@@ -119,5 +149,5 @@
   host.append(panel);
   return {panel,toggle:()=>{panel.hidden=!panel.hidden;},close:()=>{panel.hidden=true;}};
  }
- window.OpenDocMathGallery={DEFINITIONS,BLOCKS,svg,toPng,install};
+ window.OpenDocMathGallery={DEFINITIONS,BLOCKS,svg,toPng,install,renderBlocks};
 })();

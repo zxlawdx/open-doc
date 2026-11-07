@@ -29,6 +29,15 @@
           const marker=document.createElement('span');marker.dataset.listMarker='';marker.contentEditable='false';marker.style.marginRight='8pt';marker.textContent=li.format==='bullet'?(li.text_pattern || '•').replace(/[\uE000-\uF8FF]/g,'•'):(li.text_pattern || '%'+(level+1)+'.').replace(/%([1-9])/g,(_,k)=>label(counters[key][Number(k)-1] || 1,model.numbering?.[li.num_id]?.levels?.[String(Number(k)-1)]?.format || li.format));e.style.paddingLeft=(level*24+24)+'pt';e.appendChild(marker);e.dataset.listInfo=JSON.stringify(li);}
         (n.children || []).forEach(c=>e.appendChild(build(c)));if(!e.childNodes.length)e.appendChild(document.createElement('br'));
       }else if(kind==='page_break'){e=document.createElement('div');e.contentEditable='false';e.className='manual-page-break';e.setAttribute('aria-label','Quebra de página');}
+      else if(kind==='math'){
+        e=document.createElement('span');e.className='rich-native-equation';
+        e.contentEditable='false';e.tabIndex=0;
+        e.setAttribute('role','math');e.setAttribute('aria-label','Equação matemática editável');
+        e.dataset.mathBlocks=JSON.stringify(n.math_blocks||[]);
+        if(window.OpenDocMathGallery?.renderBlocks)
+          e.append(window.OpenDocMathGallery.renderBlocks(n.math_blocks||[]));
+        else e.textContent='[Equação matemática]';
+      }
       else if(kind==='text'){e=document.createElement('span');e.textContent=n.text;textStyle(e,n.style);}
       else if(kind==='hyperlink'){e=document.createElement('a');if(/^(https?:\/\/|mailto:|#)/i.test(n.href))e.href=n.href;n.children.forEach(c=>e.appendChild(build(c)));}
       else if(kind==='tab'){e=document.createElement('span');e.contentEditable='false';e.textContent='\t';e.style.whiteSpace='pre';}

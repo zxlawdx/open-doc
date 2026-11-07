@@ -9,14 +9,19 @@ function setup(t,kind='rich'){
  const dom=new JSDOM('<div id="app" data-document-kind="'+kind+'"><div data-dialog hidden><section class="dialog"><div data-dialog-body></div></section></div></div>',{
    url:'http://localhost',runScripts:'outside-only'
  });
- const w=dom.window;t.after(()=>w.close());w.eval(script);
+ const w=dom.window;t.after(()=>w.close());w.OpenDocMathGallery={
+   DEFINITIONS:[{id:'fraction',label:'Fração'}],
+   BLOCKS:{fraction:[{kind:'fraction',numerator:'a',denominator:'b'}]},
+   renderBlocks:blocks=>{const span=w.document.createElement('span');span.textContent=JSON.stringify(blocks);return span;}
+ };
+ w.eval(script);
  const root=w.document.querySelector('#app'),inserts=[],statuses=[];
  let resolve;
  const dialog=()=>{
    root.querySelector('[data-dialog-body]').replaceChildren();
    return new Promise(r=>{resolve=r;});
  };
- const editor={insertPlainText:value=>{inserts.push(value);return true;}};
+ const editor={insertMath:blocks=>{inserts.push(blocks);return true;},selectedMath:()=>null};
  const launch=()=>w.OpenDocEquationAssistant.EquationAssistant.open({
    dialog,root,editor,status:msg=>statuses.push(msg)
  });
@@ -60,7 +65,8 @@ test('formula modal previews Unicode, computes a value, inserts only on confirma
    .find(el=>el.textContent==='Calcular').click();
  assert.equal(box.querySelector('.equation-calc-result').textContent,'Resultado: 5');
  q.resolve(true);await pending;
- assert.deepEqual(q.inserts,['E = mc²']);
+ assert.equal(q.inserts.length,1);
+ assert.deepEqual(JSON.stringify(q.inserts[0]),JSON.stringify([{kind:'text',value:'E = mc²'}]));
  assert.equal(q.statuses.length,1);
 });
 
@@ -71,4 +77,20 @@ test('cancelled dialog and fixed-format use never insert any formula',async t=>{
  const fixed=setup(t,'fixed');
  await assert.rejects(fixed.launch(),/disponíveis no editor de documentos/);
  assert.equal(fixed.inserts.length,0);
+});
+
+test('DOCX equation dialog inserts native fraction template with editable fields',async t=>{
+ const q=setup(t);const pending=q.launch();
+ const box=q.root.querySelector('[data-dialog-body]');
+ const select=box.querySelector('.equation-native-template');
+ select.value='fraction';select.dispatchEvent(new q.w.Event('change'));
+ const inputs=box.querySelectorAll('.equation-native-components input');
+ assert.equal(inputs.length,2);
+ inputs[0].value='x²+1';inputs[0].dispatchEvent(new q.w.Event('input'));
+ inputs[1].value='x+1';inputs[1].dispatchEvent(new q.w.Event('input'));
+ q.resolve(true);await pending;
+ assert.equal(q.inserts.length,1);
+ assert.deepEqual(JSON.stringify(q.inserts[0]),JSON.stringify([
+  {kind:'fraction',numerator:'x²+1',denominator:'x+1'}
+ ]));
 });

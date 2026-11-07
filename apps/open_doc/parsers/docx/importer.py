@@ -24,6 +24,7 @@ from apps.open_doc.parsers.docx.styles import (
     text_properties,
 )
 from apps.open_doc.parsers.docx.numbering import numbering_catalog
+from apps.open_doc.readers.pptx.native_math import parse_word_omath, M as MATH_NS
 
 
 def node(kind, **values):
@@ -217,6 +218,14 @@ class DocxImporter:
                 out["children"].append(
                     node("hyperlink", href=href, children=runs, raw_xml=xml(child))
                 )
+            elif child.tag in {"{" + MATH_NS + "}oMath", "{" + MATH_NS + "}oMathPara"}:
+                formula = child if child.tag.endswith("}oMath") else child.find("{" + MATH_NS + "}oMath")
+                try:
+                    out["children"].append(node("math", math_blocks=parse_word_omath(formula)))
+                except ValueError:
+                    # Complex Word mathematics remains losslessly preserved,
+                    # even when the editor cannot yet interpret its structure.
+                    out["children"].append(self.opaque(child, part))
             elif child.tag == w("fldSimple"):
                 out["children"].append(
                     node(

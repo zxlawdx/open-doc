@@ -5,12 +5,14 @@ import math
 import re
 from dataclasses import fields
 from apps.open_doc.document_model.schema import TextStyle, ParagraphStyle
+from apps.open_doc.readers.pptx.native_math import validate_math_blocks
 
 VERSION = "opendoc-rich-v1"
 MAX_MODEL_JSON_BYTES = 16 * 1024 * 1024
 MAX_OPAQUE_BYTES = 1024 * 1024
 INLINE = {
     "text",
+    "math",
     "break",
     "tab",
     "image",
@@ -176,6 +178,8 @@ def validate_rich_document(model):
                 if not isinstance(obj.get("text"), str):
                     raise ValueError("Texto inválido.")
                 style(obj.get("style", {}))
+            elif kind == "math":
+                validate_math_blocks(obj.get("math_blocks"))
             elif kind == "hyperlink":
                 if not re.match(r"^(https?://|mailto:|#)", obj.get("href", ""), re.I):
                     raise ValueError("Link inválido.")
