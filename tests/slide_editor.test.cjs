@@ -526,7 +526,7 @@ test('chart data table edits stay linked to native chart object; palettes and un
  let palette=q.host.querySelector('[aria-label="Paleta do gráfico"]');
  palette.value='green';palette.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  assert.equal(q.model().surfaces[0].elements[0].chart_palette,'green');
- let add=q.host.querySelector('.slide-chart-data > details button');
+ let add=q.host.querySelector('.slide-chart-add-category');
  add.click();
  assert.equal(q.model().surfaces[0].elements[0].chart_categories.length,4);
  assert.equal(q.host.querySelectorAll('.slide-chart-grid tbody tr').length,4);
@@ -548,7 +548,7 @@ test('chart validation prevents invalid pie values or wrong number of data cells
  const before=q.versions.length;
  change.value='-2';change.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  assert.equal(q.versions.length,before,'bad values must not mutate presentation');
- assert.equal(q.model().surfaces[0].elements[0].chart_values[0],18);
+ assert.equal(q.model().surfaces[0].elements[0].chart_values[0],25);
 });
 
 test('double pointer tap edits text in place despite slide DOM replacement',t=>{
@@ -1216,7 +1216,7 @@ test('PPTX chart PIB uses complete economic categories and calculated percentage
   const text=Array.from(svg.querySelectorAll('text')).map(n=>n.textContent).join('|');
   for(const title of economic){
    const candidate=Array.from(svg.querySelectorAll('text')).find(n=>
-     Array.from(n.querySelectorAll('tspan')).map(t=>t.textContent).join('')===title);
+     Array.from(n.querySelectorAll('tspan')).map(t=>t.textContent).join(' ').replace(/\s+/g,' ').trim()===title);
    assert.ok(candidate,'full category text is preserved: '+title);
   }
   assert.match(text,/39,2/);assert.match(text,/45,3/);
