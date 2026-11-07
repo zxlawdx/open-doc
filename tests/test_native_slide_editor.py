@@ -691,3 +691,75 @@ def test_external_template_refuses_unsupported_slide_structure_without_exporting
         ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", target)
     assert not target.exists()
     assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_external_pptx_table_cell_edits_keep_layout_and_untouched_style(tmp_path):
+    from pptx import Presentation
+    from pptx.util import Inches
+    from pptx.dml.color import RGBColor
+
+    original = Presentation()
+    slide = original.slides.add_slide(original.slide_layouts[6])
+    native = slide.shapes.add_table(2, 2, Inches(1), Inches(1), Inches(7), Inches(3))
+    native.table.cell(0, 0).text = "Disciplina"
+    native.table.cell(0, 1).text = "Conteúdo"
+    native.table.cell(1, 0).text = "História"
+    native.table.cell(1, 1).text = "Economia política"
+    native.table.cell(0, 0).fill.solid()
+    native.table.cell(0, 0).fill.fore_color.rgb = RGBColor(20, 90, 160)
+    source = tmp_path / "tabela-professor.pptx"
+    original.save(source)
+    before = Presentation(source)
+    untouched_xml = before.slides[0].shapes[0].table.cell(0, 0)._tc.xml
+
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    model = deepcopy(imported["content"])
+    obj = model["surfaces"][0]["elements"][0]
+    assert obj["type"] == "table"
+    assert obj["table_cells"][1][1] == "Economia política"
+    obj["table_cells"][1][1] = "Economia política brasileira"
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], model, imported["revision"])
+    destination = tmp_path / "tabela-editada.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", destination)
+    after = Presentation(destination)
+    table = after.slides[0].shapes[0].table
+    assert table.cell(1, 1).text == "Economia política brasileira"
+    assert table.cell(0, 0)._tc.xml == untouched_xml
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_created_slide_table_exports_as_native_editable_ooxml(tmp_path):
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    cells = [["Ano", "Produção"], ["2025", "100"], ["2026", "112"]]
+    model["surfaces"][0]["elements"] = [{
+        **element("table-1", "table"),
+        "text": "", "rotation": 0,
+        "table_cells": cells
+    }]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    dest = tmp_path / "native-table.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", dest)
+    shape = Presentation(dest).slides[0].shapes[0]
+    assert shape.has_table
+    assert [[cell.text for cell in row.cells] for row in shape.table.rows] == cells
+    again = ctx.fixed_documents.import_pptx(dest)
+    assert again["capabilities"]["edit_slides"] is True
+    assert again["content"]["surfaces"][0]["elements"][0]["table_cells"] == cells
+
+
+def test_pptx_table_validation_rejects_irregular_and_oversized_cells(tmp_path):
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    for cells in ([], [["a"], ["a", "b"]], [[42]], [["x" * 2001]], [[""] * 21]):
+        model = deepcopy(note["content"])
+        model["surfaces"][0]["elements"] = [{
+            **element("table-1", "table"),
+            "text": "", "rotation": 0, "table_cells": cells
+        }]
+        with pytest.raises(ValueError, match="tabela|Tabela|célula"):
+            validate(model)
