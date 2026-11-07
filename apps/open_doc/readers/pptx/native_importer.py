@@ -45,6 +45,14 @@ def _rgb(color, default: str) -> str:
     return default
 
 
+def _fill_color(fill, default: str) -> str:
+    """Read explicit fill colors without raising on inherited or empty fills."""
+    try:
+        return _rgb(fill.fore_color, default)
+    except (AttributeError, TypeError, ValueError):
+        return default
+
+
 def _coordinates(shape, width: int, height: int) -> dict:
     x = max(0.0, min(1.0, shape.left / width))
     y = max(0.0, min(1.0, shape.top / height))
@@ -124,7 +132,7 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
             raise ValueError("Objeto PPTX fora do subconjunto editável.")
         base["type"] = kind
         if kind not in {"text", "line"}:
-            base["fill"] = _rgb(shape.fill.fore_color, base["fill"])
+            base["fill"] = _fill_color(shape.fill, base["fill"])
         if kind != "text":
             base["stroke"] = _rgb(shape.line.color, base["stroke"])
         if shape.line.width:
@@ -167,7 +175,7 @@ def read_editable_deck(path) -> dict | None:
             if slide._element.find(_NS + "timing") is not None:
                 return None
             effect, speed = _transition(slide)
-            color = _rgb(slide.background.fill.fore_color, "#FFFFFF")
+            color = _fill_color(slide.background.fill, "#FFFFFF")
             notes = ""
             if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
                 notes = slide.notes_slide.notes_text_frame.text[:5000]
