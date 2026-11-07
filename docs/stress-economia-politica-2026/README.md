@@ -1,25 +1,31 @@
-# Corpus de stress — Economia política (2026)
+# Corpus de stress Open Doc — versão 2
 
-Esta pasta foi reservada para os artefatos de teste do Open Doc:
+A apresentação e o resumo foram redesenhados após o QA visual: contraste, hierarquia de texto, diagramação 16:9 e tipografia acadêmica no DOCX.
 
-- `economia_politica_brasil_36_slides.pptx` (36 slides, 16:9)
-- `sintese_economia_politica_abnt.docx` (síntese de economia política, formatação acadêmica)
-- `economia_politica_brasil_36_slides.pdf` (PDF da apresentação)
+Arquivos no pacote entregue em conversa (os arquivos binários ainda **não foram enviados ao repositório**):
 
-**Situação:** os três arquivos foram gerados e estão disponíveis no pacote ZIP entregue na conversa. Os binários **ainda precisam ser adicionados nesta pasta por git push**; não foram enviados por este commit.
+- `economia_politica_brasil_36_slides_v2.pptx` — 36 slides, elementos textuais e formas editáveis.
+- `economia_politica_brasil_36_slides_v2.pdf` — 36 páginas, referência visual.
+- `sintese_economia_politica_abnt_v2.docx` — síntese formatada para ABNT.
+- `sintese_economia_politica_abnt_v2.pdf` — impressão de referência do DOCX.
 
-## Como adicionar os arquivos
-
-Extraia o ZIP na raiz do projeto com a branch `test/stress-qa-docx-pptx-pdf-20261106` selecionada, depois:
+Baixe o ZIP disponibilizado na conversa, extraia na raiz da branch e faça commit dos binários:
 
 ```bash
 git add docs/stress-economia-politica-2026/
-git commit -m "test(fixtures): add economia politica PPTX DOCX PDF corpus"
+git commit -m "test(fixtures): add v2 slide and ABNT corpus"
 git push origin test/stress-qa-docx-pptx-pdf-20261106
 ```
 
-## Critérios de QA
+## Testes exigidos
 
-Abrir e reabrir, comparar renderizações com as versões de referência, editar textos e caixas, aplicar estilos, testar atalhos repetidos, mudar ordem de camadas, salvar como, importar/exportar e verificar perda de conteúdo. O corpus **não comprova** execução ou aprovação de testes de interface do Open Doc.
+1. Importar PPTX criado externamente e editar título sem perda de outras formas.
+2. Verificar contraste de fundos escuros; salvar, exportar, reabrir e apresentar.
+3. Testar DOCX com 600+ palavras, margens A4, parágrafos, títulos, paginação, edição e exportação.
+4. Validar PDF de 36 páginas, seleção, busca e exportação; nenhuma cor/posição alterada após renderização.
+5. Comparar PPTX/PDF página por página em pelo menos dois tamanhos de viewport.
+6. Com templates complexos de terceiros, preservar dados não suportados e apresentar diagnóstico granular.
 
-Observação: as informações e referências do material-base precisam ser confrontadas com as fontes primárias antes de uso público.
+## Limites
+
+Este material foi produzido fora do Open Doc. Renderização com LibreOffice foi validada; não constitui prova de compatibilidade completa na UI do Open Doc. Referências estatísticas no roteiro precisam de checagem nas fontes primárias.
