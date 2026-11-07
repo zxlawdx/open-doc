@@ -42,6 +42,8 @@ jobs:
           npm --version
           python tools/check_runtime_assets.py
           exit $LASTEXITCODE
+      - name: Clear historical screenshot fixtures before runtime capture
+        run: python -c "from pathlib import Path; folders=[Path('docs/images/stabilization'),Path('docs/images/ink')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
       - name: Unit and architecture regressions
         shell: pwsh
         run: |
@@ -106,6 +108,8 @@ jobs:
           python manage.py collectstatic --yes
           test -d node_modules
           python tools/check_runtime_assets.py
+      - name: Clear historical screenshot fixtures before runtime capture
+        run: python -c "from pathlib import Path; folders=[Path('docs/images/stabilization'),Path('docs/images/ink')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
       - name: Unit and architecture regressions
         run: |
           python -m pytest -q

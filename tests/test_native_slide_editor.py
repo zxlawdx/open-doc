@@ -538,7 +538,7 @@ def test_pptx_external_text_edits_survive_reimport_roundtrip(tmp_path):
     assert reopened["content"]["surfaces"][0]["elements"][0]["text"] == "Editado externamente"
 
 
-def test_non_open_doc_pptx_does_not_silently_discard_unsupported_shapes(tmp_path):
+def test_supported_third_party_pptx_imports_as_editable(tmp_path):
     from pptx import Presentation
     from pptx.enum.shapes import MSO_SHAPE
     deck = Presentation()
@@ -548,6 +548,314 @@ def test_non_open_doc_pptx_does_not_silently_discard_unsupported_shapes(tmp_path
     deck.save(source)
     ctx = configure(Config(tmp_path))
     imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["content"].get("editable_deck") is True
+    assert imported["capabilities"]["edit_slides"] is True
+    assert imported["content"]["surfaces"][0]["elements"][0]["type"] == "rect"
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_unsupported_third_party_pptx_stays_read_only_without_data_loss(tmp_path):
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    # The editable model does not support this freeform geometry.
+    slide.shapes.add_shape(MSO_SHAPE.DONUT, 100000, 100000, 500000, 350000)
+    source = tmp_path / "unsupported-template.pptx"
+    deck.save(source)
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
     assert imported["content"].get("editable_deck") is not True
     assert imported["capabilities"]["edit_slides"] is False
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_external_deck_inherited_background_and_explicit_text_color(tmp_path):
+    """A template can inherit a no-fill background and still be editable."""
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+
+    presentation = Presentation()
+    slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+    # Default background is _NoFill (accessing fore_color raises TypeError).
+    textbox = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(1))
+    run = textbox.text_frame.paragraphs[0].add_run()
+    run.text = "Template externo editável"
+    run.font.color.rgb = RGBColor(255, 255, 255)
+    run.font.size = Pt(30)
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = RGBColor(15, 30, 45)
+    source = tmp_path / "dark-foreign-template.pptx"
+    presentation.save(source)
+
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    model = imported["content"]
+    assert model["surfaces"][0]["background"] == "#0F1E2D"
+    assert model["surfaces"][0]["elements"][0]["color"] == "#FFFFFF"
+    modified = deepcopy(model)
+    modified["surfaces"][0]["elements"][0]["text"] = "Novo título"
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], modified, imported["revision"])
+    destination = tmp_path / "roundtrip.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", destination)
+    assert Presentation(destination).slides[0].shapes[0].text == "Novo título"
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_external_deck_inherits_color_from_paragraph_style(tmp_path):
+    """Third-party exporters may store a:rPr/a:solidFill empty and color on a:pPr."""
+    from pptx import Presentation
+    from pptx.util import Inches
+    from pptx.dml.color import RGBColor
+
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = RGBColor(16, 36, 55)
+    shape = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(1))
+    paragraph = shape.text_frame.paragraphs[0]
+    paragraph.text = "Título branco em fundo escuro"
+    paragraph.font.color.rgb = RGBColor(255, 255, 255)
+    # The newly-created run has no explicit RGB; it inherits paragraph text formatting.
+    assert paragraph.runs[0].font.color.type is None
+    source = tmp_path / "paragraph-inherited-color.pptx"
+    deck.save(source)
+
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    elem = imported["content"]["surfaces"][0]["elements"][0]
+    assert elem["text"] == "Título branco em fundo escuro"
+    assert elem["color"] == "#FFFFFF"
+    assert imported["content"]["surfaces"][0]["background"] == "#102437"
+
+
+def test_external_template_preserves_theme_masters_and_unedited_rich_text(tmp_path):
+    """Changing one title must not rebuild or flatten an unedited template."""
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    title = slide.shapes.add_textbox(Inches(.6), Inches(.5), Inches(6), Inches(1))
+    title.text = "Título original"
+    preserved = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(7), Inches(1))
+    paragraph = preserved.text_frame.paragraphs[0]
+    first = paragraph.add_run()
+    first.text = "Vermelho "
+    first.font.color.rgb = RGBColor(220, 30, 30)
+    second = paragraph.add_run()
+    second.text = "e azul"
+    second.font.color.rgb = RGBColor(20, 50, 220)
+    second.font.bold = True
+    source = tmp_path / "professor-theme.pptx"
+    deck.save(source)
+    before = Presentation(source)
+    untouched_xml = bytes(before.slides[0].shapes[1]._element.xml, "utf-8")
+    master_xml = bytes(before.slide_masters[0]._element.xml, "utf-8")
+
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    model = deepcopy(imported["content"])
+    assert model["preserve_source"] is True
+    model["surfaces"][0]["elements"][0]["text"] = "Título atualizado"
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], model, imported["revision"])
+    destination = tmp_path / "export-preserved.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", destination)
+    after = Presentation(destination)
+    assert after.slides[0].shapes[0].text == "Título atualizado"
+    assert bytes(after.slides[0].shapes[1]._element.xml, "utf-8") == untouched_xml
+    assert bytes(after.slide_masters[0]._element.xml, "utf-8") == master_xml
+    assert after.slides[0].shapes[1].text_frame.paragraphs[0].runs[1].font.bold is True
+
+
+def test_external_template_refuses_unsupported_slide_structure_without_exporting(tmp_path):
+    from pptx import Presentation
+    deck = Presentation()
+    deck.slides.add_slide(deck.slide_layouts[6])
+    source = tmp_path / "external.pptx"
+    deck.save(source)
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["content"]["preserve_source"] is True
+    model = deepcopy(imported["content"])
+    model["surfaces"].append(deepcopy(model["surfaces"][0]))
+    model["surfaces"][1]["index"] = 1
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], model, imported["revision"])
+    target = tmp_path / "do-not-corrupt.pptx"
+    with pytest.raises(ValueError, match="estrutura dos slides externos"):
+        ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", target)
+    assert not target.exists()
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_external_pptx_table_cell_edits_keep_layout_and_untouched_style(tmp_path):
+    from pptx import Presentation
+    from pptx.util import Inches
+    from pptx.dml.color import RGBColor
+
+    original = Presentation()
+    slide = original.slides.add_slide(original.slide_layouts[6])
+    native = slide.shapes.add_table(2, 2, Inches(1), Inches(1), Inches(7), Inches(3))
+    native.table.cell(0, 0).text = "Disciplina"
+    native.table.cell(0, 1).text = "Conteúdo"
+    native.table.cell(1, 0).text = "História"
+    native.table.cell(1, 1).text = "Economia política"
+    native.table.cell(0, 0).fill.solid()
+    native.table.cell(0, 0).fill.fore_color.rgb = RGBColor(20, 90, 160)
+    source = tmp_path / "tabela-professor.pptx"
+    original.save(source)
+    before = Presentation(source)
+    untouched_xml = before.slides[0].shapes[0].table.cell(0, 0)._tc.xml
+
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    model = deepcopy(imported["content"])
+    obj = model["surfaces"][0]["elements"][0]
+    assert obj["type"] == "table"
+    assert obj["table_cells"][1][1] == "Economia política"
+    obj["table_cells"][1][1] = "Economia política brasileira"
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], model, imported["revision"])
+    destination = tmp_path / "tabela-editada.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", destination)
+    after = Presentation(destination)
+    table = after.slides[0].shapes[0].table
+    assert table.cell(1, 1).text == "Economia política brasileira"
+    assert table.cell(0, 0)._tc.xml == untouched_xml
+    assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_created_slide_table_exports_as_native_editable_ooxml(tmp_path):
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    cells = [["Ano", "Produção"], ["2025", "100"], ["2026", "112"]]
+    model["surfaces"][0]["elements"] = [{
+        **element("table-1", "table"),
+        "text": "", "rotation": 0,
+        "table_cells": cells
+    }]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    dest = tmp_path / "native-table.pptx"
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", dest)
+    shape = Presentation(dest).slides[0].shapes[0]
+    assert shape.has_table
+    assert [[cell.text for cell in row.cells] for row in shape.table.rows] == cells
+    again = ctx.fixed_documents.import_pptx(dest)
+    assert again["capabilities"]["edit_slides"] is True
+    assert again["content"]["surfaces"][0]["elements"][0]["table_cells"] == cells
+
+
+def test_pptx_table_validation_rejects_irregular_and_oversized_cells(tmp_path):
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    for cells in ([], [["a"], ["a", "b"]], [[42]], [["x" * 2001]], [[""] * 21]):
+        model = deepcopy(note["content"])
+        model["surfaces"][0]["elements"] = [{
+            **element("table-1", "table"),
+            "text": "", "rotation": 0, "table_cells": cells
+        }]
+        with pytest.raises(ValueError, match="tabela|Tabela|célula"):
+            validate(model)
+
+
+@pytest.mark.parametrize(
+    ("kind", "shape_name"),
+    [
+        ("chevron", "CHEVRON"), ("hexagon", "HEXAGON"),
+        ("pentagon", "PENTAGON"), ("parallelogram", "PARALLELOGRAM"),
+        ("star", "STAR_5_POINT"), ("cloud", "CLOUD"),
+    ],
+)
+def test_extended_pptx_shapes_roundtrip_as_editable(kind, shape_name, tmp_path):
+    from pptx.enum.shapes import MSO_SHAPE
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.create_presentation()
+    model = deepcopy(note["content"])
+    model["surfaces"][0]["elements"] = [{
+        **element(f"shape-{kind}", kind),
+        "text": "", "name": f"Exemplo de {kind}"
+    }]
+    validate(model)
+    saved = ctx.fixed_documents.save(note["id"], note["title"], model, note["revision"])
+    dest = tmp_path / (kind + ".pptx")
+    ctx.fixed_documents.export(note["id"], saved["revision"], "pptx", dest)
+    exported = Presentation(dest)
+    assert exported.slides[0].shapes[0].auto_shape_type == getattr(MSO_SHAPE, shape_name)
+    imported = ctx.fixed_documents.import_pptx(dest)
+    assert imported["capabilities"]["edit_slides"] is True
+    assert imported["content"]["surfaces"][0]["elements"][0]["type"] == kind
+
+
+def test_36_slide_dark_template_imports_with_thin_rules_and_inherited_51pt_title(tmp_path):
+    """Regression for economy-politics V3: one thin stripe used to reject all 36 slides.
+
+    All content remains native, editable, and retains the original page size.
+    Paragraph font defaults must not turn 51-pt white text into 28-pt black.
+    """
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.shapes import MSO_SHAPE
+    deck = Presentation()
+    deck.slide_width = Inches(13.333)
+    deck.slide_height = Inches(7.5)
+    for index in range(36):
+        slide = deck.slides.add_slide(deck.slide_layouts[6])
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = RGBColor(16, 36, 55)
+        stripe = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0,
+                                        Inches(.12), Inches(7.5))
+        stripe.fill.solid()
+        stripe.fill.fore_color.rgb = RGBColor(33, 183, 167)
+        rule = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(.75),
+                                      Inches(5.30), Inches(1.5), Inches(.07))
+        rule.fill.solid()
+        rule.fill.fore_color.rgb = RGBColor(33, 183, 167)
+        box = slide.shapes.add_textbox(Inches(.72), Inches(1.05),
+                                       Inches(11.9), Inches(3.5))
+        paragraph = box.text_frame.paragraphs[0]
+        paragraph.font.size = Pt(51)
+        paragraph.font.name = "Aptos"
+        paragraph.font.bold = True
+        paragraph.font.color.rgb = RGBColor(255, 255, 255)
+        run = paragraph.add_run()
+        run.text = "QUEM PRODUZ, QUEM PAGA E QUEM GANHA? " + str(index + 1)
+        assert run.font.size is None
+    source = tmp_path / "economia-politica-36-inherited.pptx"
+    deck.save(source)
+    ctx = configure(Config(tmp_path))
+    imported = ctx.fixed_documents.import_pptx(source)
+    assert imported["capabilities"]["edit_slides"] is True
+    assert imported["content"]["editable_deck"] is True
+    assert imported["content"]["preserve_source"] is True
+    assert len(imported["content"]["surfaces"]) == 36
+    for slide in imported["content"]["surfaces"]:
+        assert slide["width_pt"] == pytest.approx(959.976, abs=1)
+        assert slide["height_pt"] == pytest.approx(540, abs=1)
+        assert len(slide["elements"]) == 3
+        title = slide["elements"][2]
+        assert title["font_size_pt"] == 51
+        assert title["font_family"] == "Aptos"
+        assert title["font_bold"] is True
+        assert title["color"] == "#FFFFFF"
+        assert slide["elements"][0]["width"] < .01
+        assert slide["elements"][1]["height"] < .01
+    changed = deepcopy(imported["content"])
+    changed["surfaces"][0]["elements"][2]["text"] = "TÍTULO EDITADO NO OPEN DOC"
+    saved = ctx.fixed_documents.save(
+        imported["id"], imported["title"], changed, imported["revision"]
+    )
+    dest = tmp_path / "roundtrip-36.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", dest)
+    after = Presentation(dest)
+    assert len(after.slides) == 36
+    assert after.slides[0].shapes[2].text == "TÍTULO EDITADO NO OPEN DOC"
+    assert after.slides[1].shapes[2].text == deck.slides[1].shapes[2].text
+    assert after.slides[0].shapes[2].text_frame.paragraphs[0].font.size.pt == 51
     assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()

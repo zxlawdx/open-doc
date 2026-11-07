@@ -7,7 +7,8 @@
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
     round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
-    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico"})[type]||"Objeto";
+    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico",table:"Tabela",chevron:"Chevron",hexagon:"Hexágono",
+    pentagon:"Pentágono",parallelogram:"Paralelogramo",star:"Estrela",cloud:"Nuvem"})[type]||"Objeto";
   const canEditText=obj=>obj.type==="text"||
     (Boolean(obj.text)&&!["image","line","chart"].includes(obj.type));
   const SVG_NS="http://www.w3.org/2000/svg";
@@ -38,7 +39,9 @@
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
     "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
-    "Gráfico: Pizza":"chart-pie",
+    "Gráfico: Pizza":"chart-pie",Tabela:"table",
+    Chevron:"shape-chevron",Hexágono:"shape-hexagon",Pentágono:"shape-pentagon",
+    Paralelogramo:"shape-parallelogram",Estrela:"shape-star",Nuvem:"shape-cloud",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
@@ -61,7 +64,9 @@
       svg.setAttribute("preserveAspectRatio","none");
       svg.setAttribute("aria-hidden","true");
       const tag=({rect:"rect",round_rect:"rect",ellipse:"ellipse",
-        line:"line",arrow:"polygon",triangle:"polygon",diamond:"polygon"})[obj.type];
+        line:"line",arrow:"polygon",triangle:"polygon",diamond:"polygon",
+        chevron:"polygon",hexagon:"polygon",pentagon:"polygon",parallelogram:"polygon",
+        star:"polygon",cloud:"path"})[obj.type];
       if(!tag)return null;
       const shape=document.createElementNS(SVG_NS,tag);
       const geometry=({
@@ -71,7 +76,13 @@
         line:{x1:0,y1:100,x2:100,y2:0},
         arrow:{points:"4,38 62,38 62,14 98,50 62,86 62,62 4,62"},
         triangle:{points:"50,0 100,100 0,100"},
-        diamond:{points:"50,0 100,50 50,100 0,50"}
+        diamond:{points:"50,0 100,50 50,100 0,50"},
+        chevron:{points:"0,0 70,0 100,50 70,100 0,100 30,50"},
+        hexagon:{points:"25,0 75,0 100,50 75,100 25,100 0,50"},
+        pentagon:{points:"50,0 100,38 81,100 19,100 0,38"},
+        parallelogram:{points:"28,0 100,0 72,100 0,100"},
+        star:{points:"50,2 62,36 98,36 69,58 80,96 50,74 20,96 31,58 2,36 38,36"},
+        cloud:{d:"M22 78C1 78 0 49 22 45C14 19 47 8 59 30C75 15 99 33 94 52C111 77 83 92 66 82H27Q24 82 22 78Z"}
       })[obj.type];
       for(const [key,value] of Object.entries(geometry))
         shape.setAttribute(key,String(value));
@@ -146,6 +157,7 @@
       const obj={id:window.OpenDocModel.id(),type,
         x:.2+offset,y:.24+offset,width:type==="text"?.5:.27,height:type==="text"?.19:.22,
         text:type==="text"?"Novo texto":"",color:"#191C1E",
+        ...(type==="table"?{table_cells:[["Cabeçalho 1","Cabeçalho 2"],["Valor 1","Valor 2"]],rotation:0}:{}),
         fill:"#DAE2FD",stroke:"#004AC6",font_family:"Inter",
         font_size_pt:type==="text"?28:20,stroke_width:1.5,rotation:0};
       this.apply(slides=>slides[index].elements.push(obj));
@@ -350,6 +362,7 @@
         this.status("Exportação de slide indisponível."),
         "Exportar o slide selecionado como PPTX editável");
       this._button("Texto",()=>this.add("text"));
+      this._button("Tabela",()=>this.add("table"),"Inserir tabela PPTX editável");
       this._button("Retângulo",()=>this.add("rect"));
       this._button("Elipse",()=>this.add("ellipse"));
       this._button("Arredondado",()=>this.add("round_rect"));
@@ -357,6 +370,12 @@
       this._button("Seta",()=>this.add("arrow"));
       this._button("Triângulo",()=>this.add("triangle"));
       this._button("Losango",()=>this.add("diamond"));
+      this._button("Chevron",()=>this.add("chevron"));
+      this._button("Hexágono",()=>this.add("hexagon"));
+      this._button("Pentágono",()=>this.add("pentagon"));
+      this._button("Paralelogramo",()=>this.add("parallelogram"));
+      this._button("Estrela",()=>this.add("star"));
+      this._button("Nuvem",()=>this.add("cloud"));
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
       for(const [label,kind] of [
         ["Gráfico: Barras","bar"],["Gráfico: Linhas","line"],["Gráfico: Pizza","pie"]
@@ -984,6 +1003,23 @@
           }
           viewport.append(picture);node.append(viewport);
         }
+      }else if(obj.type==="table"){
+        const table=document.createElement("table");
+        table.className="slide-native-table";
+        Object.assign(table.style,{width:"100%",height:"100%",tableLayout:"fixed",
+          borderCollapse:"collapse",fontSize:"inherit",pointerEvents:"none"});
+        (obj.table_cells||[]).forEach((cells,rowIndex)=>{
+          const tr=document.createElement("tr");
+          cells.forEach(value=>{
+            const td=document.createElement(rowIndex===0?"th":"td");
+            td.textContent=value;
+            Object.assign(td.style,{border:"1px solid #A0A9BA",padding:"4px",
+              background:rowIndex===0?"#E9F2FF":"#FFFFFF",
+              color:"#191C1E",fontWeight:rowIndex===0?"600":"400",
+              overflow:"hidden",textOverflow:"ellipsis"});
+            tr.append(td);
+          });table.append(tr);
+        });node.append(table);
       }else if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
@@ -1316,6 +1352,17 @@
           const name=value.trim().slice(0,80);
           if(name)this.commands.updateObject(this.current,selected.id,{name});
         });
+        if(selected.type==="table"){
+          const heading=document.createElement("h4");
+          heading.textContent="Células da tabela";this.inspector.append(heading);
+          (selected.table_cells||[]).forEach((row,rowIndex)=>row.forEach((value,colIndex)=>{
+            this._property("Linha "+(rowIndex+1)+" · Coluna "+(colIndex+1),value,"text",next=>{
+              const cells=(selected.table_cells||[]).map(items=>items.slice());
+              cells[rowIndex][colIndex]=next.slice(0,2000);
+              this.commands.updateObject(this.current,selected.id,{table_cells:cells});
+            });
+          }));
+        }
         if(selected.type==="chart"&&window.OpenDocSlideCharts?.ChartInspector){
           window.OpenDocSlideCharts.ChartInspector.mount(
             this.inspector,selected,
