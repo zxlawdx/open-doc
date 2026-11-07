@@ -56,15 +56,16 @@ jobs:
         run: |
           python -u tools/qa_pdf_native.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Capture PPTX on Windows even if later DOCX stress fails.
+          python -u tools/qa_ink.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_pptx.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_windows_ink.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_input.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_stabilization.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -u tools/qa_ink.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -u tools/qa_pptx.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_desktop.py
           exit $LASTEXITCODE
@@ -117,11 +118,11 @@ jobs:
       - name: Actual Vela PyQt QtWebEngine
         run: |
           python -u tools/qa_pdf_native.py
+          python -u tools/qa_ink.py
+          python -u tools/qa_pptx.py
           python -u tools/qa_windows_ink.py
           python -u tools/qa_input.py
           python -u tools/qa_stabilization.py
-          python -u tools/qa_ink.py
-          python -u tools/qa_pptx.py
           python -u tools/qa_desktop.py
       - uses: actions/upload-artifact@v4
         if: always()
