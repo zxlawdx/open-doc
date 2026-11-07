@@ -42,7 +42,10 @@ const port=process.argv[2]||'9234';
   }
  }
  const metrics=await evalJS('(()=>{const img=Array.from(document.querySelectorAll(".fixed-scroll .fixed-surface .slide-object-image img")).find(x=>x.alt.includes("Equação:"));const r=img?.closest(".slide-object-image")?.getBoundingClientRect();return {name:img?.alt,decoded:img?.naturalWidth,box:r?{width:r.width,height:r.height}:null,count:document.querySelectorAll(".fixed-scroll .slide-object-image").length,slides:document.querySelectorAll("[data-thumbnail-index]").length}})()');
- assert.ok(metrics.box?.width>60&&metrics.slides===36,JSON.stringify(metrics));
+ assert.ok(metrics.box?.width>350&&metrics.box?.height>90&&metrics.slides===36,
+  'Math image must have readable slide scale: '+JSON.stringify(metrics));
+ assert.ok(metrics.box.width/metrics.box.height>3.3&&metrics.box.width/metrics.box.height<5.5,
+  'Math image aspect ratio is distorted: '+JSON.stringify(metrics));
  const after=await send('Page.captureScreenshot',{format:'png'});
  fs.writeFileSync(path.join(output,'math-line-integral-slide-qt.png'),Buffer.from(after.data,'base64'));
  fs.writeFileSync(path.join(output,'math-gallery-qt.json'),JSON.stringify({state,metrics},null,2));
