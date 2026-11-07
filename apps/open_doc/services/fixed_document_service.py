@@ -146,7 +146,12 @@ class FixedDocumentService:
             note = self.import_pptx(temporary)
             model = json.loads(json.dumps(note["content"]))
             model["editable_deck"] = True
+            # New Open Doc projects must retain the full slide builder: the
+            # source-preserving exporter is reserved for external PPTX files.
+            model.pop("preserve_source", None)
             for surface in model["surfaces"]:
+                surface.pop("source_slide_index", None)
+                surface.pop("source_background", None)
                 surface["elements"] = []
                 surface["background"] = "#FFFFFF"
                 surface["notes"] = ""
