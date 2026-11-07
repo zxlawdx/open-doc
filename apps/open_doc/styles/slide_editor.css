@@ -413,7 +413,7 @@
   overflow-y:auto;overflow-x:hidden;
   display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
   gap:10px;padding:16px;
-  background:var(--surface,#fff);color:var(--text,#14233b);
+  background:var(--color-panel);color:var(--color-text-primary);
   border:1px solid #aeb8c7;border-radius:12px;
   box-shadow:0 16px 55px #0004;
 }
@@ -431,4 +431,4 @@
 .open-doc .slide-math-template img{
   width:100%;height:auto;max-height:88px;object-fit:contain;
 }
-@media(max-width:680px){.open-doc .slide-math-gallery{grid-template-columns:1fr;left:4vw;top:100px}}
+
