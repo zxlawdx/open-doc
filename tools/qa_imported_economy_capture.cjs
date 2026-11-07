@@ -54,5 +54,37 @@ const port=process.argv[2]||"9234";
   fs.writeFileSync(path.join(dest,prefix+".json"),JSON.stringify(evidence,null,2));
   console.log("QA_IMPORT_36_PPTX_EDITABLE",prefix,evidence.fontPx);
  }
+
+ // End-user simulation: click the imported title, edit through the inspector,
+ // verify it remains a native slide object and all 36 slides are retained.
+ const hit=await evalJS(`(()=>{
+   const title=Array.from(document.querySelectorAll(
+     '.fixed-scroll .slide-object-text')).find(n=>n.textContent.includes('QUEM PRODUZ'));
+   if(!title)return null;
+   const b=title.getBoundingClientRect();
+   return {x:b.left+b.width*.45,y:b.top+Math.min(b.height*.2,35)};
+ })()`);
+ assert.ok(hit,"Cannot find editable title hit-target");
+ await send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...hit});
+ await send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...hit});
+ const edited=await evalJS(`(()=>{
+   const label=Array.from(document.querySelectorAll('.slide-inspector label'))
+     .find(node=>node.textContent.trim().startsWith('Texto'));
+   const input=label?.querySelector('textarea');
+   if(!input)return {error:'Texto inspector absent after clicking imported title'};
+   const old=input.value;
+   input.value='TÍTULO EDITADO NO OPEN DOC';
+   input.dispatchEvent(new Event('change',{bubbles:true}));
+   const model=OpenDocApp.editor().snapshot().content;
+   return {old,changed:model.surfaces[0].elements.some(
+     el=>el.text==='TÍTULO EDITADO NO OPEN DOC'),slides:model.surfaces.length};
+ })()`);
+ assert.ok(!edited.error,JSON.stringify(edited));
+ assert.ok(edited.changed,"Imported title edit did not update document model");
+ assert.equal(edited.slides,36,"Editing title unexpectedly changed slide count");
+ const editedPng=await send("Page.captureScreenshot",{format:"png"});
+ fs.writeFileSync(path.join(dest,"pptx-user-like-36-title-edited.png"),
+   Buffer.from(editedPng.data,"base64"));
+ console.log("QA_IMPORT_36_PPTX_MOUSE_EDIT_OK");
  ws.close();
 })().catch(e=>{console.error(e);process.exit(1)});
