@@ -163,8 +163,10 @@ class SlideModelValidator:
                 raise ValueError("O recorte não pode eliminar toda a imagem.")
         x = number(element.get("x"), 0, 1)
         y = number(element.get("y"), 0, 1)
-        w = number(element.get("width"), .01, 1)
-        h = number(element.get("height"), .01, 1)
+        # Imported design templates can have hairline rules and fine stripes.
+        # Do not reject the entire deck solely because a native shape is thin.
+        w = number(element.get("width"), .00001, 1)
+        h = number(element.get("height"), .00001, 1)
         if x + w > 1.000001 or y + h > 1.000001:
             raise ValueError("O elemento ultrapassa os limites do slide.")
         self._color(element.get("color", "#191C1E"), "texto")
