@@ -71,7 +71,8 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
      stageHeight:v?.height||0,
      controlsHeight:controls?.getBoundingClientRect().height||0,
      directButtons:direct.map(n=>n.textContent),
-     visibleInsert:Array.from(insert?.querySelectorAll('button')||[]).map(n=>n.textContent)};
+     chartCommands:Array.from(insert?.querySelectorAll('.slide-ribbon-popup button')||[])
+       .map(n=>n.textContent).filter(label=>label.startsWith('Gráfico:'))};
  })()`);
  await shot('pptx-compact-ribbon-and-canvas');
  // Visual regression: exact economic categories and percentages over an
@@ -139,15 +140,6 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    JSON.stringify(ribbon,null,2));
  assert.deepEqual(ribbon.directButtons,[],
    'Floating ungrouped ribbon buttons cover the canvas: '+JSON.stringify(ribbon));
- assert.ok(ribbon.ribbonHeight>20&&ribbon.ribbonHeight<65,
-   'Insert ribbon must occupy one compact row: '+JSON.stringify(ribbon));
- assert.ok(ribbon.stageHeight>180,
-   'Qt grid regression: ribbon collapsed .fixed-scroll to zero height; slide is not clickable: '+JSON.stringify(ribbon));
-
- fs.writeFileSync(path.join(destination,'pptx-compact-ribbon-and-canvas.json'),
-   JSON.stringify(ribbon,null,2));
- assert.deepEqual(ribbon.directButtons,[],
-   'Floating ungrouped ribbon buttons cover the canvas: '+JSON.stringify(ribbon));
  assert.ok(ribbon.ribbonHeight>=85&&ribbon.ribbonHeight<=105,
    'New fixed-height ribbon panel must remain bounded: '+JSON.stringify(ribbon));
  assert.ok(Object.values(ribbon.tabHeights).every(height=>
@@ -157,6 +149,10 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    'PowerPoint ribbon must not require horizontal dragging: '+JSON.stringify(ribbon));
  assert.ok(ribbon.stageHeight>180,
    'Qt grid regression: ribbon collapsed .fixed-scroll to zero height; slide is not clickable: '+JSON.stringify(ribbon));
+ assert.deepEqual(ribbon.chartCommands,[
+   'Gráfico: Barras','Gráfico: Barras horizontais','Gráfico: Linhas',
+   'Gráfico: Áreas','Gráfico: Pizza'
+ ],'All chart types must be available in the ribbon menu');
  const result=await evaluate(`(()=>{
   const page=document.querySelector('.fixed-surface[data-page-index="0"]');
   const rect=page?.querySelector('.slide-object-rect');
