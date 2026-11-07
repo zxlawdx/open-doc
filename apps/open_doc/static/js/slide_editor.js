@@ -597,7 +597,8 @@
         "Pentágono","Paralelogramo","Estrela","Nuvem"
       ]);
       this._ribbonMenu(insert,"Gráficos",[
-        "Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"
+        "Gráfico: Barras","Gráfico: Barras horizontais","Gráfico: Linhas",
+        "Gráfico: Áreas","Gráfico: Pizza"
       ]);
       const classified=new Set(categories.flatMap(item=>item.labels));
       for(const action of actions)if(!classified.has(action.textContent))insert.append(action);
