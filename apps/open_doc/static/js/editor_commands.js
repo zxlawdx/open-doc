@@ -38,7 +38,7 @@
     ));
     function caretBlock(node){
       const element=node?.nodeType===3?node.parentElement:node;
-      return element?.closest?.('[data-node-id],p,li,h1,h2,h3,blockquote,pre')||null;
+      return element?.closest?.('[data-node-type="paragraph"],p,li,h1,h2,h3,h4,h5,h6,blockquote,pre')||null;
     }
     function bookmark() {
       const selection=window.getSelection();

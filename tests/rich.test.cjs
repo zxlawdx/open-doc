@@ -177,36 +177,96 @@ test('1000 empty line breaks reflow with bounded height measurements and no data
  assert.ok(Date.now()-start<7000,'regression must not enter a long main-thread loop');
 });
 
-test('Tab inserts a DOCX tab stop and retains table and toolbar navigation',async t=>{
- const s=await setup(t),{w,rich,root,editor}=s;
- const press=(target,shiftKey=false)=>target.dispatchEvent(new w.KeyboardEvent('keydown',
-   {key:'Tab',bubbles:true,cancelable:true,shiftKey}));
- const selection=w.getSelection();
+const tabText='Texto selecionado';
+
+function pressTab(w,target,options={}){
+ return target.dispatchEvent(new w.KeyboardEvent('keydown',
+   {key:'Tab',bubbles:true,cancelable:true,...options}));
+}
+
+function tabRuns(editor){
+ const runs=editor.snapshot().content.blocks[0].children;
+ return runs.map(run=>run.type==='tab'?'\t':run.text).join('');
+}
+
+for(const offset of [0,5,tabText.length]){
+ test('repeated Tab preserves styled paragraph text at offset '+offset,async t=>{
+   const s=await setup(t),{w,rich,editor}=s;
+   const selection=w.getSelection();
+   s.select();
+   selection.collapse(rich.querySelector('[data-node-id="r1"]').firstChild,offset);
+   w.document.execCommand=()=>assert.fail('Tab must not replace a browser selection');
+   const expected=count=>tabText.slice(0,offset)+'\t'.repeat(count)+tabText.slice(offset);
+   for(let count=1;count<=3;count++){
+     assert.equal(pressTab(w,rich),false);
+     assert.equal(w.document.activeElement,rich);
+     assert.equal(selection.isCollapsed,true);
+     assert.equal(tabRuns(editor),expected(count));
+   }
+   const runs=editor.snapshot().content.blocks[0].children;
+   assert.ok(runs.filter(run=>run.type==='text').every(run=>run.style.font_family==='Fonte ausente'));
+   editor.format('undo');
+   assert.equal(tabRuns(editor),expected(2));
+   editor.format('redo');
+   assert.equal(tabRuns(editor),expected(3));
+   editor.pagination().paginate();
+   assert.equal(pressTab(w,rich),false);
+   assert.equal(tabRuns(editor),expected(4));
+   await editor.flush();
+   editor.load({...s.note,...s.saved()});
+   assert.equal(tabRuns(editor),expected(4));
+   assert.equal(rich.querySelectorAll('[data-node-type="tab"]').length,4);
+ });
+}
+
+for(const [anchor,focus] of [[0,5],[5,0]]){
+ test('Tab preserves a selected word with anchor at '+anchor,async t=>{
+   const s=await setup(t),{w,rich,editor}=s;
+   s.select();
+   const text=rich.querySelector('[data-node-id="r1"]').firstChild;
+   w.getSelection().setBaseAndExtent(text,anchor,text,focus);
+   assert.equal(pressTab(w,rich),false);
+   assert.equal(pressTab(w,rich),false);
+   assert.equal(tabRuns(editor),'\t\t'+tabText);
+ });
+}
+
+test('Tab on a blank paragraph preserves the caret without creating a line break',async t=>{
+ const s=await setup(t),{w,rich,editor}=s;
+ const note=JSON.parse(JSON.stringify(s.note));
+ note.content.blocks[0].children=[];
+ editor.load(note);
  s.select();
- selection.collapse(selection.anchorNode,0);
- w.document.execCommand=(command,_unused,html)=>{
-   assert.equal(command,'insertHTML');
-   const range=selection.getRangeAt(0),fragment=range.createContextualFragment(html);
-   const tab=fragment.firstChild;
-   range.deleteContents();
-   range.insertNode(fragment);
-   selection.collapse(tab.parentNode,Array.from(tab.parentNode.childNodes).indexOf(tab)+1);
-   rich.dispatchEvent(new w.InputEvent('input',{bubbles:true,inputType:'insertText'}));
-   return true;
- };
- assert.equal(press(rich),false);
- assert.equal(w.document.activeElement,rich);
- assert.equal(editor.snapshot().content.blocks[0].children[0].type,'tab');
- assert.equal(rich.querySelector('[data-node-type="tab"]').textContent,'\t');
- editor.format('undo');
- assert.equal(rich.querySelector('[data-node-type="tab"]'),null);
- editor.format('redo');
- assert.ok(rich.querySelector('[data-node-type="tab"]'));
- await editor.flush();
- editor.load({...s.note,...s.saved()});
- assert.ok(rich.querySelector('[data-node-type="tab"]'));
- assert.equal(press(root.querySelector('.toolbar button')),true);
+ w.getSelection().collapseToStart();
+ assert.equal(pressTab(w,rich),false);
+ assert.equal(pressTab(w,rich),false);
+ assert.equal(tabRuns(editor),'\t\t');
+ assert.deepEqual(Array.from(editor.snapshot().content.blocks[0].children,run=>run.type),['tab','tab']);
+});
+
+test('Tab keeps navigation in tables and outside editable paragraphs',async t=>{
+ const s=await setup(t),{w,root,rich,editor}=s;
+ const note=JSON.parse(JSON.stringify(s.note));
+ const second=note.content.blocks[1].rows[0].cells[0];
+ note.content.blocks[1].rows[0].cells.push({
+   ...second,id:'cell2',blocks:[{...second.blocks[0],id:'cp2',children:[]}]
+ });
+ editor.load(note);
+ s.select();
+ const selection=w.getSelection();
+ selection.collapseToStart();
+ for(const options of [{shiftKey:true},{ctrlKey:true},{altKey:true},{metaKey:true},{isComposing:true}]){
+   assert.equal(pressTab(w,rich,options),true);
+ }
+ assert.equal(tabRuns(editor),tabText);
+ const button=root.querySelector('.toolbar button');
+ button.focus();
+ assert.equal(pressTab(w,button),true);
  s.select('td');
- assert.equal(press(rich),false);
- assert.equal(editor.snapshot().content.blocks[1].rows[0].cells[0].blocks[0].children.length,1);
+ const cells=rich.querySelectorAll('td');
+ assert.equal(pressTab(w,rich),false);
+ assert.ok(cells[1].contains(selection.anchorNode));
+ assert.equal(pressTab(w,rich,{shiftKey:true}),false);
+ assert.ok(cells[0].contains(selection.anchorNode));
+ assert.equal(rich.querySelectorAll('[data-node-type="tab"]').length,0);
 });
