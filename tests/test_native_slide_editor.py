@@ -619,7 +619,7 @@ def test_external_deck_inherits_color_from_paragraph_style(tmp_path):
     paragraph.text = "Título branco em fundo escuro"
     paragraph.font.color.rgb = RGBColor(255, 255, 255)
     # The newly-created run has no explicit RGB; it inherits paragraph text formatting.
-    assert paragraph.runs[0].font.color.rgb is None
+    assert paragraph.runs[0].font.color.type is None
     source = tmp_path / "paragraph-inherited-color.pptx"
     deck.save(source)
 
