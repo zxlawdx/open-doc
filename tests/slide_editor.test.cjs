@@ -1372,12 +1372,17 @@ test('Adaptive chart labels survive ten categories, manual breaks, resize and mu
  const big=engine.ChartPreview.render(source,{width:880,height:480});
  assert.notEqual(small.getAttribute('viewBox'),big.getAttribute('viewBox'));
  for(const svg of [small,big]){
-   const rendered=Array.from(svg.querySelectorAll('text')).map(text=>
-     Array.from(text.querySelectorAll('tspan')).map(span=>span.textContent)
-       .join(' ').replace(/\s+/g,' ').trim());
-   assert.ok(rendered.includes('Categoria econômica 12 com denominação completa'),
-     'No category may be silently omitted when there are 12 entries');
-   assert.ok(rendered.includes('Excedente operacional bruto rendimento misto bruto'));
+   const texts=Array.from(svg.querySelectorAll('text'));
+   for(const category of cats){
+     const expected=category.replace(/\s+/g,'');
+     const matching=texts.find(text=>{
+       const title=text.querySelector('title')?.textContent;
+       const drawn=Array.from(text.querySelectorAll('tspan'))
+         .map(tspan=>tspan.textContent).join('');
+       return title===category&&drawn.replace(/\s+/g,'')===expected;
+     });
+     assert.ok(matching,'Every character must remain visible: '+category);
+   }
    assert.equal(svg.querySelector('canvas,img'),null,'chart remains vector');
  }
  clickLabel(q.controls,'Gráfico: Barras');
@@ -1481,4 +1486,19 @@ test('Numbered lists skip blank paragraphs and clearing the list preserves all t
  number();
  assert.equal(q.scroller.querySelectorAll('.slide-text-marker').length,0);
  assert.equal(q.model().surfaces[0].elements[0].text,'Primeiro\n\nSegundo');
+});
+
+test('Long chart labels preserve spaces and manual line breaks before and after wrapping',t=>{
+ const q=setup(t),engine=q.w.OpenDocSlideCharts.ChartLayoutEngine;
+ const font=engine.font({chart_label_font_size:15,chart_label_wrap:true});
+ const input='Excedente operacional bruto e rendimento misto bruto';
+ for(const width of [12,28,48,92,260]){
+  const lines=engine.lines(input,width,font);
+  assert.equal(lines.join(''),input,
+    'Reflow at '+width+' pixels must not remove even whitespace');
+ }
+ const manual='Remuneração dos empregados\nExcedente operacional bruto';
+ const lines=engine.lines(manual,55,font);
+ assert.equal(lines.join('').replace(/\s+/g,''),
+   manual.replace(/\s+/g,''));
 });
