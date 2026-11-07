@@ -384,3 +384,23 @@
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{
   min-height:0;min-width:0;
 }
+
+/* PowerPoint-style temporary alignment crosshairs. They follow the
+   pointer but never intercept dragging, text editing, or selection. */
+.open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide{
+  position:absolute;
+  z-index:9998;
+  pointer-events:none;
+  box-sizing:border-box;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide-x{
+  border-left:1px dashed #E83773;
+  width:0;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide-y{
+  border-top:1px dashed #E83773;
+  height:0;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide[data-snap-kind="center"]{
+  filter:drop-shadow(0 0 1px white);
+}
