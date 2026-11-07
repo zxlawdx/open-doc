@@ -975,3 +975,57 @@ test('Qt slide CSS keeps toolbar one row and shapes hit-testable',t=>{
  assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?flex-flow:row nowrap/);
  assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?overflow-x:auto/);
 });
+
+test('arrow keys navigate only when a slide thumbnail in the left sidebar is focused',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'+ Slide');
+ q.editor.goTo(1);
+ const thumb=q.sidebar.querySelector('[data-thumbnail-index="1"]');
+ thumb.focus();
+ assert.equal(q.w.document.activeElement,thumb);
+ const press=(target,key)=>target.dispatchEvent(new q.w.KeyboardEvent('keydown',
+  {key,bubbles:true,cancelable:true}));
+ press(thumb,'ArrowDown');
+ assert.equal(q.editor.current,2);
+ assert.equal(q.w.document.activeElement.dataset.thumbnailIndex,'2');
+ press(q.w.document.activeElement,'ArrowRight');
+ assert.equal(q.editor.current,2,'last slide must clamp');
+ press(q.w.document.activeElement,'ArrowUp');
+ assert.equal(q.editor.current,1);
+ press(q.w.document.activeElement,'ArrowLeft');
+ assert.equal(q.editor.current,0);
+ press(q.w.document.activeElement,'ArrowLeft');
+ assert.equal(q.editor.current,0,'first slide must clamp');
+ // Other UI contexts must NEVER switch slides on arrow keys.
+ const canvas=q.scroller.querySelector('.fixed-surface');
+ press(canvas,'ArrowRight');
+ assert.equal(q.editor.current,0,'canvas arrows do not navigate slides');
+ const other=q.controls.querySelector('.slide-ribbon-tab');
+ press(other,'ArrowDown');
+ assert.equal(q.editor.current,0,'toolbar arrows do not navigate slides');
+ clickLabel(q.controls,'Texto');
+ const object=q.model().surfaces[0].elements[0];
+ q.editor.selectSearchResult(0,object.id);
+ const initialX=q.model().surfaces[0].elements[0].x;
+ press(canvas,'ArrowRight');
+ assert.equal(q.editor.current,0,'selected shape arrow must not change slide');
+ assert.ok(q.model().surfaces[0].elements[0].x>initialX,
+   'canvas arrows must still move the selected object');
+});
+
+test('smart alignment guides find slide center and nearby object edges at any zoom',t=>{
+ const q=setup(t);
+ const snap=q.w.OpenDocSlidesEditor.smartSnap;
+ const nearCenter={x:.493,y:.492,width:.20,height:.15};
+ const centered=snap(nearCenter,[],1000,600,9);
+ // The leading edge is near center; snap it exactly, not the rectangle center.
+ assert.equal(centered.item.x,.5);
+ assert.equal(centered.item.y,.5);
+ assert.ok(centered.guides.some(g=>g.axis==='x'&&g.value===.5));
+ const aligned=snap({x:.305,y:.51,width:.2,height:.15},
+  [{x:.3,y:.1,width:.2,height:.12}],1000,600,8);
+ assert.equal(aligned.item.x,.3);
+ const outside=snap({x:.35,y:.38,width:.2,height:.15},[],1000,600,7);
+ assert.equal(outside.guides.length,0);
+});
