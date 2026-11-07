@@ -231,6 +231,20 @@ for(const [anchor,focus] of [[0,5],[5,0]]){
  });
 }
 
+test('Tab works in a browser-created DIV paragraph before repagination',async t=>{
+ const s=await setup(t),{w,rich,editor}=s;
+ const paragraph=rich.querySelector('[data-node-id="p1"]');
+ const block=w.document.createElement('div');
+ block.dataset.nodeId='p1';
+ block.append(...paragraph.childNodes);
+ paragraph.replaceWith(block);
+ rich.focus();
+ w.getSelection().collapse(block,0);
+ assert.equal(pressTab(w,rich),false);
+ assert.equal(pressTab(w,rich),false);
+ assert.equal(tabRuns(editor),'\t\t'+tabText);
+});
+
 test('Tab on a blank paragraph preserves the caret without creating a line break',async t=>{
  const s=await setup(t),{w,rich,editor}=s;
  const note=JSON.parse(JSON.stringify(s.note));

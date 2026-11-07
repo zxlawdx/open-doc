@@ -151,7 +151,10 @@ def main():
             window.evaluate_js(
                 """(() => {
                     const rich = document.querySelector('[data-rich]');
-                    const paragraph = rich.querySelector('[data-node-type="paragraph"]');
+                    const firstPage = rich.querySelector('[data-page-content]') || rich;
+                    const paragraph = Array.from(firstPage.children)
+                        .find(node => node.textContent === 'Open Doc teclado 123');
+                    if (!paragraph) throw Error('QA: first typed paragraph not found');
                     rich.focus();
                     getSelection().selectAllChildren(paragraph);
                     getSelection().collapseToStart();

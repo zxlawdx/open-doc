@@ -650,7 +650,7 @@
         root.dataset.documentKind!=='fixed'&&document.activeElement===rich){
         const selection=getSelection();
         const paragraph=node=>(node?.nodeType===1?node:node?.parentElement)
-          ?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,pre,li');
+          ?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,pre,li,[data-page-content] > div,[data-rich] > div');
         const start=paragraph(selection?.anchorNode);
         if(start&&rich.contains(start)&&start===paragraph(selection.focusNode)&&!start.closest('td,th')){
           event.preventDefault();
