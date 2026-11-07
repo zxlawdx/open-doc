@@ -268,12 +268,22 @@ class SlideDeckExporter:
                     and "\\n" not in obj["text"]):
                 paragraphs[0].runs[0].text = obj["text"]
             else:
-                # Rich-text edits need segment-level mapping; replacing the
-                # whole frame would silently flatten the professor's styling.
-                raise ValueError(
-                    "Texto com múltiplos estilos/parágrafos exige edição "
-                    "por trechos; não foi substituído para evitar perda."
-                )
+                # A whole-text replacement is intentional, so retain the
+                # leading run's OOXML formatting (and the text-frame style)
+                # rather than replacing the entire text frame. The replaced
+                # text no longer contains the original rich-text segments.
+                first = paragraphs[0]
+                if first.runs:
+                    leading = first.runs[0]
+                else:
+                    leading = first.add_run()
+                leading.text = obj["text"]
+                for paragraph in list(shape.text_frame.paragraphs):
+                    for run in list(paragraph.runs):
+                        if run is not leading:
+                            run._r.getparent().remove(run._r)
+                    if paragraph is not first:
+                        paragraph._p.getparent().remove(paragraph._p)
         font_fields = changed & {"color", "font_family", "font_size_pt",
                                  "font_bold", "font_italic"}
         if font_fields:
