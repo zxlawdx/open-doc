@@ -13,7 +13,7 @@ from PIL import Image
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.chart.data import CategoryChartData
-from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION, XL_TICK_LABEL_POSITION
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.oxml.xmlchemy import OxmlElement
@@ -89,6 +89,149 @@ class SlideDeckExporter:
                 else:
                     properties.attrib.pop("indent", None)
 
+    @staticmethod
+    def _chart_style(chart, obj, palette):
+        """Format chart parts without flattening categories or percentage values.
+
+        Native workbook cells keep numeric originals. For non-pie percentage
+        labels, c:dLbl stores display-only text; the underlying value stays
+        numeric and unchanged.
+        """
+        from pptx.oxml.ns import qn
+
+        def fill(parent, transparent, color):
+            current = parent.find(qn("c:spPr"))
+            if current is not None:
+                parent.remove(current)
+            prop = OxmlElement("c:spPr")
+            if transparent:
+                prop.append(OxmlElement("a:noFill"))
+            else:
+                solid = OxmlElement("a:solidFill")
+                srgb = OxmlElement("a:srgbClr")
+                srgb.set("val", color.lstrip("#").upper())
+                solid.append(srgb)
+                prop.append(solid)
+            parent.insert_element_before(prop, "c:txPr", "c:externalData",
+                                         "c:printSettings", "c:extLst")
+
+        transparent = obj.get("chart_background", "solid") == "transparent"
+        bg_color = obj.get("chart_background_color", "#FFFFFF")
+        fill(chart._chartSpace, transparent, bg_color)
+        fill(chart._chartSpace.chart.plotArea, transparent, bg_color)
+        kind = obj.get("chart_type", "bar")
+        show = obj.get("chart_data_labels", "percent")
+        colors = obj.get("chart_item_colors") or []
+        customize = obj.get("chart_color_mode", "palette") == "custom"
+        for series_index, series in enumerate(chart.series):
+            source_values = (
+                obj["chart_series"][series_index]["values"]
+                if obj.get("chart_series") else obj["chart_values"]
+            )
+            for i, point in enumerate(series.points):
+                if kind == "line":
+                    break
+                color = (colors[i] if customize and i < len(colors)
+                         else palette[(i if len(chart.series) == 1 else series_index) % len(palette)])
+                point.format.fill.solid()
+                point.format.fill.fore_color.rgb = rgb(color)
+            if kind == "line":
+                series.format.line.color.rgb = rgb(palette[series_index % len(palette)])
+                series.format.line.width = Pt(2.5)
+            # Explicit data label strings remain independent of workbook data.
+            # PowerPoint's built-in showPercent is used for pies.
+            if show in {"percent", "both"} and kind != "pie":
+                old_labels = series._element.find(
+                    "{http://schemas.openxmlformats.org/drawingml/2006/chart}dLbls"
+                )
+                if old_labels is not None:
+                    series._element.remove(old_labels)
+                labels = OxmlElement("c:dLbls")
+                positive_total = sum(v for v in source_values if v > 0)
+                for i, value in enumerate(source_values):
+                    if obj.get("chart_percent_mode") == "provided":
+                        percentage = f"{value:.2f}".rstrip("0").rstrip(".") + "%"
+                    else:
+                        percentage = (f"{value / positive_total * 100:.2f}".rstrip("0").rstrip(".") + "%"
+                                      if value >= 0 and positive_total > 0 else "—")
+                    value_text = f"{value:g}" + obj.get("chart_unit", "")
+                    display = (value_text + " (" + percentage + ")"
+                               if show == "both" else percentage)
+                    label = OxmlElement("c:dLbl")
+                    index = OxmlElement("c:idx")
+                    index.set("val", str(i))
+                    label.append(index)
+                    tx = OxmlElement("c:tx")
+                    rich = OxmlElement("c:rich")
+                    rich.append(OxmlElement("a:bodyPr"))
+                    rich.append(OxmlElement("a:lstStyle"))
+                    paragraph = OxmlElement("a:p")
+                    run = OxmlElement("a:r")
+                    rpr = OxmlElement("a:rPr")
+                    rpr.set("sz", str(round(
+                        float(obj.get("chart_label_font_size", 12)) * 100)))
+                    if obj.get("chart_label_letter_spacing"):
+                        rpr.set("spc", str(round(
+                            float(obj["chart_label_letter_spacing"]) * 100)))
+                    run.append(rpr)
+                    text = OxmlElement("a:t")
+                    text.text = display
+                    run.append(text)
+                    paragraph.append(run)
+                    rich.append(paragraph)
+                    tx.append(rich)
+                    label.append(tx)
+                    labels.append(label)
+                show_val = OxmlElement("c:showVal")
+                show_val.set("val", "0")
+                labels.append(show_val)
+                series._element.insert_element_before(
+                    labels, "c:trendline", "c:errBars", "c:cat", "c:val", "c:xVal"
+                )
+        plot = chart.plots[0]
+        if show == "value":
+            plot.has_data_labels = True
+            plot.data_labels.show_value = True
+        elif kind == "pie" and show in {"percent", "both"}:
+            plot.has_data_labels = True
+            plot.data_labels.show_percentage = True
+            plot.data_labels.show_value = show == "both"
+        try:
+            if kind != "pie":
+                axis = chart.category_axis
+                axis.tick_label_position = (
+                    XL_TICK_LABEL_POSITION.NEXT_TO_AXIS
+                    if obj.get("chart_label_visible", True)
+                    else XL_TICK_LABEL_POSITION.NONE
+                )
+                face = axis.tick_labels.font
+                face.name = obj.get("chart_label_font", "Arial")
+                face.size = Pt(obj.get("chart_label_font_size", 12))
+                face.bold = bool(obj.get("chart_label_bold", False))
+                face.italic = bool(obj.get("chart_label_italic", False))
+                face.color.rgb = rgb(obj.get("chart_label_color", "#43546B"))
+                if obj.get("chart_label_letter_spacing"):
+                    face._rPr.set("spc", str(round(
+                        obj["chart_label_letter_spacing"] * 100)))
+                axis_alignment = {
+                    "left": "l", "center": "ctr", "right": "r"
+                }[obj.get("chart_label_align", "center")]
+                labels = axis._element.xpath("./c:lblAlgn")
+                if labels:
+                    labels[0].set("val", axis_alignment)
+                rotation = obj.get("chart_label_rotation", 0)
+                if rotation:
+                    axis._element.txPr.bodyPr.set("rot", str(rotation * 60000))
+        except ValueError:
+            # Pie charts do not have a categorical axis.
+            pass
+        if chart.has_legend:
+            position = obj.get("chart_legend_position", "auto")
+            chart.legend.position = (
+                XL_LEGEND_POSITION.BOTTOM if position == "bottom"
+                else XL_LEGEND_POSITION.RIGHT
+            )
+
     def _native_shape(self, slide, obj):
         width, height = self.presentation.slide_width, self.presentation.slide_height
         left = int(obj["x"] * width)
@@ -107,36 +250,35 @@ class SlideDeckExporter:
         elif kind == "chart":
             native_data=CategoryChartData()
             native_data.categories=obj["chart_categories"]
-            native_data.add_series("Valores", obj["chart_values"])
+            payload=obj.get("chart_series") or [{
+                "name":"Valores", "values":obj["chart_values"]
+            }]
+            for series in payload:
+                native_data.add_series(series["name"], series["values"])
             chart_type={
                 "bar":XL_CHART_TYPE.COLUMN_CLUSTERED,
+                "hbar":XL_CHART_TYPE.BAR_CLUSTERED,
                 "line":XL_CHART_TYPE.LINE_MARKERS,
+                "area":XL_CHART_TYPE.AREA,
                 "pie":XL_CHART_TYPE.PIE,
             }[obj.get("chart_type","bar")]
             shape=slide.shapes.add_chart(chart_type,left,top,w,h,native_data)
             chart=shape.chart
-            chart.has_title=bool(obj.get("chart_title"))
+            title=obj.get("chart_title","")
+            subtitle=obj.get("chart_subtitle","")
+            chart.has_title=bool(title or subtitle)
             if chart.has_title:
-                chart.chart_title.text_frame.text=obj["chart_title"]
-            chart.has_legend=(obj.get("chart_type")=="pie")
-            if chart.has_legend:
-                chart.legend.position=XL_LEGEND_POSITION.RIGHT
-            # Native OOXML chart parts + embedded editable XLSX workbook.
-            # Palette is editable property, not a pre-rendered screenshot.
+                chart.chart_title.text_frame.text=title+(
+                    "\n"+subtitle if subtitle else ""
+                )
+            chart.has_legend=(obj.get("chart_type")=="pie" or len(payload)>1)
             palette={
-                "blue":["004AC6","6A9EFF","90C2FF","274F98","AFCBFF"],
-                "green":["2B886A","72C3A0","A2DEC5","14634B","D0F0DD"],
-                "orange":["F07938","FFC16D","BE4F2E","EACB90","F9DFCA"],
-                "contrast":["004AC6","B64264","267D4D","D18919","784FC5"],
+                "blue":["#004AC6","#6A9EFF","#90C2FF","#274F98","#AFCBFF"],
+                "green":["#2B886A","#72C3A0","#A2DEC5","#14634B","#D0F0DD"],
+                "orange":["#F07938","#FFC16D","#BE4F2E","#EACB90","#F9DFCA"],
+                "contrast":["#004AC6","#B64264","#267D4D","#D18919","#784FC5"],
             }[obj.get("chart_palette","blue")]
-            series=chart.series[0]
-            if obj.get("chart_type")=="line":
-                series.format.line.color.rgb=RGBColor.from_string(palette[0])
-                series.format.line.width=Pt(2.5)
-            else:
-                for i,point in enumerate(series.points):
-                    point.format.fill.solid()
-                    point.format.fill.fore_color.rgb=RGBColor.from_string(palette[i%len(palette)])
+            self._chart_style(chart,obj,palette)
         elif kind == "image":
             asset = self.model["assets"][obj["asset_id"]]
             picture_data = BytesIO(base64.b64decode(asset["data"], validate=True))
@@ -213,6 +355,9 @@ class SlideDeckExporter:
                 run.font.italic = obj.get("font_italic")
                 run.font.underline = obj.get("font_underline", False)
                 run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
+                if obj.get("font_letter_spacing_pt") is not None:
+                    run._r.get_or_add_rPr().set("spc",
+                        str(round(float(obj["font_letter_spacing_pt"]) * 100)))
         return shape
 
     @staticmethod
@@ -305,6 +450,65 @@ class SlideDeckExporter:
                    and original.get(key) != value}
         if not changed:
             return
+        if shape.has_chart:
+            chart_options = {
+                "chart_type", "chart_title", "chart_subtitle", "chart_palette",
+                "chart_categories", "chart_values", "chart_series",
+                "chart_background", "chart_background_color",
+                "chart_color_mode", "chart_item_colors",
+                "chart_data_labels", "chart_percent_mode",
+                "chart_label_font", "chart_label_font_size",
+                "chart_label_letter_spacing", "chart_label_color",
+                "chart_label_bold", "chart_label_italic",
+                "chart_label_wrap", "chart_label_visible",
+                "chart_label_rotation", "chart_label_align",
+                "chart_margin_mode", "chart_margin", "chart_layout_auto",
+                "chart_legend_position"
+            }
+            if changed - chart_options - {"x", "y", "width", "height", "name"}:
+                raise ValueError("Propriedade do gráfico original não editável.")
+            if "chart_type" in changed:
+                raise ValueError("Trocar o tipo de gráfico importado ainda exige recriar o gráfico.")
+            chart = shape.chart
+            if changed & {"chart_categories", "chart_values", "chart_series"}:
+                data = CategoryChartData()
+                data.categories = obj["chart_categories"]
+                for series in obj.get("chart_series") or [{
+                    "name": "Valores", "values": obj["chart_values"]
+                }]:
+                    data.add_series(series["name"], series["values"])
+                chart.replace_data(data)
+            if changed & {"chart_title", "chart_subtitle"}:
+                title = obj.get("chart_title", "")
+                subtitle = obj.get("chart_subtitle", "")
+                chart.has_title = bool(title or subtitle)
+                if chart.has_title:
+                    chart.chart_title.text_frame.text = title + (
+                        "\n" + subtitle if subtitle else ""
+                    )
+            if changed & chart_options:
+                chart.has_legend = (
+                    obj.get("chart_type") == "pie" or
+                    len(obj.get("chart_series") or []) > 1
+                )
+                palette = {
+                    "blue": ["#004AC6", "#6A9EFF", "#90C2FF", "#274F98", "#AFCBFF"],
+                    "green": ["#2B886A", "#72C3A0", "#A2DEC5", "#14634B", "#D0F0DD"],
+                    "orange": ["#F07938", "#FFC16D", "#BE4F2E", "#EACB90", "#F9DFCA"],
+                    "contrast": ["#004AC6", "#B64264", "#267D4D", "#D18919", "#784FC5"],
+                }[obj.get("chart_palette", "blue")]
+                self._chart_style(chart, obj, palette)
+            for field, attr, scale in (
+                ("x", "left", self.presentation.slide_width),
+                ("y", "top", self.presentation.slide_height),
+                ("width", "width", self.presentation.slide_width),
+                ("height", "height", self.presentation.slide_height),
+            ):
+                if field in changed:
+                    setattr(shape, attr, int(obj[field] * scale))
+            if "name" in changed:
+                shape.name = obj["name"]
+            return
         if "math_blocks" in changed:
             if read_math(shape) is None:
                 raise ValueError("O objeto original não contém matemática OMML.")
@@ -365,6 +569,7 @@ class SlideDeckExporter:
         supported = {"x", "y", "width", "height", "rotation", "name",
                      "text", "color", "font_family", "font_size_pt",
                      "font_bold", "font_italic", "font_underline",
+                     "font_letter_spacing_pt",
                      "paragraph_alignment", "list_style", "text_indent_pt",
                      "line_spacing", "fill", "stroke", "stroke_width",
                      "crop_left", "crop_right", "crop_top", "crop_bottom",
@@ -418,7 +623,8 @@ class SlideDeckExporter:
             for paragraph in shape.text_frame.paragraphs:
                 self._paragraph_style(paragraph, obj, changed=paragraph_fields)
         font_fields = changed & {"color", "font_family", "font_size_pt",
-                                 "font_bold", "font_italic", "font_underline"}
+                                 "font_bold", "font_italic", "font_underline",
+                                 "font_letter_spacing_pt"}
         if font_fields:
             if not shape.has_text_frame:
                 raise ValueError("O objeto original não possui fonte editável.")
@@ -436,6 +642,9 @@ class SlideDeckExporter:
                         run.font.italic = obj["font_italic"]
                     if "font_underline" in changed:
                         run.font.underline = obj["font_underline"]
+                    if "font_letter_spacing_pt" in changed:
+                        run._r.get_or_add_rPr().set("spc",
+                            str(round(float(obj["font_letter_spacing_pt"]) * 100)))
         if "fill" in changed:
             shape.fill.solid()
             shape.fill.fore_color.rgb = rgb(obj["fill"])

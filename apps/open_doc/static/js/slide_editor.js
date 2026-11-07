@@ -75,7 +75,8 @@
   const ACTION_ICONS={
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
-    "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
+    "Gráfico: Barras":"chart-bar","Gráfico: Barras horizontais":"chart-bar",
+    "Gráfico: Áreas":"chart-line","Gráfico: Linhas":"chart-line",
     "Gráfico: Pizza":"chart-pie",Tabela:"table",Equações:"math-integral",
     Chevron:"shape-chevron",Hexágono:"shape-hexagon",Pentágono:"shape-pentagon",
     Paralelogramo:"shape-parallelogram",Estrela:"shape-star",Nuvem:"shape-cloud",
@@ -289,11 +290,14 @@
         const elements=slides[index].elements;
         if(elements.length>=500)throw Error("Limite de 500 objetos por slide atingido.");
         elements.push({
-          id,type:"chart",name:"Gráfico de "+({bar:"barras",line:"linhas",pie:"pizza"}[kind]),
+          id,type:"chart",name:"Gráfico de "+({bar:"colunas",hbar:"barras horizontais",line:"linhas",area:"áreas",pie:"pizza"}[kind]),
           x:.14,y:.2,width:.72,height:.58,rotation:0,stroke_width:1.5,
           color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
           chart_type:kind,chart_title:"Resultados",chart_palette:"blue",
-          chart_categories:["2024","2025","2026"],chart_values:[18,25,32]
+          chart_categories:["Categoria A","Categoria B","Categoria C"],
+          chart_values:[25,35,40],chart_background:"transparent",
+          chart_color_mode:"palette",chart_data_labels:"percent",
+          chart_label_font_size:12,chart_label_wrap:true
         });
       },index);
       return id;
@@ -495,7 +499,8 @@
       this._button("Nuvem",()=>this.add("cloud"));
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
       for(const [label,kind] of [
-        ["Gráfico: Barras","bar"],["Gráfico: Linhas","line"],["Gráfico: Pizza","pie"]
+        ["Gráfico: Barras","bar"],["Gráfico: Barras horizontais","hbar"],
+        ["Gráfico: Linhas","line"],["Gráfico: Áreas","area"],["Gráfico: Pizza","pie"]
       ])this._button(label,()=>this.insertChart(kind),"Inserir gráfico PPTX nativo e editável");
       this._button("Desfazer",()=>this.undo());
       this._button("Refazer",()=>this.redo());
@@ -568,7 +573,7 @@
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide","Anterior","Próximo"]},
-        {label:"Inserir",labels:["Texto","Tabela","Equações","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
+        {label:"Inserir",labels:["Texto","Tabela","Equações","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Barras horizontais","Gráfico: Linhas","Gráfico: Áreas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Aplicar a todos os slides","Prévia","Apresentar"]}
       ];
@@ -592,7 +597,8 @@
         "Pentágono","Paralelogramo","Estrela","Nuvem"
       ]);
       this._ribbonMenu(insert,"Gráficos",[
-        "Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"
+        "Gráfico: Barras","Gráfico: Barras horizontais","Gráfico: Linhas",
+        "Gráfico: Áreas","Gráfico: Pizza"
       ]);
       const classified=new Set(categories.flatMap(item=>item.labels));
       for(const action of actions)if(!classified.has(action.textContent))insert.append(action);
@@ -652,7 +658,7 @@
       if(!obj)return;
       if(obj.type==="image"||obj.type==="chart")
         return this.status(obj.type==="chart"
-          ?"Para colorir o gráfico, escolha uma paleta nas propriedades."
+          ?"Escolha uma paleta dinâmica ou uma cor por categoria no painel Cores e fundo."
           :"O balde não altera os pixels de uma imagem.");
       const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
       this.commands.updateObject(index,id,{[property]:this.paintColor.value});
@@ -926,9 +932,12 @@
       const editor=document.createElement("textarea");
       editor.className="slide-inline-editor";editor.value=value||"";
       Object.assign(editor.style,{fontFamily:node.style.fontFamily,fontSize:node.style.fontSize,
-        fontWeight:node.style.fontWeight,fontStyle:node.style.fontStyle});
+        fontWeight:node.style.fontWeight,fontStyle:node.style.fontStyle,
+        letterSpacing:node.style.letterSpacing});
       editor.maxLength=10000;editor.setAttribute("aria-label","Editar texto diretamente no slide");
       const previous=node.style.overflow;
+      const textDisplay=node.querySelector(".slide-text-content");
+      if(textDisplay)textDisplay.style.display="none";
       for(const child of Array.from(node.childNodes)){
         if(child.nodeType===3||child.classList?.contains("slide-shape-label"))child.remove();
       }
@@ -1220,7 +1229,10 @@
       if(vector)node.append(vector);
       if(obj.type==="chart"){
         if(window.OpenDocSlideCharts?.ChartPreview)
-          node.append(window.OpenDocSlideCharts.ChartPreview.render(obj));
+          node.append(window.OpenDocSlideCharts.ChartPreview.render(obj,{
+            width:obj.width*this.getModel().surfaces[index].width_pt*4/3,
+            height:obj.height*this.getModel().surfaces[index].height_pt*4/3
+          }));
         else {
           const placeholder=document.createElement("span");
           placeholder.textContent="Gráfico · "+(obj.chart_title||"Sem título");
@@ -1288,30 +1300,45 @@
             tr.append(td);
           });table.append(tr);
         });node.append(table);
-      }else if(obj.type==="text"&&Array.isArray(obj.text_runs)&&obj.text_runs.length){
-        // Text formatting follows each native PowerPoint run; no HTML injection.
-        obj.text_runs.forEach((line,lineIndex)=>{
-          const paragraph=document.createElement("span");
-          paragraph.className="slide-styled-paragraph";
-          line.forEach(run=>{
-            const text=document.createElement("span");text.textContent=run.text;
-            text.style.fontFamily=JSON.stringify(run.font_family);
-            text.style.fontWeight=run.font_bold?"700":"400";
-            text.style.fontStyle=run.font_italic?"italic":"normal";
-            text.style.fontSize=run.font_size_pt/(obj.font_size_pt||28)+"em";
-            text.style.color=run.color;paragraph.append(text);
-          });
-          node.append(paragraph);
-        });
       }else if(obj.type==="text"){
-        if(obj.list_style&&obj.list_style!=="none"){
-          const rows=String(obj.text||"").split("\n");
-          rows.forEach((line,index)=>{
-            const item=document.createElement("div");item.className="slide-text-list-item";
-            item.textContent=(obj.list_style==="number"?(index+1)+". ":"• ")+line;
-            node.append(item);
-          });
-        }else node.textContent=obj.text||"";
+        // Keep visual list decorations separate from editable text: the
+        // source never includes bullet glyphs and native runs stay editable.
+        const holder=document.createElement("div");
+        holder.className="slide-text-content";
+        const source=String(obj.text||"");
+        const paragraphs=source.split("\n");
+        const nativeRuns=Array.isArray(obj.text_runs)&&obj.text_runs.length&&
+          obj.text_runs.map(row=>row.map(run=>run.text||"").join("")).join("\n")===source;
+        let ordinal=0;
+        paragraphs.forEach((text,index)=>{
+          const row=document.createElement("div");
+          row.className="slide-text-paragraph";
+          if(obj.list_style&&obj.list_style!=="none"&&text.trim()){
+            row.classList.add("slide-text-list-row");
+            const marker=document.createElement("span");
+            marker.className="slide-text-marker";
+            marker.setAttribute("aria-hidden","true");
+            marker.textContent=obj.list_style==="number"?(++ordinal)+".":"•";
+            row.append(marker);
+          }
+          const body=document.createElement("span");
+          body.className="slide-text-list-body";
+          if(nativeRuns){
+            body.classList.add("slide-styled-paragraph");
+            (obj.text_runs[index]||[]).forEach(run=>{
+              const span=document.createElement("span");
+              span.textContent=run.text||"";
+              span.style.fontFamily=JSON.stringify(run.font_family||obj.font_family||"Inter");
+              span.style.fontWeight=run.font_bold?"700":"400";
+              span.style.fontStyle=run.font_italic?"italic":"normal";
+              span.style.fontSize=(run.font_size_pt||obj.font_size_pt||28)/(obj.font_size_pt||28)+"em";
+              if(run.color)span.style.color=run.color;
+              body.append(span);
+            });
+          }else body.textContent=text||"\u00A0";
+          row.append(body);holder.append(row);
+        });
+        node.append(holder);
       }
       else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";
         if(Array.isArray(obj.text_runs)&&obj.text_runs.length){
@@ -1377,7 +1404,8 @@
         textDecoration:obj.font_underline?"underline":"none",
         textAlign:obj.paragraph_alignment||"left",
         lineHeight:String(obj.line_spacing||1.18),
-        paddingLeft:obj.text_indent_pt?((obj.text_indent_pt*4/3*zoom*(thumb?.16:1))+"px"):"6px"
+        paddingLeft:obj.text_indent_pt?((obj.text_indent_pt*4/3*zoom*(thumb?.16:1))+"px"):"6px",
+        letterSpacing:((obj.font_letter_spacing_pt||0)*4/3*zoom*(thumb?.16:1))+"px"
       });
     }
     _thumb(button,surface,index){
@@ -1623,6 +1651,11 @@
           line_spacing:Number(spacingSelect.value)
         }),{signal:this.signal});
         spacing.append(spacingSelect);bar.append(spacing);
+        const tracking=this._property("Espaçamento entre letras (pt)",
+          selected.font_letter_spacing_pt??0,"number",
+          value=>update({font_letter_spacing_pt:clamp(Number(value)||0,-2,20)}),bar);
+        tracking.min="-2";tracking.max="20";tracking.step="0.1";
+        tracking.title="Distância adicional entre caracteres. Zero usa o espaçamento normal.";
         this._colorProperty("Cor do texto",selected.color,value=>update({color:value}),bar);
       }
       const layer=slide.elements.indexOf(selected);
@@ -1664,6 +1697,10 @@
       styleLabel.append(style);this.inspector.append(styleLabel);
       this._toggleProperty("Negrito",selected.font_bold,value=>update({font_bold:value}));
       this._toggleProperty("Itálico",selected.font_italic,value=>update({font_italic:value}));
+      const spacing=this._property("Espaçamento entre letras (pt)",
+        selected.font_letter_spacing_pt??0,"number",
+        value=>update({font_letter_spacing_pt:clamp(Number(value)||0,-2,20)}));
+      spacing.min="-2";spacing.max="20";spacing.step="0.1";
     }
     _property(label,value,kind,onChange,container=this.inspector){
       const wrapper=document.createElement("label");wrapper.textContent=label;

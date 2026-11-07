@@ -131,6 +131,8 @@ class SlideModelValidator:
                         raise ValueError("Estilo do run PPTX inválido.")
             if num_runs > 2000 or sum(len(r["text"]) for p in text_runs for r in p)>10000:
                 raise ValueError("Texto PPTX complexo demais.")
+        if element.get("type") not in {"image", "math", "chart", "table"}:
+            number(element.get("font_letter_spacing_pt", 0), -2, 20)
         if element.get("type") == "math":
             validate_math_blocks(element.get("math_blocks"))
         if element.get("type") == "table":
@@ -149,30 +151,88 @@ class SlideModelValidator:
             if element.get("rotation", 0) != 0:
                 raise ValueError("Rotação de tabelas PPTX não suportada.")
         if element.get("type") == "chart":
-            chart_kind=element.get("chart_type","bar")
-            if chart_kind not in ("bar","line","pie"):
-                raise ValueError("Tipo de gráfico inválido.")
-            palette=element.get("chart_palette","blue")
-            if palette not in ("blue","green","orange","contrast"):
+            kind = element.get("chart_type", "bar")
+            if kind not in {"bar", "hbar", "line", "area", "pie"}:
+                raise ValueError("Tipo de gráfico não suportado para PPTX nativo.")
+            if element.get("chart_palette", "blue") not in {
+                "blue", "green", "orange", "contrast"
+            }:
                 raise ValueError("Paleta do gráfico inválida.")
             if element.get("rotation", 0) != 0:
                 raise ValueError("Gráficos nativos não podem ser girados.")
-            chart_title=element.get("chart_title","")
-            if not isinstance(chart_title,str) or len(chart_title)>160:
-                raise ValueError("Título do gráfico inválido.")
-            categories=element.get("chart_categories")
-            values=element.get("chart_values")
-            if not isinstance(categories,list) or not isinstance(values,list) or not 1 <= len(categories) <= 24 or len(categories)!=len(values):
+            for key, limit in (("chart_title", 160), ("chart_subtitle", 160)):
+                value = element.get(key, "")
+                if not isinstance(value, str) or len(value) > limit:
+                    raise ValueError("Título ou subtítulo do gráfico inválido.")
+            categories = element.get("chart_categories")
+            values = element.get("chart_values")
+            if (not isinstance(categories, list) or
+                    not isinstance(values, list) or
+                    not 1 <= len(categories) <= 24 or
+                    len(categories) != len(values)):
                 raise ValueError("Categorias e valores do gráfico não correspondem.")
             for item in categories:
-                if not isinstance(item,str) or not 1 <= len(item) <= 60:
+                if (not isinstance(item, str) or not item.strip() or
+                        len(item) > 240):
                     raise ValueError("Rótulo de categoria inválido.")
             for value in values:
-                number(value,-100000000,100000000)
-                if chart_kind=="pie" and value<0:
-                    raise ValueError("Gráfico de pizza não permite valores negativos.")
-            if chart_kind=="pie" and not any(value>0 for value in values):
-                raise ValueError("Gráfico de pizza precisa de valores positivos.")
+                number(value, -100000000, 100000000)
+            series = element.get("chart_series")
+            if series is not None:
+                if (not isinstance(series, list) or not 1 <= len(series) <= 5 or
+                        (kind == "pie" and len(series) > 1)):
+                    raise ValueError("Quantidade de séries do gráfico inválida.")
+                for entry in series:
+                    if (not isinstance(entry, dict) or
+                            not isinstance(entry.get("name"), str) or
+                            not 1 <= len(entry["name"]) <= 80 or
+                            not isinstance(entry.get("values"), list) or
+                            len(entry["values"]) != len(categories)):
+                        raise ValueError("Séries do gráfico incompatíveis.")
+                    for value in entry["values"]:
+                        number(value, -100000000, 100000000)
+            else:
+                series = [{"values": values}]
+            if kind == "pie":
+                pie_values = series[0]["values"]
+                if any(value < 0 for value in pie_values) or not any(
+                    value > 0 for value in pie_values
+                ):
+                    raise ValueError("Gráficos de pizza exigem valores positivos.")
+            for key in ("chart_label_bold", "chart_label_italic",
+                        "chart_label_wrap", "chart_label_visible",
+                        "chart_layout_auto"):
+                if type(element.get(key, True)) is not bool:
+                    raise ValueError("Opção de gráfico deve ser booleana.")
+            font = element.get("chart_label_font", "Arial")
+            if not isinstance(font, str) or not 1 <= len(font) <= 80:
+                raise ValueError("Família da fonte dos rótulos inválida.")
+            number(element.get("chart_label_font_size", 12), 7, 24)
+            number(element.get("chart_label_letter_spacing", 0), -2, 8)
+            if element.get("chart_label_rotation", 0) not in (0, 30, 45, 60, 90):
+                raise ValueError("Rotação dos rótulos inválida.")
+            if element.get("chart_label_align", "center") not in {
+                "left", "center", "right"
+            }:
+                raise ValueError("Alinhamento dos rótulos inválido.")
+            for field in ("chart_label_color", "chart_background_color"):
+                self._color(element.get(field, "#FFFFFF"), field)
+            for key, options in {
+                "chart_background": {"solid", "transparent"},
+                "chart_color_mode": {"palette", "custom"},
+                "chart_data_labels": {"none", "value", "percent", "both"},
+                "chart_percent_mode": {"share", "provided"},
+                "chart_margin_mode": {"auto", "custom"},
+                "chart_legend_position": {"auto", "right", "bottom"},
+            }.items():
+                if element.get(key, next(iter(options))) not in options:
+                    raise ValueError("Opção de formatação do gráfico inválida: " + key)
+            number(element.get("chart_margin", 0), 0, 80)
+            colors = element.get("chart_item_colors", [])
+            if not isinstance(colors, list) or len(colors) > len(categories):
+                raise ValueError("Cores individuais do gráfico inválidas.")
+            for color in colors:
+                self._color(color, "cor de categoria do gráfico")
         if element.get("type") == "image":
             if not isinstance(element.get("asset_id"), str) or element["asset_id"] not in (assets or {}):
                 raise ValueError("Imagem não encontrada no catálogo de recursos.")

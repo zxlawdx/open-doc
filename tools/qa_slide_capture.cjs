@@ -71,9 +71,71 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
      stageHeight:v?.height||0,
      controlsHeight:controls?.getBoundingClientRect().height||0,
      directButtons:direct.map(n=>n.textContent),
-     visibleInsert:Array.from(insert?.querySelectorAll('button')||[]).map(n=>n.textContent)};
+     chartCommands:Array.from(insert?.querySelectorAll('.slide-ribbon-popup button')||[])
+       .map(n=>n.textContent).filter(label=>label.startsWith('Gráfico:'))};
  })()`);
  await shot('pptx-compact-ribbon-and-canvas');
+ // Visual regression: exact economic categories and percentages over an
+ // arbitrary slide color, then the comparable white-background rendering.
+ const chartCase=await evaluate(`(()=>{
+   if(!window.OpenDocSlideCharts?.ChartPreview)throw Error('Charts module missing');
+   const source={
+     chart_type:'bar',
+     chart_title:'Distribuição do PIB pela ótica da renda — Brasil, 2021',
+     chart_categories:[
+       'Remuneração dos empregados',
+       'Excedente operacional bruto e rendimento misto bruto',
+       'Impostos líquidos de subsídios'
+     ],
+     chart_values:[39.2,45.3,15.5],
+     chart_data_labels:'both',
+     chart_label_font_size:14,
+     chart_label_wrap:true,
+     chart_background:'transparent',
+     chart_color_mode:'custom',
+     chart_item_colors:['#2569D2','#F28B35','#34A876']
+   };
+   const host=document.createElement('div');
+   host.id='qa-pib-chart';
+   host.style.cssText='position:fixed;inset:7vh 8vw;z-index:99999;background:#275B43;'+
+     'border:2px solid #153A30;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);';
+   const svg=window.OpenDocSlideCharts.ChartPreview.render(source,{
+     width:740,height:420
+   });
+   host.append(svg);document.body.append(host);
+   const names=Array.from(svg.querySelectorAll('text')).map(el=>
+     Array.from(el.querySelectorAll('tspan')).map(t=>t.textContent).join(''));
+   return {names,background:svg.dataset.background,
+     viewBox:svg.getAttribute('viewBox'), chartIsVector:!!svg.querySelector('rect'),
+     percentVisible:names.filter(name=>name.includes('%'))};
+ })()`);
+ assert.deepEqual(chartCase.names.filter(name=>[
+     'Remuneração dos empregados',
+     'Excedente operacional bruto e rendimento misto bruto',
+     'Impostos líquidos de subsídios'
+   ].includes(name)),[
+     'Remuneração dos empregados',
+     'Excedente operacional bruto e rendimento misto bruto',
+     'Impostos líquidos de subsídios'
+   ],'Full economic category names must survive rendering');
+ assert.ok(chartCase.percentVisible.some(item=>item.includes('39,2%')));
+ assert.ok(chartCase.percentVisible.some(item=>item.includes('45,3%')));
+ assert.ok(chartCase.percentVisible.some(item=>item.includes('15,5%')));
+ assert.equal(chartCase.background,'transparent');
+ await shot('pptx-pib-transparent-full-categories-and-percentages');
+ fs.writeFileSync(path.join(destination,'pptx-pib-chart-validation.json'),
+   JSON.stringify(chartCase,null,2));
+ await evaluate(`(()=>{
+   const preview=document.querySelector('#qa-pib-chart svg');
+   preview?.setAttribute('data-background','solid');
+   preview?.insertBefore(document.createElementNS('http://www.w3.org/2000/svg','rect'),preview.firstChild);
+   const rect=preview?.firstChild;
+   if(rect){rect.setAttribute('width','100%');rect.setAttribute('height','100%');rect.setAttribute('fill','#FFFFFF');}
+   return true;
+ })()`);
+ await shot('pptx-pib-solid-background-comparison');
+ await evaluate("document.querySelector('#qa-pib-chart')?.remove()");
+
  fs.writeFileSync(path.join(destination,'pptx-compact-ribbon-and-canvas.json'),
    JSON.stringify(ribbon,null,2));
  assert.deepEqual(ribbon.directButtons,[],
@@ -87,6 +149,10 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    'PowerPoint ribbon must not require horizontal dragging: '+JSON.stringify(ribbon));
  assert.ok(ribbon.stageHeight>180,
    'Qt grid regression: ribbon collapsed .fixed-scroll to zero height; slide is not clickable: '+JSON.stringify(ribbon));
+ assert.deepEqual(ribbon.chartCommands,[
+   'Gráfico: Barras','Gráfico: Barras horizontais','Gráfico: Linhas',
+   'Gráfico: Áreas','Gráfico: Pizza'
+ ],'All chart types must be available in the ribbon menu');
  const result=await evaluate(`(()=>{
   const page=document.querySelector('.fixed-surface[data-page-index="0"]');
   const rect=page?.querySelector('.slide-object-rect');
@@ -341,6 +407,68 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  fs.writeFileSync(path.join(destination,'pptx-new-table-shapes-svg.json'),
    JSON.stringify(qaObjects,null,2));
  console.log('QT_PPTX_TABLE_SHAPES_SVG_SCREENSHOT_OK');
+
+
+ // Regression from Linux Mint: bullets, inline edit, and removing bullets
+ // must render exactly one paragraph layer and never freeze the editor.
+ const bulletScene=await evaluate(`(()=>{
+   const toolbar=document.querySelector('.slide-studio-toolbar');
+   const textButton=Array.from(toolbar.querySelectorAll('button'))
+     .find(b=>b.textContent.trim()==='Texto');
+   if(!textButton)throw Error('Missing new text command');
+   textButton.click();
+   const field=document.querySelector('.slide-inspector textarea');
+   if(!field)throw Error('Missing text inspector editor');
+   field.value='A economia estuda produção e consumo.\\n\\nA política econômica organiza relações sociais.';
+   field.dispatchEvent(new Event('change',{bubbles:true}));
+   const button=Array.from(document.querySelectorAll('.slide-context-panel button'))
+     .find(b=>b.textContent.trim()==='Marcadores');
+   if(!button)throw Error('Missing bullet command');
+   button.click();
+   const obj=document.querySelector('.fixed-scroll .slide-object-text[data-selected=true]');
+   if(!obj)throw Error('No selected text on slide');
+   return {paragraphs:obj.querySelectorAll('.slide-text-paragraph').length,
+     markers:obj.querySelectorAll('.slide-text-marker').length,
+     content:obj.querySelector('.slide-text-content')?.textContent};
+ })()`);
+ assert.equal(bulletScene.paragraphs,3);
+ assert.equal(bulletScene.markers,2);
+ await shot('pptx-bullet-list-qt-normal');
+
+ const editing=await evaluate(`(()=>{
+   const obj=document.querySelector('.fixed-scroll .slide-object-text[data-selected=true]');
+   obj.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+   const textarea=obj.querySelector('.slide-inline-editor');
+   const old=obj.querySelector('.slide-text-content');
+   if(!textarea||!old)throw Error('List did not enter editable mode');
+   return {field:textarea.value,oldLayerHidden:getComputedStyle(old).display==='none',
+     oldVisible:old.getBoundingClientRect().height};
+ })()`);
+ assert.ok(editing.oldLayerHidden,'Old bullet DOM must be hidden during editing');
+ assert.equal(editing.oldVisible,0);
+ await shot('pptx-bullet-list-qt-inline-no-overlay');
+
+ const removed=await evaluate(`(()=>{
+   const editor=document.querySelector('.slide-inline-editor');
+   editor.value='A economia estuda produção e consumo.\\n\\nRelações sociais revisadas.';
+   editor.dispatchEvent(new KeyboardEvent('keydown',{
+     key:'Enter',ctrlKey:true,bubbles:true,cancelable:true}));
+   const button=Array.from(document.querySelectorAll('.slide-context-panel button'))
+     .find(b=>b.textContent.trim()==='Marcadores');
+   if(!button)throw Error('No bullet toggle after editing');
+   button.click();
+   const obj=document.querySelector('.fixed-scroll .slide-object-text[data-selected=true]');
+   return {markers:obj.querySelectorAll('.slide-text-marker').length,
+     paragraphs:obj.querySelectorAll('.slide-text-paragraph').length,
+     source:obj.querySelector('.slide-text-content')?.textContent};
+ })()`);
+ assert.equal(removed.markers,0,'Removing bullets must clear every marker');
+ assert.equal(removed.paragraphs,3);
+ assert.ok(removed.source.includes('Relações sociais revisadas.'));
+ await shot('pptx-bullet-list-qt-after-removal');
+ fs.writeFileSync(path.join(destination,'pptx-bullet-list-qt.json'),
+   JSON.stringify({bulletScene,editing,removed},null,2));
+ console.log('QT_PPTX_BULLET_LIST_INLINE_TEXT_NO_OVERLAY_OK');
 
  // Restore the original slide to allow the subsequent persistence/export
  // smoke to append text to the four existing shapes on slide 1.
