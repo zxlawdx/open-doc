@@ -683,6 +683,22 @@
       this.selected=Array.from(this.selectedIds).pop()||null;
     }
     _bindEvents(){
+      // QtWebEngine may leave focus on the document body after a pointer
+      // selection. Handle text style shortcuts at window capture level so
+      // Ctrl+B never opens Bookmarks instead of formatting the selected box.
+      window.addEventListener("keydown",event=>{
+        if(!this.active||!this.selected||!canEditText(
+          this.getModel().surfaces[this.current].elements.find(o=>o.id===this.selected)
+        ))return;
+        if(!(event.ctrlKey||event.metaKey)||event.altKey||
+           !["b","i"].includes(event.key.toLowerCase()))return;
+        if(event.target.closest?.("input,textarea,[contenteditable=true]"))return;
+        event.preventDefault();event.stopPropagation();
+        const key=event.key.toLowerCase()==="b"?"font_bold":"font_italic";
+        const object=this.getModel().surfaces[this.current].elements
+          .find(item=>item.id===this.selected);
+        this.commands.updateObject(this.current,object.id,{[key]:!object[key]});
+      },{signal:this.signal,capture:true});
       // Scope drop handling to a real slide: dropping on toolbar/sidebar never
       // imports a file or overwrites another object.
       this.scroller.addEventListener("dragover",event=>{
@@ -802,17 +818,6 @@
           event.preventDefault();
           window.Vela?.platform?.window?.toggleFullscreen()
             .catch(error=>this.status(error.message));return;
-        }
-        if((event.ctrlKey||event.metaKey)&&!event.altKey&&
-           ["b","i"].includes(event.key.toLowerCase())&&this.selected){
-          const selected=this.getModel().surfaces[this.current].elements
-            .find(item=>item.id===this.selected);
-          if(selected&&canEditText(selected)){
-            event.preventDefault();event.stopPropagation();
-            const key=event.key.toLowerCase()==="b"?"font_bold":"font_italic";
-            this.commands.updateObject(this.current,selected.id,{[key]:!selected[key]});
-            return;
-          }
         }
         if(event.key==="Escape"){
           if(this.colorSample){this.colorSample=null;this.scroller.style.cursor="";event.preventDefault();return;}
