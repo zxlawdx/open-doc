@@ -107,7 +107,7 @@ class SlideModelValidator:
             raise ValueError("Tipo de elemento não suportado.")
         if element.get("text_runs") is not None:
             text_runs = element["text_runs"]
-            if (element["type"] != "text" or not isinstance(text_runs, list)
+            if (element["type"] in {"image", "math", "table", "chart"} or not isinstance(text_runs, list)
                     or len(text_runs) > 100):
                 raise ValueError("Runs de texto de slide inválidos.")
             num_runs = 0
