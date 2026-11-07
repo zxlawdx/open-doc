@@ -106,6 +106,14 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                     crop_top=shape.crop_top, crop_bottom=shape.crop_bottom,
                     flip_h=bool(shape._pic.spPr.xfrm.flipH) if shape._pic.spPr.xfrm is not None else False,
                     flip_v=bool(shape._pic.spPr.xfrm.flipV) if shape._pic.spPr.xfrm is not None else False)
+    elif shape.has_table:
+        table = shape.table
+        if not 1 <= len(table.rows) <= 30 or not 1 <= len(table.columns) <= 20:
+            raise ValueError("Tabela grande demais para edição nativa.")
+        cells = [[table.cell(row, col).text[:2000]
+                  for col in range(len(table.columns))]
+                 for row in range(len(table.rows))]
+        base.update(type="table", rotation=0, table_cells=cells)
     elif shape.shape_type == MSO_SHAPE_TYPE.CHART:
         chart = shape.chart
         kind = _CHARTS.get(chart.chart_type)
