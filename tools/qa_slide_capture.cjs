@@ -49,6 +49,28 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
   return true;
  })()`);
  await pause(200);
+ fs.mkdirSync(destination,{recursive:true});
+ const ribbon=await evaluate(`(()=>{
+   const toolbar=document.querySelector('.slide-studio-toolbar');
+   const controls=document.querySelector('.fixed-controls');
+   const insert=toolbar?.querySelector('.slide-ribbon-group:not([hidden])');
+   const stage=document.querySelector('.fixed-scroll');
+   const direct=Array.from(toolbar?.children||[]).filter(n=>n.tagName==='BUTTON');
+   const p=insert?.getBoundingClientRect(),v=stage?.getBoundingClientRect();
+   return {ribbonHeight:p?.height||0,stageHeight:v?.height||0,
+     controlsHeight:controls?.getBoundingClientRect().height||0,
+     directButtons:direct.map(n=>n.textContent),
+     visibleInsert:Array.from(insert?.querySelectorAll('button')||[]).map(n=>n.textContent)};
+ })()`);
+ await shot('pptx-compact-ribbon-and-canvas');
+ fs.writeFileSync(path.join(destination,'pptx-compact-ribbon-and-canvas.json'),
+   JSON.stringify(ribbon,null,2));
+ assert.deepEqual(ribbon.directButtons,[],
+   'Floating ungrouped ribbon buttons cover the canvas: '+JSON.stringify(ribbon));
+ assert.ok(ribbon.ribbonHeight>20&&ribbon.ribbonHeight<65,
+   'Insert ribbon must occupy one compact row: '+JSON.stringify(ribbon));
+ assert.ok(ribbon.stageHeight>180,
+   'Slide canvas must remain visible below ribbon: '+JSON.stringify(ribbon));
  const result=await evaluate(`(()=>{
   const page=document.querySelector('.fixed-surface[data-page-index="0"]');
   const rect=page?.querySelector('.slide-object-rect');
