@@ -333,3 +333,40 @@
   border-color:var(--color-primary);background:var(--color-primary-soft);
   box-shadow:inset 3px 0 0 var(--color-primary);
 }
+
+
+/* PPTX Qt hit testing and compact ribbon (Nov 2026 regression).
+   The layer itself is transparent to ink/viewport controls, but every
+   editable shape must independently accept pointer input. */
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object-layer{
+  pointer-events:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object-layer > .slide-object{
+  pointer-events:auto;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object .slide-vector-shape,
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object .slide-image-crop,
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object .slide-native-table{
+  pointer-events:none;
+}
+/* Ribbon occupies one bounded, scrollable tool row irrespective of how
+   many Office shapes and charts are registered. Chrome 83/QtWebEngine
+   must not stretch unclassified actions to the full viewport width. */
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{
+  min-width:0;max-width:100%;flex:0 1 auto;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-body{
+  width:100%;min-width:0;max-width:100%;overflow:hidden;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group{
+  display:flex;flex-flow:row nowrap;align-items:center;
+  flex:1 1 auto;min-height:42px;max-height:52px;
+  width:100%;min-width:0;max-width:100%;overflow-x:auto;overflow-y:hidden;
+  padding:2px 0 5px;scrollbar-width:thin;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group button{
+  flex:0 0 auto;white-space:nowrap;width:auto;max-width:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  min-height:0;
+}
