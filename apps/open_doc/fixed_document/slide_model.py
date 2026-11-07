@@ -131,6 +131,8 @@ class SlideModelValidator:
                         raise ValueError("Estilo do run PPTX inválido.")
             if num_runs > 2000 or sum(len(r["text"]) for p in text_runs for r in p)>10000:
                 raise ValueError("Texto PPTX complexo demais.")
+        if element.get("type") not in {"image", "math", "chart", "table"}:
+            number(element.get("font_letter_spacing_pt", 0), -2, 20)
         if element.get("type") == "math":
             validate_math_blocks(element.get("math_blocks"))
         if element.get("type") == "table":
