@@ -88,7 +88,10 @@
     "Conta-gotas":"eyedropper","Aplicar fundo":"palette","Aplicar tom":"palette",
     "Restaurar ajustes de cor e opacidade":"undo","Substituir imagem":"image",
     "Subir camada":"arrow-up","Descer camada":"arrow-down","Duplicar objeto":"duplicate",
-    "Excluir objeto":"trash","Aplicar escala":"fit",Negrito:"bold",Itálico:"italic"
+    "Excluir objeto":"trash","Aplicar escala":"fit",Negrito:"bold",Itálico:"italic",
+    Esquerda:"align-left",Centralizar:"align-center",Direita:"align-right",
+    Justificar:"align-justify",Marcadores:"list",Numeração:"list-numbered",
+    "Aumentar recuo":"indent-increase","Diminuir recuo":"indent-decrease"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
   class SlideSvgRenderer {
@@ -436,7 +439,9 @@
       this._bindEvents();
     }
     _button(label,action,title=label,container=this.toolbar){
-      const button=document.createElement("button");button.type="button";button.textContent=label;
+      const button=document.createElement("button");button.type="button";
+      const caption=document.createElement("span");caption.className="slide-action-label";
+      caption.textContent=label;button.append(caption);
       if(ACTION_ICONS[label]){
         const svg=document.createElementNS(SVG_NS,"svg");
         svg.classList.add("slide-action-icon");svg.setAttribute("aria-hidden","true");
@@ -698,6 +703,22 @@
         // thumbnail sidebar. Canvas arrows still nudge the selected object.
         const thumbnail=event.target.closest("[data-thumbnail-index]");
         if(thumbnail&&this.sidebar.contains(thumbnail)&&
+           (event.key==="Delete"||event.key==="Backspace")&&
+           !event.ctrlKey&&!event.metaKey&&!event.altKey){
+          event.preventDefault();event.stopPropagation();
+          const index=Number(thumbnail.dataset.thumbnailIndex);
+          try{
+            if(!Number.isInteger(index)||index<0||
+               index>=this.getModel().surfaces.length)return;
+            this.commands.remove(index);
+            this.current=clamp(index,0,this.getModel().surfaces.length-1);
+            this._selectObject(null);this.render();
+            this.sidebar.querySelector('[data-thumbnail-index="'+this.current+'"]')?.focus();
+            this.status("Slide excluído.");
+          }catch(error){this.status(error.message);}
+          return;
+        }
+        if(thumbnail&&this.sidebar.contains(thumbnail)&&
            ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)
            &&!event.ctrlKey&&!event.metaKey&&!event.altKey){
           const direction=(event.key==="ArrowUp"||event.key==="ArrowLeft")?-1:1;
@@ -716,6 +737,17 @@
           event.preventDefault();
           window.Vela?.platform?.window?.toggleFullscreen()
             .catch(error=>this.status(error.message));return;
+        }
+        if((event.ctrlKey||event.metaKey)&&!event.altKey&&
+           ["b","i"].includes(event.key.toLowerCase())&&this.selected){
+          const selected=this.getModel().surfaces[this.current].elements
+            .find(item=>item.id===this.selected);
+          if(selected&&canEditText(selected)){
+            event.preventDefault();event.stopPropagation();
+            const key=event.key.toLowerCase()==="b"?"font_bold":"font_italic";
+            this.commands.updateObject(this.current,selected.id,{[key]:!selected[key]});
+            return;
+          }
         }
         if(event.key==="Escape"){
           if(this.colorSample){this.colorSample=null;this.scroller.style.cursor="";event.preventDefault();return;}
@@ -833,6 +865,7 @@
       }
       node.append(editor);node.style.overflow="hidden";
       this.inlineEditing=editor;
+      const styleDraft={};
       const minimum=node.style.minHeight;
       if(node.classList.contains("slide-object-text")){
         const fit=()=>{
@@ -855,11 +888,26 @@
           this._resizeAfterEditing=false;
           this._onWorkspaceResize();
         }
-        if(save&&editor.value!==value)
-          this.commands.updateObject(index,id,{text:editor.value.slice(0,10000)});
+        const patch={...styleDraft};
+        if(editor.value!==value)patch.text=editor.value.slice(0,10000);
+        if(save&&Object.keys(patch).length)this.commands.updateObject(index,id,patch);
         else this.render();
       };
       editor.addEventListener("keydown",event=>{
+        if((event.ctrlKey||event.metaKey)&&!event.altKey&&
+           ["b","i"].includes(event.key.toLowerCase())){
+          event.preventDefault();event.stopPropagation();
+          const key=event.key.toLowerCase()==="b"?"font_bold":"font_italic";
+          const previous=this.getModel().surfaces[index].elements.find(item=>item.id===id);
+          if(!previous)return;
+          const enabled=!(key in styleDraft?styleDraft[key]:Boolean(previous[key]));
+          styleDraft[key]=enabled;
+          const property=key==="font_bold"?"fontWeight":"fontStyle";
+          const display=key==="font_bold"?(enabled?"bold":"normal"):
+            (enabled?"italic":"normal");
+          editor.style[property]=display;node.style[property]=display;
+          return;
+        }
         if(event.key==="Escape"){event.preventDefault();finish(false);}
         if((event.ctrlKey||event.metaKey)&&event.key==="Enter"){
           event.preventDefault();finish(true);
