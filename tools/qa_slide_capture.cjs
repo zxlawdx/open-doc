@@ -45,6 +45,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  await evaluate(`(()=>{
   const ellipse=document.querySelector('.fixed-surface[data-page-index="0"] .slide-object-ellipse');
   ellipse?.scrollIntoView({block:'center',inline:'center'});
+  document.querySelector('.fixed-scroll')?.scrollTo({top:0,left:0});
   return true;
  })()`);
  await pause(200);
@@ -161,7 +162,9 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  assert.ok(cropped.fullWidth>cropped.visibleWidth*1.30,
    'Qt must keep full image pixels behind non-destructive crop viewport: '+JSON.stringify(cropped));
  console.log('QT_SLIDE_IMAGE_CROP_INSPECTOR_AND_GEOMETRY_OK');
- const imageGeometry=await evaluate("(()=>{const item=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');const box=item.getBoundingClientRect();const x=box.left+box.width/2,y=box.top+box.height/2;return {x:box.x,y:box.y,width:box.width,height:box.height,hit:document.elementFromPoint(x,y)?.closest('[data-slide-element]')?.dataset.slideElement,imageId:item.dataset.slideElement,viewport:{width:innerWidth,height:innerHeight}};})()");
+ await evaluate("(()=>{const item=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');item?.scrollIntoView({block:'center',inline:'center'});return true})()");
+ await pause(200);
+ const imageGeometry=await evaluate("(()=>{const item=document.querySelector('.fixed-scroll .fixed-surface .slide-object-image');const box=item.getBoundingClientRect();const x=box.left+box.width/2,y=box.top+box.height/2;const top=document.elementFromPoint(x,y);return {x:box.x,y:box.y,width:box.width,height:box.height,hit:top?.closest('[data-slide-element]')?.dataset.slideElement,hitElement:top?.outerHTML.slice(0,350),imageId:item.dataset.slideElement,viewport:{width:innerWidth,height:innerHeight}};})()");
  assert.ok(imageGeometry.width>20&&imageGeometry.height>20,'Qt slide image has zero size: '+JSON.stringify(imageGeometry));
  assert.equal(imageGeometry.hit,imageGeometry.imageId,'Qt slide image not selectable');
  const imageShot=await send('Page.captureScreenshot',{format:'png'});
