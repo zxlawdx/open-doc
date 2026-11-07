@@ -1008,7 +1008,9 @@ test('arrow keys navigate only when a slide thumbnail in the left sidebar is foc
  const object=q.model().surfaces[0].elements[0];
  q.editor.selectSearchResult(0,object.id);
  const initialX=q.model().surfaces[0].elements[0].x;
- press(canvas,'ArrowRight');
+ // selectSearchResult rebuilds the physical canvas; dispatch against the
+ // current attached node, never the stale original reference.
+ press(q.scroller.querySelector('.fixed-surface'),'ArrowRight');
  assert.equal(q.editor.current,0,'selected shape arrow must not change slide');
  assert.ok(q.model().surfaces[0].elements[0].x>initialX,
    'canvas arrows must still move the selected object');
