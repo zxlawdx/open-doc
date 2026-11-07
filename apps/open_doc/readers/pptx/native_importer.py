@@ -37,6 +37,8 @@ _SHAPES = {
 }
 _CHARTS = {
     XL_CHART_TYPE.COLUMN_CLUSTERED: "bar",
+    XL_CHART_TYPE.BAR_CLUSTERED: "hbar",
+    XL_CHART_TYPE.AREA: "area",
     XL_CHART_TYPE.LINE_MARKERS: "line",
     XL_CHART_TYPE.PIE: "pie",
 }
@@ -124,17 +126,72 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
     elif shape.shape_type == MSO_SHAPE_TYPE.CHART:
         chart = shape.chart
         kind = _CHARTS.get(chart.chart_type)
-        if kind is None or len(chart.series) != 1:
+        if kind is None or not 1 <= len(chart.series) <= 5:
             raise ValueError("Gráfico fora do subconjunto nativo.")
-        series = chart.series[0]
         categories = [str(category.label) for category in chart.plots[0].categories]
-        values = [float(value) for value in series.values]
-        if len(categories) != len(values):
+        all_series = [{
+            "name": str(series.name or f"Série {index+1}")[:80],
+            "values": [float(value) for value in series.values],
+        } for index, series in enumerate(chart.series)]
+        if any(len(series["values"]) != len(categories) for series in all_series):
             raise ValueError("Gráfico com categorias inconsistentes.")
-        title = chart.chart_title.text_frame.text if chart.has_title else ""
+        full_title = chart.chart_title.text_frame.text if chart.has_title else ""
+        parts = full_title.split("\n", 1)
+        background = (
+            "transparent"
+            if chart._chartSpace.xpath("./c:spPr/a:noFill")
+            else "solid"
+        )
+        # Original categories are never inferred from a column of years.
         base.update(type="chart", rotation=0, chart_type=kind,
-                    chart_categories=categories, chart_values=values,
-                    chart_title=title[:160], chart_palette="blue")
+                    chart_categories=categories,
+                    chart_values=all_series[0]["values"],
+                    chart_title=parts[0][:160], chart_palette="blue",
+                    chart_background=background,
+                    chart_data_labels="none")
+        if len(parts) > 1:
+            base["chart_subtitle"] = parts[1][:160]
+        if len(all_series) > 1:
+            base["chart_series"] = all_series
+        if kind != "pie":
+            tick = chart.category_axis.tick_labels
+            if tick.font.name:
+                base["chart_label_font"] = tick.font.name[:80]
+            if tick.font.size:
+                base["chart_label_font_size"] = max(7, min(24, float(tick.font.size.pt)))
+            if tick.font.bold is not None:
+                base["chart_label_bold"] = tick.font.bold
+            if tick.font.italic is not None:
+                base["chart_label_italic"] = tick.font.italic
+            if tick.font._rPr is not None:
+                spacing = tick.font._rPr.get("spc")
+                if spacing is not None:
+                    base["chart_label_letter_spacing"] = max(
+                        -2, min(8, int(spacing)/100))
+            body = chart.category_axis._element.xpath("./c:txPr/a:bodyPr")
+            if body and body[0].get("rot"):
+                rotation = abs(round(int(body[0].get("rot"))/60000))
+                if rotation in (0,30,45,60,90):
+                    base["chart_label_rotation"] = rotation
+        point_colors=[]
+        for point in chart.series[0].points:
+            try:
+                actual=point.format.fill.fore_color.rgb
+                point_colors.append("#"+str(actual).upper() if actual else "")
+            except (AttributeError, TypeError, ValueError):
+                point_colors.append("")
+        if len(point_colors)==len(categories) and all(point_colors):
+            base["chart_color_mode"]="custom"
+            base["chart_item_colors"]=point_colors
+        labels=chart.series[0]._element.xpath("./c:dLbls/c:dLbl")
+        if labels:
+            base["chart_data_labels"]="percent"
+        elif chart.plots[0].has_data_labels:
+            data=chart.plots[0].data_labels
+            if data.show_percentage:
+                base["chart_data_labels"]="percent"
+            elif data.show_value:
+                base["chart_data_labels"]="value"
     else:
         if shape.shape_type == MSO_SHAPE_TYPE.TEXT_BOX:
             kind = "text"
