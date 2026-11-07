@@ -42,6 +42,8 @@ jobs:
           npm --version
           python tools/check_runtime_assets.py
           exit $LASTEXITCODE
+      - name: Clear historical screenshot fixtures before runtime capture
+        run: python -c "from pathlib import Path; folders=[Path('docs/images/stabilization'),Path('docs/images/ink')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
       - name: Unit and architecture regressions
         shell: pwsh
         run: |
@@ -52,17 +54,20 @@ jobs:
       - name: Actual Vela PyQt QtWebEngine
         shell: pwsh
         run: |
+          python -u tools/qa_math_visual.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_pdf_native.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Capture PPTX on Windows even if later DOCX stress fails.
+          python -u tools/qa_ink.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_pptx.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_windows_ink.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_input.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_stabilization.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -u tools/qa_ink.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -u tools/qa_pptx.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_desktop.py
           exit $LASTEXITCODE
@@ -73,6 +78,7 @@ jobs:
           path: |
             docs/images/stabilization/
             docs/images/ink/
+            docs/images/math/
 
   linux-qt:
     runs-on: ubuntu-latest
@@ -106,18 +112,21 @@ jobs:
           python manage.py collectstatic --yes
           test -d node_modules
           python tools/check_runtime_assets.py
+      - name: Clear historical screenshot fixtures before runtime capture
+        run: python -c "from pathlib import Path; folders=[Path('docs/images/stabilization'),Path('docs/images/ink')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
       - name: Unit and architecture regressions
         run: |
           python -m pytest -q
           npm test
       - name: Actual Vela PyQt QtWebEngine
         run: |
+          python -u tools/qa_math_visual.py
           python -u tools/qa_pdf_native.py
+          python -u tools/qa_ink.py
+          python -u tools/qa_pptx.py
           python -u tools/qa_windows_ink.py
           python -u tools/qa_input.py
           python -u tools/qa_stabilization.py
-          python -u tools/qa_ink.py
-          python -u tools/qa_pptx.py
           python -u tools/qa_desktop.py
       - uses: actions/upload-artifact@v4
         if: always()
@@ -126,3 +135,4 @@ jobs:
           path: |
             docs/images/stabilization/
             docs/images/ink/
+            docs/images/math/

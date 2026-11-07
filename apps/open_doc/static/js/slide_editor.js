@@ -7,10 +7,48 @@
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const labelFor=type=>({text:"Texto",rect:"Retângulo",ellipse:"Elipse",
     round_rect:"Arredondado",line:"Linha",arrow:"Seta",image:"Imagem",
-    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico"})[type]||"Objeto";
+    triangle:"Triângulo",diamond:"Losango",chart:"Gráfico",table:"Tabela",chevron:"Chevron",hexagon:"Hexágono",
+    pentagon:"Pentágono",parallelogram:"Paralelogramo",star:"Estrela",cloud:"Nuvem"})[type]||"Objeto";
   const canEditText=obj=>obj.type==="text"||
     (Boolean(obj.text)&&!["image","line","chart"].includes(obj.type));
   const SVG_NS="http://www.w3.org/2000/svg";
+  // Candidate-based Smart Guides. Coordinates are normalized to the slide.
+  // The nearest edge/center wins within a screen-pixel tolerance so zoom
+  // cannot change the perceived snapping distance.
+  function smartSnap(proposed,otherObjects,slideWidthPx,slideHeightPx,tolerancePx=7){
+    const result={...proposed},guides=[];
+    const snapAxis=(axis,size,extentPx)=>{
+      const length=axis==="x"?"width":"height";
+      const leading=result[axis],span=result[length];
+      const moving=[leading,leading+span/2,leading+span];
+      const targets=[{value:0,kind:"page"},{value:.5,kind:"center"},{value:1,kind:"page"}];
+      for(const object of otherObjects){
+        if(!Number.isFinite(object[axis])||!Number.isFinite(object[length]))continue;
+        const edge=object[axis],end=edge+object[length];
+        targets.push({value:edge,kind:"object"},{value:edge+object[length]/2,kind:"object"},
+          {value:end,kind:"object"});
+      }
+      let best=null;
+      for(let i=0;i<moving.length;i++)for(const target of targets){
+        const delta=target.value-moving[i];
+        const distance=Math.abs(delta*extentPx);
+        if(distance>tolerancePx)continue;
+        // Prefer the closest adjustment, with the actual slide center
+        // taking precedence only when the errors are identical.
+        if(!best||distance<best.distance-1e-7||
+          Math.abs(distance-best.distance)<1e-7&&target.kind==="center"&&best.kind!=="center")
+          best={delta,distance,kind:target.kind,value:target.value};
+      }
+      if(best){
+        result[axis]=clamp(result[axis]+best.delta,0,1-span);
+        guides.push({axis,value:best.value,kind:best.kind});
+      }
+    };
+    snapAxis("x",result.width,slideWidthPx);
+    snapAxis("y",result.height,slideHeightPx);
+    return {item:result,guides};
+  }
+
   let tintSequence=0;
   const textStyles=[
     ["Texto normal",28,false],["Título 1",44,true],
@@ -38,7 +76,9 @@
     "+ Slide":"add-circle",Duplicar:"duplicate","Excluir slide":"trash",
     "↑ Slide":"arrow-up","↓ Slide":"arrow-down",
     "Gráfico: Barras":"chart-bar","Gráfico: Linhas":"chart-line",
-    "Gráfico: Pizza":"chart-pie",
+    "Gráfico: Pizza":"chart-pie",Tabela:"table",Equações:"math-integral",
+    Chevron:"shape-chevron",Hexágono:"shape-hexagon",Pentágono:"shape-pentagon",
+    Paralelogramo:"shape-parallelogram",Estrela:"shape-star",Nuvem:"shape-cloud",
     Texto:"type-text",Retângulo:"shape-rectangle",Elipse:"shape-ellipse",
     Arredondado:"shape-rounded",Linha:"shape-line",Seta:"shape-arrow",
     Triângulo:"shape-triangle",Losango:"shape-diamond",Imagem:"image",
@@ -61,7 +101,9 @@
       svg.setAttribute("preserveAspectRatio","none");
       svg.setAttribute("aria-hidden","true");
       const tag=({rect:"rect",round_rect:"rect",ellipse:"ellipse",
-        line:"line",arrow:"polygon",triangle:"polygon",diamond:"polygon"})[obj.type];
+        line:"line",arrow:"polygon",triangle:"polygon",diamond:"polygon",
+        chevron:"polygon",hexagon:"polygon",pentagon:"polygon",parallelogram:"polygon",
+        star:"polygon",cloud:"path"})[obj.type];
       if(!tag)return null;
       const shape=document.createElementNS(SVG_NS,tag);
       const geometry=({
@@ -71,7 +113,13 @@
         line:{x1:0,y1:100,x2:100,y2:0},
         arrow:{points:"4,38 62,38 62,14 98,50 62,86 62,62 4,62"},
         triangle:{points:"50,0 100,100 0,100"},
-        diamond:{points:"50,0 100,50 50,100 0,50"}
+        diamond:{points:"50,0 100,50 50,100 0,50"},
+        chevron:{points:"0,0 70,0 100,50 70,100 0,100 30,50"},
+        hexagon:{points:"25,0 75,0 100,50 75,100 25,100 0,50"},
+        pentagon:{points:"50,0 100,38 81,100 19,100 0,38"},
+        parallelogram:{points:"28,0 100,0 72,100 0,100"},
+        star:{points:"50,2 62,36 98,36 69,58 80,96 50,74 20,96 31,58 2,36 38,36"},
+        cloud:{d:"M22 78C1 78 0 49 22 45C14 19 47 8 59 30C75 15 99 33 94 52C111 77 83 92 66 82H27Q24 82 22 78Z"}
       })[obj.type];
       for(const [key,value] of Object.entries(geometry))
         shape.setAttribute(key,String(value));
@@ -146,6 +194,7 @@
       const obj={id:window.OpenDocModel.id(),type,
         x:.2+offset,y:.24+offset,width:type==="text"?.5:.27,height:type==="text"?.19:.22,
         text:type==="text"?"Novo texto":"",color:"#191C1E",
+        ...(type==="table"?{table_cells:[["Cabeçalho 1","Cabeçalho 2"],["Valor 1","Valor 2"]],rotation:0}:{}),
         fill:"#DAE2FD",stroke:"#004AC6",font_family:"Inter",
         font_size_pt:type==="text"?28:20,stroke_width:1.5,rotation:0};
       this.apply(slides=>slides[index].elements.push(obj));
@@ -178,7 +227,7 @@
       });
       return id;
     }
-    insertImage(index,image){
+    insertImage(index,image,layout=null){
       const id=window.OpenDocModel.id();
       this.apply((slides,deck)=>{
         const elements=slides[index].elements;
@@ -186,7 +235,8 @@
         const assetId=this._storeImageAsset(deck,image);
         const offset=(elements.length%8)*.04;
         elements.push({id,type:"image",asset_id:assetId,name:image.name||"Imagem",
-          x:.2+offset,y:.24+offset,width:.36,height:.30,text:"",
+          x:layout?.x??(.2+offset),y:layout?.y??(.24+offset),
+          width:layout?.width??.36,height:layout?.height??.30,text:"",
           color:"#191C1E",fill:"#DAE2FD",stroke:"#004AC6",
           font_family:"Inter",font_size_pt:20,stroke_width:1.5,rotation:0,
           flip_h:false,flip_v:false,
@@ -350,6 +400,9 @@
         this.status("Exportação de slide indisponível."),
         "Exportar o slide selecionado como PPTX editável");
       this._button("Texto",()=>this.add("text"));
+      this._button("Tabela",()=>this.add("table"),"Inserir tabela PPTX editável");
+      this._button("Equações",()=>this.mathGallery?.toggle(),
+        "Inserir integrais, somatórios e frações diagramadas");
       this._button("Retângulo",()=>this.add("rect"));
       this._button("Elipse",()=>this.add("ellipse"));
       this._button("Arredondado",()=>this.add("round_rect"));
@@ -357,6 +410,12 @@
       this._button("Seta",()=>this.add("arrow"));
       this._button("Triângulo",()=>this.add("triangle"));
       this._button("Losango",()=>this.add("diamond"));
+      this._button("Chevron",()=>this.add("chevron"));
+      this._button("Hexágono",()=>this.add("hexagon"));
+      this._button("Pentágono",()=>this.add("pentagon"));
+      this._button("Paralelogramo",()=>this.add("parallelogram"));
+      this._button("Estrela",()=>this.add("star"));
+      this._button("Nuvem",()=>this.add("cloud"));
       this._button("Imagem",()=>{this.imageReplacement=null;this.imageInput.click();},"Inserir PNG, JPEG ou WebP");
       for(const [label,kind] of [
         ["Gráfico: Barras","bar"],["Gráfico: Linhas","line"],["Gráfico: Pizza","pie"]
@@ -394,6 +453,18 @@
         });
         this.status("Cor aplicada aos objetos selecionados.");
       });
+      if(window.OpenDocMathGallery){
+        this.mathGallery=window.OpenDocMathGallery.install(
+          this.host,
+          image=>{
+            if(!this.active)return;
+            const id=this.commands.insertImage(this.current,image,
+              {x:.12,y:.43,width:.74,height:.32});
+            this._selectObject(id);this.render();
+          },
+          message=>this.status(message)
+        );
+      }
       this._organizeRibbon();
     }
     _organizeRibbon(){
@@ -402,7 +473,7 @@
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
-        {label:"Inserir",labels:["Texto","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
+        {label:"Inserir",labels:["Texto","Tabela","Equações","Retângulo","Elipse","Arredondado","Linha","Seta","Triângulo","Losango","Chevron","Hexágono","Pentágono","Paralelogramo","Estrela","Nuvem","Imagem","Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"]},
         {label:"Formatar",labels:["Balde","Pintar seleção","Desfazer","Refazer"]},
         {label:"Transições",labels:["Aplicar a todos os slides","Prévia","Apresentar"]}
       ];
@@ -425,6 +496,13 @@
           tab.setAttribute("aria-selected",String(enabled));panel.hidden=!enabled;
         });
       };
+      // Never leave an unclassified action as a direct toolbar child:
+      // in column-mode ribbons it expands to full width and collapses
+      // the slide viewport (regression seen on Windows and Linux).
+      const classified=new Set(categories.flatMap(item=>item.labels));
+      for(const action of actions){
+        if(!classified.has(action.textContent))panels[1][1].append(action);
+      }
       this.toolbar.prepend(tabs,body);activate("Inserir");
     }
     insertChart(kind){
@@ -509,7 +587,7 @@
         this._finish(event);
       },{signal:this.signal});
       window.addEventListener("pointercancel",()=>{
-        this._endPan();this.drag=null;if(!this.inlineEditing)this.render();
+        this._endPan();this._clearSnapGuides();this.drag=null;if(!this.inlineEditing)this.render();
       },{signal:this.signal});
       this.root.addEventListener("keyup",event=>{
         if(event.key===" "){this.spacePressed=false;
@@ -550,6 +628,19 @@
       this.root.addEventListener("keydown",event=>{
         if(!this.active)return;
         if(event.target.closest("input,textarea,[contenteditable=true]"))return;
+        // Navigation with keyboard arrows is scoped ONLY to the left
+        // thumbnail sidebar. Canvas arrows still nudge the selected object.
+        const thumbnail=event.target.closest("[data-thumbnail-index]");
+        if(thumbnail&&this.sidebar.contains(thumbnail)&&
+           ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)
+           &&!event.ctrlKey&&!event.metaKey&&!event.altKey){
+          const direction=(event.key==="ArrowUp"||event.key==="ArrowLeft")?-1:1;
+          const next=clamp(this.current+direction,0,this.getModel().surfaces.length-1);
+          event.preventDefault();event.stopPropagation();
+          if(next!==this.current)this.go(next);
+          this.sidebar.querySelector('[data-thumbnail-index="'+next+'"]')?.focus();
+          return;
+        }
         if(event.key===" "){event.preventDefault();this.spacePressed=true;
           if(!this.pan)this.scroller.style.cursor="grab";return;}
         if(event.key==="F5"){
@@ -599,7 +690,7 @@
     deactivate(){
       this.stopPresentation();
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
-      this._selectObject(null);this.drag=null;this.pan=null;
+      this._clearSnapGuides();this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.colorSample=null;this.scroller.style.cursor="";this.inspector.replaceChildren();
       this.inlineEditing=null;this._resizeAfterEditing=false;
       this.selectionToolbar.style.visibility="";
@@ -984,6 +1075,23 @@
           }
           viewport.append(picture);node.append(viewport);
         }
+      }else if(obj.type==="table"){
+        const table=document.createElement("table");
+        table.className="slide-native-table";
+        Object.assign(table.style,{width:"100%",height:"100%",tableLayout:"fixed",
+          borderCollapse:"collapse",fontSize:"inherit",pointerEvents:"none"});
+        (obj.table_cells||[]).forEach((cells,rowIndex)=>{
+          const tr=document.createElement("tr");
+          cells.forEach(value=>{
+            const td=document.createElement(rowIndex===0?"th":"td");
+            td.textContent=value;
+            Object.assign(td.style,{border:"1px solid #A0A9BA",padding:"4px",
+              background:rowIndex===0?"#E9F2FF":"#FFFFFF",
+              color:"#191C1E",fontWeight:rowIndex===0?"600":"400",
+              overflow:"hidden",textOverflow:"ellipsis"});
+            tr.append(td);
+          });table.append(tr);
+        });node.append(table);
       }else if(obj.type==="text")node.textContent=obj.text||"";
       else if(obj.text){const label=document.createElement("span");label.className="slide-shape-label";label.textContent=obj.text;node.append(label);}
       if(!thumb&&this.selected===obj.id&&index===this.current){
@@ -1316,6 +1424,17 @@
           const name=value.trim().slice(0,80);
           if(name)this.commands.updateObject(this.current,selected.id,{name});
         });
+        if(selected.type==="table"){
+          const heading=document.createElement("h4");
+          heading.textContent="Células da tabela";this.inspector.append(heading);
+          (selected.table_cells||[]).forEach((row,rowIndex)=>row.forEach((value,colIndex)=>{
+            this._property("Linha "+(rowIndex+1)+" · Coluna "+(colIndex+1),value,"text",next=>{
+              const cells=(selected.table_cells||[]).map(items=>items.slice());
+              cells[rowIndex][colIndex]=next.slice(0,2000);
+              this.commands.updateObject(this.current,selected.id,{table_cells:cells});
+            });
+          }));
+        }
         if(selected.type==="chart"&&window.OpenDocSlideCharts?.ChartInspector){
           window.OpenDocSlideCharts.ChartInspector.mount(
             this.inspector,selected,
@@ -1429,6 +1548,23 @@
       this.scroller.style.cursor=this.spacePressed?"grab":"";
       event?.preventDefault();return true;
     }
+    _clearSnapGuides(){
+      this.activeCanvas?.querySelectorAll(".slide-smart-guide").forEach(node=>node.remove());
+    }
+    _drawSnapGuides(guides,surface){
+      this._clearSnapGuides();
+      for(const guide of guides){
+        const line=document.createElement("div");
+        line.className="slide-smart-guide slide-smart-guide-"+guide.axis;
+        line.dataset.snapKind=guide.kind;
+        line.dataset.snapAxis=guide.axis;
+        line.dataset.snapValue=String(guide.value);
+        Object.assign(line.style,guide.axis==="x"
+          ?{left:(guide.value*100)+"%",top:"0",height:"100%"}
+          :{top:(guide.value*100)+"%",left:"0",width:"100%"});
+        surface.append(line);
+      }
+    }
     _start(event){
       if(!this.active||event.button!==0||event.shiftKey||this.paintActive)return;
       if(event.target.closest(".slide-inline-editor"))return;
@@ -1483,12 +1619,21 @@
       }else{
         item.x=clamp(state.initial.x+dx,0,1-state.initial.width);
         item.y=clamp(state.initial.y+dy,0,1-state.initial.height);
+        if(!event.altKey){
+          const others=this.getModel().surfaces[state.index].elements
+            .filter(obj=>obj.id!==state.id);
+          const snapped=smartSnap(item,others,state.box.width,state.box.height);
+          item.x=snapped.item.x;item.y=snapped.item.y;
+          this._drawSnapGuides(snapped.guides,state.node.closest(".fixed-surface"));
+        }else this._clearSnapGuides();
       }
+      if(state.rotating||state.handle)this._clearSnapGuides();
       state.value=item;
       this._styleObject(state.node,item,state.index);
     }
     _finish(event){
       const drag=this.drag;if(!drag)return;
+      this._clearSnapGuides();
       this.drag=null;
       if(!drag.value){
         if(drag.node.dataset.selected!=="true")this.render();
@@ -1503,5 +1648,5 @@
     }
   }
 
-  window.OpenDocSlidesEditor={create:options=>new SlideStudio(options),SlideDeckCommands,SlideSvgRenderer};
+  window.OpenDocSlidesEditor={create:options=>new SlideStudio(options),SlideDeckCommands,SlideSvgRenderer,smartSnap};
 })();

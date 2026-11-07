@@ -290,6 +290,64 @@ def main():
             assert len(slide_note["content"].get("assets", {})) == 1
             print("QT_SLIDE_SVG_AND_EDITABLE_OOXML_EXPORT_OK", flush=True)
 
+            # Reproduce the 36-slide economy template that once opened
+            # read-only due to narrow decorative shapes and inherited fonts.
+            from pptx.util import Inches, Pt
+            from pptx.dml.color import RGBColor
+            from pptx.enum.shapes import MSO_SHAPE
+            fixture = services().config.root / "qa-economy-import-36.pptx"
+            deck = Presentation()
+            deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
+            for slide_no in range(36):
+                s = deck.slides.add_slide(deck.slide_layouts[6])
+                s.background.fill.solid()
+                s.background.fill.fore_color.rgb = RGBColor(16, 36, 55)
+                stripe = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0,
+                                            Inches(.12), Inches(7.5))
+                stripe.fill.solid()
+                stripe.fill.fore_color.rgb = RGBColor(33, 183, 167)
+                rule = s.shapes.add_shape(MSO_SHAPE.RECTANGLE,
+                                          Inches(.75), Inches(5.3),
+                                          Inches(1.5), Inches(.07))
+                rule.fill.solid()
+                rule.fill.fore_color.rgb = RGBColor(33, 183, 167)
+                title = s.shapes.add_textbox(Inches(.72), Inches(1.05),
+                                             Inches(11.9), Inches(3.5))
+                para = title.text_frame.paragraphs[0]
+                para.font.size = Pt(51)
+                para.font.bold = True
+                para.font.name = "Aptos"
+                para.font.color.rgb = RGBColor(255, 255, 255)
+                para.add_run().text = "QUEM PRODUZ, QUEM PAGA E QUEM GANHA? " + str(slide_no + 1)
+            deck.save(fixture)
+            imported = services().fixed_documents.import_pptx(fixture)
+            assert imported["capabilities"]["edit_slides"] is True
+            window.evaluate_js(
+                "OpenDocApp.editor().load(" + json.dumps(imported, ensure_ascii=False) + ")"
+            )
+            wait(window, "document.querySelector('.fixed-document')?.dataset.slideEditor==='true'")
+            wait(window, "document.querySelectorAll('.fixed-sidebar [data-thumbnail-index]').length===36")
+            output = subprocess.run(
+                ["node", str(ROOT / "tools/qa_imported_economy_capture.cjs"),
+                 os.environ["QTWEBENGINE_REMOTE_DEBUGGING"]],
+                capture_output=True, text=True, timeout=45,
+            )
+            print(output.stdout, output.stderr, flush=True)
+            assert output.returncode == 0, "Imported 36-slide PPTX Qt screenshot/typography failed"
+            print("QT_IMPORTED_36_SLIDE_REAL_SCREENSHOT_AND_FONT_SIZE_OK", flush=True)
+
+            # User-style math flow: open Equation ribbon, select a line
+            # integral, render and screenshot it in the actual Qt editor.
+            # The source stays in a descriptive image label for now.
+            math_result = subprocess.run(
+                ["node", str(ROOT / "tools/qa_math_gallery_capture.cjs"),
+                 os.environ["QTWEBENGINE_REMOTE_DEBUGGING"]],
+                capture_output=True, text=True, timeout=60,
+            )
+            print(math_result.stdout, math_result.stderr, flush=True)
+            assert math_result.returncode == 0, "Qt SVG mathematical gallery/line integral failed"
+            print("QT_MATH_GALLERY_SCREENSHOTS_OK", flush=True)
+
         except Exception as e:
             import traceback
 

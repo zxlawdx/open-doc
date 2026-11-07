@@ -7,6 +7,7 @@ shapes/animations when exported from the editable model.
 from __future__ import annotations
 
 import base64
+from copy import deepcopy
 from uuid import uuid4
 
 from pptx import Presentation
@@ -26,6 +27,12 @@ _SHAPES = {
     MSO_SHAPE.RIGHT_ARROW: "arrow",
     MSO_SHAPE.ISOSCELES_TRIANGLE: "triangle",
     MSO_SHAPE.DIAMOND: "diamond",
+    MSO_SHAPE.CHEVRON: "chevron",
+    MSO_SHAPE.HEXAGON: "hexagon",
+    MSO_SHAPE.PENTAGON: "pentagon",
+    MSO_SHAPE.PARALLELOGRAM: "parallelogram",
+    MSO_SHAPE.STAR_5_POINT: "star",
+    MSO_SHAPE.CLOUD: "cloud",
 }
 _CHARTS = {
     XL_CHART_TYPE.COLUMN_CLUSTERED: "bar",
@@ -45,13 +52,21 @@ def _rgb(color, default: str) -> str:
     return default
 
 
+def _fill_color(fill, default: str) -> str:
+    """Read explicit fill colors without raising on inherited or empty fills."""
+    try:
+        return _rgb(fill.fore_color, default)
+    except (AttributeError, TypeError, ValueError):
+        return default
+
+
 def _coordinates(shape, width: int, height: int) -> dict:
     x = max(0.0, min(1.0, shape.left / width))
     y = max(0.0, min(1.0, shape.top / height))
     w = max(.00001, min(1.0 - x, shape.width / width))
     h = max(.00001, min(1.0 - y, shape.height / height))
-    if w < .01 or h < .01:
-        raise ValueError("Objeto fora do tamanho editável.")
+    if w < .00001 or h < .00001:
+        raise ValueError("Objeto sem dimensões geométricas válidas.")
     return dict(x=round(x, 7), y=round(y, 7),
                 width=round(min(w, 1-x), 7), height=round(min(h, 1-y), 7))
 
@@ -97,6 +112,14 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                     crop_top=shape.crop_top, crop_bottom=shape.crop_bottom,
                     flip_h=bool(shape._pic.spPr.xfrm.flipH) if shape._pic.spPr.xfrm is not None else False,
                     flip_v=bool(shape._pic.spPr.xfrm.flipV) if shape._pic.spPr.xfrm is not None else False)
+    elif shape.has_table:
+        table = shape.table
+        if not 1 <= len(table.rows) <= 30 or not 1 <= len(table.columns) <= 20:
+            raise ValueError("Tabela grande demais para edição nativa.")
+        cells = [[table.cell(row, col).text[:2000]
+                  for col in range(len(table.columns))]
+                 for row in range(len(table.rows))]
+        base.update(type="table", rotation=0, table_cells=cells)
     elif shape.shape_type == MSO_SHAPE_TYPE.CHART:
         chart = shape.chart
         kind = _CHARTS.get(chart.chart_type)
@@ -124,7 +147,7 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
             raise ValueError("Objeto PPTX fora do subconjunto editável.")
         base["type"] = kind
         if kind not in {"text", "line"}:
-            base["fill"] = _rgb(shape.fill.fore_color, base["fill"])
+            base["fill"] = _fill_color(shape.fill, base["fill"])
         if kind != "text":
             base["stroke"] = _rgb(shape.line.color, base["stroke"])
         if shape.line.width:
@@ -135,28 +158,39 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
             runs = paragraphs[0].runs if paragraphs else []
             if runs:
                 font = runs[0].font
-                base["font_family"] = str(font.name or "Inter")[:80]
-                if font.size:
-                    base["font_size_pt"] = max(6.0, min(144.0, float(font.size.pt)))
-                base["color"] = _rgb(font.color, base["color"])
-                if font.bold is not None:
-                    base["font_bold"] = font.bold
-                if font.italic is not None:
-                    base["font_italic"] = font.italic
+                # PowerPoint text formatting commonly lives on a:defRPr
+                # (paragraph default run properties), not the individual
+                # a:rPr. Treat an unset run property as inherited rather
+                # than substituting small black text in the editor.
+                paragraph_font = paragraphs[0].font
+                base["font_family"] = str(
+                    font.name or paragraph_font.name or "Inter"
+                )[:80]
+                effective_size = font.size or paragraph_font.size
+                if effective_size is not None:
+                    base["font_size_pt"] = max(
+                        6.0, min(144.0, float(effective_size.pt))
+                    )
+                base["color"] = _rgb(
+                    font.color, _rgb(paragraph_font.color, base["color"])
+                )
+                bold = font.bold if font.bold is not None else paragraph_font.bold
+                italic = font.italic if font.italic is not None else paragraph_font.italic
+                if bold is not None:
+                    base["font_bold"] = bold
+                if italic is not None:
+                    base["font_italic"] = italic
     return base
 
 
 def read_editable_deck(path) -> dict | None:
-    """Return a validated editable model only for identified Open Doc exports.
+    """Convert supported decks, including externally created PPTX presentations.
 
-    No lossy conversion for arbitrary user decks: if an imported slide contains
-    animation timing, groups, unsupported graphics, or shapes, preserve it as
-    an immutable original instead. Legacy non-marked decks remain in viewer
-    mode and can later use an explicit, reviewed conversion operation.
+    Never silently remove unknown shapes, groups, or animations. A presentation
+    requiring unsupported features remains a read-only preview; the source
+    is retained unchanged for future conversion support.
     """
     deck = Presentation(path)
-    if MARKER not in (deck.core_properties.keywords or ""):
-        return None
     if not 1 <= len(deck.slides) <= 200:
         return None
     width, height = deck.slide_width, deck.slide_height
@@ -170,21 +204,24 @@ def read_editable_deck(path) -> dict | None:
             if slide._element.find(_NS + "timing") is not None:
                 return None
             effect, speed = _transition(slide)
-            color = _rgb(slide.background.fill.fore_color, "#FFFFFF")
+            color = _fill_color(slide.background.fill, "#FFFFFF")
             notes = ""
             if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
                 notes = slide.notes_slide.notes_text_frame.text[:5000]
-            surface = dict(index=index, preview_kind="pptx-native",
+            surface = dict(index=index, source_slide_index=index, preview_kind="pptx-native",
                            width_pt=width / 12700, height_pt=height / 12700,
                            strokes=[], text_overlays=[], background=color,
-                           notes=notes, transition=effect, transition_speed=speed,
+                           source_background=color, notes=notes, transition=effect, transition_speed=speed,
                            elements=[])
             if len(slide.shapes) > 500:
                 return None
-            for shape in slide.shapes:
-                surface["elements"].append(_shape_element(shape, width, height, assets))
+            for source_index, shape in enumerate(slide.shapes):
+                element = _shape_element(shape, width, height, assets)
+                element["source_shape_index"] = source_index
+                element["source_original"] = deepcopy(element)
+                surface["elements"].append(element)
             surfaces.append(surface)
-        model = dict(editable_deck=True, assets=assets, surfaces=surfaces)
+        model = dict(editable_deck=True, preserve_source=True, assets=assets, surfaces=surfaces)
         SlideModelValidator().validate(dict(source_kind="pptx", **model))
     except (AttributeError, KeyError, TypeError, ValueError, IndexError, OverflowError):
         return None

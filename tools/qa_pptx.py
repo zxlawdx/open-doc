@@ -75,7 +75,7 @@ def main():
             assert len(Presentation(destination).slides) == 2
             assert (
                 services().fixed_documents.source(note["id"]).read_bytes()
-                == (ROOT / "tests/fixtures/visible.pptx").read_bytes()
+                == expected_source_bytes
             )
             print("QT_PPTX_WITHOUT_LIBREOFFICE_INK_SAVE_REOPEN_EXPORT_OK", flush=True)
         except Exception as e:
@@ -97,6 +97,19 @@ def main():
             from unittest.mock import patch
 
             source = services().organizer.organize(ROOT / "tests/fixtures/visible.pptx")
+            # This smoke exercises the read-only fallback, not the native
+            # editor. Since tables/shapes gained editable support, the
+            # original sample may open natively. Add an intentionally
+            # unsupported auto-shape to test the fallback deterministically.
+            from pptx import Presentation
+            from pptx.enum.shapes import MSO_SHAPE
+            from pptx.util import Inches
+            preview_deck = Presentation(source)
+            preview_deck.slides[0].shapes.add_shape(
+                MSO_SHAPE.DONUT, 0, 0, Inches(.02), Inches(.02)
+            )
+            preview_deck.save(source)
+            expected_source_bytes = source.read_bytes()
             with patch(
                 "subprocess.run",
                 side_effect=AssertionError(

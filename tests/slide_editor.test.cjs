@@ -942,3 +942,92 @@ test('Viewport refit after a double click keeps the inline editor focused and sa
  click('dblclick');
  assert.equal(q.w.document.activeElement,q.scroller.querySelector('.slide-inline-editor'));
 });
+
+test('PowerPoint ribbon groups every SVG action and keeps new shapes on Insert',t=>{
+ const q=setup(t);
+ const tabs=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'));
+ assert.deepEqual(tabs.map(x=>x.textContent),['Slides','Inserir','Formatar','Transições']);
+ const toolbar=q.controls.querySelector('.slide-studio-toolbar');
+ assert.equal(toolbar.querySelectorAll(':scope > button').length,0,
+   'Unclassified ribbon buttons expand vertically and hide the slide');
+ const insert=Array.from(toolbar.querySelectorAll('.slide-ribbon-group'))
+   .find(group=>group.getAttribute('aria-label')==='Ferramentas de Inserir');
+ assert.ok(insert);
+ const labels=['Tabela','Chevron','Hexágono','Pentágono','Paralelogramo','Estrela','Nuvem'];
+ for(const label of labels){
+  const b=Array.from(insert.querySelectorAll('button')).find(x=>x.textContent===label);
+  assert.ok(b,'Missing Insert action '+label);
+  const use=b.querySelector('svg use');
+  assert.ok(use,'Missing SVG icon for '+label);
+  assert.ok(use.getAttribute('href')?.includes('#shape-')||label==='Tabela'&&use.getAttribute('href')?.endsWith('#table'),
+    'Unexpected SVG icon on '+label);
+ }
+ assert.equal(insert.hidden,false);
+ clickLabel(q.controls,'Tabela');
+ clickLabel(q.controls,'Estrela');
+ assert.equal(q.scroller.querySelectorAll('.slide-native-table').length,1);
+ assert.equal(q.scroller.querySelectorAll('.slide-object-star svg').length,1);
+});
+
+test('Qt slide CSS keeps toolbar one row and shapes hit-testable',t=>{
+ const source=fs.readFileSync(path.join(__dirname,'../apps/open_doc/styles/slide_editor.css'),'utf8');
+ assert.match(source,/\.fixed-surface > \.slide-object\s*\{\s*pointer-events:auto/);
+ assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?flex-flow:row nowrap/);
+ assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?overflow-x:auto/);
+});
+
+test('arrow keys navigate only when a slide thumbnail in the left sidebar is focused',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'+ Slide');
+ q.editor.goTo(1);
+ const thumb=q.sidebar.querySelector('[data-thumbnail-index="1"]');
+ thumb.focus();
+ assert.equal(q.w.document.activeElement,thumb);
+ const press=(target,key)=>target.dispatchEvent(new q.w.KeyboardEvent('keydown',
+  {key,bubbles:true,cancelable:true}));
+ press(thumb,'ArrowDown');
+ assert.equal(q.editor.current,2);
+ assert.equal(q.w.document.activeElement.dataset.thumbnailIndex,'2');
+ press(q.w.document.activeElement,'ArrowRight');
+ assert.equal(q.editor.current,2,'last slide must clamp');
+ press(q.w.document.activeElement,'ArrowUp');
+ assert.equal(q.editor.current,1);
+ press(q.w.document.activeElement,'ArrowLeft');
+ assert.equal(q.editor.current,0);
+ press(q.w.document.activeElement,'ArrowLeft');
+ assert.equal(q.editor.current,0,'first slide must clamp');
+ // Other UI contexts must NEVER switch slides on arrow keys.
+ const canvas=q.scroller.querySelector('.fixed-surface');
+ press(canvas,'ArrowRight');
+ assert.equal(q.editor.current,0,'canvas arrows do not navigate slides');
+ const other=q.controls.querySelector('.slide-ribbon-tab');
+ press(other,'ArrowDown');
+ assert.equal(q.editor.current,0,'toolbar arrows do not navigate slides');
+ clickLabel(q.controls,'Texto');
+ const object=q.model().surfaces[0].elements[0];
+ q.editor.selectSearchResult(0,object.id);
+ const initialX=q.model().surfaces[0].elements[0].x;
+ // selectSearchResult rebuilds the physical canvas; dispatch against the
+ // current attached node, never the stale original reference.
+ press(q.scroller.querySelector('.fixed-surface'),'ArrowRight');
+ assert.equal(q.editor.current,0,'selected shape arrow must not change slide');
+ assert.ok(q.model().surfaces[0].elements[0].x>initialX,
+   'canvas arrows must still move the selected object');
+});
+
+test('smart alignment guides find slide center and nearby object edges at any zoom',t=>{
+ const q=setup(t);
+ const snap=q.w.OpenDocSlidesEditor.smartSnap;
+ const nearCenter={x:.493,y:.492,width:.20,height:.15};
+ const centered=snap(nearCenter,[],1000,600,9);
+ // The leading edge is near center; snap it exactly, not the rectangle center.
+ assert.equal(centered.item.x,.5);
+ assert.equal(centered.item.y,.5);
+ assert.ok(centered.guides.some(g=>g.axis==='x'&&g.value===.5));
+ const aligned=snap({x:.305,y:.51,width:.2,height:.15},
+  [{x:.3,y:.1,width:.2,height:.12}],1000,600,8);
+ assert.equal(aligned.item.x,.3);
+ const outside=snap({x:.35,y:.38,width:.2,height:.15},[],1000,600,7);
+ assert.equal(outside.guides.length,0);
+});

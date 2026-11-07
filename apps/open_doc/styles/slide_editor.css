@@ -333,3 +333,102 @@
   border-color:var(--color-primary);background:var(--color-primary-soft);
   box-shadow:inset 3px 0 0 var(--color-primary);
 }
+
+
+/* PPTX Qt hit testing and compact ribbon (Nov 2026 regression).
+   Objects are direct children of the physical slide, unlike the background
+   layer, and must remain independently clickable. */
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object-layer{
+  pointer-events:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-surface > .slide-object{
+  pointer-events:auto;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object .slide-vector-shape,
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object .slide-image-crop,
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object .slide-native-table{
+  pointer-events:none;
+}
+/* Ribbon occupies one bounded, scrollable tool row irrespective of how
+   many Office shapes and charts are registered. Chrome 83/QtWebEngine
+   must not stretch unclassified actions to the full viewport width. */
+.open-doc .fixed-document[data-slide-editor="true"] .slide-studio-toolbar{
+  min-width:0;max-width:100%;flex:0 1 auto;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-body{
+  width:100%;min-width:0;max-width:100%;overflow:hidden;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group{
+  display:flex;flex-flow:row nowrap;align-items:center;
+  flex:1 1 auto;min-height:42px;max-height:52px;
+  width:100%;min-width:0;max-width:100%;overflow-x:auto;overflow-y:hidden;
+  padding:2px 0 5px;scrollbar-width:thin;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group button{
+  flex:0 0 auto;white-space:nowrap;width:auto;max-width:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  min-height:0;
+}
+
+/* QtWebEngine 5.15 / Chromium 83: the insertion ribbon must never consume
+   the entire grid height. CI 42367824588 recorded .fixed-scroll height=0,
+   leaving slide objects painted outside the scroller's hit-test area. */
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-controls{
+  max-height:180px;overflow-y:auto;align-content:start;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group > button,
+.open-doc .fixed-document[data-slide-editor="true"] .slide-ribbon-group > *{
+  flex:0 0 auto;width:auto;max-width:none;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll{
+  min-height:0;min-width:0;
+}
+
+/* PowerPoint-style temporary alignment crosshairs. They follow the
+   pointer but never intercept dragging, text editing, or selection. */
+.open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide{
+  position:absolute;
+  z-index:9998;
+  pointer-events:none;
+  box-sizing:border-box;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide-x{
+  border-left:1px dashed #E83773;
+  width:0;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide-y{
+  border-top:1px dashed #E83773;
+  height:0;
+}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-smart-guide[data-snap-kind="center"]{
+  filter:drop-shadow(0 0 1px white);
+}
+
+/* Offline formula palette. Positioned above the slide as a bounded overlay;
+   does not extend the Ribbon or reduce the editor viewport. */
+.open-doc .slide-math-gallery{
+  position:fixed;z-index:10020;top:150px;left:min(310px,10vw);
+  width:min(660px,88vw);max-height:min(700px,80vh);
+  overflow-y:auto;overflow-x:hidden;
+  display:grid;grid-template-columns:1fr;
+  gap:10px;padding:16px;
+  background:var(--color-panel);color:var(--color-text-primary);
+  border:1px solid #aeb8c7;border-radius:12px;
+  box-shadow:0 16px 55px #0004;
+}
+.open-doc .slide-math-gallery[hidden]{display:none!important}
+.open-doc .slide-math-gallery h3,.open-doc .slide-math-gallery p{grid-column:1/-1;margin:0}
+.open-doc .slide-math-gallery p{font-size:12px;line-height:1.4}
+.open-doc .slide-math-template{
+  display:flex;flex-direction:column;gap:6px;align-items:stretch;
+  min-width:0;border:1px solid #d9e0e9;border-radius:8px;
+  padding:7px;background:#fff;color:#162d48;cursor:pointer;
+  text-align:left;font-size:13px;font-weight:600;
+}
+.open-doc .slide-math-template:hover,
+.open-doc .slide-math-template:focus-visible{outline:2px solid #1674ca}
+.open-doc .slide-math-template img{
+  width:100%;height:auto;max-height:125px;object-fit:contain;
+}
+
