@@ -15,6 +15,7 @@ from pptx.dml.color import RGBColor
 from pptx.chart.data import CategoryChartData
 from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
+from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Pt
 
@@ -134,13 +135,17 @@ class SlideDeckExporter:
             frame = shape.text_frame
             frame.clear()
             frame.word_wrap = True
-            run = frame.paragraphs[0].add_run()
-            run.text = obj.get("text", "")
-            run.font.name = obj.get("font_family", "Inter")
-            run.font.size = Pt(obj.get("font_size_pt", 28))
-            run.font.bold = obj.get("font_bold")
-            run.font.italic = obj.get("font_italic")
-            run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
+            if kind == "text":
+                frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+            for index, line in enumerate(obj.get("text", "").split("\n")):
+                paragraph = frame.add_paragraph() if index else frame.paragraphs[0]
+                run = paragraph.add_run()
+                run.text = line
+                run.font.name = obj.get("font_family", "Inter")
+                run.font.size = Pt(obj.get("font_size_pt", 28))
+                run.font.bold = obj.get("font_bold")
+                run.font.italic = obj.get("font_italic")
+                run.font.color.rgb = rgb(obj.get("color", "#191C1E"))
         return shape
 
     @staticmethod

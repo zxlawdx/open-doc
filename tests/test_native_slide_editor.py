@@ -459,6 +459,8 @@ def test_native_pptx_transition_roundtrip_and_validation(tmp_path):
 def test_exported_native_pptx_can_be_reimported_and_edited_in_open_doc(tmp_path):
     """Closing/exporting/reimporting must not switch to stacked read-only pages."""
     from pptx.enum.shapes import MSO_SHAPE_TYPE
+    from pptx.enum.text import MSO_AUTO_SIZE
+
     ctx = configure(Config(tmp_path))
     note = ctx.fixed_documents.create_presentation("Apresentação editável")
     model = deepcopy(note["content"])
@@ -466,8 +468,9 @@ def test_exported_native_pptx_can_be_reimported_and_edited_in_open_doc(tmp_path)
     model["surfaces"][0]["notes"] = "Notas de campo"
     model["surfaces"][0]["transition"] = "push-left"
     model["surfaces"][0]["transition_speed"] = "slow"
+    multiline = "Produção e circulação\n\nDistribuição e consumo"
     model["surfaces"][0]["elements"] = [
-        {**element("title-1", "text"), "font_family": "Times New Roman",
+        {**element("title-1", "text"), "text": multiline, "font_family": "Times New Roman",
          "font_size_pt": 36, "font_bold": True, "font_italic": True},
         {**element("shape-1", "rect"), "text": "", "fill": "#F4B183"},
         {**element("shape-2", "ellipse"), "text": "", "fill": "#AA77FF"},
@@ -482,7 +485,9 @@ def test_exported_native_pptx_can_be_reimported_and_edited_in_open_doc(tmp_path)
     original = Presentation(exported)
     assert "OpenDoc:EditableSlide-v1" in original.core_properties.keywords
     assert len(original.slides[0].shapes) == 4
-    assert original.slides[0].shapes[0].has_text_frame
+    text_frame = original.slides[0].shapes[0].text_frame
+    assert text_frame.auto_size == MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    assert text_frame.text == multiline
     assert original.slides[0].shapes[1].shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE
     assert original.slides[0].shapes[3].has_chart
 
@@ -491,6 +496,7 @@ def test_exported_native_pptx_can_be_reimported_and_edited_in_open_doc(tmp_path)
     assert imported["content"]["editable_deck"] is True
     slide = imported["content"]["surfaces"][0]
     assert slide["background"] == "#22CCEE"
+    assert slide["elements"][0]["text"] == multiline
     assert slide["transition"] == "push-left"
     assert len(slide["elements"]) == 4
     assert [x["type"] for x in slide["elements"]] == ["text", "rect", "ellipse", "chart"]

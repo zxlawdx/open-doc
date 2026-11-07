@@ -158,6 +158,23 @@
   white-space:pre-wrap;word-break:break-word;
 }
 
+/* Object shortcuts above the slide workspace. */
+.open-doc .slide-selection-toolbar{
+  order:3;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 12px;
+  border-top:1px solid var(--color-border-soft);width:100%;box-sizing:border-box;
+}
+.open-doc .slide-selection-toolbar[hidden]{display:none}
+.open-doc .slide-selection-toolbar label{display:inline-flex;align-items:center;gap:5px}
+.open-doc .slide-selection-toolbar input[type=number]{width:5.5em}
+.open-doc .slide-selection-toolbar input[type=color]{width:36px;min-height:28px;padding:2px}
+.open-doc .slide-selection-toolbar button,
+.open-doc .slide-inspector button{
+  align-items:center;gap:4px;
+}
+.open-doc .slide-selection-toolbar button[aria-pressed=true]{
+  background:var(--color-primary-soft);color:var(--color-primary);
+}
+
 /* Visual preview only. Native PPTX export writes p:transition OOXML separately. */
 @keyframes open-doc-transition-fade{
   from{opacity:0}to{opacity:1}
