@@ -493,7 +493,7 @@ test('native editable chart actions create chart object and SVG without bitmap',
    clickLabel(q.controls,label);
    const object=q.model().surfaces[0].elements.slice(-1)[0];
    assert.equal(object.type,'chart');assert.equal(object.chart_type,kind);
-   assert.deepEqual(JSON.parse(JSON.stringify(object.chart_categories)),['2024','2025','2026']);
+   assert.deepEqual(JSON.parse(JSON.stringify(object.chart_categories)),['Categoria A','Categoria B','Categoria C']);
    assert.equal(object.chart_values.length,3);
    const rendered=Array.from(q.scroller.querySelectorAll('.slide-object-chart'))
      .find(n=>n.dataset.slideElement===object.id);
@@ -513,7 +513,7 @@ test('chart data table edits stay linked to native chart object; palettes and un
  assert.ok(q.host.querySelector('.slide-chart-data'));
  let grid=q.host.querySelector('.slide-chart-grid');
  assert.equal(grid.querySelectorAll('tbody tr').length,3);
- let label=grid.querySelector('tbody tr:first-child input[type=text]');
+ let label=grid.querySelector('tbody tr:first-child textarea');
  label.value='Rondônia';
  const prior=q.versions.length;
  label.dispatchEvent(new q.w.Event('change',{bubbles:true}));
@@ -526,7 +526,7 @@ test('chart data table edits stay linked to native chart object; palettes and un
  let palette=q.host.querySelector('[aria-label="Paleta do gráfico"]');
  palette.value='green';palette.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  assert.equal(q.model().surfaces[0].elements[0].chart_palette,'green');
- let add=q.host.querySelector('.slide-chart-data > button');
+ let add=q.host.querySelector('.slide-chart-data > details button');
  add.click();
  assert.equal(q.model().surfaces[0].elements[0].chart_categories.length,4);
  assert.equal(q.host.querySelectorAll('.slide-chart-grid tbody tr').length,4);
@@ -1192,4 +1192,77 @@ test('two inserted equations avoid each other and nested math receives suitable 
    'new native formula should not significantly overlap the existing object');
  assert.equal(b.font_size_pt,34);
  assert.ok(b.y+b.height<=1.00001);
+});
+
+
+test('PPTX chart PIB uses complete economic categories and calculated percentages',t=>{
+ const q=setup(t);const charts=q.w.OpenDocSlideCharts;
+ const economic=[
+  'Remuneração dos empregados',
+  'Excedente operacional bruto e rendimento misto bruto',
+  'Impostos líquidos de subsídios'
+ ];
+ const source={chart_type:'bar',chart_title:'Distribuição do PIB pela ótica da renda — Brasil, 2021',
+   chart_categories:economic,chart_values:[39.2,45.3,15.5],
+   chart_background:'transparent',chart_data_labels:'both',
+   chart_label_font_size:13,chart_label_wrap:true};
+ charts.valid(source.chart_type,source.chart_categories,source.chart_values);
+ const large=charts.ChartPreview.render(source,{width:850,height:480});
+ const small=charts.ChartPreview.render(source,{width:420,height:240});
+ assert.equal(large.dataset.background,'transparent');
+ assert.equal(large.querySelector('rect[fill="#FFFFFF"]'),null,
+   'transparent charts may not paint an opaque white rectangle');
+ for(const svg of [large,small]){
+  const text=Array.from(svg.querySelectorAll('text')).map(n=>n.textContent).join('|');
+  for(const title of economic){
+   const candidate=Array.from(svg.querySelectorAll('text')).find(n=>
+     Array.from(n.querySelectorAll('tspan')).map(t=>t.textContent).join('')===title);
+   assert.ok(candidate,'full category text is preserved: '+title);
+  }
+  assert.match(text,/39,2/);assert.match(text,/45,3/);
+  assert.match(text,/15,5/);
+  assert.match(text,/39,2%/);assert.match(text,/45,3%/);
+  assert.match(text,/15,5%/);
+ }
+ const lines=charts.ChartLayoutEngine.lines(economic[1],155,charts.ChartLayoutEngine.font(source));
+ assert.ok(lines.length>1,'long text wraps to multiple lines');
+ assert.equal(lines.join(''),economic[1],
+   'a text wrap must preserve all characters, spaces, and punctuation');
+});
+
+test('Chart style controls update transparent background, percentages, item colors, tracking and history',t=>{
+ const q=setup(t);clickLabel(q.controls,'Gráfico: Barras');
+ const control=(label)=>q.host.querySelector('[aria-label="'+label+'"]');
+ const changed=(input,value)=>{
+  if(input.type==='checkbox')input.checked=value;
+  else input.value=value;
+  input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ };
+ changed(control('Fundo do gráfico'),'transparent');
+ changed(control('Rótulos de valores'),'both');
+ changed(control('Espaçamento entre letras (pt)'),'.7');
+ changed(control('Rotação dos rótulos'),'45');
+ changed(control('Cor da categoria 2'),'#ff6600');
+ const chart=q.model().surfaces[0].elements[0];
+ assert.equal(chart.chart_background,'transparent');
+ assert.equal(chart.chart_data_labels,'both');
+ assert.equal(chart.chart_label_letter_spacing,.7);
+ assert.equal(chart.chart_label_rotation,45);
+ assert.equal(chart.chart_color_mode,'custom');
+ assert.equal(chart.chart_item_colors[1],'#FF6600');
+ assert.equal(q.scroller.querySelector('.slide-chart-preview').dataset.background,'transparent');
+ assert.ok(q.versions.length>=6,'style changes use persistent command history');
+});
+
+test('PPTX text letter spacing persists on object and renders on canvas',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const id=q.model().surfaces[0].elements[0].id;
+ const input=q.controls.querySelector('.slide-selection-toolbar label input[type=number][step="0.1"]');
+ assert.ok(input,'context text ribbon has character spacing in points');
+ input.value='1.5';
+ input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].font_letter_spacing_pt,1.5);
+ const text=q.scroller.querySelector('.slide-object-text');
+ assert.ok(parseFloat(text.style.letterSpacing)>0);
+ assert.equal(q.model().surfaces[0].elements[0].id,id);
 });
