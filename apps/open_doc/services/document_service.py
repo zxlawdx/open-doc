@@ -282,7 +282,7 @@ class Editor:
             if current is None:
                 raise ValueError("Documento não encontrado.")
             version_id = data.get("version_id")
-            if operation in {"create", "restore"} or (
+            if operation in {"create", "restore", "restore_slide"} or (
                 operation == "list" and not self.history.list(connection, identifier)
             ):
                 self.history.capture(connection, current, "automatic")
@@ -302,7 +302,7 @@ class Editor:
             elif operation == "inspect":
                 selected = self.history.read(connection, identifier, version_id)
                 return {"selected": selected, "current": self.history.fields(current)}
-            elif operation == "restore":
+            elif operation in {"restore", "restore_slide"}:
                 if data.get("revision") != current["revision"]:
                     raise RevisionConflict("O documento mudou. Abra o histórico novamente.")
                 if connection.execute(
@@ -312,6 +312,17 @@ class Editor:
                 selected = self.history.read(connection, identifier, version_id)
                 if selected["source_sha256"] != current["source_sha256"]:
                     raise ValueError("A versão pertence a uma origem diferente.")
+                if operation == "restore_slide":
+                    if not fixed:
+                        raise ValueError("Somente apresentações têm slides.")
+                    from apps.open_doc.fixed_document.slide_restore import restore_slide
+
+                    selected = {
+                        "title": current["title"],
+                        "content_json": restore_slide(
+                            current["content_json"], selected["content_json"], data.get("slide_index")
+                        ),
+                    }
                 self.history.capture(connection, current, "before_restore")
                 columns = ["title", "content_json"]
                 if not fixed:

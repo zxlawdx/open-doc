@@ -66,7 +66,11 @@ python manage.py runapp
 No Linux, o QtWebEngine depende de bibliotecas gráficas do sistema, incluindo
 Xtst, NSS, X11, xkbcommon, EGL e áudio. Para atualizar um clone na branch
 `main`, execute `git pull --ff-only origin main` e repita a instalação das
-dependências e o `collectstatic` antes de abrir o aplicativo.
+dependências e o `collectstatic` antes de abrir o aplicativo. Em clones anteriores
+à separação do CSS, o primeiro pull pode exigir guardar uma alteração já
+existente em `apps/open_doc/static/css/main.css` usando `git stash push --
+apps/open_doc/static/css/main.css`. Nas versões seguintes, compilar o CSS
+não deve modificar esse arquivo rastreado.
 
 ### Executar sem Node.js (computador corporativo)
 
@@ -113,6 +117,14 @@ que **Abrir / importar**. Para testar a abertura com um clone já preparado,
 execute `python main.py "caminho/para/arquivo.docx"`. O menu de associações é
 destinado à versão instalada. Uma instalação anterior precisa ser atualizada
 com um novo build para receber o recurso.
+
+### Restaurar apenas um slide
+
+Em uma apresentação editável, abra **Arquivo → Histórico de versões**,
+selecione uma versão e clique em **Comparar**. Escolha o número do slide
+para ver o resumo de conteúdo daquela posição nas duas versões. Confira o
+conteúdo e use **Restaurar este slide**. A operação mantém os demais slides
+e guarda o estado completo anterior como um ponto de recuperação.
 
 ## Recursos em detalhe
 
@@ -235,7 +247,7 @@ registra o estado anterior.
 
 Os fontes em `apps/open_doc/styles` separam tokens, layout, componentes, conteúdo,
 estados e política responsiva. Edite esses fontes e rode `python manage.py collectstatic`.
-O hook `tools.build_css:main` recompila Tailwind e combina o bundle com os estilos escritos à mão antes da coleta. O arquivo `main.css` é gerado.
+O hook `tools.build_css:main` recompila Tailwind e combina o bundle com os estilos escritos à mão antes da coleta. O CSS de execução `runtime.css` é gerado localmente e ignorado pelo Git, evitando que `collectstatic` bloqueie o próximo `git pull`. O `main.css` versionado permanece somente como base Tailwind para o preparo offline; não o edite diretamente.
 A toolbar usa grupos e scroll horizontal nas janelas menores; as páginas preservam
 as dimensões lógicas. `python tools/qa_styles.py` captura a matriz visual no Qt real.
 

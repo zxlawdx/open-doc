@@ -36,10 +36,18 @@ def main():
                 window,
                 "document.querySelector('[data-position]').textContent === 'Página 2 de 3'",
             )
+            # Page navigation updates the counter before pdf.js has finished
+            # asynchronously populating the next page's text layer.
+            wait(
+                window,
+                """[...document.querySelectorAll('.fixed-surface[data-page-index="1"] .textLayer span')]
+                    .some(node => node.textContent?.includes('Relatorio de atividade'))""",
+            )
             window.create_file_dialog = lambda *args, **kwargs: (str(destination),)
             window.evaluate_js("""(() => {
-                    const text = [...document.querySelectorAll('.textLayer span')]
-                        .find(node => node.textContent === 'Relatorio de atividade');
+                    const text = [...document.querySelectorAll('.fixed-surface[data-page-index="1"] .textLayer span')]
+                        .find(node => node.textContent?.includes('Relatorio de atividade'));
+                    if (!text) throw Error('Página 2 ainda não possui a camada de texto');
                     const button = [...document.querySelectorAll('.fixed-controls button')]
                         .find(node => node.textContent === 'Editar PDF');
                     button.click();

@@ -438,7 +438,8 @@ test('shape grips resize on all edges and rotation control commits one change',t
 
 test('color bucket paints shapes from ribbon without opening the Inspector',t=>{
  const q=setup(t);
- assert.deepEqual(Array.from(q.controls.querySelectorAll('.slide-ribbon-tab')).map(tab=>tab.textContent),
+ assert.deepEqual(Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+   .filter(tab=>!tab.hidden).map(tab=>tab.textContent),
    ['Slides','Inserir','Formatar','Transições']);
  clickLabel(q.controls,'Retângulo');
  const shape=q.scroller.querySelector('.slide-object-rect');
@@ -493,7 +494,7 @@ test('native editable chart actions create chart object and SVG without bitmap',
    clickLabel(q.controls,label);
    const object=q.model().surfaces[0].elements.slice(-1)[0];
    assert.equal(object.type,'chart');assert.equal(object.chart_type,kind);
-   assert.deepEqual(JSON.parse(JSON.stringify(object.chart_categories)),['2024','2025','2026']);
+   assert.deepEqual(JSON.parse(JSON.stringify(object.chart_categories)),['Categoria A','Categoria B','Categoria C']);
    assert.equal(object.chart_values.length,3);
    const rendered=Array.from(q.scroller.querySelectorAll('.slide-object-chart'))
      .find(n=>n.dataset.slideElement===object.id);
@@ -513,7 +514,7 @@ test('chart data table edits stay linked to native chart object; palettes and un
  assert.ok(q.host.querySelector('.slide-chart-data'));
  let grid=q.host.querySelector('.slide-chart-grid');
  assert.equal(grid.querySelectorAll('tbody tr').length,3);
- let label=grid.querySelector('tbody tr:first-child input[type=text]');
+ let label=grid.querySelector('tbody tr:first-child textarea');
  label.value='Rondônia';
  const prior=q.versions.length;
  label.dispatchEvent(new q.w.Event('change',{bubbles:true}));
@@ -526,7 +527,7 @@ test('chart data table edits stay linked to native chart object; palettes and un
  let palette=q.host.querySelector('[aria-label="Paleta do gráfico"]');
  palette.value='green';palette.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  assert.equal(q.model().surfaces[0].elements[0].chart_palette,'green');
- let add=q.host.querySelector('.slide-chart-data > button');
+ let add=q.host.querySelector('.slide-chart-add-category');
  add.click();
  assert.equal(q.model().surfaces[0].elements[0].chart_categories.length,4);
  assert.equal(q.host.querySelectorAll('.slide-chart-grid tbody tr').length,4);
@@ -548,7 +549,7 @@ test('chart validation prevents invalid pie values or wrong number of data cells
  const before=q.versions.length;
  change.value='-2';change.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  assert.equal(q.versions.length,before,'bad values must not mutate presentation');
- assert.equal(q.model().surfaces[0].elements[0].chart_values[0],18);
+ assert.equal(q.model().surfaces[0].elements[0].chart_values[0],25);
 });
 
 test('double pointer tap edits text in place despite slide DOM replacement',t=>{
@@ -795,7 +796,8 @@ test('Slide typography presets and font family are applied to canvas and inline 
      .find(node=>node.firstChild.textContent===label).querySelector('select');
    field.value=value;field.dispatchEvent(new q.w.Event('change'));
  };
- change('Família da fonte','Times New Roman');
+ const font=q.host.querySelector('.slide-inspector .slide-font-option[data-family="Times New Roman"]');
+ assert.ok(font,'font picker exposes live preview choices');font.click();
  change('Estilo do texto','Título 2');
  const object=q.model().surfaces[0].elements[0];
  assert.equal(object.font_family,'Times New Roman');
@@ -875,7 +877,8 @@ test('Selection shortcuts format text, change layers and scale in one edit',t=>{
    input.value=value;input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  };
  assert.equal(bar.hidden,false);
- change(bar.querySelector('select'),'Arial');
+ const font=bar.querySelector('.slide-font-option[data-family="Arial"]');
+ assert.ok(font,'Arial present in accessible visual font picker');font.click();
  change(bar.querySelector('input[type=color]'),'#cc1133');
  button('Negrito').click();
  assert.equal(button('Descer camada').disabled,true);
@@ -946,7 +949,8 @@ test('Viewport refit after a double click keeps the inline editor focused and sa
 test('PowerPoint ribbon groups every SVG action and keeps new shapes on Insert',t=>{
  const q=setup(t);
  const tabs=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'));
- assert.deepEqual(tabs.map(x=>x.textContent),['Slides','Inserir','Formatar','Transições']);
+ assert.deepEqual(tabs.filter(x=>!x.hidden).map(x=>x.textContent),
+   ['Slides','Inserir','Formatar','Transições']);
  const toolbar=q.controls.querySelector('.slide-studio-toolbar');
  assert.equal(toolbar.querySelectorAll(':scope > button').length,0,
    'Unclassified ribbon buttons expand vertically and hide the slide');
@@ -972,8 +976,9 @@ test('PowerPoint ribbon groups every SVG action and keeps new shapes on Insert',
 test('Qt slide CSS keeps toolbar one row and shapes hit-testable',t=>{
  const source=fs.readFileSync(path.join(__dirname,'../apps/open_doc/styles/slide_editor.css'),'utf8');
  assert.match(source,/\.fixed-surface > \.slide-object\s*\{\s*pointer-events:auto/);
- assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?flex-flow:row nowrap/);
- assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?overflow-x:auto/);
+ assert.match(source,/\.slide-ribbon-group\s*\{[\s\S]*?flex-flow:row wrap/);
+ assert.match(source,/\.slide-ribbon-body\s*\{[\s\S]*?height:110px/);
+ assert.match(source,/\.slide-ribbon-popup\s*\{/);
 });
 
 test('arrow keys navigate only when a slide thumbnail in the left sidebar is focused',t=>{
@@ -1192,4 +1197,308 @@ test('two inserted equations avoid each other and nested math receives suitable 
    'new native formula should not significantly overlap the existing object');
  assert.equal(b.font_size_pt,34);
  assert.ok(b.y+b.height<=1.00001);
+});
+
+
+test('Delete on a focused thumbnail removes its slide, not an object',t=>{
+ const q=setup(t);clickLabel(q.controls,'+ Slide');
+ clickLabel(q.controls,'+ Slide');
+ assert.equal(q.model().surfaces.length,3);
+ const thumb=q.sidebar.querySelector('[data-thumbnail-index="1"]');
+ thumb.focus();
+ thumb.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Delete',bubbles:true,cancelable:true
+ }));
+ assert.equal(q.model().surfaces.length,2);
+ assert.equal(q.model().surfaces[1].index,1);
+ assert.equal(q.w.document.activeElement.dataset.thumbnailIndex,'1');
+ q.sidebar.querySelector('[data-thumbnail-index="0"]').focus();
+ q.w.document.activeElement.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Backspace',bubbles:true,cancelable:true
+ }));
+ assert.equal(q.model().surfaces.length,1);
+ q.sidebar.querySelector('[data-thumbnail-index="0"]').dispatchEvent(
+   new q.w.KeyboardEvent('keydown',{key:'Delete',bubbles:true,cancelable:true})
+ );
+ assert.equal(q.model().surfaces.length,1,'last slide is protected');
+});
+
+test('Ctrl+B and Ctrl+I toggle native text styles even during inline editing',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const style=()=>q.model().surfaces[0].elements[0];
+ const press=(target,key)=>target.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key,ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ press(q.scroller.querySelector('.fixed-surface'),'b');
+ assert.equal(style().font_bold,true);
+ press(q.scroller.querySelector('.fixed-surface'),'i');
+ assert.equal(style().font_italic,true);
+ const text=q.scroller.querySelector('.slide-object-text');
+ text.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ const editor=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(editor);
+ editor.value='Novo título';
+ press(editor,'b');
+ assert.equal(editor.style.fontWeight,'normal','inline toggle previews immediately');
+ press(editor,'i');
+ assert.equal(editor.style.fontStyle,'normal');
+ editor.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Enter',ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ assert.equal(style().text,'Novo título');
+ assert.equal(style().font_bold,false);
+ assert.equal(style().font_italic,false);
+});
+
+test('fixed PowerPoint ribbon provides contextual text formatting and font previews',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ assert.ok(q.controls.querySelector('.slide-context-tab:not([hidden])'));
+ assert.equal(q.editor._ribbonActive,'context');
+ assert.ok(q.controls.querySelector('.slide-ribbon-body .slide-selection-toolbar'),
+   'context toolbar is inside the fixed ribbon, not below it');
+ const picker=q.controls.querySelector('.slide-context-panel .slide-font-picker');
+ assert.ok(picker);
+ assert.match(picker.querySelector('.slide-font-preview-name').style.fontFamily,/Inter/);
+ const other=picker.querySelector('[data-family="Bitstream Charter"]');
+ assert.ok(other);assert.match(other.querySelector('.slide-font-sample').style.fontFamily,/Bitstream Charter/);
+ other.click();
+ assert.equal(q.model().surfaces[0].elements[0].font_family,'Bitstream Charter');
+ const button=label=>Array.from(q.controls.querySelectorAll('.slide-context-panel button'))
+   .find(b=>b.textContent===label);
+ button('Centralizar').click();
+ button('Marcadores').click();
+ button('Aumentar recuo').click();
+ button('Sublinhado').click();
+ const value=q.model().surfaces[0].elements[0];
+ assert.equal(value.paragraph_alignment,'center');
+ assert.equal(value.list_style,'bullet');
+ assert.equal(value.text_indent_pt,12);
+ assert.equal(value.font_underline,true);
+ const tab=Array.from(q.controls.querySelectorAll('.slide-ribbon-tab'))
+   .find(b=>b.textContent==='Inserir');
+ tab.click();
+ assert.equal(q.editor._ribbonActive,'Inserir');
+ assert.equal(q.controls.querySelector('.slide-context-panel').hidden,true);
+ assert.equal(q.controls.querySelector('.slide-ribbon-body').children.length,5);
+});
+
+
+test('PPTX chart PIB uses complete economic categories and calculated percentages',t=>{
+ const q=setup(t);const charts=q.w.OpenDocSlideCharts;
+ const economic=[
+  'Remuneração dos empregados',
+  'Excedente operacional bruto e rendimento misto bruto',
+  'Impostos líquidos de subsídios'
+ ];
+ const source={chart_type:'bar',chart_title:'Distribuição do PIB pela ótica da renda — Brasil, 2021',
+   chart_categories:economic,chart_values:[39.2,45.3,15.5],
+   chart_background:'transparent',chart_data_labels:'both',
+   chart_label_font_size:13,chart_label_wrap:true};
+ charts.valid(source.chart_type,source.chart_categories,source.chart_values);
+ const large=charts.ChartPreview.render(source,{width:850,height:480});
+ const small=charts.ChartPreview.render(source,{width:420,height:240});
+ assert.equal(large.dataset.background,'transparent');
+ assert.equal(large.querySelector('rect[fill="#FFFFFF"]'),null,
+   'transparent charts may not paint an opaque white rectangle');
+ for(const svg of [large,small]){
+  const text=Array.from(svg.querySelectorAll('text')).map(n=>n.textContent).join('|');
+  for(const title of economic){
+   const candidate=Array.from(svg.querySelectorAll('text')).find(n=>
+     Array.from(n.querySelectorAll('tspan')).map(t=>t.textContent).join(' ').replace(/\s+/g,' ').trim()===title);
+   assert.ok(candidate,'full category text is preserved: '+title);
+  }
+  assert.match(text,/39,2/);assert.match(text,/45,3/);
+  assert.match(text,/15,5/);
+  assert.match(text,/39,2%/);assert.match(text,/45,3%/);
+  assert.match(text,/15,5%/);
+ }
+ const lines=charts.ChartLayoutEngine.lines(economic[1],155,charts.ChartLayoutEngine.font(source));
+ assert.ok(lines.length>1,'long text wraps to multiple lines');
+ assert.equal(lines.join(' ').replace(/\s+/g,' ').trim(),economic[1],
+   'a text wrap must preserve all characters, spaces, and punctuation');
+});
+
+test('Chart style controls update transparent background, percentages, item colors, tracking and history',t=>{
+ const q=setup(t);clickLabel(q.controls,'Gráfico: Barras');
+ const control=(label)=>q.host.querySelector('[aria-label="'+label+'"]');
+ const changed=(input,value)=>{
+  if(input.type==='checkbox')input.checked=value;
+  else input.value=value;
+  input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ };
+ changed(control('Fundo do gráfico'),'transparent');
+ changed(control('Rótulos de valores'),'both');
+ changed(control('Espaçamento entre letras (pt)'),'.7');
+ changed(control('Rotação dos rótulos'),'45');
+ changed(control('Cor da categoria 2'),'#ff6600');
+ const chart=q.model().surfaces[0].elements[0];
+ assert.equal(chart.chart_background,'transparent');
+ assert.equal(chart.chart_data_labels,'both');
+ assert.equal(chart.chart_label_letter_spacing,.7);
+ assert.equal(chart.chart_label_rotation,45);
+ assert.equal(chart.chart_color_mode,'custom');
+ assert.equal(chart.chart_item_colors[1],'#FF6600');
+ assert.equal(q.scroller.querySelector('.slide-chart-preview').dataset.background,'transparent');
+ assert.ok(q.versions.length>=6,'style changes use persistent command history');
+});
+
+test('PPTX text letter spacing persists on object and renders on canvas',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const id=q.model().surfaces[0].elements[0].id;
+ const input=q.controls.querySelector('.slide-selection-toolbar label input[type=number][step="0.1"]');
+ assert.ok(input,'context text ribbon has character spacing in points');
+ input.value='1.5';
+ input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].font_letter_spacing_pt,1.5);
+ const text=q.scroller.querySelector('.slide-object-text');
+ assert.ok(parseFloat(text.style.letterSpacing)>0);
+ assert.equal(q.model().surfaces[0].elements[0].id,id);
+});
+
+
+test('Adaptive chart labels survive ten categories, manual breaks, resize and multiple series',t=>{
+ const q=setup(t),engine=q.w.OpenDocSlideCharts;
+ const cats=Array.from({length:12},(_,i)=>
+   i===6?'Excedente operacional bruto\nrendimento misto bruto':
+   'Categoria econômica '+(i+1)+' com denominação completa');
+ const series=[
+   {name:'Período inicial',values:cats.map((_,i)=>i+2)},
+   {name:'Período seguinte',values:cats.map((_,i)=>(i+3)*2)}
+ ];
+ const source={chart_type:'bar',chart_categories:cats,chart_values:series[0].values,
+   chart_series:series,chart_title:'Comparação temporal',chart_label_font_size:11,
+   chart_label_wrap:true,chart_color_mode:'palette'};
+ const small=engine.ChartPreview.render(source,{width:420,height:270});
+ const big=engine.ChartPreview.render(source,{width:880,height:480});
+ assert.notEqual(small.getAttribute('viewBox'),big.getAttribute('viewBox'));
+ for(const svg of [small,big]){
+   const texts=Array.from(svg.querySelectorAll('text'));
+   for(const category of cats){
+     const expected=category.replace(/\s+/g,'');
+     const matching=texts.find(text=>{
+       const title=text.querySelector('title')?.textContent;
+       const drawn=Array.from(text.querySelectorAll('tspan'))
+         .map(tspan=>tspan.textContent).join('');
+       return title===category&&drawn.replace(/\s+/g,'')===expected;
+     });
+     assert.ok(matching,'Every character must remain visible: '+category);
+   }
+   assert.equal(svg.querySelector('canvas,img'),null,'chart remains vector');
+ }
+ clickLabel(q.controls,'Gráfico: Barras');
+ const add=q.host.querySelector('.slide-chart-add-series');
+ assert.ok(add);add.click();
+ assert.equal(q.model().surfaces[0].elements[0].chart_series.length,2);
+ let category=q.host.querySelector('.slide-chart-grid tbody tr:first-child textarea');
+ category.value='Categoria extensa com\nquebra manual';
+ category.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ const value=q.host.querySelector('[aria-label="Série 2 — categoria 1"]');
+ assert.ok(value);value.value='72';
+ value.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ const chart=q.model().surfaces[0].elements[0];
+ assert.equal(chart.chart_series[1].values[0],72);
+ assert.equal(chart.chart_categories[0],'Categoria extensa com\nquebra manual');
+ assert.equal(chart.chart_series[0].values.length,3);
+ assert.equal(chart.chart_series[1].values.length,3);
+});
+
+
+test('PPTX bullet list can be applied, edited and removed without overlaying old text',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const raw='A economia estuda produção, circulação,\ndistribuição e consumo.\n\nA economia política investiga as relações\nsociais que organizam esses processos.';
+ const id=q.model().surfaces[0].elements[0].id;
+ q.editor.commands.updateObject(0,id,{text:raw});
+ const action=name=>{
+   const b=Array.from(q.controls.querySelectorAll('.slide-context-panel button'))
+     .find(btn=>btn.textContent===name);
+   assert.ok(b,'Context action exists: '+name);
+   b.click();
+ };
+ action('Marcadores');
+ assert.equal(q.model().surfaces[0].elements[0].list_style,'bullet');
+ let rendered=q.scroller.querySelector('.slide-object-text');
+ assert.equal(rendered.querySelectorAll('.slide-text-paragraph').length,5);
+ assert.equal(rendered.querySelectorAll('.slide-text-marker').length,4,
+   'Empty paragraphs are preserved but must not produce orphan bullets');
+ assert.equal(q.model().surfaces[0].elements[0].text,raw,
+   'Bullet glyphs must not alter the underlying document text');
+ rendered.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ const editor=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(editor);
+ assert.equal(rendered.querySelector('.slide-text-content').style.display,'none',
+   'Decorated old paragraphs may not paint underneath textarea');
+ editor.value=raw.replace('consumo.','consumo e produção.');
+ editor.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Enter',ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ assert.equal(q.scroller.querySelectorAll('.slide-inline-editor').length,0);
+ assert.equal(q.model().surfaces[0].elements[0].text.includes('produção.'),true);
+ assert.equal(q.model().surfaces[0].elements[0].text.includes('•'),false);
+ action('Marcadores');
+ rendered=q.scroller.querySelector('.slide-object-text');
+ assert.equal(rendered.querySelectorAll('.slide-text-marker').length,0);
+ assert.equal(rendered.querySelectorAll('.slide-text-content').length,1);
+ assert.equal(q.model().surfaces[0].elements[0].list_style,'none');
+ assert.ok(q.versions.length>=4,'Each change goes through undoable model commands');
+});
+
+test('PPTX import text runs do not overlap list decorations or stale edited contents',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const id=q.model().surfaces[0].elements[0].id;
+ const rows=[['A economia estuda a produção,',' distribuição e consumo.'],
+             ['O Estado organiza relações',' econômicas e sociais.']];
+ const runs=rows.map(row=>row.map(text=>({
+   text,font_family:'Liberation Serif',font_size_pt:28,font_bold:true,
+   font_italic:false,color:'#FFFFFF'
+ })));
+ const source=rows.map(row=>row.join('')).join('\n');
+ q.editor.commands.updateObject(0,id,{text:source,text_runs:runs,list_style:'bullet'});
+ let node=q.scroller.querySelector('.slide-object-text');
+ assert.equal(node.querySelectorAll('.slide-text-paragraph').length,2);
+ assert.equal(node.querySelectorAll('.slide-text-list-body span').length,4);
+ assert.equal(node.querySelectorAll('.slide-text-marker').length,2);
+ node.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ assert.equal(node.querySelector('.slide-text-content').style.display,'none');
+ const edit=q.scroller.querySelector('.slide-inline-editor');
+ assert.ok(edit);
+ edit.value='Texto substituído sem restos visuais';
+ edit.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Enter',ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ node=q.scroller.querySelector('.slide-object-text');
+ assert.equal(node.querySelectorAll('.slide-text-paragraph').length,1,
+   'Stale imported runs cannot reappear over the newly saved text');
+ assert.equal(node.querySelector('.slide-text-list-body').textContent,
+   'Texto substituído sem restos visuais');
+ assert.equal(q.model().surfaces[0].elements[0].text,edit.value);
+});
+
+test('Numbered lists skip blank paragraphs and clearing the list preserves all text',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const id=q.model().surfaces[0].elements[0].id;
+ q.editor.commands.updateObject(0,id,{text:'Primeiro\n\nSegundo'});
+ const number=()=>Array.from(q.controls.querySelectorAll('.slide-context-panel button'))
+   .find(x=>x.textContent==='Numeração').click();
+ number();
+ assert.deepEqual(
+  Array.from(q.scroller.querySelectorAll('.slide-text-marker'),m=>m.textContent),
+  ['1.','2.']);
+ number();
+ assert.equal(q.scroller.querySelectorAll('.slide-text-marker').length,0);
+ assert.equal(q.model().surfaces[0].elements[0].text,'Primeiro\n\nSegundo');
+});
+
+test('Long chart labels preserve spaces and manual line breaks before and after wrapping',t=>{
+ const q=setup(t),engine=q.w.OpenDocSlideCharts.ChartLayoutEngine;
+ const font=engine.font({chart_label_font_size:15,chart_label_wrap:true});
+ const input='Excedente operacional bruto e rendimento misto bruto';
+ for(const width of [12,28,48,92,260]){
+  const lines=engine.lines(input,width,font);
+  assert.equal(lines.join(''),input,
+    'Reflow at '+width+' pixels must not remove even whitespace');
+ }
+ const manual='Remuneração dos empregados\nExcedente operacional bruto';
+ const lines=engine.lines(manual,55,font);
+ assert.equal(lines.join('').replace(/\s+/g,''),
+   manual.replace(/\s+/g,''));
 });

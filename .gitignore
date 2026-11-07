@@ -37,3 +37,7 @@ apps/open_doc/static/js/vendor/.build-*/
 apps/open_doc/static/js/vendor/.build-failed
 
 /.vela-vendor-*/
+
+# CSS created by collectstatic; the tracked main.css is an offline Tailwind seed.
+/apps/open_doc/static/css/runtime.css
+/apps/open_doc/static/css/runtime.css.tmp

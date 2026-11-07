@@ -52,3 +52,57 @@ test('version panel filters, compares, and restores the selected revision', asyn
   assert.match(message, /restaurada/);
   window.close();
 });
+
+test('compares and restores only the selected slide position', async () => {
+  const {window} = new JSDOM(`
+    <div data-dialog><div class="dialog"><div data-dialog-body></div>
+    <button data-dialog-cancel></button><button data-dialog-confirm></button></div></div>
+  `, {runScripts: 'outside-only'});
+  const {document} = window;
+  const makeSnapshot = (first, second) => ({
+    title: 'Apresentação', markdown: null, content_json: JSON.stringify({
+      source_kind: 'pptx', editable_deck: true,
+      surfaces: [first, second].map(text => ({width_pt: 100, height_pt: 100, elements: [{text}]}))
+    })
+  });
+  let finish, loaded;
+  window.confirm = () => true;
+  window.eval(readFileSync('apps/open_doc/static/js/version_history.js', 'utf8'));
+  const opening = window.OpenDocVersionHistory.open({
+    root: document.body,
+    editor: {
+      flush: async () => {},
+      snapshot: () => ({id: 'deck', revision: 3, content: {editable_deck: true}}),
+      load: note => { loaded = note; }
+    },
+    request: async (_path, data) => {
+      if (data.operation === 'list') return {versions: [{id: 'old', name: 'Versão anterior'}]};
+      if (data.operation === 'inspect') return {
+        selected: makeSnapshot('Antigo', 'Fora da seleção'),
+        current: makeSnapshot('Atual', 'Também fora da seleção')
+      };
+      assert.equal(data.operation, 'restore_slide');
+      assert.equal(data.slide_index, 0);
+      assert.equal(data.revision, 3);
+      return {document: {id: 'deck', revision: 4}};
+    },
+    dialog: () => new Promise(resolve => { finish = resolve; }),
+    close: () => finish(),
+    status: () => {},
+    iconUrl: '/icons.svg'
+  });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  await tick();
+  document.querySelector('button[title=Comparar]').click();
+  await tick();
+  const select = document.querySelectorAll('select')[1];
+  select.value = '0';
+  select.dispatchEvent(new window.Event('change'));
+  const preview = document.querySelector('.version-history-comparison');
+  assert.match(preview.textContent, /Antigo/);
+  assert.doesNotMatch(preview.textContent, /Fora da seleção/);
+  document.querySelector('button[title="Restaurar este slide"]').click();
+  await opening;
+  assert.equal(loaded.revision, 4);
+  window.close();
+});

@@ -13,6 +13,8 @@ from uuid import uuid4
 from pptx import Presentation
 from pptx.enum.chart import XL_CHART_TYPE
 from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
+from pptx.enum.text import PP_ALIGN
+from pptx.oxml.ns import qn
 from pptx.dml.color import RGBColor
 
 from ...fixed_document.slide_model import SlideModelValidator
@@ -37,6 +39,8 @@ _SHAPES = {
 }
 _CHARTS = {
     XL_CHART_TYPE.COLUMN_CLUSTERED: "bar",
+    XL_CHART_TYPE.BAR_CLUSTERED: "hbar",
+    XL_CHART_TYPE.AREA: "area",
     XL_CHART_TYPE.LINE_MARKERS: "line",
     XL_CHART_TYPE.PIE: "pie",
 }
@@ -124,17 +128,72 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
     elif shape.shape_type == MSO_SHAPE_TYPE.CHART:
         chart = shape.chart
         kind = _CHARTS.get(chart.chart_type)
-        if kind is None or len(chart.series) != 1:
+        if kind is None or not 1 <= len(chart.series) <= 5:
             raise ValueError("Gráfico fora do subconjunto nativo.")
-        series = chart.series[0]
         categories = [str(category.label) for category in chart.plots[0].categories]
-        values = [float(value) for value in series.values]
-        if len(categories) != len(values):
+        all_series = [{
+            "name": str(series.name or f"Série {index+1}")[:80],
+            "values": [float(value) for value in series.values],
+        } for index, series in enumerate(chart.series)]
+        if any(len(series["values"]) != len(categories) for series in all_series):
             raise ValueError("Gráfico com categorias inconsistentes.")
-        title = chart.chart_title.text_frame.text if chart.has_title else ""
+        full_title = chart.chart_title.text_frame.text if chart.has_title else ""
+        parts = full_title.split("\n", 1)
+        background = (
+            "transparent"
+            if chart._chartSpace.xpath("./c:spPr/a:noFill")
+            else "solid"
+        )
+        # Original categories are never inferred from a column of years.
         base.update(type="chart", rotation=0, chart_type=kind,
-                    chart_categories=categories, chart_values=values,
-                    chart_title=title[:160], chart_palette="blue")
+                    chart_categories=categories,
+                    chart_values=all_series[0]["values"],
+                    chart_title=parts[0][:160], chart_palette="blue",
+                    chart_background=background,
+                    chart_data_labels="none")
+        if len(parts) > 1:
+            base["chart_subtitle"] = parts[1][:160]
+        if len(all_series) > 1:
+            base["chart_series"] = all_series
+        if kind != "pie":
+            tick = chart.category_axis.tick_labels
+            if tick.font.name:
+                base["chart_label_font"] = tick.font.name[:80]
+            if tick.font.size:
+                base["chart_label_font_size"] = max(7, min(24, float(tick.font.size.pt)))
+            if tick.font.bold is not None:
+                base["chart_label_bold"] = tick.font.bold
+            if tick.font.italic is not None:
+                base["chart_label_italic"] = tick.font.italic
+            if tick.font._rPr is not None:
+                spacing = tick.font._rPr.get("spc")
+                if spacing is not None:
+                    base["chart_label_letter_spacing"] = max(
+                        -2, min(8, int(spacing)/100))
+            body = chart.category_axis._element.xpath("./c:txPr/a:bodyPr")
+            if body and body[0].get("rot"):
+                rotation = abs(round(int(body[0].get("rot"))/60000))
+                if rotation in (0,30,45,60,90):
+                    base["chart_label_rotation"] = rotation
+        point_colors=[]
+        for point in chart.series[0].points:
+            try:
+                actual=point.format.fill.fore_color.rgb
+                point_colors.append("#"+str(actual).upper() if actual else "")
+            except (AttributeError, TypeError, ValueError):
+                point_colors.append("")
+        if len(point_colors)==len(categories) and all(point_colors):
+            base["chart_color_mode"]="custom"
+            base["chart_item_colors"]=point_colors
+        labels=chart.series[0]._element.xpath("./c:dLbls/c:dLbl")
+        if labels:
+            base["chart_data_labels"]="percent"
+        elif chart.plots[0].has_data_labels:
+            data=chart.plots[0].data_labels
+            if data.show_percentage:
+                base["chart_data_labels"]="percent"
+            elif data.show_value:
+                base["chart_data_labels"]="value"
     else:
         if shape.shape_type == MSO_SHAPE_TYPE.TEXT_BOX:
             kind = "text"
@@ -157,6 +216,31 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
             base["text"] = shape.text_frame.text[:10000]
             paragraphs = shape.text_frame.paragraphs
             runs = paragraphs[0].runs if paragraphs else []
+            if paragraphs:
+                first = paragraphs[0]
+                alignment = {
+                    PP_ALIGN.LEFT: "left", PP_ALIGN.CENTER: "center",
+                    PP_ALIGN.RIGHT: "right", PP_ALIGN.JUSTIFY: "justify",
+                }.get(first.alignment)
+                if alignment:
+                    base["paragraph_alignment"] = alignment
+                spacing = first.line_spacing
+                if isinstance(spacing, (int, float)) and spacing in (
+                    1, 1.15, 1.5, 2
+                ):
+                    base["line_spacing"] = spacing
+                props = first._p.pPr
+                if props is not None:
+                    if props.find(qn("a:buChar")) is not None:
+                        base["list_style"] = "bullet"
+                    elif props.find(qn("a:buAutoNum")) is not None:
+                        base["list_style"] = "number"
+                    mar = props.get("marL")
+                    if mar and mar.isdigit():
+                        left_pt = int(mar) / 12700
+                        if base.get("list_style") in ("bullet", "number"):
+                            left_pt -= 18
+                        base["text_indent_pt"] = round(max(0,min(144,left_pt)), 2)
             if runs:
                 font = runs[0].font
                 # PowerPoint text formatting commonly lives on a:defRPr
@@ -181,6 +265,14 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                     base["font_bold"] = bold
                 if italic is not None:
                     base["font_italic"] = italic
+                underline = font.underline
+                if underline is not None:
+                    base["font_underline"] = bool(underline)
+                props = runs[0]._r.rPr
+                raw_tracking = props.get("spc") if props is not None else None
+                if raw_tracking is not None:
+                    base["font_letter_spacing_pt"] = max(-2, min(20,
+                        int(raw_tracking) / 100))
         if shape.has_text_frame and any(p.runs for p in shape.text_frame.paragraphs):
             # Capture each original text run separately. The editor may change
             # its text while untouched run formatting/OOXML remains original.

@@ -14,7 +14,7 @@ def test_css_tokens_and_order():
     assert set(STYLE_ORDER) == {file.name for file in source.glob("*.css")}
     assert STYLE_ORDER[0] == "tokens.css"
     assert STYLE_ORDER[-2:] == ("responsive.css", "utilities.css")
-    generated = (ROOT / "apps/open_doc/static/css/main.css").read_text()
+    generated = (ROOT / "apps/open_doc/static/css/runtime.css").read_text()
     assert generated.endswith(
         "\n".join((source / name).read_text() for name in STYLE_ORDER) + "\n"
     )
