@@ -538,9 +538,28 @@
       }
       this._organizeRibbon();
     }
+
+    _ribbonMenu(group,label,names){
+      // Overflow commands live in a real menu instead of a horizontally
+      // scrolling strip. They retain their original click handlers.
+      const menu=document.createElement("details");
+      menu.className="slide-ribbon-menu";
+      const trigger=document.createElement("summary");
+      trigger.textContent=label+" ▾";trigger.title="Mais opções: "+label;
+      menu.append(trigger);
+      const popup=document.createElement("div");popup.className="slide-ribbon-popup";
+      for(const action of Array.from(group.children)){
+        if(action.tagName==="BUTTON"&&names.includes(action.textContent)){
+          popup.append(action);
+          action.addEventListener("click",()=>{menu.open=false;},{signal:this.signal});
+        }
+      }
+      menu.append(popup);group.append(menu);
+    }
     _organizeRibbon(){
       const actions=Array.from(this.toolbar.querySelectorAll("button"));
-      const tabs=document.createElement("div");tabs.className="slide-ribbon-tabs";
+      const tabs=document.createElement("div");
+      tabs.className="slide-ribbon-tabs";tabs.setAttribute("role","tablist");
       const body=document.createElement("div");body.className="slide-ribbon-body";
       const categories=[
         {label:"Slides",labels:["+ Slide","Duplicar","Excluir slide","↑ Slide","↓ Slide","Exportar slide"]},
@@ -550,31 +569,72 @@
       ];
       const panels=[];
       for(const item of categories){
-        const tab=document.createElement("button");tab.type="button";tab.textContent=item.label;
-        tab.className="slide-ribbon-tab";tabs.append(tab);
-        const group=document.createElement("div");group.className="slide-ribbon-group";group.hidden=true;
+        const tab=document.createElement("button");
+        tab.type="button";tab.textContent=item.label;
+        tab.className="slide-ribbon-tab";tab.setAttribute("role","tab");tabs.append(tab);
+        const group=document.createElement("div");
+        group.className="slide-ribbon-group";group.hidden=true;
+        group.setAttribute("role","tabpanel");
         group.setAttribute("aria-label","Ferramentas de "+item.label);
-        for(const action of actions){
-          if(item.labels.includes(action.textContent))group.append(action);
-        }
+        for(const action of actions)if(item.labels.includes(action.textContent))group.append(action);
         if(item.label==="Formatar")group.prepend(this.toolbar.querySelector(".slide-paint-selector"));
         body.append(group);panels.push([tab,group]);
-        tab.addEventListener("click",()=>activate(item.label),{signal:this.signal});
+        tab.addEventListener("click",()=>this._activateRibbon(item.label),{signal:this.signal});
       }
-      const activate=label=>{
-        panels.forEach(([tab,panel],i)=>{
-          const enabled=categories[i].label===label;
-          tab.setAttribute("aria-selected",String(enabled));panel.hidden=!enabled;
-        });
-      };
-      // Never leave an unclassified action as a direct toolbar child:
-      // in column-mode ribbons it expands to full width and collapses
-      // the slide viewport (regression seen on Windows and Linux).
+      const insert=panels[1][1];
+      this._ribbonMenu(insert,"Formas",[
+        "Arredondado","Triângulo","Losango","Chevron","Hexágono",
+        "Pentágono","Paralelogramo","Estrela","Nuvem"
+      ]);
+      this._ribbonMenu(insert,"Gráficos",[
+        "Gráfico: Barras","Gráfico: Linhas","Gráfico: Pizza"
+      ]);
       const classified=new Set(categories.flatMap(item=>item.labels));
-      for(const action of actions){
-        if(!classified.has(action.textContent))panels[1][1].append(action);
+      for(const action of actions)if(!classified.has(action.textContent))insert.append(action);
+      // The selection toolbar shares this stable-height ribbon panel.
+      // No new row is inserted when an object gains or loses selection.
+      const contextTab=document.createElement("button");
+      contextTab.type="button";contextTab.textContent="Texto";
+      contextTab.className="slide-ribbon-tab slide-context-tab";
+      contextTab.setAttribute("role","tab");contextTab.hidden=true;tabs.append(contextTab);
+      this.contextTab=contextTab;
+      this.contextPanel=this.selectionToolbar;
+      this.contextPanel.classList.add("slide-ribbon-group","slide-context-panel");
+      this.contextPanel.setAttribute("role","tabpanel");
+      body.append(this.contextPanel);
+      panels.push([contextTab,this.contextPanel]);
+      contextTab.addEventListener("click",()=>this._activateRibbon("context"),{signal:this.signal});
+      this._ribbonPanels=panels;
+      this._ribbonLabels=[...categories.map(item=>item.label),"context"];
+      this._ribbonSelectedObject=null;
+      this.toolbar.prepend(tabs,body);this._activateRibbon("Inserir");
+      if(window.ResizeObserver){
+        this.ribbonObserver=new window.ResizeObserver(()=>this._compactRibbon());
+        this.ribbonObserver.observe(this.toolbar);
+        this.signal.addEventListener("abort",()=>this.ribbonObserver.disconnect(),{once:true});
       }
-      this.toolbar.prepend(tabs,body);activate("Inserir");
+      this._compactRibbon();
+    }
+    _compactRibbon(){
+      this.toolbar.classList.toggle("slide-ribbon-compact",this.toolbar.clientWidth<1100);
+    }
+    _activateRibbon(label){
+      this._ribbonActive=label;
+      this._ribbonPanels.forEach(([tab,panel],i)=>{
+        const enabled=this._ribbonLabels[i]===label;
+        tab.setAttribute("aria-selected",String(enabled));
+        panel.hidden=!enabled || (label==="context"&&!this.selected);
+      });
+    }
+    _syncContextRibbon(selected){
+      this.contextTab.hidden=!selected;
+      this.contextTab.textContent=selected&&canEditText(selected)?"Texto":"Objeto";
+      const identifier=selected?selected.id:null;
+      if(identifier!==this._ribbonSelectedObject){
+        this._ribbonSelectedObject=identifier;
+        if(selected)this._activateRibbon("context");
+        else if(this._ribbonActive==="context")this._activateRibbon("Inserir");
+      }
     }
     insertChart(kind){
       const id=this.commands.insertChart(this.current,kind);
@@ -1451,7 +1511,9 @@
     }
     _selectionProperties(slide,selected){
       const bar=this.selectionToolbar;
-      bar.replaceChildren();bar.hidden=!selected||Boolean(this.inlineEditing);
+      bar.replaceChildren();
+      this._syncContextRibbon(selected);
+      bar.hidden=!selected||Boolean(this.inlineEditing)||this._ribbonActive!=="context";
       if(bar.hidden)return;
       const update=patch=>this.commands.updateObject(this.current,selected.id,patch);
       const button=(label,action)=>this._button(label,action,label,bar);
