@@ -1078,3 +1078,15 @@ test('unchanged thumbnails keep their DOM identity on object edits',t=>{
  assert.equal(q.sidebar.querySelector('[data-thumbnail-index="0"] .slide-thumb-preview'),a);
  assert.notEqual(q.sidebar.querySelector('[data-thumbnail-index="1"] .slide-thumb-preview'),b);
 });
+
+test('imported external PPTX rejects unsafe slide-level structural changes before model mutation',t=>{
+ const q=setup(t);
+ q.model().preserve_source=true;
+ const before=JSON.stringify(q.model());
+ const commands=q.editor.commands;
+ for(const action of [
+   ()=>commands.insert(0),()=>commands.duplicate(0),
+   ()=>commands.remove(0),()=>commands.move(0,1)
+ ])assert.throws(action,/apresentações externas/);
+ assert.equal(JSON.stringify(q.model()),before);
+});
