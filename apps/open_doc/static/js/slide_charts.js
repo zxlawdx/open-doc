@@ -59,31 +59,32 @@
       },0)+Math.max(0,String(value).length-1)*font.spacing;
     }
     static lines(label,width,font){
-      // Respect user newlines, and split long unbreakable words without
-      // throwing away letters. Break decisions are deterministic in Qt/JSDOM.
-      if(!font.wrap)return String(label).split("\n");
-      const lines=[];
-      for(const raw of String(label).split("\n")){
-        if(!raw){lines.push("");continue;}
-        const words=raw.split(/(\s+)/u);
+      // Keep the exact original characters. Wrapping is a rendering choice
+      // and must never trim, truncate or silently rewrite a category label.
+      const source=String(label);
+      if(!font.wrap)return source.split("\n");
+      const result=[];
+      const available=Math.max(1,Number(width)||1);
+      for(const line of source.split("\n")){
+        if(!line){result.push("");continue;}
         let current="";
-        const flush=()=>{if(current){lines.push(current);current="";}};
-        for(const token of words){
-          if(!token)continue;
-          if(this.measure(current+token,font)<=width || !current){
-            if(this.measure(token,font)<=width){current+=token;continue;}
-            if(current)flush();
-            for(const character of Array.from(token)){
-              if(current&&this.measure(current+character,font)>width)flush();
-              current+=character;
+        for(const char of Array.from(line)){
+          if(current&&this.measure(current+char,font)>available){
+            // Prefer whitespace boundaries but preserve each whitespace
+            // character at the preceding line's end.
+            const at=Math.max(current.lastIndexOf(" "),current.lastIndexOf("\t"));
+            if(at>0&&at<current.length-1){
+              result.push(current.slice(0,at+1));
+              current=current.slice(at+1)+char;
+            }else{
+              result.push(current);
+              current=char;
             }
-          }else{
-            flush();current=token.trimStart();
-          }
+          }else current+=char;
         }
-        flush();
+        result.push(current);
       }
-      return lines.length?lines:[""];
+      return result.length?result:[""];
     }
     static series(chart){
       if(Array.isArray(chart.chart_series)&&chart.chart_series.length)
@@ -124,7 +125,7 @@
       lines.forEach((line,i)=>{
         el.append(node("tspan",{x,dy:i?leading:0},line));
       });
-      const tip=node("title",{},lines.join("\n"));el.append(tip);svg.append(el);
+      const tip=node("title",{},options.fullText??lines.join("\n"));el.append(tip);svg.append(el);
       return el;
     }
     static make(chart,dimensions={}){
@@ -204,7 +205,7 @@
           cats.forEach((category,i)=>{
             const lines=this.lines(category,(sideLegend?legendWidth:width*.8)-25,font);
             root.append(node("rect",{x,y:y-font.size,width:10,height:10,fill:colors[i]}));
-            this.text(root,x+16,y,lines,font,{anchor:"start"});
+            this.text(root,x+16,y,lines,font,{anchor:"start",fullText:category});
             y+=Math.max(labelHeight,lines.length*labelHeight)+10;
           });
           if(y+12>height)root.setAttribute("viewBox","0 0 "+width+" "+(y+12));
@@ -238,7 +239,7 @@
         if(chart.chart_label_visible!==false)cats.forEach((cat,i)=>{
           const lines=this.lines(cat,Math.max(65,plotLeft-25),font);
           const y=plotTop+(i+.5)*step-(lines.length-1)*labelHeight/2;
-          this.text(root,plotLeft-9,y,lines,font,{anchor:"end"});
+          this.text(root,plotLeft-9,y,lines,font,{anchor:"end",fullText:cat});
         });
         return root;
       }
@@ -281,7 +282,7 @@
       });
       if(chart.chart_label_visible!==false)catLines.forEach((lines,i)=>{
         const x=centers[i],y=plotBottom+font.size*1.25;
-        this.text(root,x,y,lines,font,{rotation});
+        this.text(root,x,y,lines,font,{rotation,fullText:cats[i]});
       });
       if(seriesCount>1||legendBelow||legendRight){
         let lx=legendRight?plotRight+5:plotLeft,ly=legendRight?plotTop+12:height-9;
