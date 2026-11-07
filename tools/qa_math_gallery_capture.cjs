@@ -58,8 +58,8 @@ const port=process.argv[2]||'9234';
  assert.ok(entered,'LaTeX input missing from Qt mathematical palette');
  assert.ok(await click('.slide-math-latex-add'));
  await new Promise(ok=>setTimeout(ok,300));
- const nested=await evalJS('(()=>{const formulas=Array.from(document.querySelectorAll(".fixed-scroll .slide-object-math .slide-native-equation"));const item=formulas.find(el=>el.querySelector(".slide-math-fraction .slide-math-sqrt"));return {count:formulas.length,hasNested:!!item,hasSum:!!item?.querySelector(".slide-math-nary"),hasImage:!!item?.querySelector("img"),text:item?.textContent||"",blocks:OpenDocApp.editor().snapshot().content.surfaces[OpenDocApp.editor().snapshot().content.surfaces.length-1]?.elements?.filter(e=>e.type==="math").length}})()');
- assert.ok(nested.hasNested&&nested.hasSum&&!nested.hasImage,
+ const nested=await evalJS('(()=>{const formulas=Array.from(document.querySelectorAll(".fixed-scroll .slide-object-math .slide-native-equation"));const item=formulas.find(el=>el.querySelector(".slide-math-fraction .slide-math-sqrt"));const rect=item?.closest(".slide-object-math")?.getBoundingClientRect();const other=formulas.find(el=>el!==item)?.closest(".slide-object-math")?.getBoundingClientRect();const overlap=rect&&other?Math.max(0,Math.min(rect.right,other.right)-Math.max(rect.left,other.left))*Math.max(0,Math.min(rect.bottom,other.bottom)-Math.max(rect.top,other.top)):null;return {count:formulas.length,hasNested:!!item,hasSum:!!item?.querySelector(".slide-math-nary"),hasImage:!!item?.querySelector("img"),overlap,text:item?.textContent||"",blocks:OpenDocApp.editor().snapshot().content.surfaces[OpenDocApp.editor().snapshot().content.surfaces.length-1]?.elements?.filter(e=>e.type==="math").length}})()');
+ assert.ok(nested.hasNested&&nested.hasSum&&!nested.hasImage&&nested.overlap===0,
    'Qt nested LaTeX must remain a native equation object: '+JSON.stringify(nested));
  const nestedScreenshot=await send('Page.captureScreenshot',{format:'png'});
  fs.writeFileSync(path.join(output,'math-nested-latex-slide-qt.png'),
