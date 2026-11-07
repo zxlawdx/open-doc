@@ -40,6 +40,7 @@ def wait(window, expression):
 
 def main():
     errors=[]
+    commit=subprocess.check_output(["git","rev-parse","--short","HEAD"],text=True).strip()
     original=webview.start
     def qa():
         window=webview.windows[0]
@@ -57,7 +58,7 @@ def main():
                 wait(window,probe)
                 output=subprocess.run(
                     ["node",str(ROOT/"tools/qa_math_capture.cjs"),
-                     os.environ["QTWEBENGINE_REMOTE_DEBUGGING"],kind],
+                     os.environ["QTWEBENGINE_REMOTE_DEBUGGING"],kind,f"{sys.platform}-{commit}"],
                     capture_output=True,text=True,timeout=40
                 )
                 print(output.stdout,output.stderr,flush=True)

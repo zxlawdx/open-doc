@@ -1,0 +1,193 @@
+[
+  {
+    "latex": "\\frac{x^2+1}{x+1}",
+    "blocks": [
+      {
+        "kind": "fraction",
+        "numerator": [
+          {
+            "kind": "superscript",
+            "base": "x",
+            "power": "2"
+          },
+          {
+            "kind": "text",
+            "value": "+1"
+          }
+        ],
+        "denominator": "x+1"
+      }
+    ]
+  },
+  {
+    "latex": "\\int_0^\\pi \\frac{\\sin(x)}{1+\\cos^2(x)}\\,dx",
+    "blocks": [
+      {
+        "kind": "nary",
+        "operator": "∫",
+        "lower": "0",
+        "upper": "π",
+        "body": [
+          {
+            "kind": "fraction",
+            "numerator": "sen(x)",
+            "denominator": [
+              {
+                "kind": "text",
+                "value": "1+co"
+              },
+              {
+                "kind": "superscript",
+                "base": "s",
+                "power": "2"
+              },
+              {
+                "kind": "text",
+                "value": "(x)"
+              }
+            ]
+          },
+          {
+            "kind": "text",
+            "value": " dx"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "latex": "\\oint_C \\mathbf{F}\\cdot d\\mathbf{r}",
+    "blocks": [
+      {
+        "kind": "nary",
+        "operator": "∮",
+        "lower": "C",
+        "upper": "",
+        "body": [
+          {
+            "kind": "bold",
+            "value": "F"
+          },
+          {
+            "kind": "text",
+            "value": "· d"
+          },
+          {
+            "kind": "bold",
+            "value": "r"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "latex": "\\sum_{n=1}^{\\infty}\\frac{1}{n^2}",
+    "blocks": [
+      {
+        "kind": "nary",
+        "operator": "∑",
+        "lower": "n=1",
+        "upper": "∞",
+        "body": [
+          {
+            "kind": "fraction",
+            "numerator": "1",
+            "denominator": [
+              {
+                "kind": "superscript",
+                "base": "n",
+                "power": "2"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "latex": "\\sqrt{\\frac{x^2+1}{x+2}}",
+    "blocks": [
+      {
+        "kind": "sqrt",
+        "radicand": [
+          {
+            "kind": "fraction",
+            "numerator": [
+              {
+                "kind": "superscript",
+                "base": "x",
+                "power": "2"
+              },
+              {
+                "kind": "text",
+                "value": "+1"
+              }
+            ],
+            "denominator": "x+2"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "latex": "\\begin{pmatrix}a & b\\\\c & d\\end{pmatrix}",
+    "blocks": [
+      {
+        "kind": "matrix",
+        "rows": [
+          [
+            "a ",
+            " b"
+          ],
+          [
+            "c ",
+            " d"
+          ]
+        ],
+        "fence": "round"
+      }
+    ]
+  },
+  {
+    "latex": "\\iiint_V x\\,dx",
+    "blocks": [
+      {
+        "kind": "nary",
+        "operator": "∭",
+        "lower": "V",
+        "upper": "",
+        "body": "x dx"
+      }
+    ]
+  },
+  {
+    "latex": "\\oiint_S x\\,dS",
+    "blocks": [
+      {
+        "kind": "nary",
+        "operator": "∯",
+        "lower": "S",
+        "upper": "",
+        "body": "x dS"
+      }
+    ]
+  },
+  {
+    "latex": "\\prod_{i=1}^{n} x_i",
+    "blocks": [
+      {
+        "kind": "nary",
+        "operator": "∏",
+        "lower": "i=1",
+        "upper": "n",
+        "body": [
+          {
+            "kind": "subscript",
+            "base": "x",
+            "sub": "i"
+          }
+        ]
+      }
+    ]
+  }
+]

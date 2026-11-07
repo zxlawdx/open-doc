@@ -31,28 +31,55 @@
   const root=document.createElement("span");
   root.className="slide-native-equation";
   root.setAttribute("role","math");
+  function appendValue(target,val){
+   if(Array.isArray(val)){
+    const inner=renderBlocks(val);while(inner.firstChild)target.append(inner.firstChild);
+   }else target.append(document.createTextNode(String(val??"")));
+  }
   for(const block of blocks||[]){
    const part=document.createElement("span");part.className="slide-math-"+block.kind;
-   if(block.kind==="text")part.textContent=block.value;
+   if(block.kind==="text"||block.kind==="bold"){
+    part.textContent=block.value;
+    if(block.kind==="bold")part.style.fontWeight="bold";
+   }
    else if(block.kind==="fraction"){
     const top=document.createElement("span"),bottom=document.createElement("span");
-    top.className="slide-math-numerator";top.textContent=block.numerator;
-    bottom.className="slide-math-denominator";bottom.textContent=block.denominator;
+    top.className="slide-math-numerator";bottom.className="slide-math-denominator";
+    appendValue(top,block.numerator);appendValue(bottom,block.denominator);
     part.append(top,bottom);
    }else if(block.kind==="nary"){
     const op=document.createElement("span"),hi=document.createElement("span");
     const sign=document.createElement("span"),lo=document.createElement("span");
     op.className="slide-math-operator";hi.className="slide-math-upper";
     sign.className="slide-math-sign";lo.className="slide-math-lower";
-    hi.textContent=block.upper;sign.textContent=block.operator;lo.textContent=block.lower;
+    appendValue(hi,block.upper);sign.textContent=block.operator;appendValue(lo,block.lower);
     op.append(hi,sign,lo);
-    const body=document.createElement("span");body.textContent=block.body;
-    part.className+=" slide-math-nary";
+    const body=document.createElement("span");appendValue(body,block.body);
     part.append(op,body);
-   }else if(block.kind==="superscript"){
-    part.append(document.createTextNode(block.base));
-    const sup=document.createElement("sup");sup.textContent=block.power;part.append(sup);
-   }else if(block.kind==="sqrt")part.textContent="√("+block.radicand+")";
+   }else if(block.kind==="superscript"||block.kind==="subscript"){
+    appendValue(part,block.base);
+    const script=document.createElement(block.kind==="superscript"?"sup":"sub");
+    appendValue(script,block.kind==="superscript"?block.power:block.sub);part.append(script);
+   }else if(block.kind==="sqrt"||block.kind==="root"){
+    if(block.kind==="root"){const index=document.createElement("sup");appendValue(index,block.index);part.append(index);}
+    const radical=document.createElement("span");radical.textContent="√";part.append(radical);
+    const value=document.createElement("span");value.className="slide-math-radicand";
+    appendValue(value,block.radicand);part.append(value);
+   }else if(block.kind==="limit"){
+    const operator=document.createElement("span");operator.className="slide-math-operator";
+    appendValue(operator,block.base);
+    const lower=document.createElement("span");lower.className="slide-math-lower";
+    appendValue(lower,block.lower);operator.append(lower);part.append(operator);
+   }else if(block.kind==="matrix"){
+    if(block.fence)part.dataset.matrixFence=block.fence;
+    const grid=document.createElement("span");grid.className="slide-math-matrix-grid";
+    grid.style.gridTemplateColumns="repeat("+(block.rows[0]?.length||1)+",auto)";
+    for(const row of block.rows||[])for(const cell of row){
+     const node=document.createElement("span");node.className="slide-math-matrix-cell";
+     appendValue(node,cell);grid.append(node);
+    }
+    part.append(grid);
+   }
    root.append(part);
   }
   return root;
@@ -129,6 +156,23 @@
   const hint=document.createElement("p");
   hint.textContent="Insere componentes matemáticos editáveis (frações, integrais, somatórios, potências). Exportação PPTX em OMML nativo.";
   panel.append(heading,hint);
+  const latexLabel=document.createElement("label");
+  latexLabel.textContent="Inserir LaTeX nativo (frações aninhadas, integrais, matrizes)";
+  const latex=document.createElement("textarea");latex.rows=2;latex.maxLength=2048;
+  latex.className="slide-math-latex-input";
+  latex.placeholder="\\frac{\\sqrt{x^2+1}}{\\sum_{k=1}^{n}{k}}";
+  latex.setAttribute("aria-label","Fórmula LaTeX");
+  const addLatex=document.createElement("button");addLatex.type="button";
+  addLatex.className="slide-math-latex-add";addLatex.textContent="Inserir como equação editável";
+  addLatex.addEventListener("click",()=>{
+   try{
+    if(!window.OpenDocMathParser)throw Error("Interpretador matemático indisponível.");
+    const blocks=window.OpenDocMathParser.parseLatex(latex.value);
+    insert({kind:"math",label:"Equação LaTeX",math_blocks:blocks});
+    panel.hidden=true;status?.("Equação estruturada inserida, sem imagem.");
+   }catch(error){status?.(error.message);}
+  });
+  latexLabel.append(latex);panel.append(latexLabel,addLatex);
   for(const def of DEFINITIONS){
    const button=document.createElement("button");button.type="button";
    button.className="slide-math-template";button.dataset.mathId=def.id;

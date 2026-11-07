@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import os
 import shutil
 import tempfile
@@ -80,6 +81,9 @@ class FixedDocumentService:
             recovery = c.execute(
                 "SELECT * FROM fixed_recovery WHERE id=?", (identifier,)
             ).fetchone()
+            view = c.execute(
+                "SELECT value FROM session WHERE key=?", ("pdf-view:" + identifier,)
+            ).fetchone()
         if not row:
             raise ValueError("Documento fixo não encontrado.")
         note = {
@@ -93,6 +97,8 @@ class FixedDocumentService:
             markdown="",
             recovery=None,
         )
+        if view and note["source_kind"] == "pdf":
+            note["reader_view"] = json.loads(view["value"])
         if recovery:
             note["recovery"] = {
                 **dict(recovery),
@@ -116,6 +122,27 @@ class FixedDocumentService:
             },
         }
         return note
+
+    def save_pdf_view(self, identifier, view):
+        identifier = str(UUID(identifier))
+        if not isinstance(view, dict) or set(view) != {"page", "offset", "left", "zoom"}:
+            raise ValueError("Posição de leitura inválida.")
+        page = view["page"]
+        if type(page) is not int or not 0 <= page < 10000:
+            raise ValueError("Página inválida.")
+        for key, lower, upper in (("offset", 0, 1), ("left", 0, 30000), ("zoom", .25, 3)):
+            value = view[key]
+            if type(value) not in (int, float) or not lower <= value <= upper or not math.isfinite(value):
+                raise ValueError("Posição de leitura inválida.")
+        with self.documents._connect() as c:
+            written = c.execute(
+                "INSERT OR REPLACE INTO session SELECT ?, ? WHERE EXISTS "
+                "(SELECT 1 FROM fixed_documents WHERE id=? AND source_kind='pdf')",
+                ("pdf-view:" + identifier, json.dumps(view), identifier),
+            )
+            if written.rowcount != 1:
+                raise ValueError("Documento PDF não encontrado.")
+        return {"ok": True}
 
     def select(self, identifier):
         note = self.get(identifier)
@@ -273,6 +300,13 @@ class FixedDocumentService:
         self._checked(identifier, content)
         self.documents._validate(title, "")
         with self.documents._lock, self.documents._connect() as c:
+            c.execute("BEGIN IMMEDIATE")
+            current = c.execute(
+                "SELECT * FROM fixed_documents WHERE id=?", (identifier,)
+            ).fetchone()
+            if current is None or current["revision"] != revision:
+                raise RevisionConflict("O documento foi alterado em outra janela.")
+            self.documents.history.ensure_baseline(c, current)
             cursor = c.execute(
                 "UPDATE fixed_documents SET title=?,content_json=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",
                 (
@@ -286,6 +320,10 @@ class FixedDocumentService:
             if cursor.rowcount != 1:
                 raise RevisionConflict("O documento foi alterado em outra janela.")
             c.execute("DELETE FROM fixed_recovery WHERE id=?", (identifier,))
+            saved = c.execute(
+                "SELECT * FROM fixed_documents WHERE id=?", (identifier,)
+            ).fetchone()
+            self.documents.history.capture(c, saved, "automatic")
         return self.get(identifier)
 
     def recovery(self, identifier, title, content, revision, discard=False):
@@ -325,6 +363,7 @@ class FixedDocumentService:
             if row.rowcount != 1:
                 raise RevisionConflict("Documento alterado ou excluído.")
             c.execute("DELETE FROM fixed_recovery WHERE id=?", (identifier,))
+            c.execute("DELETE FROM session WHERE key=?", ("pdf-view:" + identifier,))
             c.execute(
                 "DELETE FROM session WHERE key='active_fixed' AND value=?",
                 (identifier,),

@@ -1109,7 +1109,7 @@ test('new native equations adapt their initial ink color to dark/light slide bac
 });
 
 test('imported multi-run PPTX edits one segment without flattening styled text',t=>{
- const q=setup(t);
+ const q=setup(t,{zoom:.5});
  clickLabel(q.controls,'Texto');
  const before=q.model().surfaces[0].elements[0];
  const original={...before,text:'Título vermelho e subtítulo azul',text_runs:[[
@@ -1126,6 +1126,12 @@ test('imported multi-run PPTX edits one segment without flattening styled text',
  assert.equal(spans[0].style.fontWeight,'700');
  assert.equal(spans[1].style.fontStyle,'italic');
  assert.equal(spans[1].style.color,'rgb(34, 102, 187)');
+ const thumbnail=q.sidebar.querySelector('.slide-styled-paragraph span');
+ const scale=(span)=>parseFloat(span.style.fontSize)*parseFloat(span.closest('.slide-object').style.fontSize);
+ assert.equal(spans[0].style.fontSize.endsWith('em'),true);
+ assert.ok(Math.abs(scale(spans[0])-20)<.001,'30pt run at 50% must render at 20px');
+ assert.ok(Math.abs(scale(thumbnail)-6.4)<.001,'the same run must scale to the thumbnail');
+
  const field=Array.from(q.host.querySelectorAll('.slide-inspector label'))
   .find(x=>x.textContent.startsWith('Parágrafo 1 · Trecho 1'));
  assert.ok(field,'formatted runs must be individually editable');
@@ -1166,4 +1172,24 @@ test('stress: editing a single object in a 120-slide deck keeps other slides imm
  assert.equal(q.versions.length,commits+1,'one user operation is one history update');
  assert.equal(after[0].elements.length,1);
  assert.equal(after[1].elements[0].text,'Página 1');
+});
+
+test('two inserted equations avoid each other and nested math receives suitable size',t=>{
+ const q=setup(t),first=q.editor.commands.insertMath(0,{
+   label:'Integral',math_blocks:[{kind:'nary',operator:'∫',lower:'0',
+     upper:'1',body:'x dx'}]
+ });
+ const second=q.editor.commands.insertMath(0,{label:'Fração aninhada',math_blocks:[
+   {kind:'fraction',numerator:[{kind:'sqrt',radicand:[
+     {kind:'superscript',base:'x',power:'2'}
+   ]}],denominator:[{kind:'nary',operator:'∑',lower:'1',upper:'n',body:'k'}]}
+ ]});
+ const items=q.model().surfaces[0].elements;
+ assert.equal(items.length,2);
+ const a=items.find(x=>x.id===first),b=items.find(x=>x.id===second);
+ assert.ok(b.y>=a.y+a.height-.01 || b.y+b.height<=a.y+.01 ||
+   b.x>=a.x+a.width-.01 || b.x+b.width<=a.x+.01,
+   'new native formula should not significantly overlap the existing object');
+ assert.equal(b.font_size_pt,34);
+ assert.ok(b.y+b.height<=1.00001);
 });

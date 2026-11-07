@@ -188,7 +188,7 @@
   }
   function closeDialog(value = null) {
     const backdrop = root.querySelector('[data-dialog]');
-    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help','dialog-equation');
+    backdrop.querySelector('.dialog')?.classList.remove('dialog-table','dialog-help','dialog-equation','dialog-history');
     // QtWebEngine (Chromium 83) must not rely solely on the [hidden]
     // attribute when a component stylesheet sets display:grid.
     backdrop.hidden = true;
@@ -273,6 +273,38 @@
         await editor.flush();
         status('Documento salvo na biblioteca local. Use Arquivo > Exportar para escolher a pasta e o formato.');
       }),
+      'default-apps': () => operate(async () => {
+        const result = await window.pywebview.api.default_apps();
+        if (result.error) throw Error(result.error);
+        if (result.opened) {
+          status('Nas Configurações do Windows, escolha Open Doc para PDF, DOCX ou PPTX.');
+          return;
+        }
+        const answer = dialog('Aplicativo padrão', 'Escolha o formato que deve abrir com o Open Doc.');
+        const label = document.createElement('label');
+        label.textContent = 'Formato';
+        const select = document.createElement('select');
+        select.dataset.dialogSelect = '';
+        const placeholder = new Option('Selecione um formato', '');
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        select.append(placeholder);
+        for (const extension of result.extensions) select.add(new Option(extension.toUpperCase(), extension));
+        label.append(select);
+        root.querySelector('[data-dialog-body]').append(label);
+        select.focus();
+        if (!(await answer) || !select.value) return;
+        const selected = await window.pywebview.api.default_apps(select.value);
+        if (selected.error) throw Error(selected.error);
+        status('Open Doc definido como padrão para ' + selected.selected.toUpperCase() + '.');
+      }),
+      'version-history': () => operate(async () => {
+        if (!window.OpenDocVersionHistory) await loadScript('version_history.js');
+        await window.OpenDocVersionHistory.open({
+          root, editor, request, dialog, close: closeDialog, status,
+          iconUrl: new URL('../icons.svg', scriptUrl).href
+        });
+      }),
       copy: () => operate(() => editor.copy()),
       navigator: () => toggleNavigator(),
       'zoom-reset': () => layout?.set(100),
@@ -334,7 +366,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocLogicalTransactions','logical_transactions.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlideCharts','slide_charts.js'],['OpenDocMathGallery','math_gallery.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocLogicalTransactions','logical_transactions.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlideCharts','slide_charts.js'],['OpenDocMathParser','native_math_parser.js'],['OpenDocMathGallery','math_gallery.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
@@ -385,9 +417,12 @@
     }, {signal});
     root.addEventListener('keydown', event => {
       if (root.querySelector('[data-dialog]').hidden) return;
-      if (event.key === 'Escape') { event.preventDefault(); closeDialog(); }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (root.querySelector('[data-dialog]').dataset.historyBusy !== 'true') closeDialog();
+      }
       if (event.key === 'Tab') {
-        const list = Array.from(root.querySelector('[data-dialog]').querySelectorAll('button,input,select')).filter(element => !element.closest('[hidden]'));
+        const list = Array.from(root.querySelector('[data-dialog]').querySelectorAll('button,input,select')).filter(element => !element.disabled && !element.closest('[hidden]'));
         const index = list.indexOf(document.activeElement);
         if (event.shiftKey && index <= 0) { event.preventDefault(); list[list.length - 1]?.focus(); }
         else if (!event.shiftKey && index === list.length - 1) { event.preventDefault(); list[0]?.focus(); }
@@ -410,6 +445,7 @@
     design = await auxiliary('interface de documentos', 'OpenDocDesign', 'design_system.js', module => module.create({root,action,signal}));
     showView(false);
     installTooltips();
+    if (bootstrap.startup_error) status(bootstrap.startup_error);
     root.dataset.ready = 'true';
   }
   mount().catch(error => { console.error('Open Doc: inicialização', error); status(error.message); });

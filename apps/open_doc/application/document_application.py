@@ -33,6 +33,7 @@ class DocumentApplication:
             or self.context.editor.current(),
             "autosave_seconds": AUTOSAVE_SECONDS,
             "assets": self.context.assets,
+            "startup_error": self.context.startup_error,
         }
 
     def list_library(self) -> dict[str, Any]:
@@ -138,6 +139,22 @@ class DocumentApplication:
             data.get("content"),
             data.get("content_format", "markdown"),
         )
+
+    def versions(self, data: dict[str, Any]) -> dict[str, Any]:
+        identifier = data["id"]
+        fixed = self.context.fixed_documents.exists(identifier)
+        operation = data["operation"]
+        result = self.context.editor.versions(
+            identifier, operation, fixed=fixed, version_id=data.get("version_id"),
+            revision=data.get("revision"), name=data.get("name"), slide_index=data.get("slide_index"),
+        )
+        if operation in {"restore", "restore_slide"}:
+            service = self.context.fixed_documents if fixed else self.context.editor
+            result["document"] = service.get(identifier)
+        return result
+
+    def save_pdf_view(self, data: dict[str, Any]) -> dict[str, Any]:
+        return self.context.fixed_documents.save_pdf_view(data["id"], data["view"])
 
     def recover(self, data: dict[str, Any]) -> dict[str, Any]:
         identifier = data["id"]

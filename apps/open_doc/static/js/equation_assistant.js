@@ -88,12 +88,19 @@
       note.textContent="Equações são objetos matemáticos nativos e editáveis (OMML) no DOCX. Escolha uma estrutura ou escreva uma expressão simples.";
       const label=document.createElement("label");label.textContent="Expressão que será inserida";
       const expression=document.createElement("textarea");
-      expression.className="equation-expression";expression.rows=3;expression.maxLength=160;
+      expression.className="equation-expression";expression.rows=3;expression.maxLength=2048;
       expression.setAttribute("aria-label","Expressão matemática para inserir");
       expression.placeholder="Ex.: E = mc² ou ∑ xᵢ / n";
       const preview=document.createElement("output");preview.className="equation-preview";
       preview.setAttribute("aria-live","polite");
-      const refresh=()=>{if(template.value==="text")preview.textContent=expression.value||"A prévia aparecerá aqui.";};
+      const refresh=()=>{
+        if(template.value==="latex"){
+          try{
+            const blocks=window.OpenDocMathParser.parseLatex(expression.value);
+            preview.replaceChildren(window.OpenDocMathGallery.renderBlocks(blocks));
+          }catch(error){preview.textContent=error.message;}
+        }else if(template.value==="text")preview.textContent=expression.value||"A prévia aparecerá aqui.";
+      };
       expression.addEventListener("input",refresh);
       label.append(expression);
       const selected=editor.selectedMath?.()||null;
@@ -103,6 +110,7 @@
       template.setAttribute("aria-label","Tipo de equação nativa");
       for(const [value,label] of [
         ["text","Expressão matemática livre"],
+        ["latex","LaTeX estruturado (nativo)"],
         ...(selected?[["selected","Editar objeto selecionado"]]:[]),
         ...((models?.DEFINITIONS||[]).map(item=>[item.id,item.label]))
       ]){
@@ -114,36 +122,67 @@
       const partsPanel=document.createElement("div");
       partsPanel.className="equation-native-components";
       let activeBlocks=selected?JSON.parse(JSON.stringify(selected.math_blocks)):[];
-      const fields={
-        text:[["value","Expressão"]],
+      const displayFields={
+        text:[["value","Expressão"]],bold:[["value","Texto em negrito"]],
         fraction:[["numerator","Numerador"],["denominator","Denominador"]],
         nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
         superscript:[["base","Base"],["power","Expoente"]],
-        sqrt:[["radicand","Radicando"]]
+        subscript:[["base","Base"],["sub","Índice"]],
+        sqrt:[["radicand","Radicando"]],
+        root:[["index","Índice da raiz"],["radicand","Radicando"]],
+        limit:[["base","Operador"],["lower","Limite"]]
       };
+      const updatePreview=()=>{
+        if(models?.renderBlocks)preview.replaceChildren(models.renderBlocks(activeBlocks));
+      };
+      function leaf(parent,obj,key,label){
+        const wrap=document.createElement("label");wrap.textContent=label;
+        const inp=document.createElement("input");inp.maxLength=160;inp.value=obj[key];
+        inp.addEventListener("input",()=>{obj[key]=inp.value;updatePreview();});
+        wrap.append(inp);parent.append(wrap);
+      }
+      function nested(parent,components,depth=0){
+        if(depth>6)return;
+        for(const [index,component] of components.entries()){
+          const section=document.createElement("section");section.className="equation-edit-node";
+          const heading=document.createElement("strong");
+          heading.textContent="Componente "+(index+1)+" · "+component.kind;section.append(heading);
+          function valueField(owner,key,label){
+            const value=owner[key];
+            if(Array.isArray(value)){
+              if(key==="rows"){
+                for(let row=0;row<value.length;row++)
+                  for(let col=0;col<value[row].length;col++){
+                    const cell=value[row][col],prefix="Linha "+(row+1)+" coluna "+(col+1);
+                    if(Array.isArray(cell))nested(section,cell,depth+1);
+                    else {
+                      const wrap=document.createElement("label");wrap.textContent=prefix;
+                      const input=document.createElement("input");
+                      input.maxLength=160;input.value=cell;
+                      input.addEventListener("input",()=>{value[row][col]=input.value;updatePreview();});
+                      wrap.append(input);section.append(wrap);
+                    }
+                  }
+              }else{
+                const title=document.createElement("small");title.textContent=label+" (estrutura aninhada)";
+                section.append(title);nested(section,value,depth+1);
+              }
+            }else leaf(section,owner,key,label);
+          }
+          if(component.kind==="matrix")valueField(component,"rows","Matriz");
+          else for(const [key,label] of displayFields[component.kind]||[])valueField(component,key,label);
+          parent.append(section);
+        }
+      }
       const drawParts=()=>{
-        partsPanel.replaceChildren();
-        preview.replaceChildren();
-        if(template.value==="text"){
-          preview.textContent=expression.value||"A prévia aparecerá aqui.";
+        partsPanel.replaceChildren();preview.replaceChildren();
+        if(template.value==="text"||template.value==="latex"){
           expression.parentElement.hidden=false;
-          return;
+          refresh();return;
         }
         expression.parentElement.hidden=true;
-        (activeBlocks||[]).forEach((block,index)=>{
-          const section=document.createElement("section");
-          const heading=document.createElement("strong");heading.textContent="Componente "+(index+1)+" · "+block.kind;
-          section.append(heading);
-          for(const [key,label] of fields[block.kind]||[]){
-            const wrap=document.createElement("label");wrap.textContent=label;
-            const inp=document.createElement("input");inp.value=block[key];inp.maxLength=160;
-            inp.addEventListener("input",()=>{activeBlocks[index][key]=inp.value;
-              if(models?.renderBlocks)preview.replaceChildren(models.renderBlocks(activeBlocks));});
-            wrap.append(inp);section.append(wrap);
-          }
-          partsPanel.append(section);
-        });
-        if(models?.renderBlocks)preview.append(models.renderBlocks(activeBlocks));
+        nested(partsPanel,activeBlocks);
+        updatePreview();
       };
       template.addEventListener("change",()=>{
         activeBlocks=template.value==="selected"?JSON.parse(JSON.stringify(selected.math_blocks)):
@@ -201,13 +240,14 @@
       if(!accepted)return false;
       const blocks=template.value==="text"
         ?[{kind:"text",value:expression.value.trim()}]
+        :template.value==="latex"
+        ?window.OpenDocMathParser.parseLatex(expression.value)
         :activeBlocks;
-      if(!blocks?.length || blocks.some(b=>
-        Object.keys(b).filter(k=>k!=="kind"&&k!=="operator"&&
-          !["lower","upper"].includes(k)).some(k=>!b[k]?.trim())))
-        throw Error("Preencha os componentes obrigatórios da equação.");
-      if(blocks.some(b=>Object.values(b).some(v=>typeof v==="string"&&v.length>160)))
-        throw Error("Cada campo pode ter até 160 caracteres.");
+      if(!blocks?.length)throw Error("Equação vazia.");
+      const validValue=value=>Array.isArray(value)?value.length>0:
+        typeof value==="string" && value.length<=160 && !!value.trim();
+      if(template.value==="text"&&!validValue(blocks[0].value))
+        throw Error("Digite uma expressão matemática válida.");
       if(!editor.insertMath?.(blocks))
         throw Error("Não foi possível inserir o objeto matemático na posição do cursor.");
       status("Equação nativa e editável inserida no documento.");

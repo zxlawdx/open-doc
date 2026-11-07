@@ -2,7 +2,8 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const port=process.argv[2]||'9234',kind=process.argv[3];
 if(!['pptx','docx','pdf'].includes(kind))throw Error('Specify format');
-const out=path.resolve(__dirname,'../docs/images/math');
+const out=path.resolve(process.env.OPEN_DOC_MATH_CAPTURES || path.join(__dirname,'../docs/images/math'));
+const identifier=process.argv[4]||process.platform;
 (async()=>{
  const tabs=await(await fetch('http://127.0.0.1:'+port+'/json/list')).json();
  const target=tabs.find(t=>t.type==='page');
@@ -22,9 +23,6 @@ const out=path.resolve(__dirname,'../docs/images/math');
   if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));
   return r.result.value;
  };
- await send('Emulation.setDeviceMetricsOverride',
-   {width:1440,height:900,deviceScaleFactor:1,mobile:false});
- await new Promise(r=>setTimeout(r,700));
  const script=[
   '(()=>{',
   'const rich=document.querySelector("[data-rich]");',
@@ -42,17 +40,31 @@ const out=path.resolve(__dirname,'../docs/images/math');
    'status:document.querySelector("[data-status]")?.textContent||""};',
   '})()'
  ].join('');
- const metrics=await read(script);
- if(kind==='pdf')assert.equal(metrics.mode,'false','PDF cannot be in native slide editing mode');
- assert.ok(metrics.mediaVisible,'No fraction or page visible: '+JSON.stringify(metrics));
- assert.ok(metrics.imageRect?.width>80&&metrics.imageRect?.height>30,
-   'Formula too small/collapsed: '+JSON.stringify(metrics));
- if(kind==='pptx')assert.ok(metrics.slideCount>=5,'Missing slide thumbnails');
- if(kind==='docx')assert.ok(metrics.mathNodes>=1,'DOCX math must be native DOM objects');
- fs.mkdirSync(out,{recursive:true});
- const png=await send('Page.captureScreenshot',{format:'png'});
- fs.writeFileSync(path.join(out,'math-fractions-'+kind+'-qt.png'),Buffer.from(png.data,'base64'));
- fs.writeFileSync(path.join(out,'math-fractions-'+kind+'-qt.json'),JSON.stringify(metrics,null,2));
- console.log('QT_MATH_CAPTURE',kind,JSON.stringify(metrics));
+ for(const [width,height] of [[1366,768],[1920,1080]]){
+  await send('Emulation.setDeviceMetricsOverride',
+    {width,height,deviceScaleFactor:1,mobile:false});
+  await new Promise(resolve=>setTimeout(resolve,250));
+  if(kind==='pdf'){
+   await read(`Array.from(document.querySelectorAll('.fixed-controls button'))
+     .find(button=>button.textContent==='Página inteira')?.click(); true`);
+  }
+  await new Promise(resolve=>setTimeout(resolve,700));
+  const metrics=await read(script);
+  if(kind==='pdf')assert.equal(metrics.mode,'false','PDF cannot be in native slide editing mode');
+  assert.ok(metrics.mediaVisible,'No fraction or page visible: '+JSON.stringify(metrics));
+  assert.ok(metrics.imageRect?.width>80&&metrics.imageRect?.height>30,
+    'Formula too small/collapsed: '+JSON.stringify(metrics));
+  if(kind==='pptx')assert.ok(metrics.slideCount>=5,'Missing slide thumbnails');
+  if(kind==='docx')assert.ok(metrics.mathNodes>=1,'DOCX math must be native DOM objects');
+  fs.mkdirSync(out,{recursive:true});
+  const png=await send('Page.captureScreenshot',{format:'png'});
+  const bytes=Buffer.from(png.data,'base64');
+  assert.equal(bytes.readUInt32BE(16),width);
+  assert.equal(bytes.readUInt32BE(20),height);
+  const stem='math-fractions-'+kind+'-qt-'+identifier+'-'+width+'x'+height;
+  fs.writeFileSync(path.join(out,stem+'.png'),bytes);
+  fs.writeFileSync(path.join(out,stem+'.json'),JSON.stringify(metrics,null,2));
+  console.log('QT_MATH_CAPTURE',kind,JSON.stringify(metrics));
+ }
  ws.close();
 })().catch(error=>{console.error(error);process.exit(1)});

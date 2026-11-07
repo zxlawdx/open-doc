@@ -17,6 +17,37 @@ def load_document(value):
 
 
 def rich_to_markdown(model):
+    def math_value(value):
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            return "".join(math_block(item) for item in value)
+        return ""
+
+    def math_block(part):
+        kind = part.get("kind")
+        value = lambda field: math_value(part.get(field, ""))
+        if kind in {"text", "bold"}:
+            return value("value")
+        if kind == "fraction":
+            return "(" + value("numerator") + ")/(" + value("denominator") + ")"
+        if kind == "nary":
+            return part["operator"] + "_(" + value("lower") + ")^(" + value("upper") + ")" + value("body")
+        if kind == "superscript":
+            return value("base") + "^(" + value("power") + ")"
+        if kind == "subscript":
+            return value("base") + "_(" + value("sub") + ")"
+        if kind == "sqrt":
+            return "√(" + value("radicand") + ")"
+        if kind == "root":
+            return "root(" + value("index") + "," + value("radicand") + ")"
+        if kind == "limit":
+            return value("base") + "_(" + value("lower") + ")"
+        if kind == "matrix":
+            return "[" + "; ".join(", ".join(math_value(cell) for cell in row)
+                                    for row in part["rows"]) + "]"
+        return ""
+
     def inline(values):
         out = []
         for n in values:
@@ -28,21 +59,7 @@ def rich_to_markdown(model):
             if s.get("italic"):
                 text = "_" + text + "_"
             if kind == "math":
-                math_text = []
-                for part in n.get("math_blocks", []):
-                    p = part.get("kind")
-                    if p == "text":
-                        math_text.append(part["value"])
-                    elif p == "fraction":
-                        math_text.append("(" + part["numerator"] + ")/(" + part["denominator"] + ")")
-                    elif p == "nary":
-                        math_text.append(part["operator"] + "_(" + part["lower"] + ")^(" +
-                                         part["upper"] + ") " + part["body"])
-                    elif p == "superscript":
-                        math_text.append(part["base"] + "^(" + part["power"] + ")")
-                    elif p == "sqrt":
-                        math_text.append("√(" + part["radicand"] + ")")
-                text = "".join(math_text)
+                text = math_value(n.get("math_blocks", []))
             if kind == "hyperlink":
                 text = "[" + inline(n["children"]) + "](" + n["href"] + ")"
             if kind == "break":

@@ -473,3 +473,20 @@
   border:1px solid #8885;border-radius:5px;}
 .open-doc .equation-native-components label{display:flex;gap:6px;justify-content:space-between;}
 .open-doc .equation-native-components input{width:55%;min-width:75px;}
+
+/* Recursive mathematical typography: fractions, radicals, scripts, matrices. */
+.open-doc .slide-native-equation{align-items:center;gap:.10em;min-width:0}
+.open-doc .slide-math-sqrt,.open-doc .slide-math-root{display:inline-flex;align-items:flex-start;
+  white-space:nowrap}
+.open-doc .slide-math-radicand{border-top:1.5px solid currentColor;padding:.06em .12em 0}
+.open-doc .slide-math-root>sup{font-size:.48em}
+.open-doc .slide-math-matrix{display:inline-flex;align-items:center;
+  padding:0 .20em;border-left:2px solid currentColor;border-right:2px solid currentColor}
+.open-doc .slide-math-matrix[data-matrix-fence="round"]{border-radius:50% / 30%}
+.open-doc .slide-math-matrix-grid{display:inline-grid;gap:.18em .50em;align-items:center}
+.open-doc .slide-math-matrix-cell{text-align:center;white-space:nowrap}
+.open-doc .slide-math-subscript sub,.open-doc .slide-math-superscript sup{font-size:.66em}
+.open-doc .slide-math-latex-input{display:block;width:100%;box-sizing:border-box;
+  min-height:64px;margin-top:6px;resize:vertical;font-family:monospace}
+.open-doc .slide-math-latex-add{background:#124c9e;color:white;border:0;
+  border-radius:7px;padding:9px;cursor:pointer;justify-self:start}
