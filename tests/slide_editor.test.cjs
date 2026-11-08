@@ -1230,6 +1230,70 @@ test('Delete on a focused thumbnail removes its slide, not an object',t=>{
  assert.equal(q.model().surfaces.length,1,'last slide is protected');
 });
 
+test('Delete follows canvas focus after duplication and ignores a cleared selection',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');clickLabel(q.controls,'Retângulo');
+ const original=JSON.stringify(q.model().surfaces[0]);
+ const thumb=index=>q.sidebar.querySelector('[data-thumbnail-index="'+index+'"]');
+ const key=(target=q.w.document.activeElement,options={})=>target.dispatchEvent(
+   new q.w.KeyboardEvent('keydown',{key:'Delete',bubbles:true,cancelable:true,...options})
+ );
+ const select=type=>{
+   const node=q.scroller.querySelector('.slide-object-'+type);
+   assert.ok(node,'object is on the active slide');
+   node.dispatchEvent(new q.w.MouseEvent('pointerdown',{button:0,bubbles:true,cancelable:true}));
+   node.click();
+   assert.equal(q.w.document.activeElement,q.scroller);
+   assert.equal(node.dataset.selected,'true');
+ };
+ // Alternate both reported paths: stale thumbnail focus and Qt body fallback.
+ for(let round=0;round<100;round++){
+   thumb(0).focus();
+   clickLabel(q.controls,'Duplicar');
+   const copied=q.model().surfaces[1].elements;
+   thumb(1).focus();
+   select('text');
+   q.scroller.querySelector('.slide-active-workspace').click();
+   assert.equal(q.scroller.querySelectorAll('[data-selected=true]').length,0);
+   assert.equal(thumb(1).getAttribute('aria-current'),'true');
+   const writes=q.versions.length;
+   key();
+   assert.equal(q.versions.length,writes,'gray margin clears the edit target');
+
+   thumb(1).focus();
+   select('text');
+   const field=q.editor.inspector.querySelector('textarea');
+   field.focus();
+   key();
+   assert.equal(q.versions.length,writes,'Delete in an inspector field belongs to the field');
+   if(round%2===0)field.blur();
+   else q.scroller.focus();
+   key();
+   assert.equal(q.versions.length,writes+1);
+   assert.equal(q.model().surfaces.length,2);
+   assert.deepEqual(Array.from(q.model().surfaces[1].elements,o=>o.id),[copied[1].id]);
+   assert.equal(JSON.stringify(q.model().surfaces[0]),original);
+   key(q.w.document.activeElement,{repeat:true});
+   assert.equal(q.versions.length,writes+1);
+   thumb(1).focus();
+   key();
+   assert.equal(q.model().surfaces.length,1);
+   assert.equal(JSON.stringify(q.model().surfaces[0]),original);
+ }
+});
+
+test('holding Delete on thumbnails only removes one slide per key press',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'+ Slide');clickLabel(q.controls,'+ Slide');
+ q.sidebar.querySelector('[data-thumbnail-index="1"]').focus();
+ for(const repeat of [false,true,true]){
+   q.w.document.activeElement.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+     key:'Delete',repeat,bubbles:true,cancelable:true
+   }));
+ }
+ assert.equal(q.model().surfaces.length,2);
+});
+
 test('Ctrl+B and Ctrl+I toggle native text styles even during inline editing',t=>{
  const q=setup(t);clickLabel(q.controls,'Texto');
  const style=()=>q.model().surfaces[0].elements[0];

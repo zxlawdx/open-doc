@@ -535,6 +535,56 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
    JSON.stringify({bulletScene,editing,removed},null,2));
  console.log('QT_PPTX_BULLET_LIST_INLINE_TEXT_NO_OVERLAY_OK');
 
+ // Real pointer and keyboard events reproduce stale thumbnail focus.
+ const slides=()=>evaluate('OpenDocApp.editor().snapshot().content.surfaces');
+ const beforeDuplicate=await slides();
+ await click('.fixed-sidebar [data-thumbnail-index="1"]');
+ await evaluate(`(()=>{
+   const toolbar=document.querySelector('.slide-studio-toolbar');
+   const duplicate=Array.from(toolbar.querySelectorAll('button')).find(b=>b.textContent==='Duplicar');
+   duplicate.click();
+ })()`);
+ const cloneIndex=2;
+ assert.equal((await slides()).length,beforeDuplicate.length+1);
+ await click('.fixed-sidebar [data-thumbnail-index="2"]');
+ const objectSelector='.fixed-scroll .slide-object-text';
+ await click(objectSelector);
+ assert.equal(await evaluate("document.activeElement.classList.contains('fixed-scroll')"),true);
+ const selectedId=await evaluate("document.querySelector('.fixed-scroll [data-selected=true]')?.dataset.slideElement");
+ assert.ok(selectedId,'A real canvas click must select the object');
+ const gray=await evaluate(`(()=>{
+   const stage=document.querySelector('.fixed-scroll').getBoundingClientRect();
+   const surface=document.querySelector('.fixed-scroll .fixed-surface').getBoundingClientRect();
+   return {x:(stage.left+surface.left)/2,y:surface.top+surface.height/2};
+ })()`);
+ await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...gray});
+ await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...gray});
+ const pressDelete=async()=>{
+   const key={key:'Delete',code:'Delete',windowsVirtualKeyCode:46};
+   await send('Input.dispatchKeyEvent',{type:'keyDown',...key});
+   await send('Input.dispatchKeyEvent',{type:'keyUp',...key});
+ };
+ assert.equal(await evaluate("!!document.querySelector('.fixed-scroll [data-selected=true]')"),false);
+ const cloneBeforeDelete=(await slides())[cloneIndex];
+ await pressDelete();
+ assert.deepEqual((await slides())[cloneIndex],cloneBeforeDelete);
+ await click('.fixed-sidebar [data-thumbnail-index="2"]');
+ await click(objectSelector);
+ await pressDelete();
+ const afterDelete=await slides();
+ assert.equal(afterDelete.length,beforeDuplicate.length+1);
+ assert.deepEqual(afterDelete.slice(0,2),beforeDuplicate.slice(0,2));
+ assert.deepEqual(afterDelete[cloneIndex].elements.map(o=>o.id),
+   cloneBeforeDelete.elements.map(o=>o.id).filter(id=>id!==selectedId));
+ await evaluate("OpenDocApp.editor().format('undo')");
+ assert.deepEqual((await slides())[cloneIndex],cloneBeforeDelete);
+ await evaluate("OpenDocApp.editor().format('redo')");
+ assert.deepEqual((await slides())[cloneIndex],afterDelete[cloneIndex]);
+ await click('.fixed-sidebar [data-thumbnail-index="2"]');
+ await pressDelete();
+ assert.deepEqual(await slides(),beforeDuplicate);
+ console.log('QT_PPTX_DUPLICATE_CANVAS_DELETE_DESELECT_AND_HISTORY_OK');
+
  // Restore the original slide to allow the subsequent persistence/export
  // smoke to append text to the four existing shapes on slide 1.
  await click('.fixed-sidebar [data-thumbnail-index="0"]');
