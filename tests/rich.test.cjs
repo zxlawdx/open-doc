@@ -470,3 +470,22 @@ test('Ctrl+B applies bold to a mixed selection starting in a bold title',async t
  key();assert.deepEqual(Array.from(bold()),[true,true]);
  key();assert.deepEqual(Array.from(bold()),[false,false]);
 });
+
+test('bookmark restores the logical caret when a paragraph fragment moves after reflow',async t=>{
+ const q=await setup(t);q.editor.pagination().paginate();
+ const first=q.rich.querySelector('[data-node-id=p1]');
+ const second=first.cloneNode(true);second.dataset.fragmentOf='p1';
+ first.querySelector('span').textContent='Texto ';
+ second.querySelector('span').textContent='selecionado';
+ first.after(second);
+ const commands=q.w.OpenDocCommands.create(q.rich,()=>{},new q.w.AbortController().signal);
+ const selection=q.w.getSelection();
+ q.rich.focus();selection.collapse(second.querySelector('span').firstChild,4);
+ const bookmark=commands.bookmark();
+ first.querySelector('span').textContent='Texto sele';
+ second.querySelector('span').textContent='cionado';
+ commands.restoreBookmark(bookmark);
+ const restored=commands.bookmark();
+ assert.equal(restored.logicalBlockOffset,10);
+ assert.equal(restored.blockId,'p1');
+});

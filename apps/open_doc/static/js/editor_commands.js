@@ -36,6 +36,8 @@
     const blocks=()=>Array.from(rich.querySelectorAll(
       '[data-page-content] > [data-node-id],[data-rich] > [data-node-id],[data-page-content] > p,[data-page-content] > div,[data-page-content] > li'
     ));
+    const logicalId=node=>node?.dataset.fragmentOf||node?.dataset.nodeId;
+    const editableLength=node=>node.textContent.length-(node.querySelector('[data-list-marker]')?.textContent.length||0);
     function caretBlock(node){
       const element=node?.nodeType===3?node.parentElement:node;
       return element?.closest?.('p,li,h1,h2,h3,h4,h5,h6,blockquote,pre,[data-page-content] > div,[data-rich] > div')||null;
@@ -56,7 +58,7 @@
           try{within.setEnd(range.startContainer,range.startOffset);}
           catch(_){within.collapse(false);}
           result.blockIndex=index;
-          result.blockId=block.dataset.nodeId||null;
+          result.blockId=logicalId(block)||null;
           result.blockOffset=within.toString().length;
           const marker=block.querySelector('[data-list-marker]');
           if(marker){
@@ -64,6 +66,11 @@
             result.blockOffset=Math.max(0,result.blockOffset-(included?marker.textContent.length:0));
           }
           result.editableBlockOffset=true;
+          if(result.blockId){
+            result.logicalBlockOffset=result.blockOffset;
+            for(let i=index-1;i>=0&&logicalId(all[i])===result.blockId;i--)
+              result.logicalBlockOffset+=editableLength(all[i]);
+          }
           result.childOffset=range.startContainer===block?range.startOffset:null;
         }
       }
@@ -75,11 +82,21 @@
       if(value.length===0 && Number.isInteger(value.blockIndex)){
         const all=blocks();
         const found=all[value.blockIndex];
-        const block=value.blockId&&found?.dataset.nodeId!==value.blockId
-          ? all.find(el=>el.dataset.nodeId===value.blockId)||found : found;
+        let block=value.blockId&&logicalId(found)!==value.blockId
+          ? all.find(el=>logicalId(el)===value.blockId)||found : found;
+        let wanted=Math.max(0,value.blockOffset||0);
+        if(value.blockId&&Number.isFinite(value.logicalBlockOffset)){
+          wanted=value.logicalBlockOffset;
+          const pieces=all.filter(el=>logicalId(el)===value.blockId);
+          for(let i=0;i<pieces.length;i++){
+            block=pieces[i];
+            const length=editableLength(block);
+            if(wanted<=length||i===pieces.length-1)break;
+            wanted-=length;
+          }
+        }
         if(block){
           const range=document.createRange();
-          const wanted=Math.max(0,value.blockOffset||0);
           const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
           let textNode,remaining=wanted,placed=false;
           while((textNode=walker.nextNode())){
