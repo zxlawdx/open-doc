@@ -80,19 +80,24 @@
     return {...base,blocks:blocks(surface)};
   }
   function uniqueChanges(next,original){
-    const M=window.OpenDocModel,unchanged=new Set(original.blocks.filter(b=>next.blocks.includes(b))),used=new Set(M.index({blocks:[...unchanged]}).keys());
+    const M=window.OpenDocModel,previous=new Set(original.blocks);
+    const unchanged=new Set(next.blocks.filter(block=>previous.has(block)));
+    const used=new Set(M.index({blocks:[...unchanged]}).keys());
     function visit(node){if(!node || typeof node!=='object')return;if(node.id){if(used.has(node.id))node.id=M.id();used.add(node.id);}for(const value of Object.values(node))if(Array.isArray(value))value.forEach(visit);}
     for(const block of next.blocks)if(!unchanged.has(block))visit(block);
     return next;
   }
-  // A collapsed native Enter can split one top-level paragraph in place.
-  // Fragmented paragraphs still need the full logical-document merge.
+  // An empty paragraph split has no text, run styles, or objects to move.
+  // Text-bearing and fragmented splits use the complete logical merge.
   function serializeParagraphSplit(surface,left,right,original){
     const leftId=left.dataset.nodeId,rightId=right.dataset.nodeId;
     if(!leftId||!rightId||leftId===rightId||left.dataset.fragmentOf||right.dataset.fragmentOf)return null;
     const index=original.blocks.findIndex(block=>block.id===leftId);
     const previous=original.blocks[index];
-    if(previous?.type!=='paragraph'||original.blocks.some(block=>block.id===rightId))return null;
+    if(previous?.type!=='paragraph'||previous.children?.length||
+      original.blocks.some(block=>block.id===rightId))return null;
+    const placeholder=node=>node.childNodes.length===1 && node.firstChild.matches?.('br:not([data-node-type])');
+    if(!placeholder(left)||!placeholder(right))return null;
     for(const fragment of surface.querySelectorAll('[data-page-content] > [data-fragment-of]')){
       if(fragment.dataset.fragmentOf===leftId||fragment.dataset.fragmentOf===rightId)return null;
     }

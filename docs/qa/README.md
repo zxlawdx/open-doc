@@ -117,17 +117,17 @@ mostrou uma pausa entre callbacks de 383 ms nesta execução.
 
 ## Enter incremental e Backspace depois de uma lista
 
-O Enter com cursor recolhido que divide um parágrafo comum em dois na
-mesma página serializa apenas o parágrafo original e o novo. Substituir
-uma seleção ou dividir um parágrafo fragmentado continua pelo
-serializador lógico completo. A verificação de alterações não salvas
-usa o conteúdo sem recalcular a posição do cursor.
+O Enter com cursor recolhido em um parágrafo vazio serializa apenas os
+dois blocos se ambos continuarem vazios na mesma página. Dividir texto,
+substituir uma seleção ou editar fragmentos mantém a serialização lógica
+completa. A comparação de identidades dos blocos intactos usa conjuntos.
+A verificação de alterações não salvas dispensa a posição do cursor.
 
 Em um teste comparativo com 1.000 Enter reais no QtWebEngine local, o
 documento chegou aos mesmos 1.001 parágrafos e 44 páginas nas duas
-revisões. O lote levou 17,4 s na base e 9,3 s com a mudança. As
+revisões. O lote levou 17,4 s na base e 9,6 s com a mudança. As
 serializações do DOM inteiro caíram de 1.000 para uma. O maior
-intervalo entre callbacks caiu de 716 para 217 ms nesta comparação.
+intervalo entre callbacks caiu de 716 para 300 ms nesta comparação.
 Os tempos são medições locais e variam com o ambiente.
 
 Backspace em um parágrafo vazio após sair de uma lista retorna ao
