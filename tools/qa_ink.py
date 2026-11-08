@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from threading import Timer
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +50,7 @@ def main():
     def qa():
         window = webview.windows[0]
         try:
-            from qa_runtime import report
+            from qa_runtime import Keyboard, report
 
             report(window)
             wait(window, "document.querySelector('[data-app]')?.dataset.ready==='true'")
@@ -215,15 +216,32 @@ def main():
             assert state.get("verified") and state.get("native_fullscreen") is False
             print("QT_NATIVE_FULLSCREEN_RESTORATION_VERIFIED_OK", flush=True)
 
-            output = subprocess.run(
+            keyboard = Keyboard(window)
+            with subprocess.Popen(
                 [
                     "node", str(ROOT / "tools/qa_slide_capture.cjs"),
                     os.environ["QTWEBENGINE_REMOTE_DEBUGGING"],
                 ],
-                capture_output=True, text=True, timeout=35,
-            )
-            print(output.stdout, output.stderr, flush=True)
-            assert output.returncode == 0, "Qt screenshot/shape hit test failed"
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            ) as capture:
+                watchdog = Timer(45, capture.kill)
+                watchdog.start()
+                try:
+                    for line in capture.stdout:
+                        if line.strip() == "QT_PPTX_KEY_DELETE":
+                            keyboard.key("Delete")
+                            capture.stdin.write("OK\n")
+                            capture.stdin.flush()
+                        else:
+                            print(line, end="", flush=True)
+                    assert capture.wait() == 0, "Qt screenshot/shape hit test failed"
+                finally:
+                    watchdog.cancel()
+                    if capture.poll() is None:
+                        capture.kill()
             from PIL import Image
 
             image_dir = ROOT / "docs/images/ink"

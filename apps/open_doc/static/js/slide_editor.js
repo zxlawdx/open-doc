@@ -758,6 +758,11 @@
       }
       this.selected=Array.from(this.selectedIds).pop()||null;
     }
+    _clearCanvasSelection(){
+      this.lastTextTap=null;
+      if(!this.selectedIds.size)return;
+      this._selectObject(null);this._refreshSelection();
+    }
     _bindEvents(){
       // QtWebEngine may leave focus on the document body after a pointer
       // selection. Handle text style shortcuts at window capture level so
@@ -800,6 +805,19 @@
         event.preventDefault();
         this.importImage(file).catch(error=>this.status(error.message));
       },{signal:this.signal});
+      // Pointer selection must move keyboard focus away from thumbnails.
+      // Preventing the drag's default action also prevents that native focus move.
+      if(!this.scroller.hasAttribute("tabindex"))this.scroller.tabIndex=0;
+      this.sidebar.addEventListener("focusin",event=>{
+        if(this.active&&this.selected&&event.target.closest("[data-thumbnail-index]"))
+          this._clearCanvasSelection();
+      },{signal:this.signal});
+      this.sidebar.addEventListener("click",event=>{
+        if(this.active&&!event.target.closest("[data-thumbnail-index]")){
+          this.scroller.focus({preventScroll:true});
+          this._clearCanvasSelection();
+        }
+      },{signal:this.signal});
       this.scroller.addEventListener("pointerdown",event=>{
         this.ignoreDragClick=false;
         if(this.colorSample&&event.button===0){event.preventDefault();return;}
@@ -828,8 +846,10 @@
       this.scroller.addEventListener("click",event=>{
         if(!this.active||this.inlineEditing)return;
         if(this.ignoreDragClick&&event.detail){this.ignoreDragClick=false;return;}
+        if(event.target.closest("input,textarea,select,[contenteditable=true]"))return;
+        this.scroller.focus({preventScroll:true});
         const surface=event.target.closest(".fixed-surface");
-        if(!surface)return;
+        if(!surface){this._clearCanvasSelection();return;}
         const targetIndex=Number(surface.dataset.pageIndex);
         const changedSlide=targetIndex!==this.current;
         this.current=targetIndex;
@@ -872,16 +892,22 @@
         event.preventDefault();event.stopPropagation();
         this._editText(index,id,item,obj.text);
       },{signal:this.signal});
-      this.root.addEventListener("keydown",event=>{
-        if(!this.active)return;
-        if(event.target.closest("input,textarea,[contenteditable=true]"))return;
+      const keydown=event=>{
+        if(!this.active||this.presentation||this.inlineEditing||event.defaultPrevented||
+           this.root.dataset.homeView==="true"||
+           this.root.querySelector("[data-dialog]:not([hidden])"))return;
+        if(event.target.closest?.("input,textarea,select,[contenteditable=true],[role=dialog]"))return;
+        const deleteKey=(event.key==="Delete"||event.key==="Backspace")&&
+          !event.ctrlKey&&!event.metaKey&&!event.altKey;
+        const fromEditor=event.target instanceof Node&&this.root.contains(event.target);
+        // Legacy Qt may send a canvas shortcut to the page body.
+        if(!fromEditor&&(!deleteKey||event.target!==document.body))return;
         // Navigation with keyboard arrows is scoped ONLY to the left
         // thumbnail sidebar. Canvas arrows still nudge the selected object.
-        const thumbnail=event.target.closest("[data-thumbnail-index]");
-        if(thumbnail&&this.sidebar.contains(thumbnail)&&
-           (event.key==="Delete"||event.key==="Backspace")&&
-           !event.ctrlKey&&!event.metaKey&&!event.altKey){
+        const thumbnail=event.target.closest?.("[data-thumbnail-index]");
+        if(thumbnail&&this.sidebar.contains(thumbnail)&&deleteKey){
           event.preventDefault();event.stopPropagation();
+          if(event.repeat)return;
           const index=Number(thumbnail.dataset.thumbnailIndex);
           try{
             if(!Number.isInteger(index)||index<0||
@@ -920,10 +946,14 @@
           this.lastTextTap=null;this._selectObject(null);this.render();return;
         }
         if(!this.selected)return;
-        if(event.key==="Delete"||event.key==="Backspace"){
-          event.preventDefault();
-          this.commands.deleteObjects(this.current,this.selectedIds);
-          this._selectObject(null);this.render();return;
+        if(deleteKey){
+          event.preventDefault();event.stopPropagation();
+          const available=this.getModel().surfaces[this.current]?.elements||[];
+          const ids=available.filter(item=>this.selectedIds.has(item.id)).map(item=>item.id);
+          this._selectObject(null);
+          if(ids.length)this.commands.deleteObjects(this.current,ids);
+          else this._refreshSelection();
+          return;
         }
         if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="d"){
           event.preventDefault();
@@ -940,7 +970,8 @@
             x:clamp(obj.x+dx,0,1-obj.width),y:clamp(obj.y+dy,0,1-obj.height)
           });
         }
-      },{signal:this.signal});
+      };
+      window.addEventListener("keydown",keydown,{signal:this.signal});
     }
     load(){
       this.active=true;this.host.dataset.slideEditor="true";this.toolbar.hidden=false;this.inspector.hidden=false;
@@ -2251,6 +2282,7 @@
       if(index!==this.current)this.current=index;
       const obj=this.getModel().surfaces[index].elements.find(e=>e.id===node.dataset.slideElement);
       if(!obj)return;
+      this.scroller.focus({preventScroll:true});
       // DOM nodes can be replaced after the first pointer-up. Match stable IDs
       // so two taps activate inline text editing even on legacy QtWebEngine.
       const now=Date.now(),previous=this.lastTextTap;
