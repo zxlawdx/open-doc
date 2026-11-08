@@ -49,7 +49,7 @@
     let pagination=null;
     const mediaCache=new Map();
     let saved = "", savedContent=null, savedTitle="";
-    let mode = "rich", typingStyle=null;
+    let mode = "rich", typingStyle=null, deletionStyle=null;
     let chain = Promise.resolve();
     let destroyed = false, suspended = false;
     let recoveryTimer = null;
@@ -205,7 +205,7 @@
     function load(note) {
       finishLogicalTransaction();
       clearTimeout(recoveryTimer);clearTimeout(cacheTimer);markdownStale=false;
-      typingStyle=null;
+      typingStyle=null;deletionStyle=null;
       documentState = {...note};
       model=note.content?window.OpenDocModel.clone(note.content):null;mediaCache.clear();
       const warning=root.querySelector('[data-rich-warning]'),list=root.querySelector('[data-rich-warnings]');
@@ -312,7 +312,7 @@
     function restoreSnapshot(snapshot) {
       finishLogicalTransaction();
       if (!snapshot) return;
-      typingStyle=null;
+      typingStyle=null;deletionStyle=null;
       if(snapshot.historyChange?.affected?.inkOnly&&snapshot.content&&model?.blocks===snapshot.content.blocks){
         model=snapshot.content;
         cache();scheduleRecovery();updateHistoryControls();
@@ -355,8 +355,14 @@
         restoreSnapshot(history[kind]());return;
       }
       if (mode === "preview") setMode("rich");
-      if(['underline','strike','superscript','subscript'].includes(kind)){
-        const current=textState(),patch=kind==='underline'?{underline:current.underline && current.underline!=='none'?'none':'single'}:kind==='strike'?{strike:!current.strike}:{vertical_align:current.vertical_align===kind?'baseline':kind};style('inline',patch);return;
+      if(mode==='rich'&&['bold','italic','underline','strike','superscript','subscript'].includes(kind)){
+        commands.restore();
+        const current=textState();
+        const patch=kind==='underline'?{underline:current.underline&&current.underline!=='none'?'none':'single'}
+          :kind==='superscript'||kind==='subscript'?{vertical_align:current.vertical_align===kind?'baseline':kind}
+          :{[kind]:!((kind==='strike'||getSelection()?.isCollapsed)?current[kind]:
+            window.OpenDocFormatting.selectionHasStyle(rich,getSelection()?.rangeCount?getSelection().getRangeAt(0):null,kind))};
+        style('inline',patch);return;
       }
       if(kind==='table'){if(mode!=='rich')setMode('rich');commands.restore();if(window.OpenDocTables?.insert(rich,getSelection().rangeCount?getSelection().getRangeAt(0):null))changed('format');return;}
       if(model && mode==='markdown' && kind!=='selectAll'){status('Edite este documento no modo visual.');return;}
@@ -364,7 +370,7 @@
       if (mode === "rich") {
         if((kind==='list'||kind==='ordered')&&toggleList(kind==='list'?'bullet':'decimal'))return;
         const mapping = {
-          bold: ["bold"], italic: ["italic"], paragraph: ["formatBlock", "p"],
+          paragraph: ["formatBlock", "p"],
           h1: ["formatBlock", "h1"], heading: ["formatBlock", "h2"], h3: ["formatBlock", "h3"],
           list: ["insertUnorderedList"], ordered: ["insertOrderedList"],
           quote: ["formatBlock", "blockquote"], code: ["formatBlock", "pre"],
@@ -479,13 +485,30 @@
         ?typingStyle.patch:null;
     }
 
-    function textState(){
+    function textState(includeTyping=true){
       const selection=getSelection();let node=selection.anchorNode;
+      if(selection.rangeCount&&!selection.isCollapsed)
+        node=window.OpenDocFormatting?.firstSelectedText(rich,selection.getRangeAt(0))||node;
       if(node?.nodeType===1){node=node.childNodes[Math.min(selection.anchorOffset,node.childNodes.length-1)] || node;while(node.firstChild)node=node.firstChild;}
       let e=node && (node.nodeType===1?node:node.parentElement);const ancestors=[],map=model && window.OpenDocModel?window.OpenDocModel.index(model):new Map(),out={};
       while(e && rich.contains(e)){ancestors.unshift(e);e=e.parentElement;}
       for(const element of ancestors){Object.assign(out,map.get(element.dataset.nodeId)?.style || {});if(window.OpenDocRichSerializer)Object.assign(out,window.OpenDocRichSerializer.readStyle(element,out));}
-      return {...out,...activeTypingStyle()};
+      if(ancestors.length&&(out.bold==null||out.italic==null)){
+        const computed=getComputedStyle(ancestors[ancestors.length-1]);
+        if(out.bold==null)out.bold=computed.fontWeight==='bold'||Number(computed.fontWeight)>=600;
+        if(out.italic==null)out.italic=computed.fontStyle==='italic';
+      }
+      return includeTyping?{...out,...activeTypingStyle()}:out;
+    }
+    function resetInlineEffects(){
+      const bookmark=commands.bookmark();
+      renderRich();commands.restoreBookmark(bookmark);
+    }
+    function cancelsInlineEffects(patch,current){
+      return (patch.underline==='none'&&current.underline&&current.underline!=='none')||
+        (patch.strike===false&&current.strike)||
+        (patch.vertical_align&&current.vertical_align&&current.vertical_align!=='baseline'&&
+          patch.vertical_align!==current.vertical_align);
     }
     function style(scope,patch){
       if(lockedState || !window.OpenDocFormatting)return;
@@ -501,12 +524,14 @@
         return;
       }
       typingStyle=null;
+      const reset=scope==='inline'&&(patch.underline==='none'||patch.strike===false||patch.vertical_align);
       const applied=scope==='inline'?window.OpenDocFormatting.apply(rich,range,patch):window.OpenDocFormatting.paragraph(rich,range,patch);
       if(applied){
         // Formatting mutates the selected text in place. Serialize the live
         // selection once; replacing fragments here can replace a physical
         // page fragment with the entire logical paragraph.
         changed('format');
+        if(reset)resetInlineEffects();
         root.dispatchEvent(new CustomEvent('open-doc:content'));
       }else status('Selecione o texto a formatar.');
     }
@@ -662,6 +687,7 @@
       traceDeletion('render-start');
       renderRich();
       restoreLogicalCaret(caret);
+      restoreDeletionStyle();
       cache();scheduleRecovery();render();
       root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
         {detail:{blockId:caret.blockId,reason:'typing',structural:true,full:true}}));
@@ -789,11 +815,19 @@
       if(event.key==='Backspace')traceDeletion('keydown-entry');
       if(event.key!=='Backspace'&&event.key!=='Delete')return;
       if(event.ctrlKey||event.altKey||event.metaKey||event.isComposing)return;
-      applyLogicalDeletion(event,event.key==='Backspace'
-        ?'deleteContentBackward':'deleteContentForward');
+      const patch=deletionStyle||activeTypingStyle();
+      if(applyLogicalDeletion(event,event.key==='Backspace'
+        ?'deleteContentBackward':'deleteContentForward'))deletionStyle=patch;
     },{...listeners,capture:true});
+    function restoreDeletionStyle(){
+      if(!deletionStyle)return;
+      const caret=commands.bookmark();
+      typingStyle=caret?.length===0?{patch:deletionStyle,caret}:null;
+      deletionStyle=null;
+    }
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
+      deletionStyle=event.inputType?.startsWith('delete')?activeTypingStyle():null;
       if(applyLogicalDeletion(event,event.inputType))return;
       if(event.inputType==='insertText'&&!event.isComposing&&event.cancelable&&event.data){
         const patch=activeTypingStyle(),selection=getSelection();
@@ -801,6 +835,8 @@
         if(patch&&range?.collapsed&&rich.contains(range.startContainer)){
           event.preventDefault();
           history.checkpoint(buffer());
+          const reset=(patch.underline==='none'||patch.strike===false||patch.vertical_align)&&
+            cancelsInlineEffects(patch,textState(false));
           const node=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
           const run=node.closest('[data-style-patch]');
           const stylePatch=JSON.stringify(patch);
@@ -823,6 +859,7 @@
           selection.removeAllRanges();selection.addRange(range);
           typingStyle={patch,caret:commands.bookmark()};
           changed('typing',rich,event);
+          if(reset)resetInlineEffects();
           const caret=commands.bookmark();
           if(caret)typingStyle={patch,caret};
           return;
@@ -842,7 +879,10 @@
       beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;
     }, listeners);
     source.addEventListener("input", () => changed("typing", source), listeners);
-    rich.addEventListener("input", event => changed(nextKind,rich,event), listeners);
+    rich.addEventListener("input",event=>{
+      restoreDeletionStyle();
+      changed(nextKind,rich,event);
+    },listeners);
     rich.addEventListener('compositionend',()=>changed('typing',rich,{inputType:'insertCompositionText'}),listeners);
     title.addEventListener("input", () => {if(root.dataset.documentKind!=='fixed')changed("typing", title);}, listeners);
     window.OpenDocTables?.bind(rich,controller.signal,action=>{try{tableOperation(action);}catch(error){status(error.message);}});
@@ -877,7 +917,6 @@
       if(root.dataset.documentKind==='fixed' || !(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if(key === "enter" && mode === "rich" && rich.contains(getSelection()?.anchorNode)){event.preventDefault();insertPage("break");return;}
-      if (key === "s") { event.preventDefault(); flush().catch(() => {}); }
       if (key === "z" || key === "y") {
         const focused=document.activeElement;
         const editingInk=root.dataset.inkMode&&root.dataset.inkMode!=='cursor'&&
@@ -886,7 +925,11 @@
           event.preventDefault(); format(key === "y" || event.shiftKey ? "redo" : "undo");
         }
       }
-      if (["b", "i"].includes(key) && document.activeElement !== title) {
+      const focused=document.activeElement;
+      const richSelection=rich.contains(getSelection()?.anchorNode)&&
+        !focused?.closest('input,textarea,select,[role="dialog"]');
+      if (["b", "i"].includes(key) && !event.altKey &&
+          (richSelection||focused===source)) {
         event.preventDefault();
         format(key === "b" ? "bold" : "italic");
       }

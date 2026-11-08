@@ -407,3 +407,127 @@ test('font changes keep text and selection across page fragments of one paragrap
  await q.editor.flush();
  assert.equal(q.saved().content.blocks[0].children.map(run=>run.text).join(''),'Texto selecionado');
 });
+
+test('Ctrl+B and Ctrl+I turn typing styles on and off and update the toolbar',async t=>{
+ const q=await setup(t);
+ const text=q.rich.querySelector('[data-node-id=r1]').firstChild;
+ q.rich.focus();q.w.getSelection().collapse(text,0);q.editor.capture();
+ const key=name=>q.rich.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:name,ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ const pressed=name=>q.root.querySelector('.toolbar [data-command='+name+']').getAttribute('aria-pressed');
+ const type=data=>q.rich.dispatchEvent(new q.w.InputEvent('beforeinput',{
+   bubbles:true,cancelable:true,inputType:'insertText',data
+ }));
+ assert.equal(key('b'),false);assert.equal(pressed('bold'),'true');
+ type('A');
+ assert.equal(key('b'),false);assert.equal(pressed('bold'),'false');
+ assert.equal(key('i'),false);assert.equal(pressed('italic'),'true');
+ type('B');
+ assert.equal(key('i'),false);assert.equal(pressed('italic'),'false');
+ type('C');
+ const runs=q.editor.snapshot().content.blocks[0].children;
+ assert.equal(runs[0].text,'A');assert.equal(runs[0].style.bold,true);
+ assert.equal(runs[1].text,'B');assert.equal(runs[1].style.bold,false);assert.equal(runs[1].style.italic,true);
+ assert.equal(runs[2].text,'C');assert.equal(runs[2].style.italic,false);
+});
+
+test('all six inline buttons toggle selected text and leave the wording intact',async t=>{
+ const q=await setup(t);
+ const buttons=['bold','italic','underline','strike','superscript','subscript'];
+ for(const name of buttons){
+   q.select();
+   const selector='.toolbar [data-command='+name+']';
+   const button=q.root.querySelector(selector);
+   q.click(selector);assert.equal(button.getAttribute('aria-pressed'),'true',name);
+   q.click(selector);assert.equal(button.getAttribute('aria-pressed'),'false',name);
+   const runs=q.editor.snapshot().content.blocks[0].children;
+   assert.equal(runs.map(run=>run.text).join(''),'Texto selecionado');
+   const style=runs[0].style;
+   if(name==='superscript'||name==='subscript')assert.equal(style.vertical_align,'baseline');
+   else if(name==='underline')assert.equal(style.underline,'none');
+   else assert.equal(style[name],false);
+ }
+});
+
+test('Ctrl+B applies bold to a mixed selection starting in a bold title',async t=>{
+ const q=await setup(t),note=JSON.parse(JSON.stringify(q.note));
+ const title=note.content.blocks[0];
+ title.style.outline_level=0;
+ title.children[0].style.bold=true;
+ note.content.blocks.splice(1,0,{id:'plain',type:'paragraph',style:{},children:[
+   {id:'plain-run',type:'text',text:'Corpo sem negrito',style:{}}
+ ]});
+ q.editor.load(note);
+ q.rich.focus();
+ const range=q.w.document.createRange();
+ range.setStartBefore(q.rich.querySelector('[data-node-id=p1]'));
+ range.setEndAfter(q.rich.querySelector('[data-node-id=plain]'));
+ const sel=q.w.getSelection();sel.removeAllRanges();sel.addRange(range);q.editor.capture();
+ const key=()=>q.rich.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'b',ctrlKey:true,bubbles:true,cancelable:true}));
+ const bold=()=>q.editor.snapshot().content.blocks.slice(0,2).map(block=>block.children[0].style.bold);
+ key();assert.deepEqual(Array.from(bold()),[true,true]);
+ key();assert.deepEqual(Array.from(bold()),[false,false]);
+});
+
+test('bookmark restores the logical caret when a paragraph fragment moves after reflow',async t=>{
+ const q=await setup(t);q.editor.pagination().paginate();
+ const first=q.rich.querySelector('[data-node-id=p1]');
+ const second=first.cloneNode(true);second.dataset.fragmentOf='p1';
+ first.querySelector('span').textContent='Texto ';
+ second.querySelector('span').textContent='selecionado';
+ first.after(second);
+ const commands=q.w.OpenDocCommands.create(q.rich,()=>{},new q.w.AbortController().signal);
+ const selection=q.w.getSelection();
+ q.rich.focus();selection.collapse(second.querySelector('span').firstChild,4);
+ const bookmark=commands.bookmark();
+ first.querySelector('span').textContent='Texto sele';
+ second.querySelector('span').textContent='cionado';
+ commands.restoreBookmark(bookmark);
+ const restored=commands.bookmark();
+ assert.equal(restored.logicalBlockOffset,10);
+ assert.equal(restored.blockId,'p1');
+});
+
+test('Backspace preserves explicitly disabled bold at the typing caret',async t=>{
+ const q=await setup(t),note=JSON.parse(JSON.stringify(q.note));
+ note.content.blocks[0].children[0].style.bold=true;
+ q.editor.load(note);q.rich.focus();
+ const text=q.rich.querySelector('[data-node-id=r1]').firstChild;
+ q.w.getSelection().collapse(text,text.length);q.editor.capture();
+ q.rich.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'b',ctrlKey:true,bubbles:true,cancelable:true}));
+ const event=(type,inputType,data)=>new q.w.InputEvent(type,{bubbles:true,cancelable:true,inputType,data});
+ q.rich.dispatchEvent(event('beforeinput','deleteContentBackward'));
+ text.deleteData(text.length-1,1);q.w.getSelection().collapse(text,text.length);
+ q.rich.dispatchEvent(event('input','deleteContentBackward'));
+ assert.equal(q.editor.textState().bold,false);
+ assert.equal(q.rich.dispatchEvent(event('beforeinput','insertText','Z')),false);
+ const runs=q.editor.snapshot().content.blocks[0].children;
+ assert.equal(runs.at(-1).text,'Z');assert.equal(runs.at(-1).style.bold,false);
+ assert.equal(runs[0].style.bold,true);
+});
+
+test('Ctrl+S uses the save action and reports an error without discarding edits',async t=>{
+ const q=await setup(t);
+ const field=q.root.querySelector('[data-title]');
+ field.value='Alterado para salvar';
+ field.dispatchEvent(new q.w.Event('input',{bubbles:true}));
+ const fetch=q.w.fetch;let attempts=0;
+ q.w.fetch=(url,options)=>{
+   if(url.endsWith('/document/save')&&++attempts===1)return Promise.reject(Error('Disco indisponível'));
+   return fetch(url,options);
+ };
+ const save=()=>{
+   const event=new q.w.KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true,cancelable:true});
+   field.dispatchEvent(event);assert.equal(event.defaultPrevented,true);
+ };
+ const status=()=>q.root.querySelector('[data-status]').textContent;
+ save();for(let i=0;i<30&&!status().includes('Falha ao salvar');i++)await new Promise(r=>setTimeout(r,5));
+ assert.match(status(),/Falha ao salvar.*Disco indisponível/);
+ assert.equal(q.editor.isClean(),false);
+ save();for(let i=0;i<30&&!status().includes('Documento salvo');i++)await new Promise(r=>setTimeout(r,5));
+ assert.match(status(),/Documento salvo/);
+ assert.equal(attempts,2);
+ assert.equal(q.saved().title,'Alterado para salvar');
+});

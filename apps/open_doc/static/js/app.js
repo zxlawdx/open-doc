@@ -280,10 +280,15 @@
       home: () => { showView(true); },
       'library-recent':()=>{showView(true);root.querySelector('[data-library-recent]')?.scrollIntoView({block:'start'});},
       'library-files':()=>{showView(true);root.querySelector('[data-library-imports]')?.scrollIntoView({block:'start'});},
-      save: () => operate(async()=>{
-        await editor.flush();
-        status('Documento salvo na biblioteca local. Use Arquivo > Exportar para escolher a pasta e o formato.');
-      }),
+      save: async()=>{
+        status('Salvando…');
+        try{
+          await editor.flush();
+          status('Documento salvo na biblioteca local. Use Arquivo > Exportar para escolher a pasta e o formato.');
+        }catch(error){
+          status('Falha ao salvar: '+error.message);
+        }
+      },
       'default-apps': () => operate(async () => {
         const result = await window.pywebview.api.default_apps();
         if (result.error) throw Error(result.error);
@@ -344,9 +349,14 @@
   }
   function updateToolbar() {
     const state = editor?.commandState() || {};
-    for (const name of ['bold', 'italic']) root.querySelectorAll('[data-command="' + name + '"][aria-pressed]').forEach(button => button.setAttribute('aria-pressed', String(Boolean(state[name]))));
-    if(editor?.textState){const state=editor.textState();for(const control of root.querySelectorAll('[data-inline-style]')){
-      if(document.activeElement===control)continue;const value=state[control.dataset.inlineStyle];if(value==null)continue;
+    const text=editor?.textState()||{};
+    const pressed={bold:text.bold,italic:text.italic,underline:text.underline&&text.underline!=='none',
+      strike:text.strike,superscript:text.vertical_align==='superscript',subscript:text.vertical_align==='subscript'};
+    for(const [name,value] of Object.entries(pressed))
+      root.querySelectorAll('[data-command="'+name+'"][aria-pressed]').forEach(button=>
+        button.setAttribute('aria-pressed',String(Boolean(value))));
+    if(editor?.textState){for(const control of root.querySelectorAll('[data-inline-style]')){
+      if(document.activeElement===control)continue;const value=text[control.dataset.inlineStyle];if(value==null)continue;
       if(control.hasAttribute('data-font-family') && !Array.from(control.options).some(o=>o.value===value)){const option=document.createElement('option');option.value=value;option.textContent=value+' (não instalada)';control.appendChild(option);}
       control.value=control.type==='color'?'#'+value:value;
     }}
@@ -439,6 +449,13 @@
         else if (!event.shiftKey && index === list.length - 1) { event.preventDefault(); list[0]?.focus(); }
       }
     }, {signal});
+    window.addEventListener('keydown',event=>{
+      if(!(event.ctrlKey||event.metaKey)||event.altKey||event.shiftKey||
+        event.key.toLowerCase()!=='s'||!root.querySelector('[data-dialog]').hidden)return;
+      event.preventDefault();
+      event.stopPropagation();
+      if(!event.repeat)action('save');
+    },{capture:true,signal});
     window.addEventListener('keydown', event => {
       if (!(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
       const name = ({n: 'new', o: 'import', f: 'find'})[event.key.toLowerCase()];

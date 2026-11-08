@@ -27,7 +27,17 @@ def wait(window, expression):
         if window.evaluate_js(expression):
             return
         time.sleep(0.1)
-    raise AssertionError(expression)
+    details = window.evaluate_js("""
+        (() => ({
+            url: location.href,
+            documentState: document.readyState,
+            app: Boolean(document.querySelector('[data-app]')),
+            ready: document.querySelector('[data-app]')?.dataset.ready || null,
+            status: document.querySelector('[data-status]')?.textContent || null,
+            bridge: Boolean(window.pywebview?.api)
+        }))()
+    """)
+    raise AssertionError(f"{expression} — estado da janela: {details}")
 
 
 def main():
