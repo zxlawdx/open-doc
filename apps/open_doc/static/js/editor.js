@@ -90,7 +90,7 @@
     }
 
     function signature(snapshot) {
-      return JSON.stringify([snapshot.title,snapshot.content?window.OpenDocModel.fingerprint(snapshot.content):snapshot.markdown]);
+      return JSON.stringify(snapshot.title)+"\n"+(snapshot.content?window.OpenDocModel.fingerprint(snapshot.content):snapshot.markdown);
     }
 
     function isClean() {
@@ -808,10 +808,16 @@
     function inkLayers(){return model?.ink_layers || [];}
     function setInkLayers(layers){
       if(lockedState)return;
-      history.checkpoint(buffer());const next=ensureModel();next.ink_layers=window.OpenDocCompat.cloneJson(layers);model=next;
-      source.value=window.OpenDocModel.markdown(model);source.readOnly=true;
-      history.record(buffer(),'ink',{inkSurfaces:layers.map(l=>l.surface_index),structural:false});cache();scheduleRecovery();updateHistoryControls();
-      root.dataset.dirty=String(!isClean());window.pywebview?.api?.set_dirty?.(!isClean())?.catch?.(()=>{});
+      history.checkpoint(buffer());
+      if(!model)updateModel();
+      // Ink commits replace layers and strokes instead of mutating snapshots.
+      model={...model,ink_layers:layers.slice()};
+      source.readOnly=true;
+      const draft=buffer();
+      history.record(draft,'ink',{inkSurfaces:layers.map(l=>l.surface_index),structural:false});
+      cache();scheduleRecovery();updateHistoryControls();
+      const dirty=signature(draft)!==saved;
+      root.dataset.dirty=String(dirty);window.pywebview?.api?.set_dirty?.(dirty)?.catch?.(()=>{});
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }
     function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}

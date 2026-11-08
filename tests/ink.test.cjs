@@ -123,3 +123,34 @@ test('ink SVG remeasures when a formerly hidden document view becomes visible',a
  assert.equal(q.svg.style.width,'794px');
  assert.equal(q.svg.style.height,'1123px');
 });
+
+test('long pen sessions retain old SVG paths and batch pointer samples per frame',t=>{
+ const q=setup(t);
+ const frames=[];
+ q.w.requestAnimationFrame=callback=>{frames.push(callback);return frames.length;};
+ let outlines=0;
+ q.w.OpenDocFreehand.getStroke=(...args)=>{outlines++;return getStroke(...args);};
+ q.root.querySelector('[data-ink-mode=pen]').click();
+ for(let i=0;i<250;i++){
+   q.event('pointerdown',40,30+i);
+   q.event('pointerup',260,30+i);
+ }
+ const first=q.svg.firstChild,firstStroke=q.layers()[0].strokes[0];
+ assert.equal(q.svg.children.length,250);
+ assert.equal(q.writes(),250);
+ while(frames.length)frames.shift()();
+ const before=outlines;
+ q.event('pointerdown',40,500);
+ for(let i=1;i<=120;i++)q.event('pointermove',40+i,500+i%10);
+ assert.equal(outlines,before+1,'samples do not recompute the outline synchronously');
+ assert.equal(frames.length,1);
+ frames.shift()();
+ assert.equal(outlines,before+2);
+ q.event('pointerup',300,600);
+ assert.equal(q.writes(),251);
+ assert.equal(q.svg.children.length,251);
+ assert.equal(q.svg.firstChild,first);
+ assert.equal(q.layers()[0].strokes[0],firstStroke);
+ const last=q.layers()[0].strokes[250];
+ assert.equal(last.points.at(-1).x,300/900);
+});

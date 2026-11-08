@@ -9,7 +9,7 @@
     // Rich snapshots are immutable, as required by the model fingerprint cache.
     // Budget each content object once instead of encoding every old snapshot per key.
     const sizes=new WeakMap();
-    function bytesOf(item){if(!item.content)return (item.markdown || '').length*2;if(!sizes.has(item.content))sizes.set(item.content,JSON.stringify(item.content).length*2);return sizes.get(item.content);}
+    function bytesOf(item){if(!item.content)return (item.markdown || '').length*2;if(!sizes.has(item.content))sizes.set(item.content,window.OpenDocModel.fingerprint(item.content).length*2);return sizes.get(item.content);}
     const equal = (a, b) => a?.title === b?.title && (a?.content?window.OpenDocModel.fingerprint(a.content):a?.markdown) === (b?.content?window.OpenDocModel.fingerprint(b.content):b?.markdown);
     function reset(snapshot) { entries = [{...snapshot}]; index = 0; lastKind = ""; }
     function record(snapshot, kind = "typing", affected={}) {
