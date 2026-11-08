@@ -48,7 +48,7 @@
     let documentState = null, model = null;
     let pagination=null;
     const mediaCache=new Map();
-    let saved = "";
+    let saved = "", savedContent=null, savedTitle="";
     let mode = "rich";
     let chain = Promise.resolve();
     let destroyed = false, suspended = false;
@@ -215,7 +215,7 @@
 
       source.value = note.markdown;
       title.value = note.title;
-      saved = signature(note);
+      saved = signature(note);savedContent=model;savedTitle=note.title;
       source.disabled = false;
       title.disabled = false;
       rich.contentEditable = "true";
@@ -249,7 +249,7 @@
         try {
           result = await request("document/save", snapshot);
           documentState.revision = result.revision;
-          saved = signature(snapshot);
+          saved = signature(snapshot);savedContent=snapshot.content;savedTitle=snapshot.title;
           cache();
           render();
           if (!isClean()) scheduleRecovery();
@@ -311,6 +311,16 @@
     function restoreSnapshot(snapshot) {
       finishLogicalTransaction();
       if (!snapshot) return;
+      if(snapshot.historyChange?.affected?.inkOnly&&snapshot.content&&model?.blocks===snapshot.content.blocks){
+        model=snapshot.content;
+        cache();scheduleRecovery();updateHistoryControls();
+        const dirty=model!==savedContent||snapshot.title!==savedTitle;
+        root.dataset.dirty=String(dirty);
+        window.pywebview?.api?.set_dirty?.(dirty)?.catch?.(()=>{});
+        root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
+        status(dirty?'Alterações não salvas':'Salvo no dispositivo');
+        return;
+      }
       title.value = snapshot.title;
       source.value = snapshot.markdown;
       const before=model,after=snapshot.content?window.OpenDocModel.clone(snapshot.content):null,canvas=root.querySelector('[data-canvas]'),top=canvas?.scrollTop || 0,left=canvas?.scrollLeft || 0;
@@ -338,8 +348,10 @@
       finishLogicalTransaction();
       if (lockedState) return;
       history.checkpoint(buffer());
-      if (kind === "undo") { restoreSnapshot(history.undo()); return; }
-      if (kind === "redo") { restoreSnapshot(history.redo()); return; }
+      if (kind === "undo" || kind === "redo") {
+        root.dispatchEvent(new CustomEvent('open-doc:cancel-ink'));
+        restoreSnapshot(history[kind]());return;
+      }
       if (mode === "preview") setMode("rich");
       if(['underline','strike','superscript','subscript'].includes(kind)){
         const current=textState(),patch=kind==='underline'?{underline:current.underline && current.underline!=='none'?'none':'single'}:kind==='strike'?{strike:!current.strike}:{vertical_align:current.vertical_align===kind?'baseline':kind};style('inline',patch);return;
@@ -786,7 +798,10 @@
       if(key === "enter" && mode === "rich" && rich.contains(getSelection()?.anchorNode)){event.preventDefault();insertPage("break");return;}
       if (key === "s") { event.preventDefault(); flush().catch(() => {}); }
       if (key === "z" || key === "y") {
-        if ([source, rich].some(element => element === document.activeElement || element.contains(document.activeElement)) || (root.dataset.inkMode && root.dataset.inkMode!=='cursor' && !document.activeElement.closest('input,textarea'))) {
+        const focused=document.activeElement;
+        const editingInk=root.dataset.inkMode&&root.dataset.inkMode!=='cursor'&&
+          !focused?.closest('input,textarea,select,[role="dialog"]');
+        if ([source, rich].some(element => element === focused || element.contains(focused)) || editingInk) {
           event.preventDefault(); format(key === "y" || event.shiftKey ? "redo" : "undo");
         }
       }
@@ -814,10 +829,12 @@
       model={...model,ink_layers:layers.slice()};
       source.readOnly=true;
       const draft=buffer();
-      history.record(draft,'ink',{inkSurfaces:layers.map(l=>l.surface_index),structural:false});
+      history.record(draft,'ink',{inkSurfaces:layers.map(l=>l.surface_index),structural:false,inkOnly:true});
       cache();scheduleRecovery();updateHistoryControls();
-      const dirty=signature(draft)!==saved;
-      root.dataset.dirty=String(dirty);window.pywebview?.api?.set_dirty?.(dirty)?.catch?.(()=>{});
+      if(root.dataset.dirty!=='true'){
+        root.dataset.dirty='true';
+        window.pywebview?.api?.set_dirty?.(true)?.catch?.(()=>{});
+      }
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }
     function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}

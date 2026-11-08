@@ -284,3 +284,35 @@ test('Tab keeps navigation in tables and outside editable paragraphs',async t=>{
  assert.ok(cells[0].contains(selection.anchorNode));
  assert.equal(rich.querySelectorAll('[data-node-type="tab"]').length,0);
 });
+
+test('Ctrl+Z and redo retain recent ink history when the existing page is large',async t=>{
+ const q=await setup(t);
+ const outline=Array.from({length:35000},(_,i)=>[i/35001,(i%997)/997]);
+ const base={id:'existing-ink',tool:'pen',color:'#222222',size:2,opacity:1,points:[],outline};
+ const existing={surface_index:0,width_pt:595,height_pt:842,strokes:[base],text_overlays:[]};
+ q.editor.load({...q.note,content:{...q.note.content,ink_layers:[existing]}});
+ q.root.dataset.inkMode='pen';
+ const baseline=q.editor.inkLayers()[0];
+ const fingerprint=q.w.OpenDocModel.fingerprint;
+ let fullModels=0;
+ q.w.OpenDocModel.fingerprint=model=>{
+   if(model.ink_layers)fullModels++;
+   return fingerprint(model);
+ };
+ for(let i=0;i<18;i++){
+   const layer=q.editor.inkLayers()[0];
+   const stroke={...base,id:'stroke'+i,outline:[[.1,.1],[.11,.1],[.11,.11]]};
+   q.editor.setInkLayers([{...layer,strokes:[...layer.strokes,stroke]}]);
+ }
+ assert.equal(fullModels,0,'pen-up does not serialize the accumulated page');
+ function shortcut(key,shiftKey=false){
+   const event=new q.w.KeyboardEvent('keydown',{key,ctrlKey:true,shiftKey,cancelable:true,bubbles:true});
+   q.w.document.body.dispatchEvent(event);
+   assert.equal(event.defaultPrevented,true);
+ }
+ for(let i=0;i<18;i++)shortcut('z');
+ assert.equal(q.editor.inkLayers()[0],baseline);
+ for(let i=0;i<18;i++)shortcut('z',true);
+ assert.equal(q.editor.inkLayers()[0].strokes.length,19);
+ assert.equal(q.editor.inkLayers()[0].strokes[0],baseline.strokes[0]);
+});
