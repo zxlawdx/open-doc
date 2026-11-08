@@ -175,8 +175,12 @@ def write_math(shape, blocks):
     frame = shape.text_frame
     for old in list(shape._element.iter("{%s}m" % A14)):
         old.getparent().remove(old)
+    first = frame.paragraphs[0]._p
+    properties = deepcopy(first.pPr) if first.pPr is not None else None
     frame.clear()
     paragraph = frame.paragraphs[0]._p
+    if properties is not None and paragraph.pPr is None:
+        paragraph.insert(0, properties)
     wrapper = etree.Element("{%s}m" % A14, nsmap={"a14": A14, "m": M})
     math = _element("oMath", wrapper)
     for block in blocks:

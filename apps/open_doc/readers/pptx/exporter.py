@@ -21,7 +21,9 @@ from pptx.util import Pt
 
 from ...ink.raster import render_layer
 from .image_effects import export_image_effects
+from .gradient_fill import write_fill
 from .native_math import write_math, read_math
+from .table_style import TABLE_STYLE_FIELDS, write_table_style
 
 
 def rgb(value: str) -> RGBColor:
@@ -247,6 +249,8 @@ class SlideDeckExporter:
             for row_index, row in enumerate(cells):
                 for col_index, value in enumerate(row):
                     shape.table.cell(row_index, col_index).text = value
+            if TABLE_STYLE_FIELDS & obj.keys():
+                write_table_style(shape.table, obj, new=True)
         elif kind == "chart":
             native_data=CategoryChartData()
             native_data.categories=obj["chart_categories"]
@@ -303,6 +307,9 @@ class SlideDeckExporter:
         elif kind == "math":
             shape = slide.shapes.add_textbox(left, top, w, h)
             write_math(shape, obj["math_blocks"])
+            font = shape.text_frame.paragraphs[0].font
+            font.size = Pt(obj.get("font_size_pt", 28))
+            font.color.rgb = rgb(obj.get("color", "#191C1E"))
             shape.fill.background()
         elif kind == "text":
             shape = slide.shapes.add_textbox(left, top, w, h)
@@ -329,8 +336,7 @@ class SlideDeckExporter:
                 "cloud": MSO_SHAPE.CLOUD,
             }
             shape = slide.shapes.add_shape(types[kind], left, top, w, h)
-            shape.fill.solid()
-            shape.fill.fore_color.rgb = rgb(obj.get("fill", "#DAE2FD"))
+            write_fill(shape.fill, obj.get("fill", "#DAE2FD"), obj.get("fill_gradient"))
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
         if kind not in {"text", "image", "chart", "table", "math"}:
             shape.line.width = Pt(obj.get("stroke_width", 1.5))
@@ -514,6 +520,14 @@ class SlideDeckExporter:
                 raise ValueError("O objeto original não contém matemática OMML.")
             write_math(shape, obj["math_blocks"])
             changed.remove("math_blocks")
+        if obj["type"] == "math":
+            font = shape.text_frame.paragraphs[0].font
+            if "font_size_pt" in changed:
+                font.size = Pt(obj["font_size_pt"])
+                changed.remove("font_size_pt")
+            if "color" in changed:
+                font.color.rgb = rgb(obj["color"])
+                changed.remove("color")
         if "text_runs" in changed:
             if not shape.has_text_frame:
                 raise ValueError("O objeto original não possui runs de texto.")
@@ -561,17 +575,21 @@ class SlideDeckExporter:
                         # Touch only the changed cell; other cells retain
                         # their exact native OOXML (fills, borders, runs).
                         paragraph = cell.text_frame.paragraphs[0]
-                        if len(cell.text_frame.paragraphs) == 1 and len(paragraph.runs) == 1:
+                        if len(cell.text_frame.paragraphs) == 1 and len(paragraph.runs) == 1 and "\n" not in value:
                             paragraph.runs[0].text = value
                         else:
                             cell.text = value
             changed.remove("table_cells")
+        table_fields = TABLE_STYLE_FIELDS | {"color"}
+        if shape.has_table and changed & table_fields:
+            write_table_style(shape.table, obj, changed & table_fields)
+            changed -= table_fields
         supported = {"x", "y", "width", "height", "rotation", "name",
                      "text", "color", "font_family", "font_size_pt",
                      "font_bold", "font_italic", "font_underline",
                      "font_letter_spacing_pt",
                      "paragraph_alignment", "list_style", "text_indent_pt",
-                     "line_spacing", "fill", "stroke", "stroke_width",
+                     "line_spacing", "fill", "fill_gradient", "stroke", "stroke_width",
                      "crop_left", "crop_right", "crop_top", "crop_bottom",
                      "flip_h", "flip_v"}
         unsupported = changed - supported
@@ -645,9 +663,8 @@ class SlideDeckExporter:
                     if "font_letter_spacing_pt" in changed:
                         run._r.get_or_add_rPr().set("spc",
                             str(round(float(obj["font_letter_spacing_pt"]) * 100)))
-        if "fill" in changed:
-            shape.fill.solid()
-            shape.fill.fore_color.rgb = rgb(obj["fill"])
+        if changed & {"fill", "fill_gradient"}:
+            write_fill(shape.fill, obj["fill"], obj.get("fill_gradient"))
         if "stroke" in changed:
             shape.line.color.rgb = rgb(obj["stroke"])
         if "stroke_width" in changed:
@@ -706,22 +723,16 @@ class SlideDeckExporter:
                 if element.getparent() is tree:
                     tree.remove(element)
                 tree.append(element)
-            if surface.get("background", "#FFFFFF") != self._source_background(slide):
-                # If the user's editor changed the background, apply that change.
-                baseline = surface.get("source_background")
-                if baseline is not None and surface["background"] != baseline:
-                    slide.background.fill.solid()
-                    slide.background.fill.fore_color.rgb = rgb(surface["background"])
+            background = surface.get("background", "#FFFFFF")
+            gradient = surface.get("background_gradient")
+            if (background != surface.get("source_background", background)
+                    or gradient != surface.get("source_background_gradient")):
+                write_fill(slide.background.fill, background, gradient)
             if surface.get("notes") is not None and slide.has_notes_slide:
                 original_notes = slide.notes_slide.notes_text_frame.text
                 if surface["notes"] != original_notes:
                     slide.notes_slide.notes_text_frame.text = surface["notes"]
             self._overlay(slide, surface)
-
-    @staticmethod
-    def _source_background(slide):
-        from .native_importer import _fill_color
-        return _fill_color(slide.background.fill, "#FFFFFF")
 
     def write(self, destination):
         if self.preserve_source:
@@ -729,8 +740,8 @@ class SlideDeckExporter:
         elif self.native:
             for surface in self.model["surfaces"]:
                 slide = self.presentation.slides.add_slide(self.presentation.slide_layouts[6])
-                slide.background.fill.solid()
-                slide.background.fill.fore_color.rgb = rgb(surface.get("background", "#FFFFFF"))
+                write_fill(slide.background.fill, surface.get("background", "#FFFFFF"),
+                           surface.get("background_gradient"))
                 # Paint ink first so vector shapes remain above the bitmap.
                 # Legacy text overlays stay above native objects.
                 self._raster_ink(slide, surface)
