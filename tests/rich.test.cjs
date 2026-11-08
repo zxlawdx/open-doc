@@ -407,3 +407,45 @@ test('font changes keep text and selection across page fragments of one paragrap
  await q.editor.flush();
  assert.equal(q.saved().content.blocks[0].children.map(run=>run.text).join(''),'Texto selecionado');
 });
+
+test('Ctrl+B and Ctrl+I turn typing styles on and off and update the toolbar',async t=>{
+ const q=await setup(t);
+ const text=q.rich.querySelector('[data-node-id=r1]').firstChild;
+ q.rich.focus();q.w.getSelection().collapse(text,0);q.editor.capture();
+ const key=name=>q.rich.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:name,ctrlKey:true,bubbles:true,cancelable:true
+ }));
+ const pressed=name=>q.root.querySelector('.toolbar [data-command='+name+']').getAttribute('aria-pressed');
+ const type=data=>q.rich.dispatchEvent(new q.w.InputEvent('beforeinput',{
+   bubbles:true,cancelable:true,inputType:'insertText',data
+ }));
+ assert.equal(key('b'),false);assert.equal(pressed('bold'),'true');
+ type('A');
+ assert.equal(key('b'),false);assert.equal(pressed('bold'),'false');
+ assert.equal(key('i'),false);assert.equal(pressed('italic'),'true');
+ type('B');
+ assert.equal(key('i'),false);assert.equal(pressed('italic'),'false');
+ type('C');
+ const runs=q.editor.snapshot().content.blocks[0].children;
+ assert.equal(runs[0].text,'A');assert.equal(runs[0].style.bold,true);
+ assert.equal(runs[1].text,'B');assert.equal(runs[1].style.bold,false);assert.equal(runs[1].style.italic,true);
+ assert.equal(runs[2].text,'C');assert.equal(runs[2].style.italic,false);
+});
+
+test('all six inline buttons toggle selected text and leave the wording intact',async t=>{
+ const q=await setup(t);
+ const buttons=['bold','italic','underline','strike','superscript','subscript'];
+ for(const name of buttons){
+   q.select();
+   const selector='.toolbar [data-command='+name+']';
+   const button=q.root.querySelector(selector);
+   q.click(selector);assert.equal(button.getAttribute('aria-pressed'),'true',name);
+   q.click(selector);assert.equal(button.getAttribute('aria-pressed'),'false',name);
+   const runs=q.editor.snapshot().content.blocks[0].children;
+   assert.equal(runs.map(run=>run.text).join(''),'Texto selecionado');
+   const style=runs[0].style;
+   if(name==='superscript'||name==='subscript')assert.equal(style.vertical_align,'baseline');
+   else if(name==='underline')assert.equal(style.underline,'none');
+   else assert.equal(style[name],false);
+ }
+});

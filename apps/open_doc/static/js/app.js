@@ -344,9 +344,14 @@
   }
   function updateToolbar() {
     const state = editor?.commandState() || {};
-    for (const name of ['bold', 'italic']) root.querySelectorAll('[data-command="' + name + '"][aria-pressed]').forEach(button => button.setAttribute('aria-pressed', String(Boolean(state[name]))));
-    if(editor?.textState){const state=editor.textState();for(const control of root.querySelectorAll('[data-inline-style]')){
-      if(document.activeElement===control)continue;const value=state[control.dataset.inlineStyle];if(value==null)continue;
+    const text=editor?.textState()||{};
+    const pressed={bold:text.bold,italic:text.italic,underline:text.underline&&text.underline!=='none',
+      strike:text.strike,superscript:text.vertical_align==='superscript',subscript:text.vertical_align==='subscript'};
+    for(const [name,value] of Object.entries(pressed))
+      root.querySelectorAll('[data-command="'+name+'"][aria-pressed]').forEach(button=>
+        button.setAttribute('aria-pressed',String(Boolean(value))));
+    if(editor?.textState){for(const control of root.querySelectorAll('[data-inline-style]')){
+      if(document.activeElement===control)continue;const value=text[control.dataset.inlineStyle];if(value==null)continue;
       if(control.hasAttribute('data-font-family') && !Array.from(control.options).some(o=>o.value===value)){const option=document.createElement('option');option.value=value;option.textContent=value+' (não instalada)';control.appendChild(option);}
       control.value=control.type==='color'?'#'+value:value;
     }}

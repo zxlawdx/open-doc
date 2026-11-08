@@ -355,8 +355,13 @@
         restoreSnapshot(history[kind]());return;
       }
       if (mode === "preview") setMode("rich");
-      if(['underline','strike','superscript','subscript'].includes(kind)){
-        const current=textState(),patch=kind==='underline'?{underline:current.underline && current.underline!=='none'?'none':'single'}:kind==='strike'?{strike:!current.strike}:{vertical_align:current.vertical_align===kind?'baseline':kind};style('inline',patch);return;
+      if(mode==='rich'&&['bold','italic','underline','strike','superscript','subscript'].includes(kind)){
+        commands.restore();
+        const current=textState();
+        const patch=kind==='underline'?{underline:current.underline&&current.underline!=='none'?'none':'single'}
+          :kind==='superscript'||kind==='subscript'?{vertical_align:current.vertical_align===kind?'baseline':kind}
+          :{[kind]:!current[kind]};
+        style('inline',patch);return;
       }
       if(kind==='table'){if(mode!=='rich')setMode('rich');commands.restore();if(window.OpenDocTables?.insert(rich,getSelection().rangeCount?getSelection().getRangeAt(0):null))changed('format');return;}
       if(model && mode==='markdown' && kind!=='selectAll'){status('Edite este documento no modo visual.');return;}
@@ -364,7 +369,7 @@
       if (mode === "rich") {
         if((kind==='list'||kind==='ordered')&&toggleList(kind==='list'?'bullet':'decimal'))return;
         const mapping = {
-          bold: ["bold"], italic: ["italic"], paragraph: ["formatBlock", "p"],
+          paragraph: ["formatBlock", "p"],
           h1: ["formatBlock", "h1"], heading: ["formatBlock", "h2"], h3: ["formatBlock", "h3"],
           list: ["insertUnorderedList"], ordered: ["insertOrderedList"],
           quote: ["formatBlock", "blockquote"], code: ["formatBlock", "pre"],
@@ -479,13 +484,28 @@
         ?typingStyle.patch:null;
     }
 
-    function textState(){
+    function textState(includeTyping=true){
       const selection=getSelection();let node=selection.anchorNode;
       if(node?.nodeType===1){node=node.childNodes[Math.min(selection.anchorOffset,node.childNodes.length-1)] || node;while(node.firstChild)node=node.firstChild;}
       let e=node && (node.nodeType===1?node:node.parentElement);const ancestors=[],map=model && window.OpenDocModel?window.OpenDocModel.index(model):new Map(),out={};
       while(e && rich.contains(e)){ancestors.unshift(e);e=e.parentElement;}
       for(const element of ancestors){Object.assign(out,map.get(element.dataset.nodeId)?.style || {});if(window.OpenDocRichSerializer)Object.assign(out,window.OpenDocRichSerializer.readStyle(element,out));}
-      return {...out,...activeTypingStyle()};
+      if(ancestors.length&&(out.bold==null||out.italic==null)){
+        const computed=getComputedStyle(ancestors[ancestors.length-1]);
+        out.bold??=computed.fontWeight==='bold'||Number(computed.fontWeight)>=600;
+        out.italic??=computed.fontStyle==='italic';
+      }
+      return includeTyping?{...out,...activeTypingStyle()}:out;
+    }
+    function resetInlineEffects(){
+      const bookmark=commands.bookmark();
+      renderRich();commands.restoreBookmark(bookmark);
+    }
+    function cancelsInlineEffects(patch,current){
+      return (patch.underline==='none'&&current.underline&&current.underline!=='none')||
+        (patch.strike===false&&current.strike)||
+        (patch.vertical_align&&current.vertical_align&&current.vertical_align!=='baseline'&&
+          patch.vertical_align!==current.vertical_align);
     }
     function style(scope,patch){
       if(lockedState || !window.OpenDocFormatting)return;
@@ -501,12 +521,14 @@
         return;
       }
       typingStyle=null;
+      const reset=scope==='inline'&&(patch.underline==='none'||patch.strike===false||patch.vertical_align);
       const applied=scope==='inline'?window.OpenDocFormatting.apply(rich,range,patch):window.OpenDocFormatting.paragraph(rich,range,patch);
       if(applied){
         // Formatting mutates the selected text in place. Serialize the live
         // selection once; replacing fragments here can replace a physical
         // page fragment with the entire logical paragraph.
         changed('format');
+        if(reset)resetInlineEffects();
         root.dispatchEvent(new CustomEvent('open-doc:content'));
       }else status('Selecione o texto a formatar.');
     }
@@ -801,6 +823,8 @@
         if(patch&&range?.collapsed&&rich.contains(range.startContainer)){
           event.preventDefault();
           history.checkpoint(buffer());
+          const reset=(patch.underline==='none'||patch.strike===false||patch.vertical_align)&&
+            cancelsInlineEffects(patch,textState(false));
           const node=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
           const run=node.closest('[data-style-patch]');
           const stylePatch=JSON.stringify(patch);
@@ -823,6 +847,7 @@
           selection.removeAllRanges();selection.addRange(range);
           typingStyle={patch,caret:commands.bookmark()};
           changed('typing',rich,event);
+          if(reset)resetInlineEffects();
           const caret=commands.bookmark();
           if(caret)typingStyle={patch,caret};
           return;
@@ -886,7 +911,8 @@
           event.preventDefault(); format(key === "y" || event.shiftKey ? "redo" : "undo");
         }
       }
-      if (["b", "i"].includes(key) && document.activeElement !== title) {
+      if (["b", "i"].includes(key) && !event.altKey &&
+          (rich.contains(document.activeElement)||document.activeElement===source)) {
         event.preventDefault();
         format(key === "b" ? "bold" : "italic");
       }
