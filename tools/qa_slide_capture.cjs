@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const readline=require('node:readline/promises');
 
 const port=process.argv[2]||'9234';
 const destination=path.resolve(__dirname,'../docs/images/ink');
@@ -559,10 +560,13 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  })()`);
  await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...gray});
  await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...gray});
+ // Qt 5 can reject CDP keyboard events before dispatching them to the page.
+ const keyboard=readline.createInterface({input:process.stdin});
  const pressDelete=async()=>{
-   const key={key:'Delete',code:'Delete',windowsVirtualKeyCode:46};
-   await send('Input.dispatchKeyEvent',{type:'keyDown',...key});
-   await send('Input.dispatchKeyEvent',{type:'keyUp',...key});
+   const reply=keyboard.question('');
+   console.log('QT_PPTX_KEY_DELETE');
+   assert.equal(await reply,'OK');
+   await pause(100);
  };
  assert.equal(await evaluate("!!document.querySelector('.fixed-scroll [data-selected=true]')"),false);
  const cloneBeforeDelete=(await slides())[cloneIndex];
@@ -583,6 +587,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  await click('.fixed-sidebar [data-thumbnail-index="2"]');
  await pressDelete();
  assert.deepEqual(await slides(),beforeDuplicate);
+ keyboard.close();
  console.log('QT_PPTX_DUPLICATE_CANVAS_DELETE_DESELECT_AND_HISTORY_OK');
 
  // Restore the original slide to allow the subsequent persistence/export
