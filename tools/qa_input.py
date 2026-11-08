@@ -29,6 +29,69 @@ def wait(window, code):
     raise AssertionError(code)
 
 
+def check_list_and_font_size(window, keyboard):
+    window.evaluate_js("OpenDocApp.action('new')")
+    wait(
+        window, "document.querySelector('[data-title]').value==='Documento sem título'"
+    )
+    window.evaluate_js("""(() => {
+        const rich=document.querySelector('[data-rich]');
+        const block=rich.querySelector('[data-page-content] > p');
+        rich.focus();getSelection().collapse(block,0);
+        OpenDocApp.editor().capture();
+        const family=document.querySelector('[data-font-family]');
+        if (![...family.options].some(option=>option.value==='Arial'))
+            family.appendChild(new Option('Arial','Arial'));
+        family.value='Arial';
+        family.dispatchEvent(new Event('change',{bubbles:true}));
+        const size=document.querySelector('[data-font-size]');
+        size.focus();
+        size.value='21';
+    })()""")
+    keyboard.key("Return")
+    keyboard.type("Primeiro")
+    assert window.evaluate_js("""(() => {
+        const run=OpenDocApp.editor().snapshot().content.blocks[0].children[0];
+        return run.text==='Primeiro' && run.style.font_size_pt===21 &&
+            run.style.font_family==='Arial';
+    })()""")
+    window.evaluate_js(
+        "document.querySelector('.toolbar [data-command=ordered]').click()"
+    )
+    keyboard.key("Return")
+    wait(
+        window,
+        """Array.from(document.querySelectorAll('[data-list-marker]'),
+        marker=>marker.textContent).join('|')==='1.|2.'""",
+    )
+    keyboard.type("Segundo")
+    wait(
+        window,
+        """(() => {
+        const blocks=OpenDocApp.editor().snapshot().content.blocks;
+        const run=blocks.find(block=>block.children?.some(run=>run.text==='Segundo'))
+            ?.children[0];
+        return run?.style.font_family==='Arial'&&run.style.font_size_pt===21;
+    })()""",
+    )
+    keyboard.key("Return")
+    wait(window, "document.querySelectorAll('[data-list-marker]').length===3")
+    keyboard.key("Return")
+    wait(window, "document.querySelectorAll('[data-list-marker]').length===2")
+    keyboard.press("A")
+    keyboard.key("Backspace")
+    wait(
+        window,
+        """(() => {
+        const rich=document.querySelector('[data-rich]');
+        const blocks=OpenDocApp.editor().snapshot().content.blocks;
+        return rich.querySelectorAll(':scope > .document-page').length===1 &&
+            blocks.length===1&&!blocks[0].children.length;
+    })()""",
+    )
+    print("QT_DOCX_LIST_CONTINUATION_FONT_SIZE_AND_BULK_DELETE_OK", flush=True)
+
+
 def main():
     errors = []
     original = webview.start
@@ -386,6 +449,7 @@ def main():
             )
             assert reopened.returncode == 0, reopened.stdout + reopened.stderr
             print("QT_INPUT_LARGE_DOCX_SAVE_REOPEN_ALL_EDITED_BLOCKS_OK", flush=True)
+            check_list_and_font_size(window, keyboard)
         except Exception as error:
             import traceback
 

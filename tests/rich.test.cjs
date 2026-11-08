@@ -531,3 +531,76 @@ test('Ctrl+S uses the save action and reports an error without discarding edits'
  assert.equal(attempts,2);
  assert.equal(q.saved().title,'Alterado para salvar');
 });
+
+for(const [command,markers] of [['list',['•','•']],['ordered',['1.','2.']]]){
+ test(command+' continues with the same typography and exits on an empty item',async t=>{
+   const q=await setup(t),selection=q.w.getSelection();
+   const input=(inputType,data)=>q.rich.dispatchEvent(new q.w.InputEvent('beforeinput',{
+     bubbles:true,cancelable:true,inputType,data
+   }));
+   q.rich.focus();
+   // Browser-created paragraphs get their ID before they have renderer metadata.
+   q.rich.querySelector('[data-node-id=p1]').removeAttribute('data-node-type');
+   selection.collapse(q.rich.querySelector('[data-node-id=r1]').firstChild,6);
+   q.click('.toolbar [data-command='+command+']');
+   assert.equal(input('insertParagraph'),false);
+   await new Promise(r=>setTimeout(r,55));
+   const blocks=()=>q.editor.snapshot().content.blocks;
+   const text=block=>block.children.map(run=>run.text).join('');
+   assert.equal(text(blocks()[0]),'Texto ');
+   assert.equal(text(blocks()[1]),'selecionado');
+   assert.deepEqual(Array.from(q.rich.querySelectorAll('[data-list-marker]'),n=>n.textContent),markers);
+   assert.equal(input('insertText','A'),false);
+   assert.equal(text(blocks()[1]),'Aselecionado');
+   assert.equal(blocks()[1].children[0].style.font_family,'Fonte ausente');
+   assert.equal(blocks()[1].children[0].style.font_size_pt,12);
+   const item=q.rich.querySelector('[data-node-id="'+blocks()[1].id+'"]');
+   const last=item.querySelector('[data-node-type=text]:last-child').lastChild;
+   selection.collapse(last,last.length);
+   assert.equal(input('insertParagraph'),false);
+   await new Promise(r=>setTimeout(r,55));
+   assert.ok(blocks()[2].list_info);
+   assert.equal(input('insertParagraph'),false);
+   await new Promise(r=>setTimeout(r,55));
+   assert.equal(blocks()[2].list_info,null);
+   assert.equal(input('insertText','Fora'),false);
+   assert.equal(text(blocks()[2]),'Fora');
+   assert.equal(blocks()[2].children[0].style.font_family,'Fonte ausente');
+   await q.editor.flush();
+   q.editor.load({...q.note,...q.saved()});
+   assert.deepEqual(Array.from(q.rich.querySelectorAll('[data-list-marker]'),n=>n.textContent),markers);
+ });
+}
+
+test('bulk deletion publishes a complete page in the same turn as the model render',async t=>{
+ const q=await setup(t);
+ const render=q.w.OpenDocRichRenderer.render;
+ let checked=0;
+ q.w.OpenDocRichRenderer.render=(...args)=>{
+   const value=render(...args);
+   if(args[1]===q.rich)q.w.queueMicrotask(()=>{
+     assert.equal(q.rich.querySelectorAll(':scope > .document-page').length,1);
+     assert.ok(q.rich.querySelector('.document-page [data-page-content] > p'));
+     checked++;
+   });
+   return value;
+ };
+ const key=(key,ctrlKey=false)=>q.rich.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key,ctrlKey,bubbles:true,cancelable:true}));
+ q.rich.focus();key('a',true);key('Backspace');
+ await new Promise(r=>setTimeout(r,60));
+ assert.equal(checked,1);
+ assert.equal(q.editor.snapshot().content.blocks.length,1);
+});
+
+test('font size confirms with Enter without losing the selected family or wording',async t=>{
+ const q=await setup(t);
+ q.select();
+ const field=q.root.querySelector('[data-font-size]');
+ field.focus();field.value='24';
+ field.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+ const runs=q.editor.snapshot().content.blocks[0].children;
+ assert.equal(runs.map(r=>r.text).join(''),'Texto selecionado');
+ assert.ok(runs.every(r=>r.style.font_family==='Fonte ausente'&&r.style.font_size_pt===24));
+ assert.equal(q.w.getSelection().toString(),'Texto selecionado');
+});

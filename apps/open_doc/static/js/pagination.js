@@ -33,7 +33,7 @@
   function logical(surface){const container=document.createElement('div');contents(surface,true).forEach(n=>container.appendChild(n));return container;}
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
-    let mode='pages',timer=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preservedScroll=null,composing=false,pendingComposition=false,runCount=0,lastRunMs=0,reflowing=false,lastError=null,abortedPasses=0,workUnits=0;
+    let mode='pages',timer=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preserveScroll=false,composing=false,pendingComposition=false,runCount=0,lastRunMs=0,reflowing=false,lastError=null,abortedPasses=0,workUnits=0;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
@@ -110,13 +110,17 @@
       }
       const widths=Array.from(surface.querySelectorAll('[data-page-index]')).map(p=>parseFloat(p.style.width)*4/3).filter(Number.isFinite);
       host.style.width=(widths.length?Math.max(...widths):m.page_width_pt*4/3)+'px';
-      last=page;dirtyPage=Math.max(0,index-1);status();lastRunMs=Date.now()-started;if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));if(preservedScroll){const canvas=root.querySelector('[data-canvas]');canvas.scrollTop=preservedScroll.top;canvas.scrollLeft=preservedScroll.left;preservedScroll=null;}
+      last=page;dirtyPage=Math.max(0,index-1);status();lastRunMs=Date.now()-started;if(saved && restore)restore(saved);root.dispatchEvent(new CustomEvent('open-doc:layout'));
     }
-    function safePaginate(){
+    function safePaginate(rebuild=null){
       if(reflowing || destroyed)return;
+      const keepPosition=rebuild||preserveScroll;
+      const top=keepPosition?canvas?.scrollTop:null,left=keepPosition?canvas?.scrollLeft:null;
+      preserveScroll=false;
       reflowing=true;
       const documentModel=typeof model==='function'?model():model;
       try{
+        if(rebuild){clearTimeout(timer);epoch++;dirtyPage=0;rebuild();}
         paginate();
         lastError=null;
       }catch(error){
@@ -135,10 +139,13 @@
         root.dispatchEvent(new CustomEvent('open-doc:layout-error',
           {detail:{message:'Paginação interrompida para preservar o documento. Visualização contínua ativada.',
             error:lastError}}));
-      }finally{reflowing=false;}
+      }finally{
+        if(keepPosition&&canvas){canvas.scrollTop=top;canvas.scrollLeft=left;}
+        reflowing=false;
+      }
     }
     function invalidate(blockId,options={}){
-      if(options.preserveScroll){const canvas=root.querySelector('[data-canvas]');preservedScroll={top:canvas.scrollTop,left:canvas.scrollLeft};}
+      if(options.preserveScroll)preserveScroll=true;
       const node=blockId && Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===blockId || n.dataset.fragmentOf===blockId);
       const selected=getSelection()?.anchorNode,element=selected?.nodeType===1?selected:selected?.parentElement;
       const page=node?.closest('[data-page-index]') || element?.closest('[data-page-index]') || surface.querySelector('[data-page-index="'+active()+'"]');
@@ -178,7 +185,7 @@
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
     document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
     function destroy(){destroyed=true;clearTimeout(timer);epoch++;canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
-    return {paginate:safePaginate,invalidate,fits,destroy,setMode,active,metrics,
+    return {paginate:()=>safePaginate(),rebuild:render=>safePaginate(render),invalidate,fits,destroy,setMode,active,metrics,
       diagnostics:()=>({runCount,lastRunMs,abortedPasses,workUnits,lastError,
         pages:surface.querySelectorAll('[data-page-index]').length}),
       logical:()=>logical(surface)};
