@@ -29,6 +29,15 @@ class SlideModelValidator:
         if not isinstance(value, str) or not HEX_COLOR.fullmatch(value):
             raise ValueError(f"Cor inválida em {label}.")
 
+    def _gradient(self, value):
+        if value is None:
+            return
+        if not isinstance(value, dict) or set(value) != {"start", "end", "angle"}:
+            raise ValueError("Gradiente PPTX inválido.")
+        self._color(value["start"], "início do gradiente")
+        self._color(value["end"], "fim do gradiente")
+        number(value["angle"], 0, 360)
+
     @staticmethod
     def validate_assets(model):
         """Embedded deck assets are stored once, referenced by native image elements.
@@ -83,6 +92,7 @@ class SlideModelValidator:
             if not isinstance(elements, list) or len(elements) > MAX_ELEMENTS:
                 raise ValueError("Quantidade de elementos de slide inválida.")
             self._color(slide.get("background", "#FFFFFF"), "fundo do slide")
+            self._gradient(slide.get("background_gradient"))
             effect=slide.get("transition", "none")
             if effect not in ("none","fade","push-left","push-right","wipe-left","wipe-right"):
                 raise ValueError("Transição de slide inválida.")
@@ -136,6 +146,11 @@ class SlideModelValidator:
         if element.get("type") == "math":
             validate_math_blocks(element.get("math_blocks"))
         if element.get("type") == "table":
+            if element.get("table_preset", "header") not in ("header", "grid", "matrix", "plain"):
+                raise ValueError("Modelo de tabela PPTX inválido.")
+            if type(element.get("table_transparent", False)) is not bool:
+                raise ValueError("Transparência de tabela PPTX inválida.")
+            number(element.get("table_padding_pt", 3), 0, 36)
             cells = element.get("table_cells")
             if (not isinstance(cells, list) or not 1 <= len(cells) <= 30
                     or not isinstance(cells[0], list)
@@ -260,6 +275,10 @@ class SlideModelValidator:
             raise ValueError("O elemento ultrapassa os limites do slide.")
         self._color(element.get("color", "#191C1E"), "texto")
         self._color(element.get("fill", "#DAE2FD"), "preenchimento")
+        if element.get("fill_gradient") is not None:
+            if element.get("type") in {"line", "image", "chart", "table", "math", "text"}:
+                raise ValueError("O objeto não suporta gradiente de preenchimento.")
+            self._gradient(element["fill_gradient"])
         self._color(element.get("stroke", "#004AC6"), "contorno")
         label = element.get("name")
         if label is not None and (not isinstance(label, str) or not 1 <= len(label) <= 80):

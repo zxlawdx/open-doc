@@ -239,6 +239,23 @@
     size.addEventListener('change',dimensions,{signal});orientation.addEventListener('change',dimensions,{signal});
     if(await promise){const values={orientation:orientation.value};for(const key of Object.keys(fields).filter(k=>k.endsWith('_pt')))values[key]=Number(fields[key].value)*72/2.54;editor.pageSetup(values);}
   }
+  async function mathDialog(){
+    const decision=dialog('Editar equação nativa','Digite a expressão LaTeX que substituirá a fórmula selecionada.');
+    const body=root.querySelector('[data-dialog-body]');
+    const input=document.createElement('textarea');
+    input.rows=4;input.maxLength=2048;input.setAttribute('aria-label','Nova fórmula LaTeX');
+    body.append(input);input.focus();
+    if(!await decision)return null;
+    return window.OpenDocMathParser.parseLatex(input.value);
+  }
+  async function tableDialog(options){
+    if(!window.OpenDocTableInsertDialog)await loadScript('table_insert_dialog.js');
+    const pending=window.OpenDocTableInsertDialog.TableInsertDialog.show({
+      dialog,editor,status,root,...options
+    });
+    root.querySelector('[data-dialog] .dialog')?.classList.add('dialog-table');
+    return pending;
+  }
   async function action(name) {
     if (!editor) return;
     const operations = {
@@ -256,14 +273,8 @@
         if(!window.OpenDocEquationAssistant)await loadScript('equation_assistant.js');
         return window.OpenDocEquationAssistant.EquationAssistant.open({dialog,root,editor,status});
       },
-      'table-insert':async()=>{
-        if(!window.OpenDocTableInsertDialog)await loadScript('table_insert_dialog.js');
-        const pending=window.OpenDocTableInsertDialog.TableInsertDialog.show({
-          dialog,editor,status,root
-        });
-        root.querySelector('[data-dialog] .dialog')?.classList.add('dialog-table');
-        return pending;
-      },
+      'table-insert':()=>root.dataset.documentKind==='fixed'
+        ? editor.insertTable() : tableDialog(),
 
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
       home: () => { showView(true); },
@@ -375,7 +386,7 @@
     if(bootstrap.assets){const response=await fetch(new URL('vendor/vendor-manifest.json',scriptUrl));if(!response.ok)throw Error('Manifesto local ausente. Execute npm run build.');const manifest=await response.json();if(manifest.build_hash!==bootstrap.assets.build_hash || window.OpenDocPdf?.version!==manifest.versions['pdfjs-dist'])throw Error('Recursos locais desatualizados. Execute npm run build.');console.info('Open Doc runtime',{ua:navigator.userAgent,pdfjs:window.OpenDocPdf.version,vendor:manifest.build_hash,structuredClone:typeof window.structuredClone,pointerEvents:typeof window.PointerEvent});}
     token = bootstrap.token; settings = bootstrap.settings;
     collapsed(settings.sidebar_collapsed);
-    editor = window.OpenDocDocumentKinds.create({root, request, status, token, signal, asset:name=>new URL(name,scriptUrl).href, document: bootstrap.document, viewMode: settings.view_mode, autosaveSeconds: bootstrap.autosave_seconds});
+    editor = window.OpenDocDocumentKinds.create({root, request, status, token, signal, tableDialog, mathDialog, asset:name=>new URL(name,scriptUrl).href, document: bootstrap.document, viewMode: settings.view_mode, autosaveSeconds: bootstrap.autosave_seconds});
     window.OpenDocInk.create({root,editor,status,signal});
     root.addEventListener('open-doc:page-setup',()=>action('page-setup'),{signal});
     root.querySelectorAll('[data-table-op]').forEach(button=>button.addEventListener('click',()=>{try{editor.tableOperation(button.dataset.tableOp);}catch(error){status(error.message);}},{signal}));

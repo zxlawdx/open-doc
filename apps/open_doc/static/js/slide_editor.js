@@ -97,7 +97,26 @@
     Sublinhado:"underline"
   };
   // A compact SVG shape renderer, backed by the existing slide model.
+  const cssGradient=gradient=>gradient
+    ? "linear-gradient("+gradient.angle+"deg, "+gradient.start+", "+gradient.end+")" : "";
+  let gradientId=0;
   class SlideSvgRenderer {
+    gradient(svg,{start,end,angle}){
+      const paint=document.createElementNS(SVG_NS,"linearGradient");
+      paint.id="slide-gradient-"+(++gradientId);
+      const radians=angle*Math.PI/180,x=Math.sin(radians),y=-Math.cos(radians);
+      const extent=(Math.abs(x)+Math.abs(y))*50;
+      for(const [key,value] of Object.entries({
+        x1:50-x*extent,y1:50-y*extent,x2:50+x*extent,y2:50+y*extent
+      }))paint.setAttribute(key,value+"%");
+      for(const [offset,color] of [[0,start],[1,end]]){
+        const stop=document.createElementNS(SVG_NS,"stop");
+        stop.setAttribute("offset",String(offset));
+        stop.setAttribute("stop-color",color);paint.append(stop);
+      }
+      const defs=document.createElementNS(SVG_NS,"defs");defs.append(paint);svg.append(defs);
+      return "url(#"+paint.id+")";
+    }
     create(obj){
       const svg=document.createElementNS(SVG_NS,"svg");
       svg.classList.add("slide-vector-shape");
@@ -130,7 +149,7 @@
       for(const [key,value] of Object.entries(geometry))
         shape.setAttribute(key,String(value));
       const open=obj.type==="line";
-      shape.setAttribute("fill",open?"none":obj.fill||"#DAE2FD");
+      shape.setAttribute("fill",open?"none":obj.fill_gradient?this.gradient(svg,obj.fill_gradient):obj.fill||"#DAE2FD");
       shape.setAttribute("stroke",obj.stroke||"#004AC6");
       shape.setAttribute("stroke-width",String(obj.stroke_width||1.5));
       shape.setAttribute("stroke-linecap","round");
@@ -211,7 +230,7 @@
       if(dest<0||dest>=slides.length)return;
       this.apply(items=>{const [slide]=items.splice(index,1);items.splice(dest,0,slide);});
     }
-    insertObject(index,type){
+    insertObject(index,type,tableOptions=null){
       const count=this.getModel().surfaces[index].elements.length;
       if(count>=500)throw Error("Limite de 500 objetos por slide atingido.");
       const offset=(count%8)*.04;
@@ -221,6 +240,16 @@
         ...(type==="table"?{table_cells:[["Cabeçalho 1","Cabeçalho 2"],["Valor 1","Valor 2"]],rotation:0}:{}),
         fill:"#DAE2FD",stroke:"#004AC6",font_family:"Inter",
         font_size_pt:type==="text"?28:20,stroke_width:1.5,rotation:0};
+      if(type==="table"&&tableOptions){
+        const {rows,cols,width,height,preset,cellSpacingPt,transparent,data}=tableOptions;
+        Object.assign(obj,{width,height,x:(1-width)/2,y:(1-height)/2,
+          table_preset:preset,table_transparent:transparent,table_padding_pt:cellSpacingPt,
+          table_cells:data||Array.from({length:rows},()=>Array(cols).fill("")),
+          font_size_pt:clamp(420/Math.max(rows,cols*2),8,18)});
+        const background=this.getModel().surfaces[index].background||"#FFFFFF";
+        const [r,g,b]=background.slice(1).match(/../g).map(value=>parseInt(value,16));
+        if(transparent&&.2126*r+.7152*g+.0722*b<128)obj.color="#FFFFFF";
+      }
       this.apply(slides=>slides[index].elements.push(obj),index);
       return obj.id;
     }
@@ -385,8 +414,8 @@
   }
 
   class SlideStudio {
-    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize}){
-      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize});
+    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize,tableDialog,mathDialog}){
+      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize,tableDialog,mathDialog});
       this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
       this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.selectedIds=new Set();this.current=0;this.drag=null;
@@ -481,7 +510,7 @@
         this.status("Exportação de slide indisponível."),
         "Exportar o slide selecionado como PPTX editável");
       this._button("Texto",()=>this.add("text"));
-      this._button("Tabela",()=>this.add("table"),"Inserir tabela PPTX editável");
+      this._button("Tabela",()=>this.insertTable(),"Inserir tabela PPTX editável");
       this._button("Equações",()=>this.mathGallery?.toggle(),
         "Inserir equações editáveis como objetos matemáticos OMML");
       this._button("Retângulo",()=>this.add("rect"));
@@ -529,8 +558,9 @@
         const ids=new Set(this.selectedIds),color=this.paintColor.value;
         this.commands.apply(slides=>{
           for(const obj of slides[this.current].elements){
-            if(!ids.has(obj.id)||obj.type==="image"||obj.type==="chart")continue;
-            obj[obj.type==="text"?"color":obj.type==="line"?"stroke":"fill"]=color;
+            if(!ids.has(obj.id)||["image","chart","table"].includes(obj.type))continue;
+            obj[["text","math"].includes(obj.type)?"color":obj.type==="line"?"stroke":"fill"]=color;
+            if(!["text","line","math"].includes(obj.type))obj.fill_gradient=null;
           }
         });
         this.status("Cor aplicada aos objetos selecionados.");
@@ -656,12 +686,13 @@
     _paintObject(index,id){
       const obj=this.getModel().surfaces[index].elements.find(item=>item.id===id);
       if(!obj)return;
-      if(obj.type==="image"||obj.type==="chart")
+      if(["image","chart","table"].includes(obj.type))
         return this.status(obj.type==="chart"
           ?"Escolha uma paleta dinâmica ou uma cor por categoria no painel Cores e fundo."
-          :"O balde não altera os pixels de uma imagem.");
-      const property=obj.type==="text"?"color":obj.type==="line"?"stroke":"fill";
-      this.commands.updateObject(index,id,{[property]:this.paintColor.value});
+          :obj.type==="table"?"Use as opções de modelo e fundo da tabela.":"O balde não altera os pixels de uma imagem.");
+      const property=["text","math"].includes(obj.type)?"color":obj.type==="line"?"stroke":"fill";
+      this.commands.updateObject(index,id,property==="fill"
+        ? {fill:this.paintColor.value,fill_gradient:null} : {[property]:this.paintColor.value});
       this._selectObject(id);
       this.paintActive=false;
       this.paintButton.setAttribute("aria-pressed","false");
@@ -758,7 +789,7 @@
         const changedSlide=targetIndex!==this.current;
         this.current=targetIndex;
         const item=event.target.closest("[data-slide-element]");
-        if(event.target.closest(".slide-inline-editor"))return;
+        if(event.target.closest(".slide-inline-editor,.slide-table-cell-editor"))return;
         if(this.colorSample){
           const apply=this.colorSample;
           this.colorSample=null;this.scroller.style.cursor="";
@@ -769,6 +800,8 @@
         if(this.paintActive&&item){
           this._paintObject(targetIndex,item.dataset.slideElement);this.render();return;
         }
+        if(item?.classList.contains("slide-object-table")&&this.selected===item.dataset.slideElement&&
+           !changedSlide&&!event.shiftKey)return;
         this._selectObject(item?item.dataset.slideElement:null,!changedSlide&&event.shiftKey);
         this.render();
       },{signal:this.signal});
@@ -778,6 +811,16 @@
         if(!item)return;
         const index=Number(item.closest(".fixed-surface").dataset.pageIndex),id=item.dataset.slideElement;
         const obj=this.getModel().surfaces[index].elements.find(e=>e.id===id);
+        if(obj?.type==="table"){
+          const cell=event.target.closest("[data-slide-table-cell]");
+          if(cell){event.preventDefault();this._editTableCell(index,id,cell);}
+          return;
+        }
+        if(obj?.type==="math"){
+          event.preventDefault();event.stopPropagation();
+          this._openMathEditor(index,obj);
+          return;
+        }
         if(!obj||!canEditText(obj))return;
         event.preventDefault();event.stopPropagation();
         this._editText(index,id,item,obj.text);
@@ -897,6 +940,19 @@
       if(!ids.has(this.selected))this.selected=Array.from(this.selectedIds).pop()||null;
       if(this.active)this._properties();
     }
+    async insertTable(){
+      if(!this.active)return this.status("Abra uma apresentação editável para inserir uma tabela.");
+      // Standalone hosts can omit the application's shared dialog.
+      if(!this.tableDialog)return this.add("table");
+      const index=this.current,deck=this.getModel();
+      return this.tableDialog({slide:true,onInsert:(rows,cols,options)=>{
+        if(!this.active||this.getModel()!==deck||this.current!==index)
+          throw Error("A apresentação mudou. Abra a inserção de tabela novamente.");
+        this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
+        const id=this.commands.insertObject(index,"table",{rows,cols,...options});
+        this._selectObject(id);this.render();
+      }});
+    }
     add(type){
       // Insertions activate selection; otherwise the full-page ink SVG wins
       // hit-testing when the user previously selected Pen/Highlighter.
@@ -926,6 +982,51 @@
       this.root.dispatchEvent(new CustomEvent("open-doc:ink-mode",{detail:"cursor"}));
       this.current=replacement?replacement.index:targetIndex;
       this._selectObject(id);this.render();
+    }
+    _openMathEditor(index,obj){
+      if(!this.mathDialog||this.mathEditing)return;
+      const deck=this.getModel();
+      this.mathEditing=true;
+      this.mathDialog().then(blocks=>{
+        if(blocks&&this.active&&this.getModel()===deck)
+          this.commands.updateObject(index,obj.id,{math_blocks:blocks});
+      }).catch(error=>this.status(error.message)).finally(()=>{this.mathEditing=false;});
+    }
+    _editTableCell(index,id,cell){
+      if(this.inlineEditing)return;
+      const row=cell.parentElement.rowIndex,col=cell.cellIndex;
+      const obj=this.getModel().surfaces[index].elements.find(item=>item.id===id);
+      const editor=document.createElement("textarea");
+      editor.className="slide-table-cell-editor";editor.maxLength=2000;
+      editor.value=obj.table_cells[row][col];
+      editor.setAttribute("aria-label","Linha "+(row+1)+", coluna "+(col+1));
+      const label=cell.firstElementChild;
+      label.style.visibility="hidden";cell.append(editor);this.inlineEditing=editor;
+      const finish=(save,step=0)=>{
+        if(this.inlineEditing!==editor)return;
+        this.inlineEditing=null;
+        if(save&&editor.value!==obj.table_cells[row][col]){
+          const cells=obj.table_cells.map(items=>items.slice());
+          cells[row][col]=editor.value;
+          this.commands.updateObject(index,id,{table_cells:cells});
+        }else this.render();
+        if(this._resizeAfterEditing){
+          this._resizeAfterEditing=false;this._onWorkspaceResize();
+        }
+        if(step){
+          const cells=this.scroller.querySelectorAll('[data-slide-element="'+id+'"] [data-slide-table-cell]');
+          const next=cells[row*obj.table_cells[0].length+col+step];
+          if(next)this._editTableCell(index,id,next);
+        }
+      };
+      editor.addEventListener("blur",()=>finish(true),{signal:this.signal});
+      editor.addEventListener("keydown",event=>{
+        if(event.key==="Escape"){event.preventDefault();finish(false);}
+        if(event.key==="Tab"||event.key==="Enter"&&!event.shiftKey){
+          event.preventDefault();finish(true,event.key==="Tab"?(event.shiftKey?-1:1):0);
+        }
+      },{signal:this.signal});
+      editor.focus();editor.select();
     }
     _editText(index,id,node,value){
       if(this.inlineEditing)return;
@@ -1273,7 +1374,8 @@
       }else if(obj.type==="math"){
         if(window.OpenDocMathGallery?.renderBlocks){
           const math=window.OpenDocMathGallery.renderBlocks(obj.math_blocks||[]);
-          math.setAttribute("aria-label",obj.name||"Equação matemática editável");
+          math.setAttribute("aria-label","Equação matemática nativa · "+(obj.name||"equação editável"));
+          if(!thumb)node.title="Equação nativa. Clique duas vezes para editar em LaTeX.";
           node.append(math);
         }else{
           // Minimal fallback for isolated/legacy unit-test hosts.
@@ -1286,19 +1388,29 @@
       }else if(obj.type==="table"){
         const table=document.createElement("table");
         table.className="slide-native-table";
-        Object.assign(table.style,{width:"100%",height:"100%",tableLayout:"fixed",
-          borderCollapse:"collapse",fontSize:"inherit",pointerEvents:"none"});
+        table.dataset.tablePreset=obj.table_preset||"header";
+        if(obj.table_transparent)table.dataset.transparent="true";
+        const padding=(obj.table_padding_pt??3)*4/3*(thumb?.16:this.getZoom());
         (obj.table_cells||[]).forEach((cells,rowIndex)=>{
-          const tr=document.createElement("tr");
+          const tr=table.insertRow();
+          tr.style.height=100/obj.table_cells.length+"%";
           cells.forEach(value=>{
-            const td=document.createElement(rowIndex===0?"th":"td");
-            td.textContent=value;
-            Object.assign(td.style,{border:"1px solid #A0A9BA",padding:"4px",
-              background:rowIndex===0?"#E9F2FF":"#FFFFFF",
-              color:"#191C1E",fontWeight:rowIndex===0?"600":"400",
-              overflow:"hidden",textOverflow:"ellipsis"});
+            const td=document.createElement(rowIndex===0&&table.dataset.tablePreset==="header"?"th":"td");
+            const label=document.createElement("span");label.textContent=value;
+            td.append(label);td.style.padding=padding+"px";
+            if(!thumb){
+              td.dataset.slideTableCell="";
+              if(this.selected===obj.id){
+                td.tabIndex=0;
+                td.onkeydown=event=>{
+                  if(event.target===td&&event.key==="Enter"){
+                    event.preventDefault();event.stopPropagation();this._editTableCell(index,obj.id,td);
+                  }
+                };
+              }
+            }
             tr.append(td);
-          });table.append(tr);
+          });
         });node.append(table);
       }else if(obj.type==="text"){
         // Keep visual list decorations separate from editable text: the
@@ -1368,10 +1480,12 @@
           scaleGrip.setAttribute("aria-label","Escalar proporcionalmente o objeto");
           scaleGrip.title="Arraste para escalar mantendo a proporção";
           node.append(scaleGrip);
-          const rotate=document.createElement("span");
-          rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
-          rotate.setAttribute("aria-label","Girar objeto");
-          node.append(rotate);
+          if(obj.type!=="table"){
+            const rotate=document.createElement("span");
+            rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
+            rotate.setAttribute("aria-label","Girar objeto");
+            node.append(rotate);
+          }
         }
       }
       return node;
@@ -1410,7 +1524,7 @@
     }
     _thumb(button,surface,index){
       const fingerprint=JSON.stringify([surface.width_pt,surface.height_pt,
-        surface.background,surface.elements,this.sidebar.clientWidth]);
+        surface.background,surface.background_gradient,surface.elements,this.sidebar.clientWidth]);
       if(this._thumbCache.get(button)===fingerprint && button.firstChild){
         button.dataset.thumbnailIndex=String(index);
         button.setAttribute("aria-current",String(index===this.current));
@@ -1431,6 +1545,7 @@
         height:Math.round(sidebarWidth*ratio)+"px",
         aspectRatio:String(surface.width_pt)+"/"+String(surface.height_pt)});
       preview.style.backgroundColor=surface.background||"#FFFFFF";
+      preview.style.backgroundImage=cssGradient(surface.background_gradient);
       for(const obj of surface.elements||[])preview.append(this._makeObject(obj,index,true));
       const title=document.createElement("span");
       title.textContent="Slide "+(index+1);
@@ -1459,7 +1574,8 @@
       Object.assign(background.style,{
         position:"absolute",top:"0px",left:"0px",right:"0px",bottom:"0px",
         width:"100%",height:"100%",zIndex:"1",pointerEvents:"none",
-        backgroundColor:slide.background||"#FFFFFF"
+        backgroundColor:slide.background||"#FFFFFF",
+        backgroundImage:cssGradient(slide.background_gradient)
       });
       surface.append(background);
       for(const obj of slide.elements||[])surface.append(this._makeObject(obj,index));
@@ -1545,6 +1661,19 @@
       return input;
     }
 
+    _fillProperties(label,color,gradient,change){
+      this._colorProperty(label,color,value=>change(value,null));
+      this._toggleProperty("Gradiente · "+label,Boolean(gradient),enabled=>
+        change(color,enabled?{start:color,end:color.toUpperCase()==="#004AC6"?"#FFFFFF":"#004AC6",angle:90}:null));
+      if(!gradient)return;
+      for(const [key,caption] of [["start","Cor inicial"],["end","Cor final"]])
+        this._colorProperty(caption,gradient[key],value=>{
+          const updated={...gradient,[key]:value};change(updated.start,updated);
+        });
+      const angle=this._property("Ângulo do gradiente (°)",gradient.angle,"number",value=>
+        change(color,{...gradient,angle:clamp(Number(value)||0,0,360)}));
+      angle.min="0";angle.max="360";
+    }
     _fontProperty(selected,update,container){
       const family=selected.font_family||"Inter";
       const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri",
@@ -1716,6 +1845,7 @@
       const input=document.createElement("input");
       input.type="checkbox";input.checked=Boolean(checked);
       input.addEventListener("change",()=>onChange(input.checked),{signal:this.signal});
+      wrapper.className="slide-inspector-toggle";
       wrapper.append(input,document.createTextNode(label));
       this.inspector.append(wrapper);return input;
     }
@@ -1726,8 +1856,10 @@
       this.current=clamp(this.current,0,slides.length-1);
       const slide=slides[this.current],title=document.createElement("h3");title.textContent="Propriedades · Slide "+(this.current+1);
       this.inspector.append(title);
-      const changeBackground=value=>this.commands.updateSlide(this.current,{background:value});
-      this._colorProperty("Cor de fundo",slide.background||"#FFFFFF",changeBackground);
+      const changeBackground=(value,gradient=null)=>this.commands.updateSlide(this.current,{
+        background:value,background_gradient:gradient
+      });
+      this._fillProperties("Cor de fundo",slide.background||"#FFFFFF",slide.background_gradient,changeBackground);
       const applyBackground=value=>{
         const hex=value.trim().replace(/^#/,"");
         if(!/^[0-9a-f]{6}$/i.test(hex)){this.status("Informe uma cor no formato #RRGGBB.");return;}
@@ -1803,7 +1935,9 @@
             limit:[["base","Operador"],["lower","Limite"]]
           };
           const title=document.createElement("h4");
-          title.textContent="Componentes matemáticos editáveis";
+          title.textContent="Equação nativa · componentes editáveis";
+          if(this.mathDialog)this._button("Editar equação em LaTeX",
+            ()=>this._openMathEditor(this.current,selected),"Substituir a expressão como equação nativa",this.inspector);
           this.inspector.append(title);
           const change=path=>value=>{
             const blocks=clone(this.getModel().surfaces[this.current].elements
@@ -1839,15 +1973,23 @@
             renderPart(part,[index],this.inspector));
         }
         if(selected.type==="table"){
-          const heading=document.createElement("h4");
-          heading.textContent="Células da tabela";this.inspector.append(heading);
-          (selected.table_cells||[]).forEach((row,rowIndex)=>row.forEach((value,colIndex)=>{
-            this._property("Linha "+(rowIndex+1)+" · Coluna "+(colIndex+1),value,"text",next=>{
-              const cells=(selected.table_cells||[]).map(items=>items.slice());
-              cells[rowIndex][colIndex]=next.slice(0,2000);
-              this.commands.updateObject(this.current,selected.id,{table_cells:cells});
-            });
-          }));
+          const hint=document.createElement("p");
+          hint.textContent="Clique duas vezes em uma célula para editar. Tab passa à próxima.";
+          this.inspector.append(hint);
+          const update=patch=>this.commands.updateObject(this.current,selected.id,patch);
+          const model=document.createElement("label");model.textContent="Modelo da tabela";
+          const select=document.createElement("select");
+          for(const [value,label] of [["grid","Grade clássica"],["header","Cabeçalho"],["matrix","Matriz"],["plain","Simples"]]){
+            const option=document.createElement("option");option.value=value;option.textContent=label;select.append(option);
+          }
+          select.value=selected.table_preset||"header";
+          select.onchange=()=>update({table_preset:select.value});
+          model.append(select);this.inspector.append(model);
+          this._toggleProperty("Fundo transparente",Boolean(selected.table_transparent),value=>update({table_transparent:value}));
+          const padding=this._property("Margem interna das células (pt)",selected.table_padding_pt??3,
+            "number",value=>update({table_padding_pt:clamp(Number(value)||0,0,36)}));
+          padding.min="0";padding.max="36";
+          this._colorProperty("Cor do texto da tabela",selected.color||"#191C1E",color=>update({color}));
         }
         if(selected.type==="chart"&&window.OpenDocSlideCharts?.ChartInspector){
           window.OpenDocSlideCharts.ChartInspector.mount(
@@ -1923,16 +2065,17 @@
           this._textProperties(selected);
           this._colorProperty("Cor do texto",selected.color,value=>this.commands.updateObject(this.current,selected.id,{color:value}));
         }
-        if(selected.type!=="text"&&selected.type!=="image"&&selected.type!=="chart"){
-          if(selected.type!=="line"&&selected.type!=="arrow")
-            this._colorProperty("Preenchimento",selected.fill,value=>this.commands.updateObject(this.current,selected.id,{fill:value}));
+        if(!["text","image","chart","table","math"].includes(selected.type)){
+          if(selected.type!=="line")
+            this._fillProperties("Preenchimento",selected.fill,selected.fill_gradient,
+              (fill,gradient)=>this.commands.updateObject(this.current,selected.id,{fill,fill_gradient:gradient}));
           this._colorProperty("Contorno",selected.stroke,value=>this.commands.updateObject(this.current,selected.id,{stroke:value}));
           const strokeField=this._property("Espessura do contorno (pt)",selected.stroke_width||1.5,"number",value=>this.commands.updateObject(this.current,selected.id,{stroke_width:clamp(Number(value)||1.5,.5,20)}));
           strokeField.min=".5";strokeField.max="20";strokeField.step=".5";
         }
         if(selected.type==="text"||selected.text)
           this._property("Fonte (pt)",selected.font_size_pt||28,"number",value=>this.commands.updateObject(this.current,selected.id,{font_size_pt:clamp(Number(value)||28,6,144)}));
-        if(selected.type!=="chart"){
+        if(!["chart","table"].includes(selected.type)){
           const rotationField=this._property("Rotação (°)",selected.rotation||0,"number",value=>this.commands.updateObject(this.current,selected.id,{rotation:clamp(Number(value)||0,-360,360)}));
           rotationField.min="-360";rotationField.max="360";
         }
@@ -1999,7 +2142,7 @@
     }
     _start(event){
       if(!this.active||event.button!==0||event.shiftKey||this.paintActive)return;
-      if(event.target.closest(".slide-inline-editor"))return;
+      if(this.inlineEditing||event.target.closest(".slide-inline-editor,.slide-table-cell-editor"))return;
       const node=event.target.closest("[data-slide-element]");
       if(!node)return;
       const surface=node.closest(".fixed-surface"),index=Number(surface.dataset.pageIndex);
@@ -2009,6 +2152,15 @@
       // DOM nodes can be replaced after the first pointer-up. Match stable IDs
       // so two taps activate inline text editing even on legacy QtWebEngine.
       const now=Date.now(),previous=this.lastTextTap;
+      const cell=event.target.closest("[data-slide-table-cell]");
+      if(cell){
+        const key=cell.parentElement.rowIndex+":"+cell.cellIndex;
+        if(previous?.id===obj.id&&previous.index===index&&previous.cell===key&&now-previous.time<650){
+          this.lastTextTap=null;this.drag=null;this._selectObject(obj.id);
+          event.preventDefault();this._editTableCell(index,obj.id,cell);return;
+        }
+        this.lastTextTap={id:obj.id,index,cell:key,time:now};
+      }
       const editable=canEditText(obj);
       if(editable&&previous?.id===obj.id&&previous.index===index&&now-previous.time<650
         &&!event.target.closest("[data-resize],[data-rotate]")){
@@ -2016,7 +2168,14 @@
         event.preventDefault();event.stopPropagation();
         this._editText(index,obj.id,node,obj.text||"");return;
       }
-      this.lastTextTap=editable?{id:obj.id,index,time:now}:null;
+      if(obj.type==="math"){
+        if(previous?.id===obj.id&&previous.index===index&&now-previous.time<650&&
+           !event.target.closest("[data-resize],[data-rotate],[data-scale]")){
+          this.lastTextTap=null;this.drag=null;
+          event.preventDefault();this._openMathEditor(index,obj);return;
+        }
+        this.lastTextTap={id:obj.id,index,time:now};
+      }else if(!cell)this.lastTextTap=editable?{id:obj.id,index,time:now}:null;
       if(!this.selectedIds.has(obj.id))this._selectObject(obj.id);
       this._properties();
       const box=surface.getBoundingClientRect();

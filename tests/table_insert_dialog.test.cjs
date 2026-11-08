@@ -16,8 +16,8 @@ function setup(t){
  const commits=[];
  const editor={tableOperation:(...args)=>commits.push(args)};
  const errors=[];
- const launch=()=>w.OpenDocTableInsertDialog.TableInsertDialog.show({
-   dialog,root,editor,status:value=>errors.push(value)
+ const launch=options=>w.OpenDocTableInsertDialog.TableInsertDialog.show({
+   dialog,root,editor,status:value=>errors.push(value),...options
  });
  return {w,root,launch,commits,errors,confirm:()=>resolve(true),cancel:()=>resolve(null)};
 }
@@ -59,4 +59,21 @@ test('table dialog cancel does not insert and invalid dimensions are rejected',a
  box.querySelector('.table-dialog-field input').value='0';
  q.confirm();await assert.rejects(next,/1 a 100 linhas/);
  assert.equal(q.commits.length,0);
+});
+
+test('slide table dialog retains quoted CSV, bounds, dimensions, template and transparency',async t=>{
+ const q=setup(t);
+ const waiting=q.launch({slide:true,onInsert:(...args)=>q.commits.push(args)});
+ const body=q.root.querySelector('[data-dialog-body]');
+ const paste=body.querySelector('textarea');
+ paste.value='\uFEFF"Descrição; total",Valor\n"Pesquisa, 2021","39,2"';
+ paste.dispatchEvent(new q.w.Event('input'));
+ body.querySelector('[data-table-preset=plain]').click();
+ body.querySelector('input[type=checkbox]').checked=true;
+ q.confirm();
+ await waiting;
+ assert.deepEqual(JSON.parse(JSON.stringify(q.commits)),[[2,2,{
+   preset:'plain',cellSpacingPt:4,data:[['Descrição; total','Valor'],['Pesquisa, 2021','39,2']],
+   width:.55,height:.3,transparent:true
+ }]]);
 });

@@ -28,7 +28,7 @@ function setup(t, options={}){
  const editor=w.OpenDocSlidesEditor.create({root,host,controls,scroller,sidebar,signal:abort.signal,
    getModel:()=>model,update:value=>{model=value;versions.push(JSON.stringify(value));},
    status:()=>{},getZoom:()=>options.zoom??1,go:index=>{selected=index;editor.goTo(index);},
-   undo:()=>{},redo:()=>{},onRender:()=>{},onViewportResize:options.onViewportResize,exportSlide:options.exportSlide});
+   undo:()=>{},redo:()=>{},onRender:()=>{},onViewportResize:options.onViewportResize,exportSlide:options.exportSlide,tableDialog:options.tableDialog,mathDialog:options.mathDialog});
  editor.load();
  return {w,root,host,controls,scroller,sidebar,editor,model:()=>model,versions,selected:()=>selected};
 }
@@ -1501,4 +1501,57 @@ test('Long chart labels preserve spaces and manual line breaks before and after 
  const lines=engine.lines(manual,55,font);
  assert.equal(lines.join('').replace(/\s+/g,''),
    manual.replace(/\s+/g,''));
+});
+
+test('PPTX table edits cells in place, commits once on Tab and cancels with Escape',async t=>{
+ const q=setup(t,{tableDialog:async ({onInsert})=>onInsert(2,2,{
+   data:[['Nome','Valor'],['Pesquisa','42']],width:.6,height:.4,
+   transparent:true,preset:'header',cellSpacingPt:6
+ })});
+ await q.editor.insertTable();
+ let table=q.scroller.querySelector('table');
+ assert.equal(table.dataset.transparent,'true');
+ table.rows[1].cells[0].dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ let input=q.scroller.querySelector('.slide-table-cell-editor');
+ assert.equal(input.value,'Pesquisa');
+ input.value='Educação';
+ input.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Tab',bubbles:true}));
+ input=q.scroller.querySelector('.slide-table-cell-editor');
+ assert.equal(input.value,'42');
+ input.value='91';
+ input.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+ assert.equal(q.scroller.querySelector('.slide-table-cell-editor'),null);
+ assert.equal(q.model().surfaces[0].elements[0].table_cells[1].join('|'),'Educação|42');
+ assert.equal(q.versions.length,2);
+});
+
+test('slide and shape gradients render in the active slide and thumbnail',t=>{
+ const q=setup(t);clickLabel(q.controls,'Retângulo');
+ const toggle=text=>Array.from(q.host.querySelectorAll('.slide-inspector label'))
+   .find(label=>label.textContent===text).querySelector('input').click();
+ toggle('Gradiente · Cor de fundo');toggle('Gradiente · Preenchimento');
+ const surface=q.model().surfaces[0];
+ assert.equal(surface.background_gradient.angle,90);
+ assert.equal(surface.elements[0].fill_gradient.start,'#DAE2FD');
+ const shape=q.scroller.querySelector('svg rect');
+ const paint=q.scroller.querySelector('svg linearGradient');
+ assert.equal(shape.getAttribute('fill'),'url(#'+paint.id+')');
+ assert.notEqual(paint.id,q.sidebar.querySelector('svg linearGradient').id);
+ assert.match(q.scroller.querySelector('.slide-object-layer').style.backgroundImage,/linear-gradient/);
+ toggle('Gradiente · Preenchimento');
+ assert.equal(q.model().surfaces[0].elements[0].fill_gradient,null);
+});
+
+test('double-click replaces a formula as a structured math object',async t=>{
+ const blocks=[{kind:'sqrt',radicand:[{kind:'superscript',base:'x',power:'2'}]}];
+ const q=setup(t,{mathDialog:async ()=>blocks});
+ const id=q.editor.commands.insertMath(0,{label:'Equação',math_blocks:[{kind:'text',value:'x'}]});
+ const node=q.scroller.querySelector('.slide-object-math');
+ node.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+ await Promise.resolve();
+ const updated=q.model().surfaces[0].elements[0];
+ assert.equal(updated.id,id);
+ assert.equal(updated.type,'math');
+ assert.deepEqual(JSON.parse(JSON.stringify(updated.math_blocks)),blocks);
+ assert.equal(q.scroller.querySelector('.slide-object-math img'),null);
 });

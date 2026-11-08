@@ -678,3 +678,16 @@
 .open-doc .slide-font-sample{font-size:19px;white-space:nowrap;}
 .open-doc .slide-font-option-name{font-size:11px;max-width:135px;
   overflow:hidden;text-overflow:ellipsis;color:var(--color-text-secondary);}
+
+.open-doc .slide-native-table{width:100%;height:100%;table-layout:fixed;border-collapse:collapse;font:inherit}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll .slide-object .slide-native-table{pointer-events:auto}
+.open-doc .slide-native-table td,.open-doc .slide-native-table th{position:relative;box-sizing:border-box;border:1px solid #A0A9BA;background:#FFFFFF;color:inherit}
+.open-doc .slide-native-table th{background:#E9F2FF;font-weight:600;text-align:left}
+.open-doc .slide-native-table[data-table-preset="plain"] td{border-color:transparent}
+.open-doc .slide-native-table[data-table-preset="matrix"] td{background:#E9F2FF;border:2px solid #A0A9BA}
+.open-doc .slide-native-table[data-transparent="true"] td,.open-doc .slide-native-table[data-transparent="true"] th{background:transparent}
+.open-doc .slide-native-table td>span,.open-doc .slide-native-table th>span{display:block;white-space:pre-wrap;overflow-wrap:anywhere}
+.open-doc .slide-table-cell-editor{position:absolute;left:0;top:0;width:100%;height:100%;box-sizing:border-box;resize:none;font:inherit;color:var(--color-text-primary);background:var(--color-panel);z-index:1}
+
+.open-doc .slide-inspector label.slide-inspector-toggle{display:flex;align-items:center;gap:8px}
+.open-doc .slide-inspector label.slide-inspector-toggle input[type=checkbox]{width:16px;height:16px;flex:0 0 auto;margin:0;padding:0}

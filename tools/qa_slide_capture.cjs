@@ -382,6 +382,40 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
      button.click();return true;
    })()`);
    assert.ok(clicked,'Missing toolbar action '+label);
+   if(label==='Tabela'){
+     let ready=false;
+     for(let attempt=0;attempt<40&&!ready;attempt++){
+       ready=await evaluate("!!document.querySelector('[data-dialog]:not([hidden]) .table-csv-file')");
+       if(!ready)await pause(100);
+     }
+     assert.ok(ready,'PPTX table must open the shared insertion dialog');
+     await evaluate(`(()=>{
+       const body=document.querySelector('[data-dialog-body]');
+       const data=body.querySelector('textarea');
+       data.value='Produto;Valor\\nPesquisa;42';
+       data.dispatchEvent(new Event('input',{bubbles:true}));
+       body.querySelector('input[type=checkbox]').checked=true;
+       document.querySelector('[data-dialog-confirm]').click();
+     })()`);
+     for(let attempt=0;attempt<40;attempt++){
+       if(await evaluate("!!document.querySelector('.fixed-scroll .slide-native-table')"))break;
+       await pause(100);
+     }
+     const cell='.fixed-scroll .slide-native-table tr:nth-child(2) td:nth-child(2)';
+     await click(cell);await click(cell);
+     const result=await evaluate(`(()=>{
+       const input=document.querySelector('.slide-table-cell-editor');
+       if(!input)return null;
+       const before=input.value;
+       input.value='45,3';
+       input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+       const table=document.querySelector('.fixed-scroll .slide-native-table');
+       const cell=table.rows[1].cells[1];
+       return {before,after:cell.textContent,background:getComputedStyle(cell).backgroundColor};
+     })()`);
+     assert.deepEqual(result,{before:'42',after:'45,3',background:'rgba(0, 0, 0, 0)'});
+     await shot('pptx-table-transparent-csv-inline-edit');
+   }
  }
  const qaObjects=await evaluate(`(()=>{
    const slide=document.querySelector('.fixed-scroll .fixed-surface');

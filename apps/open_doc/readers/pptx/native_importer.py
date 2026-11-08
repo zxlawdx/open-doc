@@ -19,7 +19,9 @@ from pptx.dml.color import RGBColor
 
 from ...fixed_document.slide_model import SlideModelValidator
 from .image_effects import import_image_effects
+from .gradient_fill import read_gradient
 from .native_math import read_math
+from .table_style import read_table_style
 
 MARKER = "OpenDoc:EditableSlide-v1"
 
@@ -125,6 +127,13 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                   for col in range(len(table.columns))]
                  for row in range(len(table.rows))]
         base.update(type="table", rotation=0, table_cells=cells)
+        style = read_table_style(table)
+        if style:
+            base.update(style)
+            font = table.cell(0, 0).text_frame.paragraphs[0].font
+            if font.size is not None:
+                base["font_size_pt"] = font.size.pt
+            base["color"] = _rgb(font.color, base["color"])
     elif shape.shape_type == MSO_SHAPE_TYPE.CHART:
         chart = shape.chart
         kind = _CHARTS.get(chart.chart_type)
@@ -208,6 +217,9 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
         base["type"] = kind
         if kind not in {"text", "line"}:
             base["fill"] = _fill_color(shape.fill, base["fill"])
+            gradient = read_gradient(shape.fill)
+            if gradient:
+                base.update(fill=gradient["start"], fill_gradient=gradient)
         if kind != "text":
             base["stroke"] = _rgb(shape.line.color, base["stroke"])
         if shape.line.width:
@@ -302,6 +314,10 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
         blocks = read_math(shape)
         if blocks is not None:
             base.update(type="math", math_blocks=blocks, text="")
+            font = shape.text_frame.paragraphs[0].font
+            if font.size is not None:
+                base["font_size_pt"] = max(6.0, min(144.0, font.size.pt))
+            base["color"] = _rgb(font.color, base["color"])
     return base
 
 
@@ -326,7 +342,8 @@ def read_editable_deck(path) -> dict | None:
             if slide._element.find(_NS + "timing") is not None:
                 return None
             effect, speed = _transition(slide)
-            color = _fill_color(slide.background.fill, "#FFFFFF")
+            gradient = read_gradient(slide.background.fill)
+            color = gradient["start"] if gradient else _fill_color(slide.background.fill, "#FFFFFF")
             notes = ""
             if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
                 notes = slide.notes_slide.notes_text_frame.text[:5000]
@@ -335,6 +352,8 @@ def read_editable_deck(path) -> dict | None:
                            strokes=[], text_overlays=[], background=color,
                            source_background=color, notes=notes, transition=effect, transition_speed=speed,
                            elements=[])
+            if gradient:
+                surface.update(background_gradient=gradient, source_background_gradient=gradient)
             if len(slide.shapes) > 500:
                 return None
             for source_index, shape in enumerate(slide.shapes):
