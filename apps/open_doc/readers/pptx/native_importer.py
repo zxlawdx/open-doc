@@ -70,9 +70,10 @@ def _fill_color(fill, default: str) -> str:
 def _coordinates(shape, width: int, height: int) -> dict:
     x = max(0.0, min(1.0, shape.left / width))
     y = max(0.0, min(1.0, shape.top / height))
-    w = max(.00001, min(1.0 - x, shape.width / width))
-    h = max(.00001, min(1.0 - y, shape.height / height))
-    if w < .00001 or h < .00001:
+    minimum = 0 if shape.shape_type == MSO_SHAPE_TYPE.LINE else .00001
+    w = max(minimum, min(1.0 - x, shape.width / width))
+    h = max(minimum, min(1.0 - y, shape.height / height))
+    if not (w or h):
         raise ValueError("Objeto sem dimensões geométricas válidas.")
     return dict(x=round(x, 7), y=round(y, 7),
                 width=round(min(w, 1-x), 7), height=round(min(h, 1-y), 7))
@@ -215,6 +216,9 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
         if kind is None:
             raise ValueError("Objeto PPTX fora do subconjunto editável.")
         base["type"] = kind
+        if kind == "line":
+            xfrm = shape._element.spPr.xfrm
+            base.update(line_flip_h=bool(xfrm.flipH), line_flip_v=bool(xfrm.flipV))
         if kind not in {"text", "line"}:
             base["fill"] = _fill_color(shape.fill, base["fill"])
             gradient = read_gradient(shape.fill)

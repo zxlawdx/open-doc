@@ -691,3 +691,9 @@
 
 .open-doc .slide-inspector label.slide-inspector-toggle{display:flex;align-items:center;gap:8px}
 .open-doc .slide-inspector label.slide-inspector-toggle input[type=checkbox]{width:16px;height:16px;flex:0 0 auto;margin:0;padding:0}
+
+.open-doc .slide-object-line{min-width:1px;min-height:1px;overflow:visible}
+.open-doc .slide-object-line .slide-vector-shape{overflow:visible}
+.open-doc .fixed-document[data-slide-editor="true"] .fixed-surface > .slide-object-line{pointer-events:none;outline:none}
+.open-doc .fixed-document[data-slide-editor="true"] .slide-object-line .slide-line-hit{pointer-events:stroke}
+.open-doc .slide-line-end{pointer-events:auto;cursor:crosshair;border-radius:50%}
