@@ -717,3 +717,82 @@ test('cross-page deletion protects a selected table and its surrounding text',as
  assert.equal(q.rich.querySelector('td').textContent,'Célula original');
  assert.equal(q.w.getSelection().isCollapsed,false);
 });
+
+test('native Enter in a blank paragraph avoids serializing unrelated DOM',async t=>{
+ const q=await setup(t);
+ const blank={id:'blank',type:'paragraph',style:{},children:[]};
+ q.editor.load({...q.note,content:{...q.note.content,blocks:[blank,q.note.content.blocks[1]]}});
+ q.editor.pagination().paginate();
+ const left=q.rich.querySelector('[data-node-id=blank]');
+ const original=q.editor.snapshot().content;
+ const selection=q.w.getSelection();
+ q.rich.focus();
+ selection.collapse(left,0);
+ const input=type=>new q.w.InputEvent(type,{bubbles:true,cancelable:true,inputType:'insertParagraph'});
+ assert.equal(q.rich.dispatchEvent(input('beforeinput')),true);
+ const right=left.cloneNode(true);
+ left.after(right);
+ selection.collapse(right,0);
+ const pagination=q.w.OpenDocPagination,logical=pagination.logical;
+ let fullPasses=0;
+ pagination.logical=(...args)=>{fullPasses++;return logical(...args);};
+ q.rich.dispatchEvent(input('input'));
+ const updated=q.editor.snapshot().content;
+ assert.equal(fullPasses,0);
+ assert.equal(updated.blocks[2],original.blocks[1]);
+ assert.deepEqual(Array.from(updated.blocks.slice(0,2),block=>block.children.length),[0,0]);
+ assert.notEqual(updated.blocks[1].id,updated.blocks[0].id);
+ assert.equal(q.w.getSelection().anchorNode,right);
+ q.editor.format('undo');
+ assert.equal(q.editor.snapshot().content.blocks.length,2);
+ q.editor.format('redo');
+ await q.editor.flush();
+ assert.equal(q.saved().content.blocks.length,3);
+});
+
+for(const selected of [false,true]){
+ test('native Enter falls back for '+(selected?'a selection':'a text-bearing paragraph'),async t=>{
+  const q=await setup(t);
+  q.editor.pagination().paginate();
+  const left=q.rich.querySelector('[data-node-id=p1]');
+  const selection=q.w.getSelection();
+  const text=left.firstChild.firstChild;
+  q.rich.focus();
+  selection.setBaseAndExtent(text,5,text,selected?8:5);
+  const input=type=>new q.w.InputEvent(type,{bubbles:true,cancelable:true,inputType:'insertParagraph'});
+  q.rich.dispatchEvent(input('beforeinput'));
+  const right=left.cloneNode(true);
+  left.firstChild.textContent='Texto';
+  right.firstChild.textContent=selected?'lecionado':' selecionado';
+  left.after(right);
+  selection.collapse(right.firstChild.firstChild,0);
+  const pagination=q.w.OpenDocPagination,logical=pagination.logical;
+  let fullPasses=0;
+  pagination.logical=(...args)=>{fullPasses++;return logical(...args);};
+  q.rich.dispatchEvent(input('input'));
+  assert.equal(fullPasses,1);
+  const updated=q.editor.snapshot().content.blocks;
+  assert.deepEqual(Array.from(updated.slice(0,2),block=>block.children[0].text),['Texto',selected?'lecionado':' selecionado']);
+  assert.equal(updated[2].rows[0].cells[0].blocks[0].children[0].text,'Célula original');
+ });
+}
+
+test('Backspace on an empty paragraph after a list returns to the end of the item',async t=>{
+ const q=await setup(t);
+ const item={...q.note.content.blocks[0],list_info:{format:'decimal',level:0}};
+ const blank={id:'after-list',type:'paragraph',style:{},children:[]};
+ q.editor.load({...q.note,content:{...q.note.content,blocks:[item,blank]}});
+ const selection=q.w.getSelection();
+ q.rich.focus();
+ selection.collapse(q.rich.querySelector('[data-node-id=after-list]'),0);
+ const key=new q.w.KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true});
+ assert.equal(q.rich.dispatchEvent(key),false);
+ await new Promise(r=>setTimeout(r,55));
+ const updated=q.editor.snapshot().content.blocks;
+ assert.deepEqual(Array.from(updated,block=>block.id),['p1']);
+ assert.equal(updated[0].list_info.format,'decimal');
+ assert.equal(selection.anchorNode.textContent,'Texto selecionado');
+ assert.equal(selection.anchorOffset,'Texto selecionado'.length);
+ q.editor.format('undo');
+ assert.equal(q.editor.snapshot().content.blocks[1].id,'after-list');
+});

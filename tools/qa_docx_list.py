@@ -185,7 +185,26 @@ def main():
                         document.querySelectorAll('[data-list-marker]').length===2;
                     })()
                 """,
-                ), "Enter on an empty item must exit the list"
+                )
+                keyboard.key("Backspace")
+                wait(
+                    window,
+                    """(() => {
+                    const blocks=OpenDocApp.editor().snapshot().content.blocks;
+                    const selection=getSelection(), node=selection.anchorNode;
+                    return blocks.length===2 && Boolean(blocks[1].list_info) &&
+                      selection.isCollapsed && node?.textContent==='Segundo item' &&
+                      selection.anchorOffset===node.length;
+                })()""",
+                )
+                capture(output, f"{command}-backspace-after-list")
+                keyboard.press("Z")
+                wait(window, "OpenDocApp.editor().snapshot().content.blocks.length===3")
+                print(
+                    "QT_DOCX_BACKSPACE_AFTER_LIST_RETURNS_TO_ITEM_OK",
+                    command,
+                    flush=True,
+                )
             window.evaluate_js("""
                 (() => {
                   const rich=document.querySelector('[data-rich]');
