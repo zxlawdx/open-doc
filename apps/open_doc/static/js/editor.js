@@ -502,9 +502,12 @@
       }
       typingStyle=null;
       const applied=scope==='inline'?window.OpenDocFormatting.apply(rich,range,patch):window.OpenDocFormatting.paragraph(rich,range,patch);
-      if(applied){commands.capture();const bookmark=commands.bookmark(),affected=Array.from(rich.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre')).filter(p=>range && range.intersectsNode(p));updateModel(affected.length===1?affected[0]:null);const map=window.OpenDocModel.index(model);
-        for(const block of affected){const value=map.get(block.dataset.nodeId);if(!value)continue;const temp=document.createElement('div');window.OpenDocRichRenderer.render({...model,blocks:[value]},temp,mediaUrl);block.parentNode.replaceChild(temp.firstChild,block);}
-        commands.restoreBookmark(bookmark);changed('format');root.dispatchEvent(new CustomEvent('open-doc:content'));
+      if(applied){
+        // Formatting mutates the selected text in place. Serialize the live
+        // selection once; replacing fragments here can replace a physical
+        // page fragment with the entire logical paragraph.
+        changed('format');
+        root.dispatchEvent(new CustomEvent('open-doc:content'));
       }else status('Selecione o texto a formatar.');
     }
 

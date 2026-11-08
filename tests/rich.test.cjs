@@ -372,3 +372,38 @@ test('Tab inside a heading stays in that heading after undo and redo',async t=>{
  assert.ok(heading().contains(selection.anchorNode));
  assert.equal(q.editor.snapshot().content.blocks[0].style.outline_level,0);
 });
+
+test('font changes keep text and selection across page fragments of one paragraph',async t=>{
+ const q=await setup(t);
+ q.editor.pagination().paginate();
+ const first=q.rich.querySelector('[data-node-id=p1]');
+ first.querySelector('[data-node-id=r1]').textContent='Texto ';
+ const secondPage=first.closest('.document-page').cloneNode(false);
+ secondPage.dataset.pageIndex='1';
+ const content=q.w.document.createElement('div');content.dataset.pageContent='';
+ secondPage.append(content);
+ const second=first.cloneNode(true);second.dataset.fragmentOf='p1';
+ second.querySelector('[data-node-id=r1]').textContent='selecionado';
+ content.append(second);
+ content.append(q.rich.querySelector("[data-node-id=table]"));
+ first.closest('.document-page').after(secondPage);
+
+ const start=first.querySelector('span').firstChild,end=second.querySelector('span').firstChild;
+ const range=q.w.document.createRange();range.setStart(start,2);range.setEnd(end,5);
+ const selection=q.w.getSelection();q.rich.focus();selection.removeAllRanges();selection.addRange(range);
+ q.editor.capture();
+ const chosen=selection.toString();
+ q.change('[data-font-family]','Arial');
+ const runs=()=>q.editor.snapshot().content.blocks[0].children;
+ const text=()=>runs().map(run=>run.text).join('');
+ assert.equal(text(),'Texto selecionado');
+ assert.equal(selection.toString(),chosen);
+ assert.equal(runs().filter(run=>run.style.font_family==='Arial').map(run=>run.text).join(''),chosen);
+ assert.equal(q.rich.querySelector('[data-node-id=table]').textContent,'Célula original');
+ q.editor.format('undo');
+ assert.equal(text(),'Texto selecionado');
+ q.editor.format('redo');
+ assert.equal(text(),'Texto selecionado');
+ await q.editor.flush();
+ assert.equal(q.saved().content.blocks[0].children.map(run=>run.text).join(''),'Texto selecionado');
+});
