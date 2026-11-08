@@ -61,6 +61,24 @@ const destination = path.resolve(__dirname, '../docs/images/stabilization');
   await pause();assert.equal(await evaluate('OpenDocApp.editor().inkLayers()[0].strokes.length'),20);
   console.log('QT_DOCX_20_STROKES_WITHOUT_STRUCTUREDCLONE_NO_FULL_RENDER_SAVE_REOPEN_OK');
   await click('[data-ink-mode=cursor]');
+  await send('Emulation.setDeviceMetricsOverride',{width:1366,height:768,deviceScaleFactor:1,mobile:false});
+  const gap=await evaluate(`(()=>{
+    const rich=document.querySelector('[data-rich]'),canvas=document.querySelector('[data-canvas]');
+    const [first,second]=rich.querySelectorAll('.document-page');
+    const paragraphs=[first,second].map(page=>page.querySelector('[data-page-content] p'));
+    const walker=document.createTreeWalker(paragraphs[0],NodeFilter.SHOW_TEXT);
+    const left=walker.nextNode();
+    const right=document.createTreeWalker(paragraphs[1],NodeFilter.SHOW_TEXT).nextNode();
+    rich.focus();
+    getSelection().setBaseAndExtent(left,left.length-5,right,5);
+    canvas.scrollTop+=first.getBoundingClientRect().bottom-canvas.getBoundingClientRect().top-canvas.clientHeight/2;
+    return {outline:getComputedStyle(rich).outlineStyle,selected:getSelection().toString().length,focused:document.activeElement===rich};
+  })()`);
+  await shot('docx-page-gap-selection');
+  assert.ok(gap.focused&&gap.selected>=10,'Cross-page selection must stay focused: '+JSON.stringify(gap));
+  assert.equal(gap.outline,'none','The editor focus outline must not paint the space between pages');
+  console.log('QT_DOCX_NO_FOCUS_OUTLINE_IN_PAGE_GAP_OK',JSON.stringify(gap));
+
   await evaluate(`(() => {const page=document.querySelector('[data-page-index="7"]'),p=page.querySelector('p[data-node-id]');p.scrollIntoView();const range=document.createRange();range.selectNodeContents(p);range.collapse(false);p.focus();const rich=document.querySelector('[data-rich]');rich.focus();getSelection().removeAllRanges();getSelection().addRange(range);OpenDocApp.editor().capture();window.__prefix=Array.from(document.querySelectorAll('.document-page')).slice(0,7);window.__beforeText=p.textContent;window.__editedId=p.dataset.nodeId;__fullRenders=0;})()`);
   await send('Input.insertText',{text:'x'});await pause();await pause();
   const top=await evaluate("document.querySelector('[data-canvas]').scrollTop");

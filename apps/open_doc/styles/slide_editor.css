@@ -679,12 +679,17 @@
 .open-doc .slide-font-option-name{font-size:11px;max-width:135px;
   overflow:hidden;text-overflow:ellipsis;color:var(--color-text-secondary);}
 
-.open-doc .slide-native-table{width:100%;height:100%;table-layout:fixed;border-collapse:collapse;font:inherit}
+/* Keep grid strokes inside the cells. Qt can clip a collapsed table's
+   outer half-border when the table fills a fixed-height slide object. */
+.open-doc .slide-native-table{--slide-table-line:1px;width:100%;height:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font:inherit}
 .open-doc .fixed-document[data-slide-editor="true"] .fixed-scroll .slide-object .slide-native-table{pointer-events:auto}
-.open-doc .slide-native-table td,.open-doc .slide-native-table th{position:relative;box-sizing:border-box;border:1px solid #A0A9BA;background:#FFFFFF;color:inherit}
+.open-doc .slide-native-table td,.open-doc .slide-native-table th{position:relative;box-sizing:border-box;border:solid #A0A9BA;border-width:var(--slide-table-line) 0 0 var(--slide-table-line);background:#FFFFFF;color:inherit}
+.open-doc .slide-native-table tr>:last-child{border-right-width:var(--slide-table-line)}
+.open-doc .slide-native-table tr:last-child>*{border-bottom-width:var(--slide-table-line)}
 .open-doc .slide-native-table th{background:#E9F2FF;font-weight:600;text-align:left}
 .open-doc .slide-native-table[data-table-preset="plain"] td{border-color:transparent}
-.open-doc .slide-native-table[data-table-preset="matrix"] td{background:#E9F2FF;border:2px solid #A0A9BA}
+.open-doc .slide-native-table[data-table-preset="matrix"]{--slide-table-line:2px}
+.open-doc .slide-native-table[data-table-preset="matrix"] td{background:#E9F2FF}
 .open-doc .slide-native-table[data-transparent="true"] td,.open-doc .slide-native-table[data-transparent="true"] th{background:transparent}
 .open-doc .slide-native-table td>span,.open-doc .slide-native-table th>span{display:block;white-space:pre-wrap;overflow-wrap:anywhere}
 .open-doc .slide-table-cell-editor{position:absolute;left:0;top:0;width:100%;height:100%;box-sizing:border-box;resize:none;font:inherit;color:var(--color-text-primary);background:var(--color-panel);z-index:1}
