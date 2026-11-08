@@ -232,7 +232,7 @@ def verify_controls(window: Any) -> None:
         )
         assert (
             js(
-                "document.querySelector('[data-rich]').lastElementChild.tagName.toLowerCase()"
+                "document.querySelector('[data-rich] > .document-page:last-child [data-page-content]').lastElementChild.tagName.toLowerCase()"
             )
             == tag
         )

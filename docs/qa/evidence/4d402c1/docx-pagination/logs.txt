@@ -1,0 +1,109 @@
+10:30:35  DEBUG     [vela.lifecycle]  Lifecycle → configured
+10:30:35  INFO      [vela.router]  Rota registrada: / → workspace_view [name=open_doc, layout=blank]
+10:30:35  DEBUG     [vela.lifecycle]  Lifecycle → starting
+10:30:35  WARNING   [vela.app]  Porta 0 indisponível; API iniciou em 44719.
+10:30:35  DEBUG     [vela.lifecycle]  Lifecycle → running
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+Sandboxing disabled by user.
+[6:21:1108/103035.385492:ERROR:address_tracker_linux.cc(195)] Could not create NETLINK socket: Operation not permitted (1)
+[6:20:1108/103035.387433:ERROR:udev_watcher.cc(51)] Failed to initialize a udev monitor.
+
+DevTools listening on ws://127.0.0.1:9251/devtools/browser/3f17ae36-b9d6-4a75-893e-e695126b6ad4
+[6:31:1108/103035.405813:ERROR:zygote_host_impl_linux.cc(263)] Failed to adjust OOM score of renderer with pid 32: No such file or directory (2)
+Remote debugging server started successfully. Try pointing a Chromium-based browser to http://127.0.0.1:9251
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.57-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_DOCX_INK_DIAGNOSTIC {"mode":"pen","home":"false","kind":"rich","titleDisabled":false,"pageSize":[816,1056],"inkSize":[816,1056],"pointerEvents":"auto","layers":[{"index":0,"strokes":20}]}
+QT_DOCX_20_STROKES_WITHOUT_STRUCTUREDCLONE_NO_FULL_RENDER_SAVE_REOPEN_OK
+QT_PAGE8_TYPING_UNDO_REDO_PREFIX_SCROLL_PRESERVED_OK
+
+QT_QTEST_CTRL_Z_Y_TYPING_AND_INK_INCREMENTAL_OK
+QT_QTEST_TYPING_UNDO_FIRST_MIDDLE_LAST_PAGES_OK
+QT_QTEST_CTRL_O_MD_TXT_PDF_PPTX_DOCX_HOME_NEW_LIFECYCLE_OK
+QT_DOCX_STRESS_BEGIN 100
+QT_DOCX_STRESS_ENTERS_DISPATCHED 100
+QT_DOCX_STRESS_ENTER_METRICS {"pages":5,"blocks":101,"plainChars":0,"errors":[],"white":false,"storage":"true"}
+QT_DOCX_STRESS_CARET_BEFORE_BACKSPACE 100 {"tag":"P","blockId":"node-mw7xjjab-3d","pageIndex":"4","offset":0,"collapsed":true,"focus":true,"rootAnchor":false,"rangeContainer":"P","mark":null}
+QT_DOCX_STRESS_LOGICAL_PROBE 100 {"module":true,"match":{"currentId":"node-mw7xjjab-3d","previousId":"node-mw7xjja8-3c","fromPage":"4","toPage":"4","crossesPage":false},"modelIndex":100,"modelBlocks":101}
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 100 0
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 100 25
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 100 50
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 100 75
+Data set on unsupported clipboard mode. QMimeData object will be deleted.
+QT_DOCX_STRESS_OK {"total":100,"elapsedMs":2785,"enter":{"pages":5,"blocks":101,"plainChars":0,"errors":[],"white":false,"storage":"true"},"afterBackspace":{"pages":1,"blocks":1,"errors":[],"focused":true},"afterBulkDelete":{"pages":1,"blocks":1,"errors":[],"stillEditable":true},"jsHeapBytes":33052732}
+QT_DOCX_STRESS_BEGIN 500
+QT_DOCX_STRESS_ENTERS_DISPATCHED 500
+QT_DOCX_STRESS_ENTER_METRICS {"pages":22,"blocks":501,"plainChars":0,"errors":[],"white":false,"storage":"true"}
+QT_DOCX_STRESS_CARET_BEFORE_BACKSPACE 500 {"tag":"P","blockId":"node-mw7xjp2f-id","pageIndex":"21","offset":0,"collapsed":true,"focus":true,"rootAnchor":false,"rangeContainer":"P","mark":null}
+QT_DOCX_STRESS_LOGICAL_PROBE 500 {"module":true,"match":{"currentId":"node-mw7xjp2f-id","previousId":"node-mw7xjp1m-ic","fromPage":"21","toPage":"21","crossesPage":false},"modelIndex":500,"modelBlocks":501}
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 0
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 25
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 50
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 75
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 100
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 125
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 150
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 175
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 200
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 225
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 250
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 275
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 300
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 325
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 350
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 375
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 400
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 425
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 450
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 500 475
+Data set on unsupported clipboard mode. QMimeData object will be deleted.
+QT_DOCX_STRESS_OK {"total":500,"elapsedMs":11469,"enter":{"pages":22,"blocks":501,"plainChars":0,"errors":[],"white":false,"storage":"true"},"afterBackspace":{"pages":1,"blocks":1,"errors":[],"focused":true},"afterBulkDelete":{"pages":1,"blocks":1,"errors":[],"stillEditable":true},"jsHeapBytes":15288400}
+QT_DOCX_STRESS_BEGIN 1000
+QT_DOCX_STRESS_ENTERS_DISPATCHED 1000
+QT_DOCX_STRESS_ENTER_METRICS {"pages":44,"blocks":1001,"plainChars":0,"errors":[],"white":false,"storage":"true"}
+QT_DOCX_STRESS_CARET_BEFORE_BACKSPACE 1000 {"tag":"P","blockId":"node-mw7xk8rc-1b9","pageIndex":"43","offset":0,"collapsed":true,"focus":true,"rootAnchor":false,"rangeContainer":"P","mark":null}
+QT_DOCX_STRESS_LOGICAL_PROBE 1000 {"module":true,"match":{"currentId":"node-mw7xk8rc-1b9","previousId":"node-mw7xk8q8-1b8","fromPage":"43","toPage":"43","crossesPage":false},"modelIndex":1000,"modelBlocks":1001}
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 0
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 25
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 50
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 75
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 100
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 125
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 150
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 175
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 200
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 225
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 250
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 275
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 300
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 325
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 350
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 375
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 400
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 425
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 450
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 475
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 500
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 525
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 550
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 575
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 600
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 625
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 650
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 675
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 700
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 725
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 750
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 775
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 800
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 825
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 850
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 875
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 900
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 925
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 950
+QT_DOCX_STRESS_BACKSPACE_PROGRESS 1000 975
+Data set on unsupported clipboard mode. QMimeData object will be deleted.
+QT_DOCX_STRESS_OK {"total":1000,"elapsedMs":35175,"enter":{"pages":44,"blocks":1001,"plainChars":0,"errors":[],"white":false,"storage":"true"},"afterBackspace":{"pages":1,"blocks":1,"errors":[],"focused":true},"afterBulkDelete":{"pages":1,"blocks":1,"errors":[],"stillEditable":true},"jsHeapBytes":106974612}
+QT_DOCX_INK_PERSISTENCE_AND_INCREMENTAL_UNDO_OK
+10:31:35  DEBUG     [vela.lifecycle]  Lifecycle → stopping
+10:31:37  DEBUG     [vela.lifecycle]  Lifecycle → stopped
