@@ -126,6 +126,18 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
  await evaluate(`(()=>{
    window.__docxStressErrors=[];
    window.__docxStressKeys={};
+   window.__qaSerializeCounts={split:0,full:0};
+   const serializer=window.OpenDocRichSerializer;
+   if(serializer.serializeParagraphSplit){
+     const split=serializer.serializeParagraphSplit;
+     serializer.serializeParagraphSplit=(...args)=>{
+       const result=split(...args);
+       if(result)window.__qaSerializeCounts.split++;
+       return result;
+     };
+   }
+   const logical=OpenDocPagination.logical;
+   OpenDocPagination.logical=(...args)=>{window.__qaSerializeCounts.full++;return logical(...args);};
    document.querySelector('[data-rich]').addEventListener('keydown',event=>{
      if(event.isTrusted)window.__docxStressKeys[event.key]=
        (window.__docxStressKeys[event.key]||0)+1;
@@ -150,6 +162,7 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    })()`);
    assert.equal(initial.editable,true);
    const started=Date.now();
+   await evaluate("window.__qaSerializeCounts={split:0,full:0}");
    await startFrameProbe();
    await pause(100);
    for(let left=total;left>0;left-=20){
@@ -173,6 +186,7 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    assert.deepEqual(writing.errors,[],'Unexpected errors during DOCX insertion');
    await capture('docx-stress-'+total+'-enters');
    console.log('QT_DOCX_STRESS_ENTER_METRICS',JSON.stringify(writing));
+   console.log('QT_QA_SERIALIZE_COUNTS',total,JSON.stringify(await evaluate('window.__qaSerializeCounts')));
    const caret=await evaluate(`(()=>{
      const rich=document.querySelector('[data-rich]');
      const s=getSelection(),node=s?.anchorNode;

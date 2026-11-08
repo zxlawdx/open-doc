@@ -114,3 +114,26 @@ mostrou uma pausa entre callbacks de 383 ms nesta execução.
 [Traço antigo](evidence/pagination-frames/before-100.json) ·
 [Traço atual](evidence/pagination-frames/after-100.json) ·
 [Resumo](evidence/pagination-frames/summary.json)
+
+## Enter incremental e Backspace depois de uma lista
+
+O Enter com cursor recolhido que divide um parágrafo comum em dois na
+mesma página serializa apenas o parágrafo original e o novo. Substituir
+uma seleção ou dividir um parágrafo fragmentado continua pelo
+serializador lógico completo. A verificação de alterações não salvas
+usa o conteúdo sem recalcular a posição do cursor.
+
+Em um teste comparativo com 1.000 Enter reais no QtWebEngine local, o
+documento chegou aos mesmos 1.001 parágrafos e 44 páginas nas duas
+revisões. O lote levou 17,4 s na base e 9,3 s com a mudança. As
+serializações do DOM inteiro caíram de 1.000 para uma. O maior
+intervalo entre callbacks caiu de 716 para 217 ms nesta comparação.
+Os tempos são medições locais e variam com o ambiente.
+
+Backspace em um parágrafo vazio após sair de uma lista retorna ao
+fim do item anterior. A regressão Qt testa marcadores e numeração
+com teclas reais, mantém o marcador e verifica a posição do cursor.
+O histórico restaura a linha vazia com Ctrl+Z.
+
+[Resultados](evidence/docx-enter-performance/results.txt) ·
+[Cursor após Backspace](evidence/docx-enter-performance/backspace-after-list.png)

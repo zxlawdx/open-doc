@@ -58,6 +58,7 @@
     let lockedState = false;
     let renderTimer = null, cacheTimer=null, markdownStale=false;
     let nextKind = "typing",beforeInputBlockId=null,beforeInputCrossPage=false;
+    let beforeParagraphSplit=null;
     function syncMarkdown(){
       if(model&&markdownStale){source.value=window.OpenDocModel.markdown(model);markdownStale=false;}
     }
@@ -89,10 +90,12 @@
       else {rebuild();pagination?.invalidate();}
     }
     function updateModel(dirty=null,affected=null){if(window.OpenDocRichSerializer)model=window.OpenDocRichSerializer.serialize(rich,model,dirty,affected);}
+    const currentTitle=()=>title.value.trim() || "Sem título";
+
     function buffer() {
       return {
         id: documentState.id,
-        title: title.value.trim() || "Sem título",
+        title: currentTitle(),
         markdown: source.value,
         ...(model?{content_format:"opendoc-rich-v1",content:model}:{}),
         revision: documentState.revision,
@@ -106,7 +109,7 @@
 
     function isClean() {
       if(suspended)return true;
-      return !documentState || signature(buffer()) === saved;
+      return !documentState || signature({title:currentTitle(),content:model,markdown:source.value}) === saved;
     }
 
     function cache() {
@@ -137,11 +140,12 @@
       const count = text ? text.split(/\s+/u).length : 0;
       root.querySelector("[data-count]").textContent =
         count + (count === 1 ? " palavra" : " palavras");
-      root.dataset.dirty = String(!isClean());
+      const dirtyState=!isClean();
+      root.dataset.dirty = String(dirtyState);
       root.dispatchEvent(new CustomEvent("open-doc:content", {detail: {mode}}));
       updateHistoryControls();
       if (window.pywebview?.api?.set_dirty) {
-        window.pywebview.api.set_dirty(!isClean()).catch(() => {});
+        window.pywebview.api.set_dirty(dirtyState).catch(() => {});
       }
     }
 
@@ -187,7 +191,14 @@
         if(dirty && !dirty.dataset.nodeId){dirty.dataset.nodeId=window.OpenDocModel.id();structural=true;}
         if(kind==='typing' && inputEvent && !inputEvent.inputType && dirty && model){const old=model.blocks.find(b=>b.id===(dirty.dataset.fragmentOf || dirty.dataset.nodeId));const text=v=>!v || typeof v!=='object'?'':typeof v.text==='string'?v.text:Object.values(v).map(text).join('');if(old && dirty.textContent===text(old))dirty=null;}
         const ids=model?.blocks.map(b=>b.id).join('|');
-        updateModel(dirty,inputStructural?[beforeInputBlockId,dirty?.dataset.fragmentOf || dirty?.dataset.nodeId].filter(Boolean):null);
+        const split=beforeParagraphSplit;
+        beforeParagraphSplit=null;
+        const incremental=inputType==='insertParagraph' && split && dirty &&
+          split.block===dirty.previousElementSibling && split.container===dirty.parentElement &&
+          split.container.childElementCount===split.count+1 &&
+          window.OpenDocRichSerializer.serializeParagraphSplit(rich,split.block,dirty,model);
+        if(incremental)model=incremental;
+        else updateModel(dirty,inputStructural?[beforeInputBlockId,dirty?.dataset.fragmentOf || dirty?.dataset.nodeId].filter(Boolean):null);
         structural=structural || ids!==model?.blocks.map(b=>b.id).join('|');
         // Markdown is a *secondary read-only view* for rich documents.
         // Serializing the whole document for each keystroke is O(N) work.
@@ -207,8 +218,9 @@
       clearTimeout(renderTimer);
       renderTimer = setTimeout(render, 100);
       scheduleRecovery();
-      root.dataset.dirty = String(!isClean());
-      if (window.pywebview?.api?.set_dirty) window.pywebview.api.set_dirty(!isClean()).catch(() => {});
+      const dirtyState=!isClean();
+      root.dataset.dirty = String(dirtyState);
+      if (window.pywebview?.api?.set_dirty) window.pywebview.api.set_dirty(dirtyState).catch(() => {});
       status("Alterações não salvas");
       root.dispatchEvent(new CustomEvent("open-doc:changed"));
     }
@@ -582,6 +594,7 @@
       const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
       let node;
       while((node=walker.nextNode())){
+        if(node.parentElement.closest('[data-list-marker]'))continue;
         if(remaining<=node.textContent.length){
           const tab=node.parentElement.closest('[data-node-type="tab"]');
           if(tab){
@@ -714,7 +727,7 @@
       pendingLogicalCaret=op.caret;
       const snapshot=buffer();
       snapshot.selection=(op.caret.listEnter||op.caret.rangeDeletion)?logicalBookmark(op.caret):{start:0,length:0,blockIndex:op.caret.blockIndex,
-        blockId:op.caret.blockId,blockOffset:op.caret.textOffset};
+        blockId:op.caret.blockId,blockOffset:op.caret.textOffset,editableBlockOffset:true};
       history.record(snapshot,'transaction',
         {blockIds:op.changedIds||[],structural:true});
       clearTimeout(logicalRenderTimer);
@@ -913,6 +926,7 @@
     }
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
+      beforeParagraphSplit=null;
       if(pendingLogicalCaret?.listEnter||pendingLogicalCaret?.rangeDeletion)finishLogicalTransaction();
       if(event.inputType==='insertParagraph'&&enterList(event))return;
       deletionStyle=event.inputType?.startsWith('delete')?activeTypingStyle():null;
@@ -965,6 +979,10 @@
       let n=anchorNode;n=n?.nodeType===3?n.parentElement:n;
       while(n && n!==rich && n.tagName!=='LI' && !n.parentElement?.matches('[data-page-content],[data-rich]'))n=n.parentElement;
       beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;
+      if(event.inputType==='insertParagraph' && selection?.isCollapsed &&
+        n?.parentElement?.matches('[data-page-content]')){
+        beforeParagraphSplit={block:n,container:n.parentElement,count:n.parentElement.childElementCount};
+      }
     }, listeners);
     source.addEventListener("input", () => changed("typing", source), listeners);
     rich.addEventListener("input",event=>{

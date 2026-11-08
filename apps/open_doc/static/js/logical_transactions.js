@@ -4,7 +4,6 @@
  */
 "use strict";
 (() => {
-  const clone=value=>JSON.parse(JSON.stringify(value));
   const textLength=children=>(children||[]).reduce((n,run)=>
     n+(run.type==="text"?String(run.text||"").length:
       run.type==="hyperlink"?textLength(run.children):(run.type==="break"||run.type==="tab")?1:0),0);
@@ -14,17 +13,17 @@
     if(index<=0)return null;
     const current=model.blocks[index],previous=model.blocks[index-1];
     if(current.type!=="paragraph"||previous.type!=="paragraph")return null;
-    // Keep section boundaries and list identities intact. Paragraph raw XML
-    // supplies the survivor's properties at export; the inline model holds
-    // the content, including opaque children from either paragraph.
-    if(current.section_end_id||previous.section_end_id
-      ||JSON.stringify(current.list_info||null)!==JSON.stringify(previous.list_info||null))return null;
-    const next=clone(model);
-    const prev=next.blocks[index-1],right=next.blocks[index];
-    const offset=textLength(prev.children);
-    prev.children=clone([...(prev.children||[]),...(right.children||[])]);
-    next.blocks.splice(index,1);
-    return {model:next,kind:"join-backward",
+    const emptyAfterList=!current.list_info&&!current.children?.length&&previous.list_info;
+    // An empty paragraph created by leaving a list can be removed while
+    // keeping the preceding item's numbering and paragraph properties.
+    if(current.section_end_id||previous.section_end_id||
+      (!emptyAfterList&&JSON.stringify(current.list_info||null)!==JSON.stringify(previous.list_info||null)))return null;
+    if(emptyAfterList&&model.ink_layers?.some(layer=>layer.anchor_block_id===current.id))return null;
+    const offset=textLength(previous.children);
+    const blocks=model.blocks.slice();
+    const children=[...(previous.children||[]),...(current.children||[])];
+    blocks.splice(index-1,2,{...previous,children});
+    return {model:{...model,blocks},kind:"join-backward",
       changedIds:[previous.id,current.id],removedId:current.id,
       caret:{blockId:previous.id,blockIndex:index-1,textOffset:offset}};
   }
@@ -94,12 +93,12 @@
   }
   function deleteAll(model){
     if(!model?.blocks?.length)return null;
-    const first=model.blocks[0],next=clone(model);
+    const first=model.blocks[0];
     // One paragraph is the simplest valid logical document. Keep identity
     // stable if possible to preserve selection/history, never copy opaque data.
     const id=first.type==="paragraph"?first.id:window.OpenDocModel.id();
-    next.blocks=[{id,type:"paragraph",style:{},children:[]}];
-    return {model:next,kind:"delete-all",
+    const blocks=[{id,type:"paragraph",style:{},children:[]}];
+    return {model:{...model,blocks},kind:"delete-all",
       changedIds:model.blocks.map(b=>b.id),caret:{blockId:id,blockIndex:0,textOffset:0}};
   }
   function currentBlock(rich,selection){

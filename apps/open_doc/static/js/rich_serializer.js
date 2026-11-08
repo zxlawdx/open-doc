@@ -85,6 +85,25 @@
     for(const block of next.blocks)if(!unchanged.has(block))visit(block);
     return next;
   }
+  // A collapsed native Enter can split one top-level paragraph in place.
+  // Fragmented paragraphs still need the full logical-document merge.
+  function serializeParagraphSplit(surface,left,right,original){
+    const leftId=left.dataset.nodeId,rightId=right.dataset.nodeId;
+    if(!leftId||!rightId||leftId===rightId||left.dataset.fragmentOf||right.dataset.fragmentOf)return null;
+    const index=original.blocks.findIndex(block=>block.id===leftId);
+    const previous=original.blocks[index];
+    if(previous?.type!=='paragraph'||original.blocks.some(block=>block.id===rightId))return null;
+    for(const fragment of surface.querySelectorAll('[data-page-content] > [data-fragment-of]')){
+      if(fragment.dataset.fragmentOf===leftId||fragment.dataset.fragmentOf===rightId)return null;
+    }
+    const holder=document.createElement('div');
+    holder.append(left.cloneNode(true),right.cloneNode(true));
+    const replacement=serialize(holder,{...original,blocks:[previous]}).blocks;
+    if(replacement.length!==2||replacement.some(block=>block.type!=='paragraph'))return null;
+    const blocks=original.blocks.slice();
+    blocks.splice(index,1,...replacement);
+    return uniqueChanges({...original,blocks},original);
+  }
   function serializeLogicalBlock(surface,blockId,original){
     const block=original.blocks.find(b=>b.id===blockId);if(!block)return serialize(surface,original);
     const matches=Array.from(surface.querySelectorAll('[data-node-id]')).filter(n=>n.dataset.nodeId===blockId || n.dataset.fragmentOf===blockId);
@@ -98,5 +117,5 @@
     const value=serialize(holder,{...original,blocks:[block]},holder.firstElementChild).blocks[0];
     return uniqueChanges({...original,blocks:original.blocks.map(b=>b.id===blockId?value:b)},original);
   }
-  window.OpenDocRichSerializer={serialize,serializeLogicalBlock,readStyle};
+  window.OpenDocRichSerializer={serialize,serializeLogicalBlock,serializeParagraphSplit,readStyle};
 })();

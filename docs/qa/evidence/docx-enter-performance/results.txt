@@ -1,0 +1,8 @@
+Base: 1a6ec27
+QT_QA_SERIALIZE_COUNTS 1000 {"split":0,"full":1000}
+QT_QA_ENTER_BENCH {"elapsedMs":17414,"samples":212,"largestGap":716}
+Após a atualização incremental
+QT_QA_SERIALIZE_COUNTS 1000 {"split":999,"full":1}
+QT_QA_ENTER_BENCH {"elapsedMs":9324,"samples":227,"largestGap":217}
+QT_DOCX_BACKSPACE_AFTER_LIST_RETURNS_TO_ITEM_OK list
+QT_DOCX_BACKSPACE_AFTER_LIST_RETURNS_TO_ITEM_OK ordered
