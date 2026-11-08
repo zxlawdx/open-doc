@@ -38,10 +38,7 @@
     ));
     function caretBlock(node){
       const element=node?.nodeType===3?node.parentElement:node;
-      if(node?.nodeType===1 && Array.from(node.children).some(child=>child.dataset.nodeType==='tab')){
-        return node.closest('p,li,h1,h2,h3,h4,h5,h6,blockquote,pre,[data-page-content] > div,[data-rich] > div');
-      }
-      return element?.closest?.('[data-node-id],p,li,h1,h2,h3,blockquote,pre')||null;
+      return element?.closest?.('p,li,h1,h2,h3,h4,h5,h6,blockquote,pre,[data-page-content] > div,[data-rich] > div')||null;
     }
     function bookmark() {
       const selection=window.getSelection();
@@ -61,6 +58,12 @@
           result.blockIndex=index;
           result.blockId=block.dataset.nodeId||null;
           result.blockOffset=within.toString().length;
+          const marker=block.querySelector('[data-list-marker]');
+          if(marker){
+            const included=within.comparePoint(marker,marker.childNodes.length)<=0;
+            result.blockOffset=Math.max(0,result.blockOffset-(included?marker.textContent.length:0));
+          }
+          result.editableBlockOffset=true;
           result.childOffset=range.startContainer===block?range.startOffset:null;
         }
       }
@@ -72,14 +75,15 @@
       if(value.length===0 && Number.isInteger(value.blockIndex)){
         const all=blocks();
         const found=all[value.blockIndex];
-        const block=found || (value.blockId
-          ?all.find(el=>el.dataset.nodeId===value.blockId):null);
+        const block=value.blockId&&found?.dataset.nodeId!==value.blockId
+          ? all.find(el=>el.dataset.nodeId===value.blockId)||found : found;
         if(block){
           const range=document.createRange();
           const wanted=Math.max(0,value.blockOffset||0);
           const walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
           let textNode,remaining=wanted,placed=false;
           while((textNode=walker.nextNode())){
+            if(value.editableBlockOffset&&textNode.parentElement.closest('[data-list-marker]'))continue;
             const length=textNode.textContent.length;
             if(remaining<=length){
               const tab=textNode.parentElement.closest('[data-node-type="tab"]');

@@ -68,6 +68,8 @@
     }
   }
   function reconcile(before,after,surface,mediaRequest){
+    const listStructure=blocks=>blocks.filter(b=>b.list_info).map(b=>[b.id,b.list_info]);
+    if(JSON.stringify(listStructure(before?.blocks||[]))!==JSON.stringify(listStructure(after.blocks)))return false;
     const oldIds=(before?.blocks || []).map(b=>b.id),newIds=after.blocks.map(b=>b.id),shared=oldIds.filter(id=>newIds.includes(id));
     if(JSON.stringify(shared)!==JSON.stringify(newIds.filter(id=>oldIds.includes(id))))return false;
     const removed=oldIds.filter(id=>!newIds.includes(id));

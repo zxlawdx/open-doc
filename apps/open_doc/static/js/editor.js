@@ -49,7 +49,7 @@
     let pagination=null;
     const mediaCache=new Map();
     let saved = "", savedContent=null, savedTitle="";
-    let mode = "rich";
+    let mode = "rich", typingStyle=null;
     let chain = Promise.resolve();
     let destroyed = false, suspended = false;
     let recoveryTimer = null;
@@ -205,6 +205,7 @@
     function load(note) {
       finishLogicalTransaction();
       clearTimeout(recoveryTimer);clearTimeout(cacheTimer);markdownStale=false;
+      typingStyle=null;
       documentState = {...note};
       model=note.content?window.OpenDocModel.clone(note.content):null;mediaCache.clear();
       const warning=root.querySelector('[data-rich-warning]'),list=root.querySelector('[data-rich-warnings]');
@@ -311,6 +312,7 @@
     function restoreSnapshot(snapshot) {
       finishLogicalTransaction();
       if (!snapshot) return;
+      typingStyle=null;
       if(snapshot.historyChange?.affected?.inkOnly&&snapshot.content&&model?.blocks===snapshot.content.blocks){
         model=snapshot.content;
         cache();scheduleRecovery();updateHistoryControls();
@@ -360,6 +362,7 @@
       if(model && mode==='markdown' && kind!=='selectAll'){status('Edite este documento no modo visual.');return;}
       if (kind === "selectAll" && mode === "markdown") { source.focus(); source.select(); return; }
       if (mode === "rich") {
+        if((kind==='list'||kind==='ordered')&&toggleList(kind==='list'?'bullet':'decimal'))return;
         const mapping = {
           bold: ["bold"], italic: ["italic"], paragraph: ["formatBlock", "p"],
           h1: ["formatBlock", "h1"], heading: ["formatBlock", "h2"], h3: ["formatBlock", "h3"],
@@ -446,23 +449,65 @@
       return Boolean(applied);
     }
 
+    function toggleList(format){
+      commands.restore();
+      const selection=getSelection();
+      if(!selection?.rangeCount||!rich.contains(selection.anchorNode))return;
+      const range=selection.getRangeAt(0);
+      if(!model)updateModel();
+      const ids=new Set(Array.from(rich.querySelectorAll('[data-node-type="paragraph"]'))
+        .filter(node=>range.collapsed?node.contains(range.startContainer):range.intersectsNode(node))
+        .map(node=>node.dataset.fragmentOf||node.dataset.nodeId));
+      const targets=model.blocks.filter(block=>block.type==='paragraph'&&ids.has(block.id));
+      if(!targets.length)return;
+      const bookmark=commands.bookmark(),remove=targets.every(block=>block.list_info?.format===format);
+      const blocks=model.blocks.map(block=>{
+        if(!targets.includes(block))return block;
+        const list_info=remove?null:block.list_info?.format===format?block.list_info:{format,level:0};
+        return {...block,list_info};
+      });
+      commitModel({...model,blocks},'format',null,bookmark);
+      return true;
+    }
+    function activeTypingStyle(){
+      if(!typingStyle?.caret)return null;
+      const caret=commands.bookmark();
+      const anchor=typingStyle.caret;
+      return caret?.length===0&&caret.blockId===anchor.blockId&&
+        (caret.blockId||caret.blockIndex===anchor.blockIndex)&&
+        caret.blockOffset===anchor.blockOffset&&caret.start===anchor.start
+        ?typingStyle.patch:null;
+    }
+
     function textState(){
       const selection=getSelection();let node=selection.anchorNode;
       if(node?.nodeType===1){node=node.childNodes[Math.min(selection.anchorOffset,node.childNodes.length-1)] || node;while(node.firstChild)node=node.firstChild;}
       let e=node && (node.nodeType===1?node:node.parentElement);const ancestors=[],map=model && window.OpenDocModel?window.OpenDocModel.index(model):new Map(),out={};
       while(e && rich.contains(e)){ancestors.unshift(e);e=e.parentElement;}
       for(const element of ancestors){Object.assign(out,map.get(element.dataset.nodeId)?.style || {});if(window.OpenDocRichSerializer)Object.assign(out,window.OpenDocRichSerializer.readStyle(element,out));}
-      return out;
+      return {...out,...activeTypingStyle()};
     }
     function style(scope,patch){
       if(lockedState || !window.OpenDocFormatting)return;
       if(patch.line_spacing!==undefined)patch.line_spacing_rule='auto';
       if(patch.font_size_pt!==undefined && (!Number.isFinite(patch.font_size_pt) || patch.font_size_pt<1 || patch.font_size_pt>512)){status('Tamanho válido: 1 a 512 pt.');return;}
       if(mode!=='rich')setMode('rich');history.checkpoint(buffer());commands.restore();const selection=getSelection(),range=selection.rangeCount?selection.getRangeAt(0):null;
+      if(scope==='inline'&&range?.collapsed&&rich.contains(range.startContainer)){
+        const caret=commands.bookmark();
+        if(caret){
+          typingStyle={caret,patch:{...activeTypingStyle(),...patch}};
+          root.dispatchEvent(new CustomEvent('open-doc:content'));
+        }
+        return;
+      }
+      typingStyle=null;
       const applied=scope==='inline'?window.OpenDocFormatting.apply(rich,range,patch):window.OpenDocFormatting.paragraph(rich,range,patch);
-      if(applied){commands.capture();const bookmark=commands.bookmark(),affected=Array.from(rich.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre')).filter(p=>range && range.intersectsNode(p));updateModel(affected.length===1?affected[0]:null);const map=window.OpenDocModel.index(model);
-        for(const block of affected){const value=map.get(block.dataset.nodeId);if(!value)continue;const temp=document.createElement('div');window.OpenDocRichRenderer.render({...model,blocks:[value]},temp,mediaUrl);block.parentNode.replaceChild(temp.firstChild,block);}
-        commands.restoreBookmark(bookmark);changed('format');root.dispatchEvent(new CustomEvent('open-doc:content'));
+      if(applied){
+        // Formatting mutates the selected text in place. Serialize the live
+        // selection once; replacing fragments here can replace a physical
+        // page fragment with the entire logical paragraph.
+        changed('format');
+        root.dispatchEvent(new CustomEvent('open-doc:content'));
       }else status('Selecione o texto a formatar.');
     }
 
@@ -516,10 +561,10 @@
       const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
       commands.capture();
     }
-    function commitModel(next, kind='format', caret=null) {
+    function commitModel(next, kind='format', caret=null, bookmark=null) {
       const previous=model,oldBlocks=previous?.blocks || [],newBlocks=next.blocks || [],blockIds=Array.from(new Set([...oldBlocks,...newBlocks].map(b=>b.id))).filter(id=>JSON.stringify(oldBlocks.find(b=>b.id===id))!==JSON.stringify(newBlocks.find(b=>b.id===id))),structural=JSON.stringify(oldBlocks.map(b=>b.id))!==JSON.stringify(newBlocks.map(b=>b.id));
       history.checkpoint(buffer());model=next;source.value=window.OpenDocModel.markdown(model);source.readOnly=true;
-      renderRich();if(caret)restoreLogicalCaret(caret);
+      renderRich();if(caret)restoreLogicalCaret(caret);else if(bookmark)commands.restoreBookmark(bookmark);
       history.record(buffer(),kind,{blockIds,structural});
       cache();scheduleRecovery();render();
     }
@@ -713,13 +758,14 @@
         if(start&&rich.contains(start)&&start===paragraph(selection.focusNode)&&!start.closest('td,th')){
           event.preventDefault();
           history.checkpoint(buffer());
+          const patch=activeTypingStyle();
           // Tab is spacing. Collapse the range before inserting so even a
           // browser selection next to a previous tab cannot replace text.
           const range=selection.getRangeAt(0).cloneRange();
           range.collapse(true);
           const container=range.startContainer;
           const previousTab=(container.nodeType===1?container:container.parentElement)
-            ?.closest('[data-node-type="tab"]');
+            ?.closest('[data-node-type="tab"],[data-list-marker]');
           if(previousTab)range.setStartAfter(previousTab);
           const placeholder=start.childNodes.length===1&&start.firstChild.nodeName==='BR'
             &&!start.firstChild.dataset.nodeType?start.firstChild:null;
@@ -735,6 +781,7 @@
           range.collapse(true);
           selection.removeAllRanges();
           selection.addRange(range);
+          if(patch)typingStyle={patch,caret:commands.bookmark()};
           changed('format',rich);
           return;
         }
@@ -748,6 +795,40 @@
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
       if(applyLogicalDeletion(event,event.inputType))return;
+      if(event.inputType==='insertText'&&!event.isComposing&&event.cancelable&&event.data){
+        const patch=activeTypingStyle(),selection=getSelection();
+        const range=selection?.rangeCount?selection.getRangeAt(0):null;
+        if(patch&&range?.collapsed&&rich.contains(range.startContainer)){
+          event.preventDefault();
+          history.checkpoint(buffer());
+          const node=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
+          const run=node.closest('[data-style-patch]');
+          const stylePatch=JSON.stringify(patch);
+          if(run?.dataset.stylePatch===stylePatch&&range.startContainer.nodeType===3){
+            const text=range.startContainer,offset=range.startOffset;
+            text.insertData(offset,event.data);
+            range.setStart(text,offset+event.data.length);
+          }else{
+            const span=document.createElement('span');
+            span.dataset.stylePatch=stylePatch;
+            window.OpenDocRichRenderer.textStyle(span,patch);
+            span.textContent=event.data;
+            const block=node.closest('p,h1,h2,h3,h4,h5,h6,li');
+            const placeholder=block?.lastChild;
+            range.insertNode(span);range.setStart(span.firstChild,span.firstChild.length);
+            if(placeholder?.nodeName==='BR'&&!placeholder.dataset.nodeType&&
+              !Array.from(block.childNodes).some(child=>child!==span&&child!==placeholder&&child.textContent.trim()))placeholder.remove();
+          }
+          range.collapse(true);
+          selection.removeAllRanges();selection.addRange(range);
+          typingStyle={patch,caret:commands.bookmark()};
+          changed('typing',rich,event);
+          const caret=commands.bookmark();
+          if(caret)typingStyle={patch,caret};
+          return;
+        }
+      }
+      typingStyle=null;
       commands.capture();history.checkpoint(buffer());
       const selection=getSelection();
       const anchorNode=selection?.anchorNode,focusNode=selection?.focusNode;

@@ -316,3 +316,94 @@ test('Ctrl+Z and redo retain recent ink history when the existing page is large'
  assert.equal(q.editor.inkLayers()[0].strokes.length,19);
  assert.equal(q.editor.inkLayers()[0].strokes[0],baseline.strokes[0]);
 });
+
+test('DOCX list uses the same marker and indent through text undo and redo',async t=>{
+ const q=await setup(t);
+ const place=()=>{
+   const run=q.rich.querySelector('[data-node-id=p1] span[data-node-type=text]');
+   const selection=q.w.getSelection();selection.collapse(run.firstChild,run.textContent.length);
+   q.editor.capture();
+ };
+ place();q.editor.format('list');
+ const marker=()=>q.rich.querySelector('[data-node-id=p1] [data-list-marker]');
+ const layout=()=>[marker().textContent,marker().parentElement.style.paddingLeft];
+ const before=layout();assert.equal(before[0],'•');assert.ok(before[1]);
+ place();
+ const run=q.rich.querySelector('[data-node-id=p1] span[data-node-type=text]');
+ run.firstChild.appendData(' mais');
+ q.rich.dispatchEvent(new q.w.InputEvent('input',{bubbles:true,inputType:'insertText',data:' mais'}));
+ q.editor.format('undo');assert.deepEqual(layout(),before);
+ q.editor.format('redo');assert.deepEqual(layout(),before);
+ assert.match(q.rich.querySelector('[data-node-id=p1]').textContent,/mais/);
+ q.editor.format('undo');q.editor.format('undo');
+ assert.equal(marker(),null);
+ q.editor.format('redo');assert.deepEqual(layout(),before);
+});
+
+test('caret-only font changes format new typing without restyling existing text',async t=>{
+ const q=await setup(t),text=q.rich.querySelector('[data-node-id=r1]').firstChild;
+ q.rich.focus();q.w.getSelection().collapse(text,0);q.editor.capture();
+ q.change('[data-font-family]','Arial');
+ const input=data=>q.rich.dispatchEvent(new q.w.InputEvent('beforeinput',{
+   bubbles:true,cancelable:true,inputType:'insertText',data
+ }));
+ assert.equal(input('A'),false);assert.equal(input('B'),false);
+ const runs=q.editor.snapshot().content.blocks[0].children;
+ assert.equal(runs[0].text,'AB');assert.equal(runs[0].style.font_family,'Arial');
+ assert.equal(runs[1].text,'Texto selecionado');
+ assert.equal(runs[1].style.font_family,'Fonte ausente');
+ await q.editor.flush();
+ assert.equal(q.saved().content.blocks[0].children[0].style.font_family,'Arial');
+});
+
+test('Tab inside a heading stays in that heading after undo and redo',async t=>{
+ const q=await setup(t),note=JSON.parse(JSON.stringify(q.note));
+ note.content.blocks[0].style.outline_level=0;q.editor.load(note);q.editor.pagination().paginate();
+ const heading=()=>q.rich.querySelector('h1[data-node-id=p1]');
+ const selection=q.w.getSelection();
+ q.rich.focus();selection.collapse(heading().querySelector('span').firstChild,5);
+ const tab=()=>{
+   const event=new q.w.KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true});
+   q.rich.dispatchEvent(event);assert.equal(event.defaultPrevented,true);
+ };
+ tab();q.editor.format('undo');q.editor.format('redo');tab();
+ assert.equal(heading().querySelectorAll('[data-node-type=tab]').length,2);
+ assert.equal(heading().textContent,'Texto\t\t selecionado');
+ assert.ok(heading().contains(selection.anchorNode));
+ assert.equal(q.editor.snapshot().content.blocks[0].style.outline_level,0);
+});
+
+test('font changes keep text and selection across page fragments of one paragraph',async t=>{
+ const q=await setup(t);
+ q.editor.pagination().paginate();
+ const first=q.rich.querySelector('[data-node-id=p1]');
+ first.querySelector('[data-node-id=r1]').textContent='Texto ';
+ const secondPage=first.closest('.document-page').cloneNode(false);
+ secondPage.dataset.pageIndex='1';
+ const content=q.w.document.createElement('div');content.dataset.pageContent='';
+ secondPage.append(content);
+ const second=first.cloneNode(true);second.dataset.fragmentOf='p1';
+ second.querySelector('[data-node-id=r1]').textContent='selecionado';
+ content.append(second);
+ content.append(q.rich.querySelector("[data-node-id=table]"));
+ first.closest('.document-page').after(secondPage);
+
+ const start=first.querySelector('span').firstChild,end=second.querySelector('span').firstChild;
+ const range=q.w.document.createRange();range.setStart(start,2);range.setEnd(end,5);
+ const selection=q.w.getSelection();q.rich.focus();selection.removeAllRanges();selection.addRange(range);
+ q.editor.capture();
+ const chosen=selection.toString();
+ q.change('[data-font-family]','Arial');
+ const runs=()=>q.editor.snapshot().content.blocks[0].children;
+ const text=()=>runs().map(run=>run.text).join('');
+ assert.equal(text(),'Texto selecionado');
+ assert.equal(selection.toString(),chosen);
+ assert.equal(runs().filter(run=>run.style.font_family==='Arial').map(run=>run.text).join(''),chosen);
+ assert.equal(q.rich.querySelector('[data-node-id=table]').textContent,'Célula original');
+ q.editor.format('undo');
+ assert.equal(text(),'Texto selecionado');
+ q.editor.format('redo');
+ assert.equal(text(),'Texto selecionado');
+ await q.editor.flush();
+ assert.equal(q.saved().content.blocks[0].children.map(run=>run.text).join(''),'Texto selecionado');
+});
