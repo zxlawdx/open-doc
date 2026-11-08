@@ -1,0 +1,25 @@
+13:35:00  DEBUG     [vela.lifecycle]  Lifecycle → configured
+13:35:00  INFO      [vela.router]  Rota registrada: / → workspace_view [name=open_doc, layout=blank]
+13:35:00  DEBUG     [vela.lifecycle]  Lifecycle → starting
+13:35:00  WARNING   [vela.app]  Porta 0 indisponível; API iniciou em 38413.
+13:35:00  DEBUG     [vela.lifecycle]  Lifecycle → running
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+Sandboxing disabled by user.
+[6:21:1108/133500.948574:ERROR:address_tracker_linux.cc(195)] Could not create NETLINK socket: Operation not permitted (1)
+
+DevTools listening on ws://127.0.0.1:9272/devtools/browser/ad61d928-3a77-4209-9649-3b77021a64c3
+[6:22:1108/133500.951004:ERROR:udev_watcher.cc(51)] Failed to initialize a udev monitor.
+[6:31:1108/133500.974272:ERROR:zygote_host_impl_linux.cc(263)] Failed to adjust OOM score of renderer with pid 32: No such file or directory (2)
+Remote debugging server started successfully. Try pointing a Chromium-based browser to http://127.0.0.1:9272
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.57-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+Data set on unsupported clipboard mode. QMimeData object will be deleted.
+QT_DOCX_LIST list {"markers": ["•", "•"], "items": ["Primeiro item", "Segundo item"]}
+Data set on unsupported clipboard mode. QMimeData object will be deleted.
+QT_DOCX_LIST ordered {"markers": ["1.", "2."], "items": ["Primeiro item", "Segundo item"]}
+QT_DOCX_LIST_NESTING_WITHOUT_INSERTING_TAB_OK
+Data set on unsupported clipboard mode. QMimeData object will be deleted.
+QT_DOCX_CROSS_PAGE_PARTIAL_DELETE_UNDO_REDO_OK Backspace
+Data set on unsupported clipboard mode. QMimeData object will be deleted.
+QT_DOCX_CROSS_PAGE_PARTIAL_DELETE_UNDO_REDO_OK Delete
+13:35:07  DEBUG     [vela.lifecycle]  Lifecycle → stopping
+13:35:09  DEBUG     [vela.lifecycle]  Lifecycle → stopped

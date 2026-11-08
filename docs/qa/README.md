@@ -61,3 +61,20 @@ fuzzing, cobertura de linhas e branches, comparação visual longitudinal
 da paginação e inspeção exaustiva dos comandos continuam pendentes.
 Asserções de paginação comprovam os estados observados pelo teste, sem
 medição quadro a quadro de piscadas.
+
+## Seleção parcial entre páginas no DOCX
+
+- Abra um DOCX com texto antes e depois de uma quebra de página. Selecione
+  o fim do primeiro parágrafo e o início do segundo. Backspace ou Delete
+  deve apagar o trecho selecionado e posicionar o cursor entre as duas
+  partes preservadas. Desfaça e refaça pelo teclado.
+- O teste JavaScript verifica também a seleção invertida, uma seleção entre
+  fragmentos do mesmo hyperlink e o conteúdo depois de salvar e reabrir.
+  O teste Qt importa um DOCX criado pelo próprio script e usa teclas reais.
+- As pontas da seleção precisam estar em parágrafos do corpo contendo
+  texto, hyperlinks ou tabulações. Seleções que atravessam tabelas,
+  finais de seção, blocos opacos ou blocos com tinta ancorada são
+  protegidas. Objetos inline nas pontas também impedem a operação.
+- [Seleção antes](evidence/cross-page-selection/cross-page-before.png) ·
+  [Documento depois](evidence/cross-page-selection/cross-page-after.png) ·
+  [Log Qt](evidence/cross-page-selection/qt.log).
