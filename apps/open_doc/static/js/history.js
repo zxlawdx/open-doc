@@ -10,19 +10,49 @@
     // Budget each content object once instead of encoding every old snapshot per key.
     const sizes=new WeakMap();
     function bytesOf(item){if(!item.content)return (item.markdown || '').length*2;if(!sizes.has(item.content))sizes.set(item.content,window.OpenDocModel.fingerprint(item.content).length*2);return sizes.get(item.content);}
+    // Pen snapshots share immutable text and previously drawn strokes. Charge
+    // the history budget for retained changes and array references, not a
+    // full copy of the illustrated document for every stroke.
+    function inkCost(previous, current){
+      const before=new Map((previous?.ink_layers||[]).map(layer=>[layer.surface_index,layer]));
+      const after=new Map((current.ink_layers||[]).map(layer=>[layer.surface_index,layer]));
+      let bytes=0;
+      for(const index of new Set([...before.keys(),...after.keys()])){
+        const oldLayer=before.get(index),newLayer=after.get(index);
+        if(oldLayer===newLayer)continue;
+        const oldStrokes=oldLayer?.strokes||[],newStrokes=newLayer?.strokes||[];
+        bytes+=128+8*(oldStrokes.length+newStrokes.length);
+        if(newStrokes.length===oldStrokes.length+1&&oldStrokes.every((stroke,i)=>newStrokes[i]===stroke)){
+          bytes+=bytesOf({content:newStrokes[newStrokes.length-1]});
+          continue;
+        }
+        const oldSet=new Set(oldStrokes),newSet=new Set(newStrokes);
+        for(const stroke of oldStrokes)if(!newSet.has(stroke))bytes+=bytesOf({content:stroke});
+        for(const stroke of newStrokes)if(!oldSet.has(stroke))bytes+=bytesOf({content:stroke});
+      }
+      return bytes;
+    }
+    function sizeOf(item,at){
+      if(at===0&&(item.affected?.inkOnly||entries[1]?.affected?.inkOnly))return 0;
+      return item.affected?.inkOnly?item.inkBytes:bytesOf(item);
+    }
     const equal = (a, b) => a?.title === b?.title && (a?.content?window.OpenDocModel.fingerprint(a.content):a?.markdown) === (b?.content?window.OpenDocModel.fingerprint(b.content):b?.markdown);
     function reset(snapshot) { entries = [{...snapshot}]; index = 0; lastKind = ""; }
     function record(snapshot, kind = "typing", affected={}) {
-      if (equal(entries[index], snapshot)) return;
+      const previous=entries[index];
+      const inkOnly=affected.inkOnly&&previous?.content&&snapshot.content;
+      if (inkOnly ? previous.content===snapshot.content : equal(previous,snapshot)) return;
       const now = Date.now();
       entries.splice(index + 1);
       if (kind === "typing" && lastKind === kind && index > 0 && now - lastTime < GROUP_MS) {
         const previous=entries[index].affected || {};
         entries[index] = {...snapshot,kind,affected:{blockIds:[...new Set([...(previous.blockIds || []),...(affected.blockIds || [])])],inkSurfaces:[...new Set([...(previous.inkSurfaces || []),...(affected.inkSurfaces || [])])],structural:Boolean(previous.structural || affected.structural)}};
-      } else { entries.push({...snapshot,kind,affected}); index++; }
-      let bytes = entries.reduce((sum, item) => sum + bytesOf(item), 0);
+      } else { entries.push({...snapshot,kind,affected,inkBytes:inkOnly?inkCost(previous.content,snapshot.content):0}); index++; }
+      let bytes = entries.reduce((sum, item, at) => sum + sizeOf(item,at), 0);
       while (entries.length > 2 && (entries.length > MAX_ENTRIES || bytes > MAX_BYTES)) {
-        bytes -= bytesOf(entries[0]); entries.shift(); index--;
+        bytes -= sizeOf(entries[0],0)+sizeOf(entries[1],1);
+        entries.shift(); index--;
+        bytes += sizeOf(entries[0],0);
       }
       lastKind = kind; lastTime = now;
     }

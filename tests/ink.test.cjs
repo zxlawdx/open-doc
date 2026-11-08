@@ -154,3 +154,33 @@ test('long pen sessions retain old SVG paths and batch pointer samples per frame
  const last=q.layers()[0].strokes[250];
  assert.equal(last.points.at(-1).x,300/900);
 });
+
+test('a pen stroke returns focus from a toolbar field and can be cancelled for undo',t=>{
+ const q=setup(t);
+ q.root.querySelector('[data-ink-mode=pen]').click();
+ const color=q.root.querySelector('.ink-toolbar input[type=color]');
+ color.focus();
+ q.event('pointerdown',20,20);
+ assert.notEqual(q.w.document.activeElement,color);
+ q.root.dispatchEvent(new q.w.CustomEvent('open-doc:cancel-ink'));
+ q.event('pointerup',120,120);
+ assert.equal(q.writes(),0);
+ assert.equal(q.svg.children.length,0);
+});
+
+test('a long continuous stroke limits preview work and retains all final samples',t=>{
+ const q=setup(t),frames=[];
+ q.w.requestAnimationFrame=callback=>{frames.push(callback);return frames.length;};
+ const sizes=[];
+ q.w.OpenDocFreehand.getStroke=(points,...args)=>{sizes.push(points.length);return getStroke(points,...args);};
+ q.root.querySelector('[data-ink-mode=pen]').click();
+ q.event('pointerdown',20,30);
+ for(let i=0;i<2400;i++)q.event('pointermove',30+i%750,40+i%500);
+ assert.equal(frames.length,1);
+ frames.shift()();
+ assert.ok(sizes.at(-1)<=1025);
+ q.event('pointerup',800,900);
+ assert.equal(sizes.at(-1),2402);
+ assert.equal(q.writes(),1);
+ assert.equal(q.layers()[0].strokes[0].points.at(-1).x,800/900);
+});

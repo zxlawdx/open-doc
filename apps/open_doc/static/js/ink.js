@@ -12,6 +12,7 @@
   }return points.filter((_,i)=>keep.has(i));
  }
  function path(stroke){return (stroke.outline || []).map((p,i)=>(i?'L':'M')+p[0]+','+p[1]).join(' ')+' Z';}
+ const MAX_PREVIEW_POINTS=1024;
  function shouldErase(mode){return mode==='eraser' || mode==='eraser-partial';}
  // Eraser geometry is measured in the visible page's CSS pixels, not in
  // normalized coordinates; that keeps the brush round on A4, PDFs and slides.
@@ -206,11 +207,13 @@
    // The next stroke may begin before the deferred layer refresh.
    paintStrokes(svg,layer.strokes);
    if(rect.width<=0 || rect.height<=0)return;
+   const focused=document.activeElement;
+   if(root.contains(focused)&&focused?.matches('input,textarea,select'))focused.blur();
    phase='drawing';active={svg,rect,layer,id:e.pointerId,erase:shouldErase(mode),eraseWhole:mode==='eraser',eraseProcessed:0,eraseChanged:false,points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};try{svg.setPointerCapture(e.pointerId);}catch{};active.preview=document.createElementNS(NS,'path');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
-  function draw(){
+  function draw(final=false){
    if(!active)return;
    const a=active;
-   if(a.drawn===a.points.length)return;
+   if(a.drawn===a.points.length&&(!final||!a.previewSampled))return;
    a.drawn=a.points.length;
    if(a.erase){
     const pathPoints=a.points.slice(Math.max(0,a.eraseProcessed-1));
@@ -223,7 +226,14 @@
     return;
    }
    const w=a.layer.width_pt,h=a.layer.height_pt;
-   a.stroke.outline=window.OpenDocFreehand.getStroke(a.points.map(p=>[p.x*w,p.y*h,p.pressure]),{size:a.stroke.size,simulatePressure:false,thinning:.5}).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);
+   const stride=final?1:Math.ceil(a.points.length/MAX_PREVIEW_POINTS);
+   const input=[];
+   for(let i=0;i<a.points.length-1;i+=stride){
+    const p=a.points[i];input.push([p.x*w,p.y*h,p.pressure]);
+   }
+   const end=a.points[a.points.length-1];input.push([end.x*w,end.y*h,end.pressure]);
+   a.previewSampled=stride>1;
+   a.stroke.outline=window.OpenDocFreehand.getStroke(input,{size:a.stroke.size,simulatePressure:false,thinning:.5}).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);
    a.preview.setAttribute('d',path(a.stroke));
   }
   function collect(e){
@@ -242,7 +252,30 @@
     stroke.frame=null;draw();
    });
   }
-  function up(e){debugPointer(e);if(!active || active.id!==e.pointerId)return;collect(e);draw();const a=active;phase='committing';active=null;suppressClickUntil=performance.now()+350;releaseCapture(a.svg,e.pointerId);if(a.erase){a.preview.remove();if(a.eraseChanged)commit(a.layer);else refresh();}else{a.stroke.points=simplify(a.points);a.preview.remove();a.layer.strokes=[...a.layer.strokes,a.stroke];commit(a.layer);paintStrokes(a.svg,a.layer.strokes);}phase='committed';}
+  function up(e){
+   debugPointer(e);
+   if(!active||active.id!==e.pointerId)return;
+   collect(e);draw(true);
+   const a=active;phase='committing';active=null;
+   suppressClickUntil=performance.now()+350;releaseCapture(a.svg,e.pointerId);
+   if(a.erase){
+    a.preview.remove();
+    if(a.eraseChanged)commit(a.layer);else refresh();
+   }else{
+    a.stroke.points=simplify(a.points);
+    const previous=rendered.get(a.svg);
+    const canAppend=previous?.strokes===a.layer.strokes&&a.preview.parentNode===a.svg;
+    a.layer.strokes=[...a.layer.strokes,a.stroke];
+    if(canAppend){
+     previous.nodes.set(a.stroke.id,{node:a.preview,stroke:a.stroke});
+     previous.strokes=a.layer.strokes;
+    }else{
+     a.preview.remove();paintStrokes(a.svg,a.layer.strokes);
+    }
+    commit(a.layer);
+   }
+   phase='committed';
+  }
   function cancel(e){if(e)debugPointer(e);if(!active || (e?.pointerId!=null && active.id!==e.pointerId))return;const a=active;phase='cancelled';active=null;a.preview.remove();releaseCapture(a.svg,a.id);refresh();phase='idle';}
   async function convert(){if(conversion || !capable){if(!capable)status(convertButton.title);return;}const layer=layers().findLast?.(l=>l.strokes.some(s=>s.handwriting)) || layers().slice().reverse().find(l=>l.strokes.some(s=>s.handwriting));if(!layer){status('Use Escrita para escrever antes de converter.');return;}const strokes=layer.strokes.filter(s=>s.handwriting),note=editor.snapshot();conversion=true;status('Reconhecendo escrita localmente…');try{const result=await window.pywebview.api.recognize_handwriting(strokes,'pt-BR');if(result.error)throw Error(result.error);if(!result.text?.trim())throw Error('O reconhecedor não retornou texto. Sua tinta foi mantida.');if(editor.snapshot().id!==note.id)throw Error('O documento mudou. A tinta foi mantida.');
     const backdrop=document.createElement('div');backdrop.className='modal-backdrop';const box=document.createElement('section');box.className='dialog';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');const title=document.createElement('h2');title.textContent='Revisar escrita reconhecida';const text=document.createElement('textarea');text.value=result.text;text.setAttribute('aria-label','Texto reconhecido, editável');const info=document.createElement('p');info.textContent=result.backend+(result.confidence==null?' · confiança não informada':' · confiança '+Math.round(result.confidence*100)+'%');box.append(title,info,text);
@@ -251,6 +284,7 @@
   document.addEventListener('pointermove',move,{signal});document.addEventListener('pointerup',up,{signal});
   for(const type of ['click','auxclick','contextmenu'])root.addEventListener(type,e=>{if(mode!=='cursor' && isInkSurfaceEvent(e) && performance.now()<suppressClickUntil && (e.detail>0 || e.pointerType==='pen' || type==='contextmenu'))suppressSyntheticClick(e);},{capture:true,signal});
   root.addEventListener('open-doc:ink-mode',event=>setMode(event.detail),{signal});
+  root.addEventListener('open-doc:cancel-ink',()=>cancel(),{signal});
   root.addEventListener('open-doc:ink-changed',queue,{signal});
   root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});root.addEventListener('open-doc:changed',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
