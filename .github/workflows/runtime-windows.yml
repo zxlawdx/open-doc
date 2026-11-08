@@ -60,6 +60,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_pdf_native.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_docx_list.py docs/images/stabilization/docx-list
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # Capture PPTX on Windows even if later DOCX stress fails.
           python -u tools/qa_ink.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -126,6 +128,7 @@ jobs:
           python -u tools/qa_version_history.py
           python -u tools/qa_math_visual.py
           python -u tools/qa_pdf_native.py
+          python -u tools/qa_docx_list.py docs/images/stabilization/docx-list
           python -u tools/qa_ink.py
           python -u tools/qa_pptx.py
           python -u tools/qa_windows_ink.py

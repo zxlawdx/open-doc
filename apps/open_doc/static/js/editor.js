@@ -769,6 +769,25 @@
         caret:{listEnter:true,blockId:target,blockIndex:index+Number(target!==block.id),typingPatch}});
       return true;
     }
+    function changeListLevel(event){
+      const bookmark=commands.bookmark();
+      if(bookmark?.length!==0||bookmark.logicalBlockOffset!==0)return false;
+      const index=model?.blocks.findIndex(block=>block.id===bookmark.blockId)??-1;
+      const block=model?.blocks[index],info=block?.list_info;
+      if(!info)return false;
+      event.preventDefault();
+      const level=(info.level??0)+(event.shiftKey?-1:1);
+      if(level<0||level>8)return true;
+      const catalog=model.numbering?.[info.num_id]?.levels;
+      const definition=catalog?.[String(level)];
+      if(catalog&&!definition)return true;
+      const list_info={...info,...definition,level};
+      const blocks=model.blocks.slice();
+      blocks[index]={...block,list_info};
+      commitLogicalTransaction({model:{...model,blocks},changedIds:[block.id],
+        caret:{listEnter:true,blockId:block.id,blockIndex:index,typingPatch:activeTypingStyle()}});
+      return true;
+    }
     function applyLogicalDeletion(event,inputType){
       traceDeletion('received',{type:event.type,inputType,cancelled:event.defaultPrevented});
       if(mode!=='rich'||lockedState||!model||root.dataset.documentKind==='fixed'
@@ -836,9 +855,10 @@
         selection.removeAllRanges();selection.addRange(range);
         return;
       }
-      if(event.key==='Tab'&&!event.shiftKey&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&
+      if(event.key==='Tab'&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&
         !event.isComposing&&!event.defaultPrevented&&mode==='rich'&&!lockedState&&!suspended&&
         root.dataset.documentKind!=='fixed'&&document.activeElement===rich){
+        if(changeListLevel(event)||event.shiftKey)return;
         const selection=getSelection();
         const paragraph=node=>(node?.nodeType===1?node:node?.parentElement)
           ?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,pre,li,[data-page-content] > div,[data-rich] > div');

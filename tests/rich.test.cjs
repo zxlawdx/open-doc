@@ -604,3 +604,24 @@ test('font size confirms with Enter without losing the selected family or wordin
  assert.ok(runs.every(r=>r.style.font_family==='Fonte ausente'&&r.style.font_size_pt===24));
  assert.equal(q.w.getSelection().toString(),'Texto selecionado');
 });
+
+test('Tab and Shift+Tab change list nesting without inserting text',async t=>{
+ const q=await setup(t);
+ const selection=q.w.getSelection();
+ q.rich.focus();
+ selection.collapse(q.rich.querySelector('[data-node-id=r1]').firstChild,0);
+ q.editor.capture();
+ q.click('.toolbar [data-command=ordered]');
+ const key=shiftKey=>q.rich.dispatchEvent(new q.w.KeyboardEvent('keydown',{
+   key:'Tab',shiftKey,bubbles:true,cancelable:true
+ }));
+ assert.equal(key(false),false);
+ await new Promise(r=>setTimeout(r,55));
+ const block=()=>q.editor.snapshot().content.blocks[0];
+ assert.equal(block().list_info.level,1);
+ assert.deepEqual(Array.from(block().children,run=>run.text),['Texto selecionado']);
+ assert.equal(key(true),false);
+ await new Promise(r=>setTimeout(r,55));
+ assert.equal(block().list_info.level,0);
+ assert.deepEqual(Array.from(block().children,run=>run.text),['Texto selecionado']);
+});

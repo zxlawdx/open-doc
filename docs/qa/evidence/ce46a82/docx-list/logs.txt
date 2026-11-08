@@ -1,0 +1,26 @@
+10:30:35  DEBUG     [vela.lifecycle]  Lifecycle → configured
+10:30:35  INFO      [vela.router]  Rota registrada: / → workspace_view [name=open_doc, layout=blank]
+10:30:35  DEBUG     [vela.lifecycle]  Lifecycle → starting
+10:30:35  WARNING   [vela.app]  Porta 0 indisponível; API iniciou em 34423.
+10:30:35  DEBUG     [vela.lifecycle]  Lifecycle → running
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+Sandboxing disabled by user.
+[6:21:1108/103035.381764:ERROR:address_tracker_linux.cc(195)] Could not create NETLINK socket: Operation not permitted (1)
+
+DevTools listening on ws://127.0.0.1:9247/devtools/browser/b8598982-95cb-4092-963a-95c7f746f56a
+[6:18:1108/103035.383434:ERROR:udev_watcher.cc(51)] Failed to initialize a udev monitor.
+[6:33:1108/103035.398074:ERROR:zygote_host_impl_linux.cc(263)] Failed to adjust OOM score of renderer with pid 34: No such file or directory (2)
+Remote debugging server started successfully. Try pointing a Chromium-based browser to http://127.0.0.1:9247
+OPEN_DOC_QA_RUNTIME {"os": "Linux-6.18.57-x86_64-with-glibc2.39", "python": "3.12.14", "pyqt": "5.15.11", "qt": "5.15.14", "qtwebengine_package": "5.15.7", "qtwebengine_runtime": "5.15.19", "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.15.19 Chrome/87.0.4280.144 Safari/537.36"}
+QT_DOCX_LIST list {"markers": ["•"], "items": ["Primeiro item", "Segundo item"]}
+10:30:36  DEBUG     [vela.lifecycle]  Lifecycle → stopping
+10:30:38  DEBUG     [vela.lifecycle]  Lifecycle → stopped
+Traceback (most recent call last):
+  File "/workspace/scratch/08b32ffbc0e3/open-baseline/tools/qa_docx_list.py", line 150, in <module>
+    main()
+  File "/workspace/scratch/08b32ffbc0e3/open-baseline/tools/qa_docx_list.py", line 146, in main
+    raise errors[0]
+  File "/workspace/scratch/08b32ffbc0e3/open-baseline/tools/qa_docx_list.py", line 114, in exercise
+    assert actual["markers"] == markers, actual
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'markers': ['•'], 'items': ['Primeiro item', 'Segundo item']}
