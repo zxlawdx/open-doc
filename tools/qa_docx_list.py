@@ -1,4 +1,4 @@
-"""Run the DOCX list regression with real Qt keyboard events and CDP screenshots."""
+"""Exercise DOCX list and selection editing using real Qt keyboard events."""
 
 import json
 import os
@@ -54,6 +54,64 @@ def capture(output, name):
         check=True,
         timeout=20,
     )
+
+
+def check_cross_page_deletion(window, keyboard, output):
+    document = Document()
+    document.add_paragraph("Antes")
+    document.add_paragraph().add_run("Manter apagar").bold = True
+    document.add_page_break()
+    document.add_paragraph().add_run("apagar Depois").italic = True
+    document.add_paragraph("Final")
+    fixture = services().config.root / "qa-cross-page.docx"
+    document.save(fixture)
+    note = services().editor.import_docx(fixture)
+    for key in ["Backspace", "Delete"]:
+        window.evaluate_js(f"OpenDocApp.editor().load({json.dumps(note)})")
+        assert window.evaluate_js("""
+            (() => {
+              const rich=document.querySelector('[data-rich]');
+              const runs=Array.from(rich.querySelectorAll('[data-node-type=text]'));
+              const first=runs.find(run=>run.textContent==='Manter apagar');
+              const last=runs.find(run=>run.textContent==='apagar Depois');
+              if(!first||!last||first.closest('.document-page')===last.closest('.document-page'))return false;
+              rich.focus();
+              getSelection().setBaseAndExtent(first.firstChild,6,last.firstChild,6);
+              return !getSelection().isCollapsed;
+            })()
+        """), "The fixture must select partial text across two pages"
+        if key == "Backspace":
+            capture(output, "cross-page-before")
+        keyboard.key(key)
+        wait(
+            window,
+            """
+            (() => {
+              const blocks=OpenDocApp.editor().snapshot().content.blocks;
+              const texts=blocks.map(block=>block.children.map(run=>run.text).join(''));
+              const selection=getSelection();
+              return texts.join('|')==='Antes|Manter Depois|Final' &&
+                blocks[1].children[0].style.bold && blocks[1].children[1].style.italic &&
+                selection.isCollapsed && selection.anchorNode.textContent==='Manter' &&
+                selection.anchorOffset===6 && document.querySelectorAll('.document-page').length===1;
+            })()
+        """,
+        )
+        if key == "Backspace":
+            capture(output, "cross-page-after")
+        keyboard.press("Z")
+        wait(
+            window,
+            """document.querySelectorAll('.document-page').length===2 &&
+            document.querySelector('[data-rich]').textContent.includes('Manter apagar')""",
+        )
+        keyboard.press("Y")
+        wait(
+            window,
+            """document.querySelectorAll('.document-page').length===1 &&
+            document.querySelector('[data-rich]').textContent.includes('Manter Depois')""",
+        )
+        print("QT_DOCX_CROSS_PAGE_PARTIAL_DELETE_UNDO_REDO_OK", key, flush=True)
 
 
 def main():
@@ -152,6 +210,7 @@ def main():
                 """OpenDocApp.editor().snapshot().content.blocks[0].list_info.level===0""",
             )
             print("QT_DOCX_LIST_NESTING_WITHOUT_INSERTING_TAB_OK", flush=True)
+            check_cross_page_deletion(window, keyboard, output)
         except Exception as error:
             errors.append(error)
         finally:

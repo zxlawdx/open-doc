@@ -625,3 +625,95 @@ test('Tab and Shift+Tab change list nesting without inserting text',async t=>{
  assert.equal(block().list_info.level,0);
  assert.deepEqual(Array.from(block().children,run=>run.text),['Texto selecionado']);
 });
+
+for(const key of ['Backspace','Delete']){
+ test(key+' deletes only the selected text across DOCX pages',async t=>{
+   const q=await setup(t);
+   const paragraph=(id,text,style={})=>({id,type:'paragraph',style:{},
+     children:[{id:id+'-text',type:'text',text,style}]});
+   const blocks=[paragraph('before','Antes'),paragraph('left','Manter apagar',{bold:true}),
+     {id:'break',type:'page_break',manual:true},
+     paragraph('right','apagar Depois',{italic:true}),paragraph('after','Final')];
+   q.editor.load({...q.note,content:{...q.note.content,blocks}});
+   q.editor.pagination().paginate();
+   const left=q.rich.querySelector('[data-node-id=left-text]').firstChild;
+   const right=q.rich.querySelector('[data-node-id=right-text]').firstChild;
+   assert.notEqual(left.parentElement.closest('.document-page'),right.parentElement.closest('.document-page'));
+   q.rich.focus();
+   const selection=q.w.getSelection();
+   if(key==='Delete')selection.setBaseAndExtent(right,6,left,6);
+   else selection.setBaseAndExtent(left,6,right,6);
+   const event=new q.w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true});
+   assert.equal(q.rich.dispatchEvent(event),false);
+   await new Promise(r=>setTimeout(r,55));
+   const content=()=>q.editor.snapshot().content.blocks;
+   assert.deepEqual(Array.from(content(),b=>b.id),['before','left','after']);
+   assert.deepEqual(Array.from(content()[1].children,r=>r.text),['Manter',' Depois']);
+   assert.equal(content()[1].children[0].style.bold,true);
+   assert.equal(content()[1].children[1].style.italic,true);
+   assert.equal(selection.isCollapsed,true);
+   assert.equal(selection.anchorNode.textContent,'Manter');
+   assert.equal(selection.anchorOffset,6);
+   q.editor.format('undo');
+   assert.deepEqual(Array.from(content(),b=>b.id),blocks.map(b=>b.id));
+   q.editor.format('redo');
+   assert.deepEqual(Array.from(content(),b=>b.id),['before','left','after']);
+   await q.editor.flush();
+   q.editor.load({...q.note,...q.saved()});
+   assert.deepEqual(Array.from(content()[1].children,r=>r.text),['Manter',' Depois']);
+ });
+}
+
+test('cross-page selection can start and end inside fragments of the same run',async t=>{
+ const q=await setup(t);
+ const blocks=[{id:'p',type:'paragraph',style:{},children:[
+   {id:'link',type:'hyperlink',href:'https://example.test/',children:[
+     {id:'run',type:'text',text:'ABCDEF',style:{bold:true}}
+   ]}
+ ]}];
+ q.editor.load({...q.note,content:{...q.note.content,blocks}});
+ q.editor.pagination().paginate();
+ const firstPage=q.rich.querySelector('.document-page');
+ const paragraph=firstPage.querySelector('p');
+ const nextPage=firstPage.cloneNode(true);
+ nextPage.dataset.pageIndex='1';
+ const fragment=nextPage.querySelector('p');
+ fragment.dataset.fragmentOf='p';
+ const first=paragraph.querySelector('[data-node-id=run]').firstChild;
+ const last=fragment.querySelector('[data-node-id=run]').firstChild;
+ first.data='ABC';last.data='DEF';
+ q.rich.append(nextPage);
+ q.rich.focus();
+ q.w.getSelection().setBaseAndExtent(first,1,last,2);
+ const event=new q.w.InputEvent('beforeinput',{
+   inputType:'deleteContentBackward',bubbles:true,cancelable:true
+ });
+ assert.equal(q.rich.dispatchEvent(event),false);
+ await new Promise(r=>setTimeout(r,55));
+ const runs=q.editor.snapshot().content.blocks[0].children;
+ assert.deepEqual(Array.from(runs,r=>r.href),['https://example.test/','https://example.test/']);
+ assert.deepEqual(Array.from(runs,r=>r.children[0].text),['A','F']);
+ assert.equal(new Set(runs.flatMap(r=>[r.id,r.children[0].id])).size,4);
+ assert.equal(q.w.getSelection().anchorOffset,1);
+ assert.equal(q.rich.querySelectorAll('.document-page').length,1);
+});
+
+test('cross-page deletion protects a selected table and its surrounding text',async t=>{
+ const q=await setup(t);
+ const paragraph=(id,text)=>({id,type:'paragraph',style:{},
+   children:[{id:id+'-text',type:'text',text,style:{}}]});
+ const blocks=[paragraph('left','Primeiro'),q.note.content.blocks[1],
+   {id:'break',type:'page_break',manual:true},paragraph('right','Segundo')];
+ q.editor.load({...q.note,content:{...q.note.content,blocks}});
+ q.editor.pagination().paginate();
+ const left=q.rich.querySelector('[data-node-id=left-text]').firstChild;
+ const right=q.rich.querySelector('[data-node-id=right-text]').firstChild;
+ assert.notEqual(left.parentElement.closest('.document-page'),right.parentElement.closest('.document-page'));
+ q.rich.focus();
+ q.w.getSelection().setBaseAndExtent(left,2,right,2);
+ const key=new q.w.KeyboardEvent('keydown',{key:'Delete',bubbles:true,cancelable:true});
+ assert.equal(q.rich.dispatchEvent(key),false);
+ assert.equal(JSON.stringify(q.editor.snapshot().content.blocks),JSON.stringify(blocks));
+ assert.equal(q.rich.querySelector('td').textContent,'Célula original');
+ assert.equal(q.w.getSelection().isCollapsed,false);
+});

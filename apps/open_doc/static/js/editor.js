@@ -698,9 +698,10 @@
       clearTimeout(logicalRenderTimer);logicalRenderTimer=null;
       traceDeletion('render-start');
       renderRich();
-      if(caret.listEnter){
-        commands.restoreBookmark(listCaretBookmark(caret));
+      if(caret.listEnter||caret.rangeDeletion){
+        commands.restoreBookmark(logicalBookmark(caret));
         if(caret.typingPatch)typingStyle={patch:caret.typingPatch,caret:commands.bookmark()};
+        if(caret.rangeDeletion)restoreDeletionStyle();
       }else {restoreLogicalCaret(caret);restoreDeletionStyle();}
       cache();scheduleRecovery();render();
       traceDeletion('render-complete');
@@ -712,7 +713,7 @@
       markdownStale=false;source.readOnly=true;
       pendingLogicalCaret=op.caret;
       const snapshot=buffer();
-      snapshot.selection=op.caret.listEnter?listCaretBookmark(op.caret):{start:0,length:0,blockIndex:op.caret.blockIndex,
+      snapshot.selection=(op.caret.listEnter||op.caret.rangeDeletion)?logicalBookmark(op.caret):{start:0,length:0,blockIndex:op.caret.blockIndex,
         blockId:op.caret.blockId,blockOffset:op.caret.textOffset};
       history.record(snapshot,'transaction',
         {blockIds:op.changedIds||[],structural:true});
@@ -720,9 +721,10 @@
       logicalRenderTimer=setTimeout(finishLogicalTransaction,32);
       root.dataset.dirty='true';status('Alterações não salvas');
     }
-    function listCaretBookmark(caret){
+    function logicalBookmark(caret){
+      const offset=caret.textOffset??0;
       return {start:0,length:0,blockIndex:caret.blockIndex,blockId:caret.blockId,
-        blockOffset:0,logicalBlockOffset:0,editableBlockOffset:true};
+        blockOffset:offset,logicalBlockOffset:offset,editableBlockOffset:true};
     }
     function enterList(event){
       if(mode!=='rich'||lockedState||suspended||!model||event.defaultPrevented||event.isComposing||!event.cancelable)return false;
@@ -809,7 +811,9 @@
             selection.focusNode.parentElement:selection?.focusNode)?.closest?.('.document-page');
           if(first && last && first!==last){
             event.preventDefault();
-            status('Seleção atravessa páginas; utilize Ctrl+A para excluir o documento inteiro.');
+            const op=transactions.deleteAcrossPages(rich,selection.getRangeAt(0),model);
+            if(op)commitLogicalTransaction(op);
+            else status('Esta seleção atravessa uma estrutura que não pode ser excluída em conjunto.');
             return true;
           }
         }
@@ -843,7 +847,7 @@
       return true;
     }
     rich.addEventListener('keydown',event=>{
-      if(pendingLogicalCaret&&(pendingLogicalCaret.listEnter||event.key!=='Backspace'||event.ctrlKey||
+      if(pendingLogicalCaret&&(pendingLogicalCaret.listEnter||pendingLogicalCaret.rangeDeletion||event.key!=='Backspace'||event.ctrlKey||
         event.altKey||event.metaKey||event.isComposing))finishLogicalTransaction();
       if(event.key==='Enter'&&!event.shiftKey&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&enterList(event))return;
       if(mode==='rich'&&!lockedState&&model&&root.dataset.documentKind!=='fixed'&&
@@ -909,7 +913,7 @@
     }
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
-      if(pendingLogicalCaret?.listEnter)finishLogicalTransaction();
+      if(pendingLogicalCaret?.listEnter||pendingLogicalCaret?.rangeDeletion)finishLogicalTransaction();
       if(event.inputType==='insertParagraph'&&enterList(event))return;
       deletionStyle=event.inputType?.startsWith('delete')?activeTypingStyle():null;
       if(applyLogicalDeletion(event,event.inputType))return;

@@ -28,6 +28,70 @@
       changedIds:[previous.id,current.id],removedId:current.id,
       caret:{blockId:previous.id,blockIndex:index-1,textOffset:offset}};
   }
+  function inlineText(runs) {
+    return runs.map(run=>{
+      if(run.type==="text")return run.text;
+      if(run.type==="tab")return "\t";
+      if(run.type==="hyperlink")return inlineText(run.children);
+      return null;
+    }).reduce((text,part)=>text===null||part===null?null:text+part,"");
+  }
+  function visibleText(node){
+    node.querySelectorAll("[data-list-marker]").forEach(marker=>marker.remove());
+    return node.textContent;
+  }
+  function rangeEndpoint(pieces,model,node,offset){
+    const element=node.nodeType===1?node:node.parentElement;
+    const piece=element?.closest('[data-page-content] > [data-node-type="paragraph"]');
+    if(!piece||piece.contains(element.closest('[contenteditable="false"]'))||!pieces.includes(piece))return null;
+    const id=piece.dataset.fragmentOf||piece.dataset.nodeId;
+    const index=model.blocks.findIndex(block=>block.id===id);
+    const block=model.blocks[index];
+    if(block?.type!=="paragraph")return null;
+    const expected=inlineText(block.children||[]);
+    if(expected===null)return null;
+    const fragments=pieces.filter(part=>(part.dataset.fragmentOf||part.dataset.nodeId)===id);
+    const texts=fragments.map(part=>visibleText(part.cloneNode(true)));
+    if(texts.join("")!==expected)return null;
+    const head=document.createRange();
+    head.selectNodeContents(piece);
+    head.setEnd(node,offset);
+    const preceding=texts.slice(0,fragments.indexOf(piece)).join("");
+    return {index,offset:preceding.length+visibleText(head.cloneContents()).length,length:expected.length};
+  }
+  function sliceRuns(runs,start,end,ids){
+    const result=[];
+    let offset=0;
+    for(const run of runs){
+      const length=textLength([run]),from=Math.max(0,start-offset),to=Math.min(length,end-offset);
+      offset+=length;
+      if(from>=to)continue;
+      let kept=run;
+      if(run.type==="hyperlink")kept={...run,children:sliceRuns(run.children,from,to,ids)};
+      else if(run.type==="text"&&(from!==0||to!==length))kept={...run,text:run.text.slice(from,to)};
+      if(ids.has(run.id))kept={...kept,id:window.OpenDocModel.id()};
+      ids.add(kept.id);
+      result.push(kept);
+    }
+    return result;
+  }
+  function deleteAcrossPages(rich,range,model){
+    const pieces=Array.from(rich.querySelectorAll('[data-page-content] > [data-node-type="paragraph"]'));
+    const from=rangeEndpoint(pieces,model,range.startContainer,range.startOffset);
+    const to=rangeEndpoint(pieces,model,range.endContainer,range.endOffset);
+    if(!from||!to||from.index>to.index||(from.index===to.index&&from.offset>=to.offset))return null;
+    const selected=model.blocks.slice(from.index,to.index+1);
+    if(selected.some(block=>block.section_end_id||!["paragraph","page_break"].includes(block.type)))return null;
+    const changedIds=selected.map(block=>block.id);
+    if(model.ink_layers?.some(layer=>changedIds.includes(layer.anchor_block_id)))return null;
+    const first=selected[0],last=selected[selected.length-1],ids=new Set();
+    const children=[...sliceRuns(first.children,0,from.offset,ids),
+      ...sliceRuns(last.children,to.offset,to.length,ids)];
+    const blocks=model.blocks.slice();
+    blocks.splice(from.index,selected.length,{...first,children});
+    return {model:{...model,blocks},changedIds,
+      caret:{blockId:first.id,blockIndex:from.index,textOffset:from.offset,rangeDeletion:true}};
+  }
   function deleteAll(model){
     if(!model?.blocks?.length)return null;
     const first=model.blocks[0],next=clone(model);
@@ -91,6 +155,6 @@
       range.compareBoundaryPoints(Range.END_TO_END,all)===0;
   }
   window.OpenDocLogicalTransactions={
-    joinBackward,deleteAll,inspectBackspace,isEntireDocumentSelected,textLength
+    joinBackward,deleteAll,deleteAcrossPages,inspectBackspace,isEntireDocumentSelected,textLength
   };
 })();
