@@ -360,7 +360,8 @@
         const current=textState();
         const patch=kind==='underline'?{underline:current.underline&&current.underline!=='none'?'none':'single'}
           :kind==='superscript'||kind==='subscript'?{vertical_align:current.vertical_align===kind?'baseline':kind}
-          :{[kind]:!current[kind]};
+          :{[kind]:!((kind==='strike'||getSelection()?.isCollapsed)?current[kind]:
+            window.OpenDocFormatting.selectionHasStyle(rich,getSelection()?.rangeCount?getSelection().getRangeAt(0):null,kind))};
         style('inline',patch);return;
       }
       if(kind==='table'){if(mode!=='rich')setMode('rich');commands.restore();if(window.OpenDocTables?.insert(rich,getSelection().rangeCount?getSelection().getRangeAt(0):null))changed('format');return;}
@@ -486,6 +487,8 @@
 
     function textState(includeTyping=true){
       const selection=getSelection();let node=selection.anchorNode;
+      if(selection.rangeCount&&!selection.isCollapsed)
+        node=window.OpenDocFormatting?.firstSelectedText(rich,selection.getRangeAt(0))||node;
       if(node?.nodeType===1){node=node.childNodes[Math.min(selection.anchorOffset,node.childNodes.length-1)] || node;while(node.firstChild)node=node.firstChild;}
       let e=node && (node.nodeType===1?node:node.parentElement);const ancestors=[],map=model && window.OpenDocModel?window.OpenDocModel.index(model):new Map(),out={};
       while(e && rich.contains(e)){ancestors.unshift(e);e=e.parentElement;}
@@ -911,8 +914,11 @@
           event.preventDefault(); format(key === "y" || event.shiftKey ? "redo" : "undo");
         }
       }
+      const focused=document.activeElement;
+      const richSelection=rich.contains(getSelection()?.anchorNode)&&
+        !focused?.closest('input,textarea,select,[role="dialog"]');
       if (["b", "i"].includes(key) && !event.altKey &&
-          (rich.contains(document.activeElement)||document.activeElement===source)) {
+          (richSelection||focused===source)) {
         event.preventDefault();
         format(key === "b" ? "bold" : "italic");
       }

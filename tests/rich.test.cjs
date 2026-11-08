@@ -449,3 +449,24 @@ test('all six inline buttons toggle selected text and leave the wording intact',
    else assert.equal(style[name],false);
  }
 });
+
+test('Ctrl+B applies bold to a mixed selection starting in a bold title',async t=>{
+ const q=await setup(t),note=JSON.parse(JSON.stringify(q.note));
+ const title=note.content.blocks[0];
+ title.style.outline_level=0;
+ title.children[0].style.bold=true;
+ note.content.blocks.splice(1,0,{id:'plain',type:'paragraph',style:{},children:[
+   {id:'plain-run',type:'text',text:'Corpo sem negrito',style:{}}
+ ]});
+ q.editor.load(note);
+ q.rich.focus();
+ const range=q.w.document.createRange();
+ range.setStartBefore(q.rich.querySelector('[data-node-id=p1]'));
+ range.setEndAfter(q.rich.querySelector('[data-node-id=plain]'));
+ const sel=q.w.getSelection();sel.removeAllRanges();sel.addRange(range);q.editor.capture();
+ const key=()=>q.rich.dispatchEvent(new q.w.KeyboardEvent('keydown',
+   {key:'b',ctrlKey:true,bubbles:true,cancelable:true}));
+ const bold=()=>q.editor.snapshot().content.blocks.slice(0,2).map(block=>block.children[0].style.bold);
+ key();assert.deepEqual(Array.from(bold()),[true,true]);
+ key();assert.deepEqual(Array.from(bold()),[false,false]);
+});

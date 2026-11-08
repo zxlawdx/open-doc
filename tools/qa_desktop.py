@@ -155,9 +155,11 @@ def native_keyboard(window: Any) -> None:
     driver.send("Z")
     driver.send("A")
     driver.send("I")
-    assert window.evaluate_js(
-        "Boolean(document.querySelector('[data-rich] i, [data-rich] em'))"
-    )
+    assert window.evaluate_js("""
+        Array.from(document.querySelectorAll('[data-rich] [data-style-patch]')).some(
+          span => getComputedStyle(span).fontStyle === 'italic' && span.textContent.trim()
+        )
+    """)
     driver.send("Z")
     driver.send("A")
     driver.send("C")
