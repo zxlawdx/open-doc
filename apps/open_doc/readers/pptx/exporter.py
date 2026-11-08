@@ -315,11 +315,14 @@ class SlideDeckExporter:
             shape = slide.shapes.add_textbox(left, top, w, h)
             shape.fill.background()
         elif kind == "line":
+            right = left + int(obj["width"] * width)
+            bottom = top + int(obj["height"] * height)
+            start_x, end_x = (right, left) if obj.get("line_flip_h", False) else (left, right)
+            start_y, end_y = (bottom, top) if obj.get("line_flip_v", True) else (top, bottom)
             shape = slide.shapes.add_connector(
-                MSO_CONNECTOR.STRAIGHT, left, top + h, left + w, top
+                MSO_CONNECTOR.STRAIGHT, start_x, start_y, end_x, end_y
             )
             shape.line.color.rgb = rgb(obj.get("stroke", "#004AC6"))
-            shape.line.width = Pt(2)
         else:
             types = {
                 "rect": MSO_SHAPE.RECTANGLE,
@@ -592,6 +595,13 @@ class SlideDeckExporter:
                      "line_spacing", "fill", "fill_gradient", "stroke", "stroke_width",
                      "crop_left", "crop_right", "crop_top", "crop_bottom",
                      "flip_h", "flip_v"}
+        if obj["type"] == "line":
+            transform = shape._element.spPr.xfrm
+            if "line_flip_h" in changed:
+                transform.flipH = obj["line_flip_h"]
+            if "line_flip_v" in changed:
+                transform.flipV = obj["line_flip_v"]
+            changed -= {"line_flip_h", "line_flip_v"}
         unsupported = changed - supported
         if unsupported:
             raise ValueError("A edição exige suporte adicional para propriedades originais: "

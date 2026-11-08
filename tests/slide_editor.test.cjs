@@ -1606,3 +1606,36 @@ test('high-rate pointer input paints once per frame and commits the latest sampl
  assert.equal(q.versions.length,before+1);
  assert.ok(Math.abs(q.model().surfaces[0].elements[0].x-.35)<1e-9);
 });
+
+test('line starts horizontal and either endpoint can cross the other',t=>{
+ const q=setup(t);clickLabel(q.controls,'Linha');
+ const surface=q.scroller.querySelector('.fixed-surface');
+ surface.getBoundingClientRect=()=>({left:0,top:0,width:1000,height:500});
+ const line=()=>surface.querySelector('.slide-object-line');
+ const stroke=()=>line().querySelector('.slide-line-stroke');
+ const model=()=>q.model().surfaces[0].elements[0];
+ assert.equal(model().height,0);
+ assert.equal(stroke().getAttribute('y1'),stroke().getAttribute('y2'));
+ assert.equal(line().querySelectorAll('[data-line-end]').length,2);
+ assert.equal(line().querySelectorAll('[data-resize]').length,0);
+ const drag=(selector,from,to,shiftKey=false)=>{
+   line().querySelector(selector).dispatchEvent(new q.w.MouseEvent('pointerdown',{
+     bubbles:true,button:0,clientX:from[0],clientY:from[1]
+   }));
+   for(const type of ['pointermove','pointerup'])
+     q.w.dispatchEvent(new q.w.MouseEvent(type,{clientX:to[0],clientY:to[1],altKey:true,shiftKey}));
+ };
+ drag('[data-line-end="1"]',[470,120],[100,220]);
+ assert.equal(model().line_flip_h,true);
+ assert.equal(model().line_flip_v,false);
+ assert.ok(Math.abs(model().x-.1)<1e-9);
+ assert.ok(Math.abs(model().x+model().width-.2)<1e-9);
+ assert.ok(Math.abs(model().y-.24)<1e-9);
+ drag('[data-line-end="0"]',[200,120],[103,60],true);
+ assert.equal(model().width,0);
+ assert.equal(stroke().getAttribute('x1'),stroke().getAttribute('x2'));
+ drag('.slide-line-hit',[100,150],[150,170]);
+ assert.ok(Math.abs(model().x-.15)<1e-9);
+ assert.equal(model().width,0);
+ assert.equal(line().querySelectorAll('[data-line-end]').length,2);
+});

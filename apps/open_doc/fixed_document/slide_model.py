@@ -269,8 +269,15 @@ class SlideModelValidator:
         y = number(element.get("y"), 0, 1)
         # Imported design templates can have hairline rules and fine stripes.
         # Do not reject the entire deck solely because a native shape is thin.
-        w = number(element.get("width"), .00001, 1)
-        h = number(element.get("height"), .00001, 1)
+        is_line = element["type"] == "line"
+        minimum = 0 if is_line else .00001
+        w = number(element.get("width"), minimum, 1)
+        h = number(element.get("height"), minimum, 1)
+        if is_line and (not (w or h) or any(
+            field in element and type(element[field]) is not bool
+            for field in ("line_flip_h", "line_flip_v")
+        )):
+            raise ValueError("Pontas da linha inválidas.")
         if x + w > 1.000001 or y + h > 1.000001:
             raise ValueError("O elemento ultrapassa os limites do slide.")
         self._color(element.get("color", "#191C1E"), "texto")

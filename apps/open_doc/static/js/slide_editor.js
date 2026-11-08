@@ -100,6 +100,22 @@
   const cssGradient=gradient=>gradient
     ? "linear-gradient("+gradient.angle+"deg, "+gradient.start+", "+gradient.end+")" : "";
   let gradientId=0;
+  const lineCorners=obj=>{
+    const start=[obj.line_flip_h?100:0,obj.line_flip_v===false?0:100];
+    const end=start.map(value=>100-value);
+    if(!obj.width)start[0]=end[0]=50;
+    if(!obj.height)start[1]=end[1]=50;
+    return [start,end];
+  };
+  const linePoints=(obj,box)=>{
+    const angle=(obj.rotation||0)*Math.PI/180;
+    const cx=obj.x+obj.width/2,cy=obj.y+obj.height/2;
+    return lineCorners(obj).map(([x,y])=>{
+      const dx=(x/100-.5)*obj.width*box.width,dy=(y/100-.5)*obj.height*box.height;
+      return [cx+(dx*Math.cos(angle)-dy*Math.sin(angle))/box.width,
+        cy+(dx*Math.sin(angle)+dy*Math.cos(angle))/box.height];
+    });
+  };
   class SlideSvgRenderer {
     gradient(svg,{start,end,angle}){
       const paint=document.createElementNS(SVG_NS,"linearGradient");
@@ -135,7 +151,7 @@
         rect:{x:0,y:0,width:100,height:100},
         round_rect:{x:0,y:0,width:100,height:100,rx:16,ry:16},
         ellipse:{cx:50,cy:50,rx:50,ry:50},
-        line:{x1:0,y1:100,x2:100,y2:0},
+        line:{},
         arrow:{points:"4,38 62,38 62,14 98,50 62,86 62,62 4,62"},
         triangle:{points:"50,0 100,100 0,100"},
         diamond:{points:"50,0 100,50 50,100 0,50"},
@@ -155,7 +171,23 @@
       shape.setAttribute("stroke-linecap","round");
       shape.setAttribute("stroke-linejoin","round");
       shape.setAttribute("vector-effect","non-scaling-stroke");
-      svg.append(shape);return svg;
+      svg.append(shape);
+      if(open){
+        shape.classList.add("slide-line-stroke");
+        const hit=shape.cloneNode(false);
+        hit.classList.replace("slide-line-stroke","slide-line-hit");
+        hit.setAttribute("stroke","transparent");
+        hit.setAttribute("stroke-width",String(Math.max(14,obj.stroke_width||1.5)));
+        svg.append(hit);
+        this.updateLine(svg,obj);
+      }
+      return svg;
+    }
+    updateLine(svg,obj){
+      const [[x1,y1],[x2,y2]]=lineCorners(obj);
+      for(const line of svg.querySelectorAll("line"))
+        for(const [name,value] of Object.entries({x1,y1,x2,y2}))
+          line.setAttribute(name,String(value));
     }
   }
   const fields=[
@@ -240,6 +272,7 @@
         ...(type==="table"?{table_cells:[["Cabeçalho 1","Cabeçalho 2"],["Valor 1","Valor 2"]],rotation:0}:{}),
         fill:"#DAE2FD",stroke:"#004AC6",font_family:"Inter",
         font_size_pt:type==="text"?28:20,stroke_width:1.5,rotation:0};
+      if(type==="line")Object.assign(obj,{height:0,line_flip_h:false,line_flip_v:false});
       if(type==="table"&&tableOptions){
         const {rows,cols,width,height,preset,cellSpacingPt,transparent,data}=tableOptions;
         Object.assign(obj,{width,height,x:(1-width)/2,y:(1-height)/2,
@@ -768,6 +801,7 @@
         this.importImage(file).catch(error=>this.status(error.message));
       },{signal:this.signal});
       this.scroller.addEventListener("pointerdown",event=>{
+        this.ignoreDragClick=false;
         if(this.colorSample&&event.button===0){event.preventDefault();return;}
         if(this._beginPan(event))return;
         this._start(event);
@@ -793,6 +827,7 @@
       },{signal:this.signal});
       this.scroller.addEventListener("click",event=>{
         if(!this.active||this.inlineEditing)return;
+        if(this.ignoreDragClick&&event.detail){this.ignoreDragClick=false;return;}
         const surface=event.target.closest(".fixed-surface");
         if(!surface)return;
         const targetIndex=Number(surface.dataset.pageIndex);
@@ -1477,10 +1512,21 @@
           });
         }else label.textContent=obj.text;
         node.append(label);}
-      if(!thumb&&this.selected===obj.id&&index===this.current)this._addHandles(node,obj.type);
+      if(!thumb&&this.selected===obj.id&&index===this.current)this._addHandles(node,obj.type,obj);
       return node;
     }
-    _addHandles(node,type){
+    _addHandles(node,type,obj){
+      if(type==="line"){
+        lineCorners(obj).forEach(([x,y],index)=>{
+          const handle=document.createElement("span");
+          handle.className="slide-resize-handle slide-line-end";
+          handle.dataset.lineEnd=String(index);
+          handle.setAttribute("aria-label","Arrastar ponta "+(index+1)+" da linha");
+          handle.style.left=x+"%";handle.style.top=y+"%";
+          node.append(handle);
+        });
+        return;
+      }
       for(const direction of ["nw","n","ne","e","se","s","sw","w"]){
         const handle=document.createElement("span");
         handle.className="slide-resize-handle slide-handle-"+direction;
@@ -1508,9 +1554,9 @@
         const id=node.dataset.slideElement;
         if(this.selectedIds.has(id))node.dataset.selected="true";
         else delete node.dataset.selected;
-        const handles=node.querySelectorAll("[data-resize],[data-rotate],[data-scale]");
+        const handles=node.querySelectorAll("[data-resize],[data-rotate],[data-scale],[data-line-end]");
         if(id===this.selected){
-          if(!handles.length)this._addHandles(node,node.dataset.kind);
+          if(!handles.length)this._addHandles(node,node.dataset.kind,this.getModel().surfaces[this.current].elements.find(obj=>obj.id===id));
         }else for(const handle of handles)handle.remove();
         for(const cell of node.querySelectorAll("[data-slide-table-cell]"))
           cell.tabIndex=id===this.selected?0:-1;
@@ -1838,6 +1884,7 @@
         .disabled=layer===slide.elements.length-1;
       button("Descer camada",()=>this.commands.shiftLayer(this.current,selected.id,-1))
         .disabled=layer===0;
+      if(selected.type==="line")return;
       const scale=this._property("Escala (%)",100,"number",null,bar);
       scale.min="1";scale.max="1000";
       const apply=()=>{
@@ -2131,8 +2178,10 @@
           const next={...selected,...patch};
           next.x=clamp(next.x,0,1-next.width);
           next.y=clamp(next.y,0,1-next.height);
-          next.width=clamp(next.width,.01,1-next.x);
-          next.height=clamp(next.height,.01,1-next.y);
+          const minimum=selected.type==="line"?0:.01;
+          next.width=clamp(next.width,minimum,1-next.x);
+          next.height=clamp(next.height,minimum,1-next.y);
+          if(!next.width&&!next.height)return;
           this.commands.updateObject(this.current,selected.id,{
             x:next.x,y:next.y,width:next.width,height:next.height
           });
@@ -2193,7 +2242,8 @@
       }
     }
     _start(event){
-      if(!this.active||event.button!==0||event.shiftKey||this.paintActive)return;
+      if(!this.active||event.button!==0||this.paintActive||
+         (event.shiftKey&&!event.target.closest("[data-line-end]")))return;
       if(this.inlineEditing||event.target.closest(".slide-inline-editor,.slide-table-cell-editor"))return;
       const node=event.target.closest("[data-slide-element]");
       if(!node)return;
@@ -2234,12 +2284,14 @@
       const box=surface.getBoundingClientRect();
       if(!box.width||!box.height)return;
       const handle=event.target.closest("[data-resize]")?.dataset.resize||null;
+      const lineEnd=event.target.closest("[data-line-end]")?.dataset.lineEnd;
       const rotating=Boolean(event.target.closest("[data-rotate]"));
       const scaling=Boolean(event.target.closest("[data-scale]"));
       const centerX=box.left+(obj.x+obj.width/2)*box.width;
       const centerY=box.top+(obj.y+obj.height/2)*box.height;
       this.drag={index,id:obj.id,startX:event.clientX,startY:event.clientY,
-        initial:obj,box,node,handle,rotating,scaling,centerX,centerY,
+        initial:obj,box,node,handle,rotating,scaling,centerX,centerY,lineEnd,
+        points:lineEnd==null?null:linePoints(obj,box),
         others:this.getModel().surfaces[index].elements.filter(other=>other.id!==obj.id),
         startingAngle:Math.atan2(event.clientY-centerY,event.clientX-centerX),value:null};
       event.preventDefault();event.stopPropagation();
@@ -2266,7 +2318,24 @@
       if(!state.value&&Math.abs(moveX)<2&&Math.abs(moveY)<2)return;
       const dx=moveX/state.box.width,dy=moveY/state.box.height;
       const item={...state.initial};
-      if(state.rotating){
+      if(state.points){
+        const points=state.points.map(point=>point.slice());
+        const moved=points[Number(state.lineEnd)],fixed=points[1-Number(state.lineEnd)];
+        moved[0]=clamp(moved[0]+dx,0,1);moved[1]=clamp(moved[1]+dy,0,1);
+        if(event.shiftKey){
+          if(Math.abs((moved[0]-fixed[0])*state.box.width)>=Math.abs((moved[1]-fixed[1])*state.box.height))moved[1]=fixed[1];
+          else moved[0]=fixed[0];
+        }
+        const [[ax,ay],[bx,by]]=points;
+        if(Math.hypot((bx-ax)*state.box.width,(by-ay)*state.box.height)<1)return;
+        Object.assign(item,{x:Math.min(ax,bx),y:Math.min(ay,by),width:Math.abs(bx-ax),
+          height:Math.abs(by-ay),rotation:0,line_flip_h:ax>bx,line_flip_v:ay>by});
+        this.shapeRenderer.updateLine(state.node.querySelector("svg"),item);
+        state.node.querySelectorAll("[data-line-end]").forEach((handle,index)=>{
+          const [x,y]=lineCorners(item)[index];
+          handle.style.left=x+"%";handle.style.top=y+"%";
+        });
+      }else if(state.rotating){
         const angle=Math.atan2(event.clientY-state.centerY,event.clientX-state.centerX);
         item.rotation=clamp(Math.round((state.initial.rotation||0)
           +(angle-state.startingAngle)*180/Math.PI),-360,360);
@@ -2314,10 +2383,11 @@
       if(!drag.value)return;
       const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,
         height:drag.value.height,rotation:drag.value.rotation};
+      if(drag.points)Object.assign(patch,{line_flip_h:drag.value.line_flip_h,line_flip_v:drag.value.line_flip_v});
       if(drag.scaling && (drag.initial.type==="text"||drag.initial.type==="math"))
         patch.font_size_pt=drag.value.font_size_pt;
-      if(JSON.stringify(patch)===JSON.stringify({x:drag.initial.x,y:drag.initial.y,
-        width:drag.initial.width,height:drag.initial.height,rotation:drag.initial.rotation}))return;
+      if(Object.entries(patch).every(([key,value])=>drag.initial[key]===value))return;
+      this.ignoreDragClick=true;
       this.commands.updateObject(drag.index,drag.id,patch);
       event.preventDefault();
     }

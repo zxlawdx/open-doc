@@ -443,6 +443,37 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
  console.log('QT_PPTX_TABLE_SHAPES_SVG_SCREENSHOT_OK');
 
 
+ // A horizontal connector has a zero-height model but remains mouse-selectable.
+ const line=await evaluate(`(()=>{
+   const insert=Array.from(document.querySelectorAll('.slide-ribbon-tab')).find(b=>b.textContent==='Inserir');
+   insert.click();
+   const action=Array.from(document.querySelectorAll('.slide-studio-toolbar button')).find(b=>b.textContent==='Linha');
+   action.click();
+   const node=document.querySelector('.fixed-scroll .slide-object-line');
+   node.scrollIntoView({block:'nearest'});
+   const box=node.getBoundingClientRect();
+   const hit=document.elementFromPoint(box.left+box.width/2,box.top+box.height/2);
+   const point=index=>{
+     const end=node.querySelector('[data-line-end="'+index+'"]').getBoundingClientRect();
+     return {x:end.left+end.width/2,y:end.top+end.height/2};
+   };
+   return {first:point(0),last:point(1),hit:hit?.classList.contains('slide-line-hit')};
+ })()`);
+ assert.equal(line.hit,true,'The stroke must be selectable without a diagonal bounding box');
+ assert.ok(Math.abs(line.first.y-line.last.y)<1,'New line starts horizontal');
+ await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...line.last});
+ const end={x:line.first.x,y:line.first.y+65};
+ await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,...end});
+ await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...end});
+ const lineState=await evaluate(`(()=>{
+   const selected=document.querySelector('.fixed-scroll .slide-object-line[data-selected]');
+   const line=OpenDocApp.editor().snapshot().content.surfaces[1].elements.find(obj=>obj.type==='line');
+   return {selected:!!selected,width:line.width,height:line.height};
+ })()`);
+ assert.equal(lineState.selected,true,'Dragging an endpoint keeps the line selected');
+ assert.ok(lineState.width<.004&&lineState.height>.06,JSON.stringify(lineState));
+ console.log('QT_PPTX_LINE_HORIZONTAL_HIT_AND_ENDPOINT_DRAG_OK');
+
  // Regression from Linux Mint: bullets, inline edit, and removing bullets
  // must render exactly one paragraph layer and never freeze the editor.
  const bulletScene=await evaluate(`(()=>{
