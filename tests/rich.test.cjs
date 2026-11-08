@@ -489,3 +489,45 @@ test('bookmark restores the logical caret when a paragraph fragment moves after 
  assert.equal(restored.logicalBlockOffset,10);
  assert.equal(restored.blockId,'p1');
 });
+
+test('Backspace preserves explicitly disabled bold at the typing caret',async t=>{
+ const q=await setup(t),note=JSON.parse(JSON.stringify(q.note));
+ note.content.blocks[0].children[0].style.bold=true;
+ q.editor.load(note);q.rich.focus();
+ const text=q.rich.querySelector('[data-node-id=r1]').firstChild;
+ q.w.getSelection().collapse(text,text.length);q.editor.capture();
+ q.rich.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'b',ctrlKey:true,bubbles:true,cancelable:true}));
+ const event=(type,inputType,data)=>new q.w.InputEvent(type,{bubbles:true,cancelable:true,inputType,data});
+ q.rich.dispatchEvent(event('beforeinput','deleteContentBackward'));
+ text.deleteData(text.length-1,1);q.w.getSelection().collapse(text,text.length);
+ q.rich.dispatchEvent(event('input','deleteContentBackward'));
+ assert.equal(q.editor.textState().bold,false);
+ assert.equal(q.rich.dispatchEvent(event('beforeinput','insertText','Z')),false);
+ const runs=q.editor.snapshot().content.blocks[0].children;
+ assert.equal(runs.at(-1).text,'Z');assert.equal(runs.at(-1).style.bold,false);
+ assert.equal(runs[0].style.bold,true);
+});
+
+test('Ctrl+S uses the save action and reports an error without discarding edits',async t=>{
+ const q=await setup(t);
+ const field=q.root.querySelector('[data-title]');
+ field.value='Alterado para salvar';
+ field.dispatchEvent(new q.w.Event('input',{bubbles:true}));
+ const fetch=q.w.fetch;let attempts=0;
+ q.w.fetch=(url,options)=>{
+   if(url.endsWith('/document/save')&&++attempts===1)return Promise.reject(Error('Disco indisponível'));
+   return fetch(url,options);
+ };
+ const save=()=>{
+   const event=new q.w.KeyboardEvent('keydown',{key:'s',ctrlKey:true,bubbles:true,cancelable:true});
+   field.dispatchEvent(event);assert.equal(event.defaultPrevented,true);
+ };
+ const status=()=>q.root.querySelector('[data-status]').textContent;
+ save();for(let i=0;i<30&&!status().includes('Falha ao salvar');i++)await new Promise(r=>setTimeout(r,5));
+ assert.match(status(),/Falha ao salvar.*Disco indisponível/);
+ assert.equal(q.editor.isClean(),false);
+ save();for(let i=0;i<30&&!status().includes('Documento salvo');i++)await new Promise(r=>setTimeout(r,5));
+ assert.match(status(),/Documento salvo/);
+ assert.equal(attempts,2);
+ assert.equal(q.saved().title,'Alterado para salvar');
+});

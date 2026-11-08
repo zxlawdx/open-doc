@@ -280,10 +280,15 @@
       home: () => { showView(true); },
       'library-recent':()=>{showView(true);root.querySelector('[data-library-recent]')?.scrollIntoView({block:'start'});},
       'library-files':()=>{showView(true);root.querySelector('[data-library-imports]')?.scrollIntoView({block:'start'});},
-      save: () => operate(async()=>{
-        await editor.flush();
-        status('Documento salvo na biblioteca local. Use Arquivo > Exportar para escolher a pasta e o formato.');
-      }),
+      save: async()=>{
+        status('Salvando…');
+        try{
+          await editor.flush();
+          status('Documento salvo na biblioteca local. Use Arquivo > Exportar para escolher a pasta e o formato.');
+        }catch(error){
+          status('Falha ao salvar: '+error.message);
+        }
+      },
       'default-apps': () => operate(async () => {
         const result = await window.pywebview.api.default_apps();
         if (result.error) throw Error(result.error);
@@ -444,6 +449,13 @@
         else if (!event.shiftKey && index === list.length - 1) { event.preventDefault(); list[0]?.focus(); }
       }
     }, {signal});
+    window.addEventListener('keydown',event=>{
+      if(!(event.ctrlKey||event.metaKey)||event.altKey||event.shiftKey||
+        event.key.toLowerCase()!=='s'||!root.querySelector('[data-dialog]').hidden)return;
+      event.preventDefault();
+      event.stopPropagation();
+      if(!event.repeat)action('save');
+    },{capture:true,signal});
     window.addEventListener('keydown', event => {
       if (!(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
       const name = ({n: 'new', o: 'import', f: 'find'})[event.key.toLowerCase()];

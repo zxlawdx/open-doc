@@ -49,7 +49,7 @@
     let pagination=null;
     const mediaCache=new Map();
     let saved = "", savedContent=null, savedTitle="";
-    let mode = "rich", typingStyle=null;
+    let mode = "rich", typingStyle=null, deletionStyle=null;
     let chain = Promise.resolve();
     let destroyed = false, suspended = false;
     let recoveryTimer = null;
@@ -205,7 +205,7 @@
     function load(note) {
       finishLogicalTransaction();
       clearTimeout(recoveryTimer);clearTimeout(cacheTimer);markdownStale=false;
-      typingStyle=null;
+      typingStyle=null;deletionStyle=null;
       documentState = {...note};
       model=note.content?window.OpenDocModel.clone(note.content):null;mediaCache.clear();
       const warning=root.querySelector('[data-rich-warning]'),list=root.querySelector('[data-rich-warnings]');
@@ -312,7 +312,7 @@
     function restoreSnapshot(snapshot) {
       finishLogicalTransaction();
       if (!snapshot) return;
-      typingStyle=null;
+      typingStyle=null;deletionStyle=null;
       if(snapshot.historyChange?.affected?.inkOnly&&snapshot.content&&model?.blocks===snapshot.content.blocks){
         model=snapshot.content;
         cache();scheduleRecovery();updateHistoryControls();
@@ -687,6 +687,7 @@
       traceDeletion('render-start');
       renderRich();
       restoreLogicalCaret(caret);
+      restoreDeletionStyle();
       cache();scheduleRecovery();render();
       root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',
         {detail:{blockId:caret.blockId,reason:'typing',structural:true,full:true}}));
@@ -814,11 +815,19 @@
       if(event.key==='Backspace')traceDeletion('keydown-entry');
       if(event.key!=='Backspace'&&event.key!=='Delete')return;
       if(event.ctrlKey||event.altKey||event.metaKey||event.isComposing)return;
-      applyLogicalDeletion(event,event.key==='Backspace'
-        ?'deleteContentBackward':'deleteContentForward');
+      const patch=deletionStyle||activeTypingStyle();
+      if(applyLogicalDeletion(event,event.key==='Backspace'
+        ?'deleteContentBackward':'deleteContentForward'))deletionStyle=patch;
     },{...listeners,capture:true});
+    function restoreDeletionStyle(){
+      if(!deletionStyle)return;
+      const caret=commands.bookmark();
+      typingStyle=caret?.length===0?{patch:deletionStyle,caret}:null;
+      deletionStyle=null;
+    }
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
+      deletionStyle=event.inputType?.startsWith('delete')?activeTypingStyle():null;
       if(applyLogicalDeletion(event,event.inputType))return;
       if(event.inputType==='insertText'&&!event.isComposing&&event.cancelable&&event.data){
         const patch=activeTypingStyle(),selection=getSelection();
@@ -870,7 +879,10 @@
       beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;
     }, listeners);
     source.addEventListener("input", () => changed("typing", source), listeners);
-    rich.addEventListener("input", event => changed(nextKind,rich,event), listeners);
+    rich.addEventListener("input",event=>{
+      restoreDeletionStyle();
+      changed(nextKind,rich,event);
+    },listeners);
     rich.addEventListener('compositionend',()=>changed('typing',rich,{inputType:'insertCompositionText'}),listeners);
     title.addEventListener("input", () => {if(root.dataset.documentKind!=='fixed')changed("typing", title);}, listeners);
     window.OpenDocTables?.bind(rich,controller.signal,action=>{try{tableOperation(action);}catch(error){status(error.message);}});
@@ -905,7 +917,6 @@
       if(root.dataset.documentKind==='fixed' || !(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if(key === "enter" && mode === "rich" && rich.contains(getSelection()?.anchorNode)){event.preventDefault();insertPage("break");return;}
-      if (key === "s") { event.preventDefault(); flush().catch(() => {}); }
       if (key === "z" || key === "y") {
         const focused=document.activeElement;
         const editingInk=root.dataset.inkMode&&root.dataset.inkMode!=='cursor'&&
