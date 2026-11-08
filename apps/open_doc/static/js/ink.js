@@ -151,11 +151,37 @@
   root.querySelector('.toolbar')?.after(bar);
   function setMode(value){mode=value;root.dataset.inkMode=mode;bar.querySelectorAll('[data-ink-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.inkMode===mode)));refresh();}
   function layers(){return editor.inkLayers?.() || [];}
-  function commit(layer){const next=window.OpenDocCompat.cloneJson(layers()),at=next.findIndex(l=>l.surface_index===layer.surface_index);if(at<0)next.push(layer);else next[at]=layer;editor.setInkLayers(next);refresh();}
-  function refresh(){scheduled=false;if(signal.aborted)return;const values=layers();for(const surface of root.querySelectorAll('.document-page, .fixed-surface')){
+  const rendered=new WeakMap();
+  function commit(layer){
+   const next=layers().slice(),at=next.findIndex(l=>l.surface_index===layer.surface_index);
+   if(at<0)next.push(layer);else next[at]=layer;
+   editor.setInkLayers(next);queue();
+  }
+  function paintStrokes(svg,strokes){
+   const previous=rendered.get(svg);
+   if(previous?.strokes===strokes)return;
+   const nodes=new Map();
+   let cursor=svg.firstChild;
+   for(const stroke of strokes){
+    let entry=previous?.nodes.get(stroke.id);
+    if(!entry||entry.stroke!==stroke){
+     const node=entry?.node||document.createElementNS(NS,'path');
+     node.setAttribute('d',path(stroke));node.setAttribute('fill',stroke.color);
+     node.setAttribute('opacity',stroke.opacity);entry={node,stroke};
+    }
+    if(entry.node!==cursor)svg.insertBefore(entry.node,cursor);
+    cursor=entry.node.nextSibling;
+    nodes.set(stroke.id,entry);
+   }
+   while(cursor){const next=cursor.nextSibling;cursor.remove();cursor=next;}
+   rendered.set(svg,{strokes,nodes});
+  }
+  const emptyStrokes=[];
+
+  function refresh(){scheduled=false;if(signal.aborted)return;const values=new Map(layers().map(layer=>[layer.surface_index,layer]));for(const surface of root.querySelectorAll('.document-page, .fixed-surface')){
    if(!surface.querySelector('[data-page-content]') && !surface.classList.contains('fixed-surface'))continue;
    if(root.dataset.documentKind==='fixed' && !surface.classList.contains('fixed-surface'))continue;
-   const index=Number(surface.dataset.pageIndex),layer=values.find(l=>l.surface_index===index);let svg=surface.querySelector(':scope > .ink-overlay');
+   const index=Number(surface.dataset.pageIndex),layer=values.get(index);let svg=surface.querySelector(':scope > .ink-overlay');
    if(!svg){svg=document.createElementNS(NS,'svg');svg.classList.add('ink-overlay');svg.setAttribute('contenteditable','false');svg.setAttribute('focusable','false');svg.setAttribute('viewBox','0 0 1 1');svg.setAttribute('preserveAspectRatio','none');svg.setAttribute('aria-label','Camada de tinta');surface.append(svg);svg.addEventListener('pointerdown',e=>down(e,surface),{signal});svg.addEventListener('pointermove',move,{signal});svg.addEventListener('pointerup',up,{signal});svg.addEventListener('pointercancel',cancel,{signal});svg.addEventListener('lostpointercapture',e=>{debugPointer(e);if(active?.id===e.pointerId && phase==='drawing')cancel(e);},{signal});
     for(const type of ['click','auxclick','contextmenu'])svg.addEventListener(type,e=>{debugPointer(e);if(mode!=='cursor' && (performance.now()<suppressClickUntil || type==='contextmenu'))suppressSyntheticClick(e,type==='contextmenu');},{capture:true,signal});}
    // Absolutely positioned SVG percentages can include the page's padding
@@ -171,17 +197,21 @@
    svg.style.height=(surface.offsetHeight||surface.clientHeight)+'px';
    svg.style.pointerEvents=mode==='cursor'?'none':'auto';
    if(active?.svg===svg)continue;
-   svg.replaceChildren();for(const stroke of layer?.strokes || []){const p=document.createElementNS(NS,'path');p.setAttribute('d',path(stroke));p.setAttribute('fill',stroke.color);p.setAttribute('opacity',stroke.opacity);svg.append(p);}
+   paintStrokes(svg,layer?.strokes || emptyStrokes);
   }}
   function queue(){if(!scheduled){scheduled=true;requestAnimationFrame(refresh);}}
   function sample(event,rect){return {x:clamp((event.clientX-rect.left)/rect.width),y:clamp((event.clientY-rect.top)/rect.height),pressure:event.pointerType==='mouse' && !(event.pressure>0)?.5:Number.isFinite(event.pressure)?clamp(event.pressure):.5,tilt_x:event.tiltX || 0,tilt_y:event.tiltY || 0,timestamp_ms:Math.max(0,event.timeStamp)};}
   function down(e,surface){debugPointer(e);if(active && e.pointerType==='touch'){stopInkEvent(e);return;}if(root.dataset.readerState==='error' && root.dataset.documentKind==='fixed')return;
-   if(root.querySelector('[data-title]')?.disabled || root.dataset.homeView==='true' || mode==='cursor' || active || e.pointerType==='touch' || (e.button!==0 && e.button!==2 && e.button!==5))return;stopInkEvent(e);const svg=e.currentTarget,rect=svg.getBoundingClientRect(),index=Number(surface.dataset.pageIndex),layer=window.OpenDocCompat.cloneJson(layers().find(l=>l.surface_index===index) || {surface_index:index,width_pt:Number(surface.dataset.widthPt)||rect.width*.75,height_pt:Number(surface.dataset.heightPt)||rect.height*.75,strokes:[],text_overlays:[],anchor_block_id:surface.querySelector('[data-node-id]')?.dataset.nodeId});
+   if(root.querySelector('[data-title]')?.disabled || root.dataset.homeView==='true' || mode==='cursor' || active || e.pointerType==='touch' || (e.button!==0 && e.button!==2 && e.button!==5))return;stopInkEvent(e);const svg=e.currentTarget,rect=svg.getBoundingClientRect(),index=Number(surface.dataset.pageIndex),previous=layers().find(l=>l.surface_index===index),layer=previous?{...previous}:{surface_index:index,width_pt:Number(surface.dataset.widthPt)||rect.width*.75,height_pt:Number(surface.dataset.heightPt)||rect.height*.75,strokes:[],text_overlays:[],anchor_block_id:surface.querySelector('[data-node-id]')?.dataset.nodeId};
+   // The next stroke may begin before the deferred layer refresh.
+   paintStrokes(svg,layer.strokes);
    if(rect.width<=0 || rect.height<=0)return;
    phase='drawing';active={svg,rect,layer,id:e.pointerId,erase:shouldErase(mode),eraseWhole:mode==='eraser',eraseProcessed:0,eraseChanged:false,points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};try{svg.setPointerCapture(e.pointerId);}catch{};active.preview=document.createElementNS(NS,'path');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
   function draw(){
    if(!active)return;
    const a=active;
+   if(a.drawn===a.points.length)return;
+   a.drawn=a.points.length;
    if(a.erase){
     const pathPoints=a.points.slice(Math.max(0,a.eraseProcessed-1));
     a.eraseProcessed=a.points.length;
@@ -189,21 +219,31 @@
     if(!result.changed)return;
     a.eraseChanged=true;
     a.layer.strokes=result.strokes;
-    a.svg.replaceChildren();
-    for(const stroke of a.layer.strokes){
-     const node=document.createElementNS(NS,'path');
-     node.setAttribute('d',path(stroke));node.setAttribute('fill',stroke.color);
-     node.setAttribute('opacity',stroke.opacity);a.svg.append(node);
-    }
+    paintStrokes(a.svg,a.layer.strokes);
     return;
    }
    const w=a.layer.width_pt,h=a.layer.height_pt;
    a.stroke.outline=window.OpenDocFreehand.getStroke(a.points.map(p=>[p.x*w,p.y*h,p.pressure]),{size:a.stroke.size,simulatePressure:false,thinning:.5}).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);
    a.preview.setAttribute('d',path(a.stroke));
   }
-  function move(e){debugPointer(e);if(!active || active.id!==e.pointerId)return;stopInkEvent(e);const coalesced=e.getCoalescedEvents?.();for(const v of coalesced?.length?coalesced:[e])if(active.points.length<20000)active.points.push(sample(v,active.rect));draw();}
-  function up(e){debugPointer(e);if(!active || active.id!==e.pointerId)return;move(e);const a=active;phase='committing';active=null;suppressClickUntil=performance.now()+350;releaseCapture(a.svg,e.pointerId);if(a.erase){if(a.eraseChanged)commit(a.layer);else refresh();}else{a.stroke.points=simplify(a.points);a.layer.strokes.push(a.stroke);commit(a.layer);}phase='committed';}
-  function cancel(e){if(e)debugPointer(e);if(!active || (e?.pointerId!=null && active.id!==e.pointerId))return;const a=active;phase='cancelled';active=null;releaseCapture(a.svg,a.id);refresh();phase='idle';}
+  function collect(e){
+   stopInkEvent(e);
+   const coalesced=e.getCoalescedEvents?.();
+   for(const v of coalesced?.length?coalesced:[e])
+    if(active.points.length<20000)active.points.push(sample(v,active.rect));
+  }
+  function move(e){
+   debugPointer(e);if(!active||active.id!==e.pointerId)return;
+   collect(e);
+   const stroke=active;
+   if(stroke.frame!=null)return;
+   stroke.frame=requestAnimationFrame(()=>{
+    if(signal.aborted||active!==stroke)return;
+    stroke.frame=null;draw();
+   });
+  }
+  function up(e){debugPointer(e);if(!active || active.id!==e.pointerId)return;collect(e);draw();const a=active;phase='committing';active=null;suppressClickUntil=performance.now()+350;releaseCapture(a.svg,e.pointerId);if(a.erase){a.preview.remove();if(a.eraseChanged)commit(a.layer);else refresh();}else{a.stroke.points=simplify(a.points);a.preview.remove();a.layer.strokes=[...a.layer.strokes,a.stroke];commit(a.layer);paintStrokes(a.svg,a.layer.strokes);}phase='committed';}
+  function cancel(e){if(e)debugPointer(e);if(!active || (e?.pointerId!=null && active.id!==e.pointerId))return;const a=active;phase='cancelled';active=null;a.preview.remove();releaseCapture(a.svg,a.id);refresh();phase='idle';}
   async function convert(){if(conversion || !capable){if(!capable)status(convertButton.title);return;}const layer=layers().findLast?.(l=>l.strokes.some(s=>s.handwriting)) || layers().slice().reverse().find(l=>l.strokes.some(s=>s.handwriting));if(!layer){status('Use Escrita para escrever antes de converter.');return;}const strokes=layer.strokes.filter(s=>s.handwriting),note=editor.snapshot();conversion=true;status('Reconhecendo escrita localmente…');try{const result=await window.pywebview.api.recognize_handwriting(strokes,'pt-BR');if(result.error)throw Error(result.error);if(!result.text?.trim())throw Error('O reconhecedor não retornou texto. Sua tinta foi mantida.');if(editor.snapshot().id!==note.id)throw Error('O documento mudou. A tinta foi mantida.');
     const backdrop=document.createElement('div');backdrop.className='modal-backdrop';const box=document.createElement('section');box.className='dialog';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');const title=document.createElement('h2');title.textContent='Revisar escrita reconhecida';const text=document.createElement('textarea');text.value=result.text;text.setAttribute('aria-label','Texto reconhecido, editável');const info=document.createElement('p');info.textContent=result.backend+(result.confidence==null?' · confiança não informada':' · confiança '+Math.round(result.confidence*100)+'%');box.append(title,info,text);
     for(const [label,insert] of [['Manter tinta',false],['Cancelar',false],['Inserir texto',true]]){const b=document.createElement('button');b.textContent=label;b.onclick=()=>{if(insert && text.value.trim() && editor.snapshot().id===note.id){const style={font_family:family.value||'Arial',font_size_pt:Math.max(1,Math.min(512,Number(fontSize.value)||12)),color:root.querySelector('[data-text-color]')?.value||color};editor.insertRecognized(text.value,style,layer.surface_index,strokes.map(s=>s.id));}backdrop.remove();refresh();};box.append(b);}backdrop.append(box);root.append(backdrop);text.focus();
