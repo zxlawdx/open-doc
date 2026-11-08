@@ -67,6 +67,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_pptx.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_pptx_table_border.py docs/images/ink/pptx-table-border
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_windows_ink.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_input.py
@@ -131,6 +133,7 @@ jobs:
           python -u tools/qa_docx_list.py docs/images/stabilization/docx-list
           python -u tools/qa_ink.py
           python -u tools/qa_pptx.py
+          python -u tools/qa_pptx_table_border.py docs/images/ink/pptx-table-border
           python -u tools/qa_windows_ink.py
           python -u tools/qa_input.py
           python -u tools/qa_stabilization.py

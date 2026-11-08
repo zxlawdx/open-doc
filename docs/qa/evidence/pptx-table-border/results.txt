@@ -1,0 +1,5 @@
+Base: 1a6ec27
+AssertionError: pptx-table-editor-bottom-border: missing bottom border near (444, 566): [(12, 22, 34), (12, 22, 34), (12, 22, 34), (12, 22, 34), (12, 22, 34), (12, 22, 34), (12, 22, 34)]
+QtWebEngine com bordas separadas
+QT_PPTX_TABLE_BOTTOM_BORDER_VISIBLE_OK pptx-table-editor-bottom-border
+QT_PPTX_TABLE_BOTTOM_BORDER_VISIBLE_OK pptx-table-presentation-bottom-border
