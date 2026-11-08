@@ -59,8 +59,8 @@ publica capturas dos dois ambientes. Linux Mint em máquina limpa, ABNT2
 físico, leitores de tela, matriz de DPI/temas, instaladores offline,
 fuzzing, cobertura de linhas e branches, comparação visual longitudinal
 da paginação e inspeção exaustiva dos comandos continuam pendentes.
-Asserções de paginação comprovam os estados observados pelo teste, sem
-medição quadro a quadro de piscadas.
+A regressão abaixo mede a presença e as dimensões do papel durante a
+repaginação do DOCX.
 
 ## Seleção parcial entre páginas no DOCX
 
@@ -78,3 +78,39 @@ medição quadro a quadro de piscadas.
 - [Seleção antes](evidence/cross-page-selection/cross-page-before.png) ·
   [Documento depois](evidence/cross-page-selection/cross-page-after.png) ·
   [Log Qt](evidence/cross-page-selection/qt.log).
+
+
+## Quadros durante a repaginação do DOCX
+
+O teste de estresse existente do Qt agora coleta uma amostra da geometria
+do papel em cada callback de `requestAnimationFrame`, durante Enter,
+Backspace e Ctrl+A seguido de Backspace. A regressão exige amostras de
+antes e depois das teclas em cada fase, ao menos uma página presente
+e a primeira e a última folhas com as dimensões de referência. A
+tolerância de 1 pixel CSS cobre arredondamento de tamanho A4.
+
+Resultados locais no Ubuntu 24.04, QtWebEngine 5.15.19, com a mesma
+sonda nas duas revisões:
+
+| Revisão do editor | Enter/Backspace | Amostras | Amostras sem página | Maior intervalo |
+|---|---:|---:|---:|---:|
+| ce46a82, antes do PR #62 | 100 | 229 | 81 | 50 ms |
+| 419f683, após os PRs #62 e #63 | 100 | 172 | 0 | 50 ms |
+| 419f683 | 500 | 408 | 0 | 167 ms |
+| 419f683 | 1.000 | 591 | 0 | 383 ms |
+
+Na revisão antiga, a reconstrução removia as folhas e só repaginava
+em uma tarefa posterior. O primeiro quadro sem folha no traço veio
+após 25 Backspaces. O PR #62 agrupou reconstrução e paginação na
+mesma tarefa. Esta etapa inclui a medição no teste nativo executado
+pelo CI. Os traços completos de cada lote são publicados com as
+capturas em `docs/images/stabilization/docx-stress-*-frames.json`.
+
+A sonda observa a geometria do DOM antes da pintura. O intervalo entre
+callbacks mede a cadência observada, sem equivalência direta à latência
+de entrada ou aos quadros físicos do monitor. O lote de 1.000 ainda
+mostrou uma pausa entre callbacks de 383 ms nesta execução.
+
+[Traço antigo](evidence/pagination-frames/before-100.json) ·
+[Traço atual](evidence/pagination-frames/after-100.json) ·
+[Resumo](evidence/pagination-frames/summary.json)

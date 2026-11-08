@@ -75,6 +75,54 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    fs.mkdirSync(dest,{recursive:true});
    fs.writeFileSync(path.join(dest,name+'.png'),Buffer.from(data.data,'base64'));
  };
+ const startFrameProbe=()=>evaluate(`(()=>{
+   const rich=document.querySelector('[data-rich]');
+   const canvas=document.querySelector('[data-canvas]');
+   const probe={phase:'enter',frames:[],request:null};
+   window.__docxFrameProbe=probe;
+   function sample(timestamp){
+     const pages=rich.querySelectorAll(':scope > .document-page');
+     const size=page=>page?[page.offsetWidth,page.offsetHeight]:null;
+     probe.frames.push({
+       ms:Math.round(timestamp),phase:probe.phase,pages:pages.length,
+       first:size(pages[0]),last:size(pages[pages.length-1]),
+       scrollTop:Math.round(canvas.scrollTop),
+       enter:window.__docxStressKeys.Enter||0,
+       backspace:window.__docxStressKeys.Backspace||0
+     });
+     probe.request=requestAnimationFrame(sample);
+   }
+   probe.request=requestAnimationFrame(sample);
+   return true;
+ })()`);
+ const phase=name=>evaluate('window.__docxFrameProbe.phase='+JSON.stringify(name));
+ const stopFrameProbe=async total=>{
+   const frames=await evaluate(`(()=>{
+     const probe=window.__docxFrameProbe;
+     cancelAnimationFrame(probe.request);
+     delete window.__docxFrameProbe;
+     return probe.frames;
+   })()`);
+   const output=path.join(dest,'docx-stress-'+total+'-frames.json');
+   fs.writeFileSync(output,JSON.stringify(frames,null,2)+'\n');
+   for(const [name,key] of [['enter','enter'],['backspace','backspace'],['bulk-delete','backspace']]){
+     const observed=frames.filter(frame=>frame.phase===name);
+     assert.ok(observed.length>=2&&observed.at(-1)[key]>observed[0][key],
+       name+': animation frame probe must observe a real keyboard transition');
+   }
+   const expected=frames[0].first;
+   assert.ok(expected?.every(dimension=>dimension>0),'Invalid initial paper geometry');
+   // A4 dimensions are fractional CSS pixels. offsetWidth/Height can
+   // round differently depending on the paper's layout position.
+   const matches=size=>size?.every((dimension,index)=>Math.abs(dimension-expected[index])<=1);
+   for(const frame of frames){
+     assert.ok(frame.pages>0,'Paged surface absent in a sampled frame: '+JSON.stringify(frame));
+     assert.ok(matches(frame.first),'First paper changed dimensions: '+JSON.stringify(frame));
+     assert.ok(matches(frame.last),'Last paper changed dimensions: '+JSON.stringify(frame));
+   }
+   const maxGap=frames.slice(1).reduce((max,frame,index)=>Math.max(max,frame.ms-frames[index].ms),0);
+   console.log('QT_DOCX_FRAME_PROBE_OK',JSON.stringify({total,samples:frames.length,maxGapMs:maxGap,paper:expected}));
+ };
  await evaluate(`(()=>{
    window.__docxStressErrors=[];
    window.__docxStressKeys={};
@@ -102,6 +150,8 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    })()`);
    assert.equal(initial.editable,true);
    const started=Date.now();
+   await startFrameProbe();
+   await pause(100);
    for(let left=total;left>0;left-=20){
      const count=Math.min(left,20);
      await key('Return',count);
@@ -148,6 +198,8 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
        modelBlocks:model.blocks.length};
    })()`);
    console.log('QT_DOCX_STRESS_LOGICAL_PROBE',total,JSON.stringify(probe));
+   await phase('backspace');
+   await pause(100);
    // Real native keyboard Backspace (not a synthetic event with no default action).
    for(let i=0;i<total;i+=25){
      console.log('QT_DOCX_STRESS_BACKSPACE_PROGRESS',total,i);
@@ -168,8 +220,11 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    assert.ok(deleting.focused,'Deletion lost editor focus');
    assert.deepEqual(deleting.errors,[],'Unexpected JS errors in DOCX deletion');
    // Exercise a real multipage selection after proving every join above.
+   await phase('bulk-setup');
    await key('Return',40);
    await waitForPages(pages=>pages>1);
+   await phase('bulk-delete');
+   await pause(100);
    await key('SelectAll');
    await key('Backspace');
    await waitForPages(pages=>pages===1);
@@ -185,6 +240,8 @@ const dest=path.resolve(__dirname,'../docs/images/stabilization');
    assert.equal(emptied.pages,1);
    assert.equal(emptied.blocks,1);
    assert.deepEqual(emptied.errors,[],'Exception after Ctrl+A and Backspace');
+   await pause(100);
+   await stopFrameProbe(total);
    await evaluate('OpenDocApp.editor().flush()');
    await capture('docx-stress-'+total+'-after-delete');
    const metrics=await send('Performance.getMetrics');
