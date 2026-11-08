@@ -32,6 +32,11 @@ function setup(t, options={}){
  editor.load();
  return {w,root,host,controls,scroller,sidebar,editor,model:()=>model,versions,selected:()=>selected};
 }
+function openPicker(w,picker){
+ assert.equal(picker.querySelectorAll('.slide-font-option').length,0);
+ picker.open=true;
+ picker.dispatchEvent(new w.Event('toggle'));
+}
 function clickLabel(root,text){
  const button=Array.from(root.querySelectorAll('.slide-studio-toolbar button')).find(b=>b.textContent===text);
  assert.ok(button,'toolbar action exists: '+text);button.click();
@@ -796,6 +801,7 @@ test('Slide typography presets and font family are applied to canvas and inline 
      .find(node=>node.firstChild.textContent===label).querySelector('select');
    field.value=value;field.dispatchEvent(new q.w.Event('change'));
  };
+ openPicker(q.w,q.host.querySelector('.slide-inspector .slide-font-picker'));
  const font=q.host.querySelector('.slide-inspector .slide-font-option[data-family="Times New Roman"]');
  assert.ok(font,'font picker exposes live preview choices');font.click();
  change('Estilo do texto','Título 2');
@@ -877,6 +883,7 @@ test('Selection shortcuts format text, change layers and scale in one edit',t=>{
    input.value=value;input.dispatchEvent(new q.w.Event('change',{bubbles:true}));
  };
  assert.equal(bar.hidden,false);
+ openPicker(q.w,bar.querySelector('.slide-font-picker'));
  const font=bar.querySelector('.slide-font-option[data-family="Arial"]');
  assert.ok(font,'Arial present in accessible visual font picker');font.click();
  change(bar.querySelector('input[type=color]'),'#cc1133');
@@ -1259,6 +1266,7 @@ test('fixed PowerPoint ribbon provides contextual text formatting and font previ
  const picker=q.controls.querySelector('.slide-context-panel .slide-font-picker');
  assert.ok(picker);
  assert.match(picker.querySelector('.slide-font-preview-name').style.fontFamily,/Inter/);
+ openPicker(q.w,picker);
  const other=picker.querySelector('[data-family="Bitstream Charter"]');
  assert.ok(other);assert.match(other.querySelector('.slide-font-sample').style.fontFamily,/Bitstream Charter/);
  other.click();
@@ -1554,4 +1562,47 @@ test('double-click replaces a formula as a structured math object',async t=>{
  assert.equal(updated.type,'math');
  assert.deepEqual(JSON.parse(JSON.stringify(updated.math_blocks)),blocks);
  assert.equal(q.scroller.querySelector('.slide-object-math img'),null);
+});
+
+test('selection and color keep the canvas and untouched objects attached',t=>{
+ const q=setup(t);
+ clickLabel(q.controls,'Texto');clickLabel(q.controls,'Retângulo');
+ const surface=q.scroller.querySelector('.fixed-surface');
+ const text=surface.querySelector('.slide-object-text'),rect=surface.querySelector('.slide-object-rect');
+ text.dispatchEvent(new q.w.MouseEvent('click',{bubbles:true}));
+ assert.equal(q.scroller.querySelector('.fixed-surface'),surface);
+ assert.equal(text.dataset.selected,'true');
+ const color=q.controls.querySelector('.slide-selection-toolbar input[type=color]');
+ const bold=q.controls.querySelector('.slide-selection-toolbar button[aria-pressed]');
+ text.dispatchEvent(new q.w.MouseEvent('click',{bubbles:true}));
+ assert.equal(q.controls.querySelector('.slide-selection-toolbar button[aria-pressed]'),bold);
+ color.value='#224466';color.dispatchEvent(new q.w.Event('change',{bubbles:true}));
+ assert.equal(q.scroller.querySelector('.fixed-surface'),surface);
+ assert.equal(surface.querySelector('.slide-object-rect'),rect);
+ assert.equal(q.model().surfaces[0].elements[0].color,'#224466');
+});
+
+test('high-rate pointer input paints once per frame and commits the latest sample',t=>{
+ const q=setup(t);clickLabel(q.controls,'Texto');
+ const surface=q.scroller.querySelector('.fixed-surface');
+ surface.getBoundingClientRect=()=>({left:0,top:0,width:600,height:300});
+ const obj=surface.querySelector('.slide-object'),before=q.versions.length;
+ const frames=new Map();let sequence=0,paints=0;
+ q.w.requestAnimationFrame=fn=>{frames.set(++sequence,fn);return sequence;};
+ q.w.cancelAnimationFrame=id=>frames.delete(id);
+ const draw=q.editor._drag.bind(q.editor);
+ q.editor._drag=event=>{paints++;draw(event);};
+ obj.dispatchEvent(new q.w.MouseEvent('pointerdown',{bubbles:true,clientX:100,clientY:100,button:0}));
+ for(let x=101;x<=160;x++)q.w.dispatchEvent(new q.w.MouseEvent('pointermove',{clientX:x,clientY:100,altKey:true}));
+ assert.equal(frames.size,1);
+ const [frame,paint]=frames.entries().next().value;
+ frames.delete(frame);paint();
+ assert.equal(paints,1);
+ q.w.dispatchEvent(new q.w.MouseEvent('pointermove',{clientX:190,clientY:100,altKey:true}));
+ q.w.dispatchEvent(new q.w.MouseEvent('pointerup',{clientX:190,clientY:100}));
+ assert.equal(frames.size,0);
+ assert.equal(paints,2);
+ assert.equal(surface.querySelector('.slide-object'),obj,'translation retains the dragged DOM node');
+ assert.equal(q.versions.length,before+1);
+ assert.ok(Math.abs(q.model().surfaces[0].elements[0].x-.35)<1e-9);
 });

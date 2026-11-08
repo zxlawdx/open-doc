@@ -374,11 +374,14 @@
       return newId;
     }
     updateObject(index,id,patch){
-      this.apply(slides=>{
-        const obj=slides[index].elements.find(o=>o.id===id);
-        if(!obj)throw Error("O objeto selecionado não existe.");
-        Object.assign(obj,patch);
-      },index);
+      const deck=this.getModel(),surface=deck.surfaces[index];
+      const position=surface.elements.findIndex(obj=>obj.id===id);
+      if(position<0)throw Error("O objeto selecionado não existe.");
+      const elements=surface.elements.slice();
+      elements[position]={...elements[position],...patch};
+      const surfaces=deck.surfaces.slice();
+      surfaces[index]={...surface,elements};
+      this.commit({...deck,surfaces},{index,object:elements[position],previous:surface.elements[position],patch});
     }
     deleteObject(index,id){
       this.apply(slides=>{
@@ -416,7 +419,10 @@
   class SlideStudio {
     constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize,tableDialog,mathDialog}){
       Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize,tableDialog,mathDialog});
-      this.commands=new SlideDeckCommands(getModel,next=>{update(next);this.render();});
+      this.commands=new SlideDeckCommands(getModel,(next,change)=>{
+        update(next);
+        if(!change||!this._renderObjectChange(change))this.render();
+      });
       this.shapeRenderer=new SlideSvgRenderer();
       this.active=false;this.selected=null;this.selectedIds=new Set();this.current=0;this.drag=null;
       this.pan=null;this.spacePressed=false;this.imageReplacement=null;
@@ -768,14 +774,18 @@
       },{signal:this.signal});
       window.addEventListener("pointermove",event=>{
         if(this._movePan(event))return;
-        this._drag(event);
+        this._queueDrag(event);
       },{signal:this.signal});
       window.addEventListener("pointerup",event=>{
         if(this._endPan(event))return;
         this._finish(event);
       },{signal:this.signal});
       window.addEventListener("pointercancel",()=>{
-        this._endPan();this._clearSnapGuides();this.drag=null;if(!this.inlineEditing)this.render();
+        this._endPan();this._clearSnapGuides();
+        if(this.drag){
+          this._cancelDragFrame();this.drag=null;
+          if(!this.inlineEditing)this.render();
+        }
       },{signal:this.signal});
       this.root.addEventListener("keyup",event=>{
         if(event.key===" "){this.spacePressed=false;
@@ -798,12 +808,14 @@
           return;
         }
         if(this.paintActive&&item){
-          this._paintObject(targetIndex,item.dataset.slideElement);this.render();return;
+          this._paintObject(targetIndex,item.dataset.slideElement);return;
         }
-        if(item?.classList.contains("slide-object-table")&&this.selected===item.dataset.slideElement&&
-           !changedSlide&&!event.shiftKey)return;
-        this._selectObject(item?item.dataset.slideElement:null,!changedSlide&&event.shiftKey);
-        this.render();
+        const id=item?.dataset.slideElement||null;
+        const additive=!changedSlide&&event.shiftKey;
+        if(!additive&&id===this.selected&&this.selectedIds.size<=1)return;
+        this._selectObject(id,additive);
+        if(changedSlide)this.render();
+        else this._refreshSelection();
       },{signal:this.signal});
       this.scroller.addEventListener("dblclick",event=>{
         if(!this.active||this.paintActive)return;
@@ -906,7 +918,7 @@
     deactivate(){
       this.stopPresentation();
       this.active=false;this.host.dataset.slideEditor="false";this.toolbar.hidden=true;this.inspector.hidden=true;
-      this._clearSnapGuides();this._selectObject(null);this.drag=null;this.pan=null;
+      this._clearSnapGuides();this._cancelDragFrame();this._selectObject(null);this.drag=null;this.pan=null;
       this.spacePressed=false;this.colorSample=null;this.scroller.style.cursor="";this.inspector.replaceChildren();
       this.inlineEditing=null;this._resizeAfterEditing=false;
       this.selectionToolbar.style.visibility="";
@@ -1400,14 +1412,12 @@
             td.append(label);td.style.padding=padding+"px";
             if(!thumb){
               td.dataset.slideTableCell="";
-              if(this.selected===obj.id){
-                td.tabIndex=0;
-                td.onkeydown=event=>{
+              td.tabIndex=this.selected===obj.id?0:-1;
+              td.onkeydown=event=>{
                   if(event.target===td&&event.key==="Enter"){
                     event.preventDefault();event.stopPropagation();this._editTableCell(index,obj.id,td);
                   }
-                };
-              }
+              };
             }
             tr.append(td);
           });
@@ -1467,28 +1477,45 @@
           });
         }else label.textContent=obj.text;
         node.append(label);}
-      if(!thumb&&this.selected===obj.id&&index===this.current){
-        for(const direction of ["nw","n","ne","e","se","s","sw","w"]){
-          const handle=document.createElement("span");
-          handle.className="slide-resize-handle slide-handle-"+direction;
-          handle.dataset.resize=direction;
-          handle.setAttribute("aria-label","Redimensionar: "+direction);node.append(handle);
-        }
-        if(obj.type!=="chart"){
-          const scaleGrip=document.createElement("span");
-          scaleGrip.className="slide-scale-handle";scaleGrip.dataset.scale="true";
-          scaleGrip.setAttribute("aria-label","Escalar proporcionalmente o objeto");
-          scaleGrip.title="Arraste para escalar mantendo a proporção";
-          node.append(scaleGrip);
-          if(obj.type!=="table"){
-            const rotate=document.createElement("span");
-            rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
-            rotate.setAttribute("aria-label","Girar objeto");
-            node.append(rotate);
-          }
+      if(!thumb&&this.selected===obj.id&&index===this.current)this._addHandles(node,obj.type);
+      return node;
+    }
+    _addHandles(node,type){
+      for(const direction of ["nw","n","ne","e","se","s","sw","w"]){
+        const handle=document.createElement("span");
+        handle.className="slide-resize-handle slide-handle-"+direction;
+        handle.dataset.resize=direction;
+        handle.setAttribute("aria-label","Redimensionar: "+direction);node.append(handle);
+      }
+      if(type!=="chart"){
+        const scaleGrip=document.createElement("span");
+        scaleGrip.className="slide-scale-handle";scaleGrip.dataset.scale="true";
+        scaleGrip.setAttribute("aria-label","Escalar proporcionalmente o objeto");
+        scaleGrip.title="Arraste para escalar mantendo a proporção";
+        node.append(scaleGrip);
+        if(type!=="table"){
+          const rotate=document.createElement("span");
+          rotate.className="slide-rotate-handle";rotate.dataset.rotate="true";
+          rotate.setAttribute("aria-label","Girar objeto");
+          node.append(rotate);
         }
       }
-      return node;
+    }
+    _refreshSelection(){
+      const canvas=this._surface(this.current);
+      if(!canvas)return;
+      for(const node of canvas.querySelectorAll(".slide-object")){
+        const id=node.dataset.slideElement;
+        if(this.selectedIds.has(id))node.dataset.selected="true";
+        else delete node.dataset.selected;
+        const handles=node.querySelectorAll("[data-resize],[data-rotate],[data-scale]");
+        if(id===this.selected){
+          if(!handles.length)this._addHandles(node,node.dataset.kind);
+        }else for(const handle of handles)handle.remove();
+        for(const cell of node.querySelectorAll("[data-slide-table-cell]"))
+          cell.tabIndex=id===this.selected?0:-1;
+      }
+      this._properties();
     }
     _objectHeight(obj,height){
       return obj.type==="text"?{height:"auto",minHeight:height}:{height};
@@ -1522,27 +1549,29 @@
         letterSpacing:((obj.font_letter_spacing_pt||0)*4/3*zoom*(thumb?.16:1))+"px"
       });
     }
-    _thumb(button,surface,index){
-      const fingerprint=JSON.stringify([surface.width_pt,surface.height_pt,
-        surface.background,surface.background_gradient,surface.elements,this.sidebar.clientWidth]);
-      if(this._thumbCache.get(button)===fingerprint && button.firstChild){
+    _thumb(button,surface,index,sidebarWidth){
+      const cached=this._thumbCache.get(button);
+      const fingerprint=cached?.surface===surface ? cached.fingerprint : JSON.stringify([
+        surface.width_pt,surface.height_pt,surface.background,surface.background_gradient,surface.elements
+      ]);
+      this._thumbCache.set(button,{surface,sidebarWidth,fingerprint});
+      if(cached?.fingerprint===fingerprint&&cached.sidebarWidth===sidebarWidth&&button.firstChild){
         button.dataset.thumbnailIndex=String(index);
         button.setAttribute("aria-current",String(index===this.current));
         button.setAttribute("aria-label","Ir para slide "+(index+1));
         button.onclick=()=>this.go(index);
         return;
       }
-      this._thumbCache.set(button,fingerprint);
       button.replaceChildren();
       const preview=document.createElement("span");
       preview.className="slide-thumb-preview";
       // QtWebEngine on Windows may lack the CSS aspect-ratio property.
       // Physical height follows each presentation's original dimensions.
-      const sidebarWidth=Math.max(100,this.sidebar.clientWidth-38||142);
+      const previewWidth=Math.max(100,sidebarWidth-38||142);
       const ratio=surface.height_pt/surface.width_pt;
       Object.assign(preview.style,{display:"block",position:"relative",
         overflow:"hidden",width:"100%",minHeight:"0px",
-        height:Math.round(sidebarWidth*ratio)+"px",
+        height:Math.round(previewWidth*ratio)+"px",
         aspectRatio:String(surface.width_pt)+"/"+String(surface.height_pt)});
       preview.style.backgroundColor=surface.background||"#FFFFFF";
       preview.style.backgroundImage=cssGradient(surface.background_gradient);
@@ -1595,6 +1624,19 @@
         height:Math.max(this.scroller.clientHeight,height+64)+"px"
       });
     }
+    _renderObjectChange({index,object,previous,patch}){
+      if(!this.active||index!==this.current)return false;
+      const canvas=this._surface(index);
+      const node=canvas&&Array.from(canvas.children).find(child=>child.dataset.slideElement===object.id);
+      const thumb=this.sidebar.querySelector('[data-thumbnail-index="'+index+'"]');
+      if(!node||!thumb)return false;
+      const moved=Object.keys(patch).every(key=>key==="x"||key==="y"||object[key]===previous[key]);
+      if(moved)this._styleObject(node,object,index);
+      else node.replaceWith(this._makeObject(object,index));
+      this._thumb(thumb,this.getModel().surfaces[index],index,this.sidebar.clientWidth);
+      this._properties();
+      return true;
+    }
     render(){
       if(!this.active)return;
       const slides=this.getModel().surfaces;
@@ -1614,7 +1656,8 @@
         this.sidebar.append(button);buttons.push(button);
       }
       while(buttons.length>slides.length)buttons.pop().remove();
-      slides.forEach((slide,index)=>this._thumb(buttons[index],slide,index));
+      const sidebarWidth=this.sidebar.clientWidth;
+      slides.forEach((slide,index)=>this._thumb(buttons[index],slide,index,sidebarWidth));
       this.root.querySelector("[data-position]").textContent=
         "Slide "+(this.current+1)+" de "+slides.length;
       this.root.querySelector("[data-count]").textContent=slides.length+" slides";
@@ -1676,11 +1719,6 @@
     }
     _fontProperty(selected,update,container){
       const family=selected.font_family||"Inter";
-      const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri",
-        "Georgia","Verdana","Courier New","Liberation Serif","Liberation Sans",
-        "DejaVu Sans","DejaVu Serif","Bitstream Charter",
-        ...Array.from(this.root.querySelectorAll('[data-font-family] option'),option=>option.value)]);
-      const sorted=Array.from(fonts).filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR"));
       const wrapper=document.createElement("div");wrapper.className="slide-font-widget";
       const caption=document.createElement("span");caption.className="slide-font-label";
       caption.textContent="Família da fonte";wrapper.append(caption);
@@ -1696,21 +1734,29 @@
       search.className="slide-font-search";search.placeholder="Pesquisar fonte";
       search.setAttribute("aria-label","Pesquisar família da fonte");list.append(search);
       const items=[];
-      for(const font of sorted){
-        const button=document.createElement("button");button.type="button";
-        button.className="slide-font-option";button.dataset.family=font;
-        button.setAttribute("aria-selected",String(font===family));
-        button.title=font;
-        const preview=document.createElement("span");preview.className="slide-font-sample";
-        preview.textContent="Aa Bb";preview.style.fontFamily=JSON.stringify(font)+",sans-serif";
-        const label=document.createElement("span");label.className="slide-font-option-name";
-        label.textContent=font;button.append(preview,label);
-        button.addEventListener("click",()=>{
-          picker.open=false;
-          if(font!==family)update({font_family:font});
-        },{signal:this.signal});
-        list.append(button);items.push(button);
-      }
+      const populate=()=>{
+        if(items.length)return;
+        const fonts=new Set([family,"Inter","Arial","Times New Roman","Calibri",
+          "Georgia","Verdana","Courier New","Liberation Serif","Liberation Sans",
+          "DejaVu Sans","DejaVu Serif","Bitstream Charter",
+          ...Array.from(this.root.querySelectorAll('[data-font-family] option'),option=>option.value)]);
+        const sorted=Array.from(fonts).filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+        for(const font of sorted){
+          const button=document.createElement("button");button.type="button";
+          button.className="slide-font-option";button.dataset.family=font;
+          button.setAttribute("aria-selected",String(font===family));
+          button.title=font;
+          const preview=document.createElement("span");preview.className="slide-font-sample";
+          preview.textContent="Aa Bb";preview.style.fontFamily=JSON.stringify(font)+",sans-serif";
+          const label=document.createElement("span");label.className="slide-font-option-name";
+          label.textContent=font;button.append(preview,label);
+          button.addEventListener("click",()=>{
+            picker.open=false;
+            if(font!==family)update({font_family:font});
+          },{signal:this.signal});
+          list.append(button);items.push(button);
+        }
+      };
       search.addEventListener("input",()=>{
         const query=search.value.trim().toLocaleLowerCase("pt-BR");
         for(const button of items){
@@ -1718,7 +1764,7 @@
         }
       },{signal:this.signal});
       picker.addEventListener("toggle",()=>{
-        if(picker.open)search.focus();
+        if(picker.open){populate();search.focus();}
       },{signal:this.signal});
       picker.append(list);wrapper.append(picker);container.append(wrapper);
     }
@@ -1896,7 +1942,7 @@
         const fallback=labelFor(obj.type)+" "+(peers.indexOf(obj)+1);
         const button=document.createElement("button");button.textContent=obj.name||fallback;
         button.setAttribute("aria-pressed",String(this.selectedIds.has(obj.id)));
-        button.addEventListener("click",event=>{this._selectObject(obj.id,event.shiftKey);this.render();},{signal:this.signal});
+        button.addEventListener("click",event=>{this._selectObject(obj.id,event.shiftKey);this._refreshSelection();},{signal:this.signal});
         list.append(button);
       });this.inspector.append(list);
       if(this.selectedIds.size>1){
@@ -2124,10 +2170,16 @@
       event?.preventDefault();return true;
     }
     _clearSnapGuides(){
-      this.activeCanvas?.querySelectorAll(".slide-smart-guide").forEach(node=>node.remove());
+      if(!this.snapGuideSurface)return;
+      this.snapGuideSurface.querySelectorAll(".slide-smart-guide").forEach(node=>node.remove());
+      this.snapGuideSurface=null;this.snapGuideKey=null;
     }
     _drawSnapGuides(guides,surface){
+      const key=guides.map(({axis,kind,value})=>axis+":"+kind+":"+value).join("|");
+      if(this.snapGuideSurface===surface&&this.snapGuideKey===key)return;
       this._clearSnapGuides();
+      if(!guides.length)return;
+      this.snapGuideSurface=surface;this.snapGuideKey=key;
       for(const guide of guides){
         const line=document.createElement("div");
         line.className="slide-smart-guide slide-smart-guide-"+guide.axis;
@@ -2176,8 +2228,9 @@
         }
         this.lastTextTap={id:obj.id,index,time:now};
       }else if(!cell)this.lastTextTap=editable?{id:obj.id,index,time:now}:null;
-      if(!this.selectedIds.has(obj.id))this._selectObject(obj.id);
-      this._properties();
+      if(!this.selectedIds.has(obj.id)){
+        this._selectObject(obj.id);this._refreshSelection();
+      }
       const box=surface.getBoundingClientRect();
       if(!box.width||!box.height)return;
       const handle=event.target.closest("[data-resize]")?.dataset.resize||null;
@@ -2186,13 +2239,32 @@
       const centerX=box.left+(obj.x+obj.width/2)*box.width;
       const centerY=box.top+(obj.y+obj.height/2)*box.height;
       this.drag={index,id:obj.id,startX:event.clientX,startY:event.clientY,
-        initial:clone(obj),box,node,handle,rotating,scaling,centerX,centerY,
+        initial:obj,box,node,handle,rotating,scaling,centerX,centerY,
+        others:this.getModel().surfaces[index].elements.filter(other=>other.id!==obj.id),
         startingAngle:Math.atan2(event.clientY-centerY,event.clientX-centerX),value:null};
       event.preventDefault();event.stopPropagation();
     }
+    _queueDrag(event){
+      const state=this.drag;
+      if(!state)return;
+      if(!window.requestAnimationFrame){this._drag(event);return;}
+      state.pending=event;
+      if(state.frame!=null)return;
+      state.frame=window.requestAnimationFrame(()=>{
+        if(this.drag!==state)return;
+        state.frame=null;
+        const latest=state.pending;state.pending=null;
+        if(latest)this._drag(latest);
+      });
+    }
+    _cancelDragFrame(){
+      if(this.drag?.frame!=null)window.cancelAnimationFrame?.(this.drag.frame);
+    }
     _drag(event){
       const state=this.drag;if(!state||!this.active)return;
-      const dx=(event.clientX-state.startX)/state.box.width,dy=(event.clientY-state.startY)/state.box.height;
+      const moveX=event.clientX-state.startX,moveY=event.clientY-state.startY;
+      if(!state.value&&Math.abs(moveX)<2&&Math.abs(moveY)<2)return;
+      const dx=moveX/state.box.width,dy=moveY/state.box.height;
       const item={...state.initial};
       if(state.rotating){
         const angle=Math.atan2(event.clientY-state.centerY,event.clientX-state.centerX);
@@ -2223,25 +2295,23 @@
         item.x=clamp(state.initial.x+dx,0,1-state.initial.width);
         item.y=clamp(state.initial.y+dy,0,1-state.initial.height);
         if(!event.altKey){
-          const others=this.getModel().surfaces[state.index].elements
-            .filter(obj=>obj.id!==state.id);
-          const snapped=smartSnap(item,others,state.box.width,state.box.height);
+          const snapped=smartSnap(item,state.others,state.box.width,state.box.height);
           item.x=snapped.item.x;item.y=snapped.item.y;
           this._drawSnapGuides(snapped.guides,state.node.closest(".fixed-surface"));
         }else this._clearSnapGuides();
       }
       if(state.rotating||state.handle)this._clearSnapGuides();
       state.value=item;
+      this.lastTextTap=null;
       this._styleObject(state.node,item,state.index);
     }
     _finish(event){
       const drag=this.drag;if(!drag)return;
+      this._cancelDragFrame();
+      if(drag.pending)this._drag(drag.pending);
       this._clearSnapGuides();
       this.drag=null;
-      if(!drag.value){
-        if(drag.node.dataset.selected!=="true")this.render();
-        return;
-      }
+      if(!drag.value)return;
       const patch={x:drag.value.x,y:drag.value.y,width:drag.value.width,
         height:drag.value.height,rotation:drag.value.rotation};
       if(drag.scaling && (drag.initial.type==="text"||drag.initial.type==="math"))
