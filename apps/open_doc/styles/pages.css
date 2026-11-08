@@ -42,6 +42,11 @@
     background: transparent;
     counter-reset: sheet;
 }
+/* The paged editor is one focusable surface. Its inset focus outline
+   would show through the gaps between the opaque page backgrounds. */
+.open-doc[data-page-mode='pages'] .paper [data-rich]:focus {
+    outline: none;
+}
 .open-doc .document-page {
     background: var(--color-paper);
     color: var(--color-paper-ink);
