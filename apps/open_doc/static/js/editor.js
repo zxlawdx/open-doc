@@ -495,8 +495,8 @@
       for(const element of ancestors){Object.assign(out,map.get(element.dataset.nodeId)?.style || {});if(window.OpenDocRichSerializer)Object.assign(out,window.OpenDocRichSerializer.readStyle(element,out));}
       if(ancestors.length&&(out.bold==null||out.italic==null)){
         const computed=getComputedStyle(ancestors[ancestors.length-1]);
-        out.bold??=computed.fontWeight==='bold'||Number(computed.fontWeight)>=600;
-        out.italic??=computed.fontStyle==='italic';
+        if(out.bold==null)out.bold=computed.fontWeight==='bold'||Number(computed.fontWeight)>=600;
+        if(out.italic==null)out.italic=computed.fontStyle==='italic';
       }
       return includeTyping?{...out,...activeTypingStyle()}:out;
     }
