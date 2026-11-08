@@ -1,0 +1,43 @@
+[
+  {
+    "run": "before-100",
+    "revision": "ce46a82",
+    "samples": 229,
+    "missingPaper": 81,
+    "maxFrameGapMs": 50,
+    "firstMissingPaper": {
+      "ms": 9812,
+      "phase": "backspace",
+      "pages": 0,
+      "first": null,
+      "last": null,
+      "scrollTop": 364,
+      "enter": 100,
+      "backspace": 25
+    }
+  },
+  {
+    "run": "after-100",
+    "revision": "419f683",
+    "samples": 172,
+    "missingPaper": 0,
+    "maxFrameGapMs": 50,
+    "firstMissingPaper": null
+  },
+  {
+    "run": "after-500",
+    "revision": "419f683",
+    "samples": 408,
+    "missingPaper": 0,
+    "maxFrameGapMs": 167,
+    "firstMissingPaper": null
+  },
+  {
+    "run": "after-1000",
+    "revision": "419f683",
+    "samples": 591,
+    "missingPaper": 0,
+    "maxFrameGapMs": 383,
+    "firstMissingPaper": null
+  }
+]
