@@ -105,6 +105,19 @@ def main():
                   list.getBoundingClientRect().bottom<=available.getBoundingClientRect().bottom+1;
             })()""")
             capture(output, "pivot")
+            js("""(() => {
+                const option=document.querySelector('[data-pivot-chart]');
+                option.value='bar';
+                option.dispatchEvent(new Event('change',{bubbles:true}));
+            })()""")
+            wait(window, "!!document.querySelector('[data-pivot-preview] svg')")
+            capture(output, "pivot-chart")
+            js("""(() => {
+                const option=document.querySelector('[data-pivot-chart]');
+                option.value='table';
+                option.dispatchEvent(new Event('change',{bubbles:true}));
+            })()""")
+            wait(window, "!!document.querySelector('[data-pivot-preview] table')")
             click("[data-book-command=pivot-create]")
             wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
             wait(window, "document.querySelector('[data-cell=\"1,1\"]')?.textContent==='520'")
