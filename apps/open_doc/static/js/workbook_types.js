@@ -52,6 +52,25 @@
     }
     return {text:value,valid:true};
   }
+  function analysisValue(raw,type){
+    const value=String(raw??"");
+    if(["integer","decimal","currency","percent"].includes(type)){
+      const engine=typeof window!=="undefined"?window.OpenDocWorkbookPivot:require("./workbook_pivot.js");
+      const num=engine.number(value);
+      return Number.isFinite(num)&&(type!=="integer"||Number.isInteger(num))?String(num):value;
+    }
+    if(type==="boolean"){
+      const text=value.trim().toLocaleLowerCase("pt-BR");
+      if(["sim","true","1","verdadeiro"].includes(text))return "1";
+      if(["não","nao","false","0","falso"].includes(text))return "0";
+      return value;
+    }
+    if(type==="date"&&show(value,type).valid){
+      const matched=value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if(matched)return matched[3]+"-"+matched[2]+"-"+matched[1];
+    }
+    return value;
+  }
   function create({host,signal,getState,change}) {
     let menu=null,selection=null,mode="cell";
     const close=()=>{
@@ -131,7 +150,7 @@
     host.addEventListener("keydown",event=>{if(event.key==="Escape"&&menu){event.stopPropagation();close();}},{signal});
     return {open,close,typeFor,show,symbols};
   }
-  const api={create,typeFor,show,symbols};
+  const api={create,typeFor,show,analysisValue,symbols};
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   if(typeof window!=="undefined")window.OpenDocWorkbookTypes=api;
 })();
