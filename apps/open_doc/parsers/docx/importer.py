@@ -27,6 +27,11 @@ from apps.open_doc.parsers.docx.numbering import numbering_catalog
 from apps.open_doc.readers.pptx.native_math import parse_word_omath, M as MATH_NS
 
 
+NONVISUAL_MARKERS = {w(tag) for tag in (
+    "bookmarkStart", "bookmarkEnd", "proofErr", "lastRenderedPageBreak"
+)}
+
+
 def node(kind, **values):
     return {"id": str(uuid4()), "type": kind, **values}
 
@@ -117,7 +122,8 @@ class DocxImporter:
         raw = xml(e)
         if len(raw.encode()) > MAX_OPAQUE_BYTES:
             raise ValueError("Elemento OOXML muito grande para preservação segura.")
-        self.warnings.append("PRESERVED_OPAQUE: " + e.tag.split("}")[-1])
+        if e.tag not in NONVISUAL_MARKERS:
+            self.warnings.append("PRESERVED_OPAQUE: " + e.tag.split("}")[-1])
         return node(
             "opaque-ooxml",
             xml=raw,

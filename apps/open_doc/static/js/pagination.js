@@ -67,7 +67,10 @@
         box.appendChild(node);
         if(overflow() && box.children.length>1){node.remove();next();box.appendChild(node);}
         if(overflow() && node.tagName==='TABLE' && node.rows.length>1 && !node.querySelector('[rowspan]:not([rowspan="1"])')){
-          const rest=node.cloneNode(false),body=document.createElement('tbody');rest.appendChild(body);rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
+          const rest=node.cloneNode(false),body=document.createElement('tbody');
+          const columns=node.querySelector(':scope > colgroup');
+          if(columns)rest.appendChild(columns.cloneNode(true));
+          rest.appendChild(body);rest.dataset.fragmentOf=node.dataset.fragmentOf || node.dataset.nodeId;
           while(overflow() && node.rows.length>1 && (tick(),true))body.insertBefore(node.rows[node.rows.length-1],body.firstChild);
           if(body.children.length)nodes.splice(i+1,0,rest);
         }else if(overflow() && /^(P|DIV|BLOCKQUOTE|PRE)$/.test(node.tagName)

@@ -232,7 +232,7 @@
       documentState = {...note};
       model=note.content?window.OpenDocModel.clone(note.content):null;mediaCache.clear();
       const warning=root.querySelector('[data-rich-warning]'),list=root.querySelector('[data-rich-warnings]');
-      if(warning && list){const warnings=model?.metadata?.warnings || [];warning.hidden=!warnings.length;list.replaceChildren();for(const message of warnings.slice(0,30)){const li=document.createElement('li');li.textContent=message;list.appendChild(li);}}
+      if(warning && list){const warnings=[...new Set(model?.metadata?.warnings || [])].filter(message=>!/^PRESERVED_OPAQUE: (bookmarkStart|bookmarkEnd|proofErr|lastRenderedPageBreak)$/.test(message));warning.hidden=!warnings.length;list.replaceChildren();for(const message of warnings.slice(0,30)){const li=document.createElement('li');li.textContent=message;list.appendChild(li);}}
       const section=model?.sections?.[0];surface.style.width=section?section.page_width_pt*4/3+'px':'';surface.style.minHeight=section?section.page_height_pt+'pt':'';surface.dataset.pageWidth=section?section.page_width_pt*4/3:'';surface.dataset.pageHeight=section?section.page_height_pt*4/3:'';
       for(const pane of [rich,preview]){pane.style.minHeight=section?section.page_height_pt+'pt':'';pane.style.padding=section?[section.margin_top_pt,section.margin_right_pt,section.margin_bottom_pt,section.margin_left_pt].map(n=>n+'pt').join(' '):'';}
       for(const [kind,selector] of [['headers','[data-rich-header]'],['footers','[data-rich-footer]']]){const pane=root.querySelector(selector);if(!pane)continue;const values=model?Object.values(model[kind] || {}):[];pane.hidden=!values.length;if(values.length)window.OpenDocRichRenderer.render({...model,blocks:values[0]},pane,mediaUrl);}
