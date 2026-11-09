@@ -5,6 +5,7 @@ import json
 import math
 import os
 import shutil
+import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,7 @@ from ..fixed_document.schema import create
 from ..fixed_document.serialization import serialize, load
 from ..readers.pdf.service import PdfService
 from ..readers.pdf.security import validated_pdf
+from ..readers.pptx.preview import convert_to_pdf, libreoffice_executable
 from ..readers.pptx.service import PresentationService
 from .document_service import RevisionConflict
 from .export_service import safe_stem
@@ -104,7 +106,6 @@ class FixedDocumentService:
                 **dict(recovery),
                 "content": load(recovery["content_json"]),
             }
-        preview = self.directory(identifier) / "preview.pdf"
         can_preview = note["source_kind"] in {"pdf", "pptx"}
         handwriting = getattr(self, "handwriting", None)
         note["capabilities"] = {
@@ -116,6 +117,14 @@ class FixedDocumentService:
             and any(b["available"] for b in handwriting.capabilities()),
             "pptx_preview": {
                 "available": note["source_kind"] == "pptx",
+                "fidelity": (
+                    note["source_kind"] == "pptx"
+                    and not note["content"].get("editable_deck")
+                    and (
+                        (self.directory(identifier) / "preview.pdf").is_file()
+                        or libreoffice_executable() is not None
+                    )
+                ),
                 "backend": (
                     "pptx-viewer-0.2.2" if note["source_kind"] == "pptx" else None
                 ),
@@ -253,6 +262,29 @@ class FixedDocumentService:
         path = self.directory(identifier) / (
             "preview.pdf" if preview else "source." + note["source_kind"]
         )
+        if preview and note["source_kind"] == "pptx" and not path.exists():
+            executable = libreoffice_executable()
+            if not executable:
+                raise ValueError("LibreOffice indisponível.")
+            source = self.source(identifier)
+            try:
+                temporary, rendered = convert_to_pdf(executable, source)
+            except (subprocess.SubprocessError, RuntimeError) as error:
+                raise ValueError("Não foi possível renderizar a apresentação.") from error
+            with temporary:
+                validated_pdf(rendered, rendered.parent)
+                # Requests may overlap. Publish only a complete file.
+                with tempfile.NamedTemporaryFile(
+                    dir=path.parent, suffix=".pdf", delete=False
+                ) as output:
+                    staging = Path(output.name)
+                    try:
+                        with rendered.open("rb") as stream:
+                            shutil.copyfileobj(stream, output)
+                        output.close()
+                        os.replace(staging, path)
+                    finally:
+                        staging.unlink(missing_ok=True)
         if preview or note["source_kind"] == "pdf":
             validated_pdf(path, self.config.root)
         if (
