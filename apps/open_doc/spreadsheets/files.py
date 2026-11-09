@@ -158,3 +158,48 @@ def export(sheets, destination, fmt, sheet_index=0):
     finally:
         temporary.unlink(missing_ok=True)
     return {"name": destination.name}
+
+
+def append_delimited(sheets, index, path):
+    """Prepare a bounded append to the current sheet without mutating the draft."""
+    from apps.open_doc.datasets.store import delimited
+
+    validate(sheets)
+    if type(index) is not int or not 0 <= index < len(sheets):
+        raise ValueError("Aba inválida.")
+    if path.suffix.lower() not in (".csv", ".tsv"):
+        raise ValueError("Selecione um CSV ou TSV.")
+    if path.stat().st_size > 8 * 1024 * 1024:
+        raise ValueError("Arquivo grande para a grade. Use a área Dados.")
+    sheet = sheets[index]
+    cells = sheet["cells"]
+    used = [tuple(map(int, key.split(","))) for key in cells]
+    header_columns = sorted(col for row, col in used if row == 0)
+    if not header_columns or header_columns != list(range(len(header_columns))):
+        raise ValueError("A linha 1 precisa ter um cabeçalho contínuo, começando em A1.")
+    columns = [literal(cells[f"0,{col}"]).strip() for col in header_columns]
+    if any(not column for column in columns) or len(set(columns)) != len(columns):
+        raise ValueError("O cabeçalho da planilha deve ter nomes preenchidos e únicos.")
+    start = max(row for row, _ in used) + 1
+    entries = {}
+    added = 0
+    with delimited(path, "utf-8-sig", "auto") as (header, reader):
+        if set(header) != set(columns):
+            raise ValueError("As colunas do arquivo não correspondem ao cabeçalho da aba.")
+        positions = {name: column for column, name in enumerate(columns)}
+        order = [positions[name] for name in header]
+        for values in reader:
+            if not values:
+                continue
+            if start + added >= ROWS:
+                raise ValueError("A aba ultrapassaria 10 mil linhas. Use a área Dados.")
+            if len(values) != len(header):
+                raise ValueError(f"Registro até a linha {reader.line_num} com número de campos inválido.")
+            for col, value in zip(order, values):
+                if value:
+                    entries[f"{start + added},{col}"] = "'" + value if value.startswith(("=", "'")) else value
+            added += 1
+    result = list(sheets)
+    result[index] = {**sheet, "cells": cells | entries}
+    validate(result)
+    return {"entries": entries, "added": added}

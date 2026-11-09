@@ -10,7 +10,7 @@
   window.OpenDocApp?.destroy();
   const scriptUrl = document.currentScript.src;
   const controller = new AbortController(), signal = controller.signal;
-  let workbook;
+  let workbook, datasets;
   let editor, theme, layout, navigation, menus, design, token = '', destroyed = false, busy = false;
   let settings = {}, preferenceChain = Promise.resolve();
   let dialogResolver = null, dialogFocus = null, noticeTimer;
@@ -112,6 +112,8 @@
   function showView(home = false) {
     const wasHome = root.dataset.homeView === 'true' && root.dataset.workbookView !== 'true';
     root.dataset.workbookView = 'false';
+    root.dataset.datasetView = 'false';
+    root.querySelector('[data-dataset]').hidden = true;
     root.querySelector('[data-workbook]').hidden = true;
     root.dataset.homeView = String(home);
     root.querySelector('[data-library]').hidden = !home;
@@ -238,6 +240,19 @@
     showView(true);
     design?.navigateLibrary(route, section);
   }
+  async function openDatasets() {
+    await editor.flush();
+    const host = root.querySelector('[data-dataset]');
+    if (!datasets) {
+      if (!window.OpenDocDatasets) await loadScript('datasets.js');
+      datasets = window.OpenDocDatasets.create({host,request,signal});
+    }
+    showView(true);
+    root.dataset.datasetView = 'true';
+    root.querySelector('[data-library]').hidden = true;
+    host.hidden = false;
+    await datasets.load();
+  }
   async function openWorkbook(data) {
     await editor.flush();
     const host = root.querySelector('[data-workbook]');
@@ -353,6 +368,10 @@
   }
   async function action(name) {
     if (!editor) return;
+    if (root.dataset.datasetView === 'true') {
+      if (name === 'home') return libraryRoute();
+      return;
+    }
     if (root.dataset.workbookView === 'true') {
       if (name === 'home') return leaveWorkbook();
       if (name === 'save') return workbook.save().catch(error=>workbook.report(error.message));
@@ -378,6 +397,7 @@
 
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
       home: () => libraryRoute(),
+      datasets: () => operate(openDatasets),
       'workbook-new': () => operate(()=>openWorkbook({operation:'new'})),
       'workbook-import': () => operate(()=>openWorkbook()),
       'resume-editor': () => showView(false),
@@ -583,7 +603,7 @@
       if(!event.repeat)action('save');
     },{capture:true,signal});
     window.addEventListener('keydown', event => {
-      if (root.dataset.workbookView === 'true' || !(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
+      if (root.dataset.datasetView === 'true' || root.dataset.workbookView === 'true' || !(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
       const name = ({n: 'new', o: 'import', f: 'find'})[event.key.toLowerCase()];
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='h') {event.preventDefault();action('replace');return;}
       if (name) { event.preventDefault(); action(name); }

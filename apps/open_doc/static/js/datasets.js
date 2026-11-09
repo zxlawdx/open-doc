@@ -1,0 +1,86 @@
+"use strict";
+(() => {
+  function create({host,request,signal}) {
+    const $=selector=>host.querySelector(selector);
+    const list=$("[data-dataset-list]"), table=$("[data-dataset-table]");
+    const status=$("[data-dataset-status]"), pagination=$("[data-dataset-pagination]");
+    const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
+    let row=0, column=0, current, busy=false;
+    function controls() {
+      for (const control of host.querySelectorAll("input,select,button")) control.disabled=busy;
+      $("[data-dataset-command=append]").disabled=busy || !list.value;
+      pagination.hidden=!current;
+      $("[data-dataset-command=previous]").disabled=busy || row===0;
+      $("[data-dataset-command=next]").disabled=busy || !current || row+50>=current.row_count;
+    }
+    function draw(result) {
+      const head=document.createElement("thead"), body=document.createElement("tbody");
+      function add(target, text, kind) {
+        const cell=document.createElement(kind);
+        cell.textContent=text;
+        target.append(cell);
+      }
+      const headings=head.insertRow();
+      add(headings,"Linha","th");
+      for (const name of result.columns) add(headings,name,"th");
+      result.rows.forEach((cells,index)=>{
+        const line=body.insertRow();
+        add(line,(row+index+1).toLocaleString("pt-BR"),"th");
+        for (const value of cells) add(line,value,"td");
+      });
+      table.replaceChildren(head,body);
+    }
+    async function showPage(nextRow=0,nextColumn=0) {
+      if(!list.value){
+        current=null;table.replaceChildren();status.textContent="Importe um ou mais CSVs com cabeçalho para começar.";
+        return;
+      }
+      const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
+      current=result;row=nextRow;column=nextColumn;
+      rowInput.value=row+1;columnInput.value=column+1;
+      draw(result);
+      const number=value=>value.toLocaleString("pt-BR");
+      status.textContent=number(result.row_count)+" linhas · "+number(result.column_count)+" colunas · "+
+        number(result.source_count)+" arquivos · linhas exibidas "+number(result.rows.length ? row+1 : 0)+"–"+number(row+result.rows.length);
+    }
+    async function load(identifier=list.value) {
+      const data=await request("dataset",{operation:"list"});
+      list.replaceChildren(...data.datasets.map(item=>new Option(item.title,item.id)));
+      if(data.datasets.some(item=>item.id===identifier)) list.value=identifier;
+      await showPage();
+    }
+    async function run(operation) {
+      if(busy)return;
+      busy=true;controls();
+      try {await operation();} catch(error){status.textContent=error.message;}
+      finally{busy=false;controls();}
+    }
+    async function ingest(append) {
+      status.textContent="Selecione arquivos CSV ou TSV…";
+      const result=await window.pywebview.api.import_dataset(
+        append ? list.value : null, $("[data-dataset-encoding]").value, $("[data-dataset-delimiter]").value
+      );
+      if(result.error)throw Error(result.error);
+      if(result.cancelled)return showPage(row,column);
+      const first=result.added ? result.row_count-result.added : 0;
+      await load(result.id);
+      if(first)await showPage(first);
+      status.textContent=result.added.toLocaleString("pt-BR")+" linhas acrescentadas. "+status.textContent;
+    }
+    host.addEventListener("click",event=>{
+      const command=event.target.closest("[data-dataset-command]")?.dataset.datasetCommand;
+      if(command==="new" || command==="append")run(()=>ingest(command==="append"));
+      if(command==="previous")run(()=>showPage(Math.max(0,row-50),column));
+      if(command==="next")run(()=>showPage(row+50,column));
+      if(command==="go")run(()=>{
+        if(!/^[1-9]\d*$/.test(rowInput.value) || !/^[1-9]\d*$/.test(columnInput.value))throw Error("Informe linha e coluna a partir de 1.");
+        return showPage(Number(rowInput.value)-1,Number(columnInput.value)-1);
+      });
+    },{signal});
+    list.addEventListener("change",()=>run(async()=>{
+      current=null;table.replaceChildren();await showPage();
+    }),{signal});
+    return {load:()=>run(()=>load())};
+  }
+  window.OpenDocDatasets={create};
+})();

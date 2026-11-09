@@ -261,3 +261,17 @@ def workbook(context=None):
         raise ValueError("Operação de planilha inválida.")
 
     return _handle(operation)
+
+
+@api.post("/open_doc/dataset")
+def dataset(context=None):
+    def operation():
+        data = _data(context)
+        store = get_context().datasets
+        if data["operation"] == "list":
+            return {"datasets": store.list()}
+        if data["operation"] == "page":
+            return store.page(data["id"], data["row"], data["column"])
+        raise ValueError("Operação de dataset inválida.")
+
+    return _handle(operation)

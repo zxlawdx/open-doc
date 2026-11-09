@@ -5,6 +5,7 @@
     <button type="button" data-book-command="undo">Desfazer</button>
     <button type="button" data-book-command="redo">Refazer</button>
     <button type="button" data-book-command="bold" aria-pressed="false"><strong>Negrito</strong></button>
+    <button type="button" data-book-command="append">Acrescentar CSV/TSV à aba</button>
     <button type="button" data-book-command="versions">Histórico</button>
     <label>Exportar <select data-book-format aria-label="Formato de exportação"><option>XLSX</option><option>CSV</option><option>TSV</option></select></label>
     <button type="button" data-book-command="export">Exportar arquivo</button>
@@ -23,4 +24,26 @@
     <button type="button" data-book-command="rename">Renomear aba</button>
   </div>
   <p data-book-status role="status" aria-live="polite"></p>
+</section>
+
+<section class="workbook dataset" data-dataset hidden aria-label="Área de dados">
+  <div class="workbook-toolbar">
+    <strong>Datasets locais</strong>
+    <select data-dataset-list aria-label="Dataset"></select>
+    <label>Codificação <select data-dataset-encoding><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
+    <label>Separador <select data-dataset-delimiter><option value="auto">Automático</option><option value=",">Vírgula</option><option value=";">Ponto e vírgula</option><option value="&#9;">Tabulação</option><option value="|">Barra vertical</option></select></label>
+    <button type="button" data-dataset-command="new">Novo dataset de CSV/TSV</button>
+    <button type="button" data-dataset-command="append">Acrescentar arquivos ao dataset</button>
+  </div>
+  <div class="workbook-toolbar" data-dataset-pagination>
+    <button type="button" data-dataset-command="previous">Linhas anteriores</button>
+    <button type="button" data-dataset-command="next">Próximas linhas</button>
+    <label>Linha <input data-dataset-row inputmode="numeric" size="8" value="1"></label>
+    <label>Coluna <input data-dataset-column inputmode="numeric" size="5" value="1"></label>
+    <button type="button" data-dataset-command="go">Ir para posição</button>
+  </div>
+  <div class="workbook-scroll" tabindex="0" aria-label="Prévia do dataset">
+    <table data-dataset-table></table>
+  </div>
+  <p data-dataset-status role="status" aria-live="polite"></p>
 </section>
