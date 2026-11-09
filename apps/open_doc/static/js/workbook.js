@@ -293,7 +293,7 @@
       }catch(error){report(error.message);}
     },{signal});
     signal.addEventListener("abort",()=>cancelAnimationFrame(frame),{once:true});
-    return {load,save,report};
+    return {load,save,report,id:()=>book.id};
   }
   window.OpenDocWorkbook={create};
 })();

@@ -41,7 +41,10 @@ def main():
                 wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
                 assert "2 arquivos" in window.evaluate_js("document.querySelector('[data-dataset-status]').textContent")
                 capture(output, "append")
-                print("QT_DATASET_IMPORT_APPEND_OK", flush=True)
+                window.evaluate_js("""document.querySelector('[data-dataset-sql]').value='SELECT COUNT(*) FROM dados';
+                  document.querySelector('[data-dataset-command=query]').click();""")
+                wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='2'")
+                print("QT_DATASET_IMPORT_APPEND_QUERY_OK", flush=True)
             except Exception as error:
                 errors.append(error)
             finally:

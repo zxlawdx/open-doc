@@ -5,7 +5,10 @@
   if(!window.OpenDocPptxVendor)throw Error('Renderer PPTX local indisponível. Execute npm run build.');
   const response=await fetch('/api/open_doc/artifact/content?id='+encodeURIComponent(id),{headers:{'X-Open-Doc-Token':token}});
   if(!response.ok)throw Error('Não foi possível ler a apresentação (HTTP '+response.status+').');
-  const bytes=await response.arrayBuffer(),signature=new Uint8Array(bytes,0,Math.min(2,bytes.byteLength));
+  return loadBytes(await response.arrayBuffer());
+ }
+ async function loadBytes(bytes){
+  const signature=new Uint8Array(bytes,0,Math.min(2,bytes.byteLength));
   if(signature[0]!==80 || signature[1]!==75)throw Error('A origem não é um pacote PPTX.');
   const presentation=await window.OpenDocPptxVendor.loadPresentation(bytes);
   function render(index,node,width,height,thumbnail=false){
@@ -20,5 +23,5 @@
   function text(value){if(!value || typeof value!=='object')return '';return Object.entries(value).map(([key,v])=>typeof v==='string' && (key==='text' || key==='content')?v:typeof v==='object'?text(v):'').join(' ');}
   return {count:presentation.slides.length,render,find:q=>presentation.slides.map((s,i)=>text(s).toLocaleLowerCase().includes(q.toLocaleLowerCase())?i:-1).filter(i=>i>=0),destroy:()=>presentation.cleanup()};
  }
- window.OpenDocPptx={load};
+ window.OpenDocPptx={load,loadBytes};
 })();

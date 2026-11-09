@@ -5,15 +5,17 @@
     const list=$("[data-dataset-list]"), table=$("[data-dataset-table]");
     const status=$("[data-dataset-status]"), pagination=$("[data-dataset-pagination]");
     const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
-    let row=0, column=0, current, busy=false;
+    let row=0, column=0, current, busy=false, querying=false;
     function controls() {
-      for (const control of host.querySelectorAll("input,select,button")) control.disabled=busy;
+      for (const control of host.querySelectorAll("input,select,button,textarea")) control.disabled=busy;
       $("[data-dataset-command=append]").disabled=busy || !list.value;
-      pagination.hidden=!current;
+      pagination.hidden=!current || querying;
+      $("[data-dataset-query]").hidden=!current;
+      $("[data-dataset-command=reset]").disabled=busy || !querying;
       $("[data-dataset-command=previous]").disabled=busy || row===0;
       $("[data-dataset-command=next]").disabled=busy || !current || row+50>=current.row_count;
     }
-    function draw(result) {
+    function draw(result, preview=true) {
       const head=document.createElement("thead"), body=document.createElement("tbody");
       function add(target, text, kind) {
         const cell=document.createElement(kind);
@@ -21,12 +23,12 @@
         target.append(cell);
       }
       const headings=head.insertRow();
-      add(headings,"Linha","th");
+      if(preview)add(headings,"Linha","th");
       for (const name of result.columns) add(headings,name,"th");
       result.rows.forEach((cells,index)=>{
         const line=body.insertRow();
-        add(line,(row+index+1).toLocaleString("pt-BR"),"th");
-        for (const value of cells) add(line,value,"td");
+        if(preview)add(line,(row+index+1).toLocaleString("pt-BR"),"th");
+        for (const value of cells) add(line,value ?? "NULL","td");
       });
       table.replaceChildren(head,body);
     }
@@ -36,7 +38,7 @@
         return;
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
-      current=result;row=nextRow;column=nextColumn;
+      current=result;row=nextRow;column=nextColumn;querying=false;
       rowInput.value=row+1;columnInput.value=column+1;
       draw(result);
       const number=value=>value.toLocaleString("pt-BR");
@@ -72,6 +74,13 @@
       if(command==="new" || command==="append")run(()=>ingest(command==="append"));
       if(command==="previous")run(()=>showPage(Math.max(0,row-50),column));
       if(command==="next")run(()=>showPage(row+50,column));
+      if(command==="query")run(async()=>{
+        const result=await request("dataset",{operation:"query",id:list.value,sql:$("[data-dataset-sql]").value});
+        querying=true;
+        draw(result,false);
+        status.textContent=result.rows.length+" linhas de resultado"+(result.limited?" · prévia limitada a 100 linhas":"");
+      });
+      if(command==="reset")run(()=>showPage(row,column));
       if(command==="go")run(()=>{
         if(!/^[1-9]\d*$/.test(rowInput.value) || !/^[1-9]\d*$/.test(columnInput.value))throw Error("Informe linha e coluna a partir de 1.");
         return showPage(Number(rowInput.value)-1,Number(columnInput.value)-1);

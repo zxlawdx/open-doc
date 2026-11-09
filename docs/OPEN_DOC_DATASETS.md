@@ -12,7 +12,16 @@ Na grade, **Acrescentar CSV/TSV à aba** usa o cabeçalho da primeira linha e ac
 
 O teste de persistência usa 600 mil linhas seguidas de outras 500 mil. Outro cenário usa 130 colunas e Windows-1252. A suíte cobre a reversão do lote em caso de erro. O teste de desktop usa QtWebEngine e exercita a ponte nativa com arquivos reais, fornecendo somente os caminhos que seriam escolhidos no seletor. [Captura](images/datasets/append.png)
 
-Datasets são consultáveis pela prévia. SQL/Python, edição em massa, exportação de datasets e junção por chave são etapas seguintes. O acréscimo atual empilha registros com o mesmo esquema.
+Datasets são consultáveis pela prévia ou por SQL. Selecione o dataset e execute uma consulta sobre a tabela `dados`. As colunas do CSV são texto. Use `CAST` para agregações numéricas e aspas duplas para nomes com espaços. O executor abre o banco somente para leitura e restringe o acesso ao dataset selecionado, com até cinco segundos e uma prévia de até 100 linhas e 100 colunas por consulta.
+
+```sql
+SELECT "ano", COUNT(*) AS registros
+FROM dados
+GROUP BY "ano"
+ORDER BY "ano";
+```
+
+Python, edição em massa, exportação de datasets e junção por chave permanecem como etapas seguintes. O acréscimo atual empilha registros com o mesmo esquema.
 
 1. Em Linux Mint ou Windows, abra **Dados** pela Central e crie um dataset com CSV de cabeçalho preenchido.
 2. Acrescente um segundo CSV com os mesmos nomes em outra ordem e confira a contagem total. Vá diretamente à linha de transição pelo campo de posição.

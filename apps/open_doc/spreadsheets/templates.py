@@ -19,7 +19,7 @@ def catalog():
     ]
 
 
-def create(store, identifier):
+def sample(identifier):
     sample = SAMPLES.get(identifier.removeprefix("sheet-"))
     if sample is None:
         raise ValueError("Template de planilha não encontrado.")
@@ -30,4 +30,9 @@ def create(store, identifier):
         for col, value in enumerate(items):
             sheet["cells"][f"{row},{col}"] = value
     sheet["bold"] = [f"0,{col}" for col in range(4)]
-    return store.create(title, [sheet])
+    return title, [sheet]
+
+
+def create(store, identifier):
+    title, workbook = sample(identifier)
+    return store.create(title, workbook)
