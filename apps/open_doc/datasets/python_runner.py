@@ -39,7 +39,8 @@ def run_python(store, identifier, code):
         root = Path(directory)
         dataset, script, output = (root / name for name in ("dados.csv", "analise.py", "saida.txt"))
         with dataset.open("w", encoding="utf-8", newline="") as stream:
-            count = store.write_csv(identifier, stream)
+            write = getattr(store, "write_analysis_csv", store.write_csv)
+            count = write(identifier, stream)
         script.write_text(code, encoding="utf-8")
         bootstrap = ("import runpy, sys; from pathlib import Path; "
                      "runpy.run_path(sys.argv[1], init_globals={'DATASET_CSV': Path(sys.argv[2])}, run_name='__main__')")
