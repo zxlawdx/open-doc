@@ -126,6 +126,30 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
     <output data-book-signature aria-live="polite"></output>
     <button type="button" data-book-command="run-python"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar Python</button>
     <pre data-book-python-output aria-label="Saída Python" tabindex="0"></pre>
+    <section class="python-packages" data-python-packages aria-label="Bibliotecas Python do projeto">
+      <button type="button" data-python-env-command="toggle"
+        title="Gerenciar pacotes em ambiente virtual exclusivo desta planilha ou dataset">
+        <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg>Bibliotecas Python
+      </button>
+      <div data-python-env-body hidden>
+        <p>Instalação opcional por projeto em um venv separado. Pacotes PyPI executam código de terceiros
+          com permissões da sua conta; não constituem isolamento de segurança.</p>
+        <label>Pacotes (separe por vírgulas, até 5)
+          <input data-python-env-names placeholder="pandas, numpy" maxlength="500">
+        </label>
+        <label class="python-packages-consent">
+          <input type="checkbox" data-python-env-agree>
+          Autorizo instalar esses pacotes de terceiros no ambiente do projeto.
+        </label>
+        <button type="button" data-python-env-command="install">Instalar no projeto</button>
+        <output data-python-env-status role="status" aria-live="polite"></output>
+        <details><summary>Pacotes instalados e log</summary>
+          <ul data-python-env-installed></ul><pre data-python-env-log></pre>
+        </details>
+        <small>Google Colab: integração remota ainda não disponível; nenhum acesso ou execução externa é simulado.</small>
+      </div>
+    </section>
+
   </aside>
   </div>
   <div class="workbook-tabs">
@@ -194,6 +218,30 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
     <output data-dataset-signature aria-live="polite"></output>
     <button type="button" data-dataset-command="python"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar Python</button>
     <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
+    <section class="python-packages" data-python-packages aria-label="Bibliotecas Python do projeto">
+      <button type="button" data-python-env-command="toggle"
+        title="Gerenciar pacotes em ambiente virtual exclusivo desta planilha ou dataset">
+        <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg>Bibliotecas Python
+      </button>
+      <div data-python-env-body hidden>
+        <p>Instalação opcional por projeto em um venv separado. Pacotes PyPI executam código de terceiros
+          com permissões da sua conta; não constituem isolamento de segurança.</p>
+        <label>Pacotes (separe por vírgulas, até 5)
+          <input data-python-env-names placeholder="pandas, numpy" maxlength="500">
+        </label>
+        <label class="python-packages-consent">
+          <input type="checkbox" data-python-env-agree>
+          Autorizo instalar esses pacotes de terceiros no ambiente do projeto.
+        </label>
+        <button type="button" data-python-env-command="install">Instalar no projeto</button>
+        <output data-python-env-status role="status" aria-live="polite"></output>
+        <details><summary>Pacotes instalados e log</summary>
+          <ul data-python-env-installed></ul><pre data-python-env-log></pre>
+        </details>
+        <small>Google Colab: integração remota ainda não disponível; nenhum acesso ou execução externa é simulado.</small>
+      </div>
+    </section>
+
   </details>
   </aside>
   </div>
