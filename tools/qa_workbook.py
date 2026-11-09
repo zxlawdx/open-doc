@@ -5,12 +5,13 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from qa_docx_list import capture, wait
+
 import webview
 
 from apps.open_doc.application.context import get_context
 from apps.open_doc.services.preferences_service import Config
 from config.wsgi import create_app
-from qa_docx_list import capture, wait
 
 
 def main():
