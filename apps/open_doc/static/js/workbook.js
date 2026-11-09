@@ -40,6 +40,10 @@
         }
       }});
 
+    const typesUI=window.OpenDocWorkbookTypes.create({host,signal,
+      getState:()=>({sheet:sheet(),bounds:bounds(),report}),
+      change:(target,before,after)=>change(()=>{target.types=before;},()=>{target.types=after;})
+    });
     function controls() {
       coord.value=column(col)+(row+1);
       if(document.activeElement!==formula) formula.value=raw();
@@ -72,7 +76,11 @@
         line.append(item("book-heading",left,(r+1)*HEIGHT,GUTTER,r+1));
         for(let c=firstCol;c<endCol;c++) {
           const id=key(r,c);
-          const cell=item("book-cell",GUTTER+c*WIDTH,(r+1)*HEIGHT,WIDTH,calc(index,r,c));
+          const kind=typesUI.typeFor(sheet(),r,c),formatted=typesUI.show(calc(index,r,c),kind);
+          const cell=item("book-cell",GUTTER+c*WIDTH,(r+1)*HEIGHT,WIDTH,formatted.text);
+          if(!formatted.valid){cell.classList.add("book-type-error");
+            cell.title="Valor incompatível com "+kind+" · original: "+(sheet().cells[id]||"");}
+          else if(kind!=="auto")cell.title="Tipo: "+kind+" · original: "+(sheet().cells[id]||"");
           cell.dataset.cell=id;
           cell.setAttribute("role","gridcell");
           cell.setAttribute("aria-colindex",String(c+1));
@@ -86,7 +94,15 @@
         }
         fragment.append(line);
       }
-      for(let c=firstCol;c<endCol;c++)fragment.append(item("book-heading",GUTTER+c*WIDTH,top,WIDTH,column(c)));
+      for(let c=firstCol;c<endCol;c++){
+        const heading=item("book-heading",GUTTER+c*WIDTH,top,WIDTH,column(c));
+        heading.dataset.bookCol=String(c);
+        const kind=sheet().types?.columns?.[String(c)]||"auto";
+        if(kind!=="auto"){heading.classList.add("book-typed");
+          heading.textContent+=" · "+(typesUI.symbols[kind]||kind);
+          heading.title="Tipo da coluna: "+kind;}
+        fragment.append(heading);
+      }
       fragment.append(item("book-heading book-corner",left,top,GUTTER,""));
       space.replaceChildren(fragment);
     }
@@ -465,8 +481,20 @@
       if(!target)return report("Endereço inválido.");
       select(...target,false,true);viewport.focus();
     },{signal});
+    viewport.addEventListener("contextmenu",event=>{
+      const cell=event.target.closest("[data-cell]"),heading=event.target.closest("[data-book-col]");
+      if(!cell&&!heading)return;
+      event.preventDefault();finishInline();commit();
+      let r=row,c=col;
+      if(cell){[r,c]=cell.dataset.cell.split(",").map(Number);select(r,c);}
+      if(heading)c=Number(heading.dataset.bookCol);
+      typesUI.open({event,row:r,col:c,header:!!heading});
+    },{signal});
     viewport.addEventListener("keydown",event=>{
       if(event.isComposing||pending||importing)return;
+      if(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")){
+        event.preventDefault();typesUI.open({event,row,col,header:false});return;
+      }
       const move={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1],
         Enter:[event.shiftKey?-1:1,0],Tab:[0,event.shiftKey?-1:1]}[event.key];
       if(event.ctrlKey||event.metaKey){
