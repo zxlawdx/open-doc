@@ -390,9 +390,10 @@
   background:var(--color-workspace);
 }
 .open-doc .fixed-document[data-pptx-preview="true"] .pptx-preview-canvas{
-  display:block;flex:0 0 auto;box-sizing:border-box;
+  display:block;flex:0 0 auto;box-sizing:border-box;margin:0;
   outline:1px solid rgba(0,0,0,.11);box-shadow:0 12px 36px rgba(13,24,44,.18);
 }
+.open-doc .pptx-thumbnail > canvas{margin-inline:auto}
 .open-doc .fixed-document[data-pptx-preview="true"] .fixed-sidebar
   [data-thumbnail-index][aria-current="true"]{
   border-color:var(--color-primary);background:var(--color-primary-soft);
