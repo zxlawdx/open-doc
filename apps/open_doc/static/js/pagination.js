@@ -34,6 +34,7 @@
   function create({root,model,pageMetrics,capture,restore}){
     const surface=root.querySelector('[data-rich]'),host=root.querySelector('[data-surface]');
     let mode='pages',timer=null,epoch=0,destroyed=false,dirtyPage=0,last=null,signature='',preserveScroll=false,composing=false,pendingComposition=false,runCount=0,lastRunMs=0,reflowing=false,lastError=null,abortedPasses=0,workUnits=0;
+    let waitingForView=false;
     function metrics(){return {...defaults,...(typeof pageMetrics==='function'?pageMetrics():pageMetrics)};}
     function active(){const node=getSelection()?.anchorNode,element=node?.nodeType===1?node:node?.parentElement;return Number(element?.closest('[data-page-index]')?.dataset.pageIndex || 0);}
     function status(index=null){if(root.dataset.documentKind==='fixed')return;if(typeof index!=='number')index=null;const count=surface.querySelectorAll('[data-page-index]').length || 1,out=root.querySelector('[data-position]');if(out)out.textContent=mode==='continuous'?'Fluxo contínuo':'Página '+((index===null?active():index)+1)+' de '+count;}
@@ -124,6 +125,14 @@
       const documentModel=typeof model==='function'?model():model;
       try{
         if(rebuild){clearTimeout(timer);epoch++;dirtyPage=0;rebuild();}
+        // Imports can render while the Central still hides the editor.
+        // Measuring there returns zero for the page and all its rows.
+        if(mode==='pages' && (root.dataset.homeView==='true' || surface.closest('[hidden]'))){
+          waitingForView=true;
+          dirtyPage=0;
+          return;
+        }
+        waitingForView=false;
         paginate();
         lastError=null;
       }catch(error){
@@ -186,8 +195,10 @@
     const endComposition=()=>{composing=false;if(pendingComposition){pendingComposition=false;change({detail:{reason:'typing'}});}};
     surface.addEventListener('compositionstart',startComposition);surface.addEventListener('compositionend',endComposition);
     const canvas=root.querySelector('[data-canvas]');const scroll=()=>{const pages=Array.from(surface.querySelectorAll('[data-page-index]')),top=canvas.getBoundingClientRect().top;const page=pages.find(p=>p.getBoundingClientRect().bottom>top+50);if(page)status(Number(page.dataset.pageIndex));};canvas?.addEventListener('scroll',scroll);
+    const viewReady=()=>{if(waitingForView)safePaginate();};
+    root.addEventListener('open-doc:view-ready',viewReady);
     document.addEventListener('selectionchange',status);root.addEventListener('open-doc:text-layout-changed',change);
-    function destroy(){destroyed=true;clearTimeout(timer);epoch++;canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);}
+    function destroy(){destroyed=true;clearTimeout(timer);epoch++;canvas?.removeEventListener('scroll',scroll);surface.removeEventListener('compositionstart',startComposition);surface.removeEventListener('compositionend',endComposition);document.removeEventListener('selectionchange',status);root.removeEventListener('open-doc:text-layout-changed',change);root.removeEventListener('open-doc:view-ready',viewReady);}
     return {paginate:()=>safePaginate(),rebuild:render=>safePaginate(render),invalidate,fits,destroy,setMode,active,metrics,
       diagnostics:()=>({runCount,lastRunMs,abortedPasses,workUnits,lastError,
         pages:surface.querySelectorAll('[data-page-index]').length}),

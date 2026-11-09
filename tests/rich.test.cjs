@@ -61,6 +61,31 @@ test('Word proofing, bookmarks and cached page breaks preserve XML without visib
  const serialized=s.w.OpenDocRichSerializer.serialize(s.rich,m);
  assert.deepEqual(Array.from(serialized.blocks[0].children.filter(n=>n.type==='opaque-ooxml'),n=>n.xml),markers.map(n=>n.xml));
 });
+test('document loaded from a hidden view paginates as soon as the editor opens',async t=>{
+ const s=await setup(t),body=s.root.querySelector('[data-document-body]');
+ const m=s.w.OpenDocModel.empty();
+ m.sections=[{...s.w.OpenDocPagination.defaults,page_height_pt:220,margin_top_pt:20,margin_bottom_pt:20}];
+ m.blocks=[{id:'long-table',type:'table',rows:Array.from({length:8},(_,i)=>({
+   id:'row'+i,cells:[{id:'cell'+i,col_span:1,row_span:1,blocks:[{
+     id:'p'+i,type:'paragraph',style:{},children:[{id:'r'+i,type:'text',text:'Linha '+i,style:{}}],
+   }]}],
+ }))}];
+ s.w.HTMLElement.prototype.getBoundingClientRect=function(){
+   const height=this.matches('[data-page-content]')&&!this.closest('[hidden]')
+     ? Array.from(this.querySelectorAll('tr')).length*55 : 0;
+   return {top:0,bottom:height,height,width:600,left:0,right:600};
+ };
+ s.root.dataset.homeView='true';
+ body.hidden=true;
+ s.editor.load({...s.note,content:m});
+ assert.equal(s.rich.querySelectorAll('[data-page-index]').length,0);
+ s.root.dataset.homeView='false';
+ body.hidden=false;
+ s.root.dispatchEvent(new s.w.CustomEvent('open-doc:view-ready'));
+ assert.ok(s.rich.querySelectorAll('[data-page-index]').length>1);
+ assert.equal(s.rich.querySelectorAll('tr').length,8);
+ assert.equal(s.w.OpenDocRichSerializer.serialize(s.rich,m).blocks[0].rows.length,8);
+});
 test('automatic overflow and table row fragments serialize as logical blocks',async t=>{
  const s=await setup(t);s.w.HTMLElement.prototype.getBoundingClientRect=function(){const height=this.matches('[data-page-content]')?Array.from(this.children).reduce((sum,n)=>sum+(n.tagName==='TABLE'?n.rows.length*55:60),0):0;return {top:0,bottom:height,height,width:600,left:0,right:600};};
  const M=s.w.OpenDocModel,m=M.empty();m.sections=[{...s.w.OpenDocPagination.defaults,page_height_pt:220,margin_top_pt:20,margin_bottom_pt:20}];m.blocks=Array.from({length:6},(_,i)=>({id:'p'+i,type:'paragraph',style:{},children:[{id:'r'+i,type:'text',text:'Paragrafo '+i,style:{}}]}));

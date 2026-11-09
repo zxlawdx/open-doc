@@ -452,7 +452,13 @@
       status(matches.length+' ocorrência(s) localizada(s) nos slides.');
       return;
     }
-    if(pptx){const matches=pptx.find(search.value);status(matches.length+' slides com resultados.');if(matches.length)go(matches[0]);return;}
+    if(pptx){
+      const viewer=pptx,query=search.value.trim(),generation=++searchEpoch;
+      if(!query)return;
+      const matches=await viewer.find(query);
+      if(pptx!==viewer || generation!==searchEpoch)return;
+      status(matches.length+' slides com resultados.');if(matches.length)go(matches[0]);return;
+    }
     const query=search.value.trim();
     if(!pdf || !query)return;
     const generation=++searchEpoch,q=query.toLocaleLowerCase(),matches=[];
@@ -575,7 +581,14 @@
 
    if(note.source_kind==='pptx'){
      try{
-       const loaded=await window.OpenDocPptx.load(note.id,token);
+       const id=note.id;
+       let loaded;
+       if(note.capabilities.pptx_preview?.fidelity){
+         try{loaded=await window.OpenDocPptx.loadFidelity(id,token,asset,model.surfaces.length);}
+         catch(error){console.warn('Open Doc: renderização de compatibilidade PPTX',error);}
+       }
+       if(generation!==epoch){loaded?.destroy();return;}
+       if(!loaded)loaded=await window.OpenDocPptx.load(id,token);
        if(generation!==epoch){loaded.destroy();return;}
        pptx=loaded;
        if(pptx.count!==model.surfaces.length)
@@ -602,7 +615,8 @@
          }
        },{root:sidebar,rootMargin:'100px'});
        sidebar.querySelectorAll('[data-thumbnail-index]').forEach(b=>thumbObserver.observe(b));
-       status('Apresentação importada no modo de visualização. Objetos não editáveis não serão descartados.');
+       status(pptx.fidelity?'Apresentação aberta no modo de visualização com LibreOffice.':
+         'Visualização PPTX aproximada. Para maior fidelidade, instale o LibreOffice.');
      }catch(error){
        console.error('Open Doc PPTX',error);root.dataset.readerState='error';
        const warning=document.createElement('p');warning.className='fixed-load-error';
