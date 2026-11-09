@@ -121,7 +121,7 @@ def plan(db, dataset, scope, column, kind, row=None, last_row=None, last_column=
                 (dataset["id"], column, r0, r1),
             )
         }
-    count, changed, incompatible, exceptions = 0, [], [], 0
+    count, changed, incompatible, exceptions, invalid_count = 0, [], [], 0, 0
     digest = hashlib.sha256()
     digest.update(json.dumps(
         [dataset["id"], scope, column, kind, region], separators=(",", ":")
@@ -146,6 +146,7 @@ def plan(db, dataset, scope, column, kind, row=None, last_row=None, last_column=
             try:
                 converted = canonical(value, kind)
             except ValueError as error:
+                invalid_count += 1
                 if len(incompatible) < 15:
                     incompatible.append({"row": row_id, "column": c, "value": value[:100],
                                          "reason": str(error)})
@@ -155,7 +156,7 @@ def plan(db, dataset, scope, column, kind, row=None, last_row=None, last_column=
     # The digest includes *all* original data and exceptions, not merely the sample.
     return {
         "token": digest.hexdigest(), "count": count, "changed": len(changed),
-        "invalid": len(incompatible), "invalid_sample": incompatible[:10],
+        "invalid": invalid_count, "invalid_sample": incompatible[:10],
         "exceptions": exceptions, "sample": [
             {"row": r, "column": c, "before": before[:100], "after": after[:100]}
             for r, c, before, after in changed[:10]
