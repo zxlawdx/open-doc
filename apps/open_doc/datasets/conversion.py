@@ -108,19 +108,26 @@ def bounds(dataset, scope, column, row=None, last_row=None, last_column=None):
 
 
 def plan(db, dataset, scope, column, kind, row=None, last_row=None, last_column=None):
-    if kind not in SUPPORTED or not isinstance(kind, str):
+    if not isinstance(kind, str) or kind not in SUPPORTED:
         raise ValueError("Tipo inválido.")
     region = bounds(dataset, scope, column, row, last_row, last_column)
     r0, r1, c0, c1 = region
-    overrides = {}
-    if scope == "column":
-        overrides = {
-            entry["row_number"]: entry["kind"] for entry in db.execute(
-                "SELECT row_number,kind FROM dataset_field_types "
-                "WHERE dataset_id=? AND scope='cell' AND column_number=? AND row_number BETWEEN ? AND ?",
-                (dataset["id"], column, r0, r1),
-            )
-        }
+    overrides = {
+        (entry["row_number"], entry["column_number"]): entry["kind"] for entry in db.execute(
+            "SELECT row_number,column_number,kind FROM dataset_field_types "
+            "WHERE dataset_id=? AND scope='cell' "
+            "AND row_number BETWEEN ? AND ? AND column_number BETWEEN ? AND ?",
+            (dataset["id"], r0, r1, c0, c1),
+        )
+    }
+    column_types = {
+        entry["column_number"]: entry["kind"] for entry in db.execute(
+            "SELECT column_number,kind FROM dataset_field_types "
+            "WHERE dataset_id=? AND scope='column' "
+            "AND column_number BETWEEN ? AND ?",
+            (dataset["id"], c0, c1),
+        )
+    }
     count, changed, incompatible, exceptions, invalid_count = 0, [], [], 0, 0
     digest = hashlib.sha256()
     digest.update(json.dumps(
@@ -136,10 +143,11 @@ def plan(db, dataset, scope, column, kind, row=None, last_row=None, last_column=
         cells = json.loads(record["values_json"])
         for c in range(c0, c1 + 1):
             value = cells[c]
-            inherited = overrides.get(row_id) if scope == "column" else None
-            digest.update(json.dumps([row_id, c, value, inherited],
+            inherited = overrides.get((row_id, c))
+            existing_column = column_types.get(c)
+            digest.update(json.dumps([row_id, c, value, inherited, existing_column],
                                      ensure_ascii=False, separators=(",", ":")).encode())
-            if inherited is not None:
+            if scope == "column" and inherited is not None:
                 exceptions += 1
                 continue
             count += 1
