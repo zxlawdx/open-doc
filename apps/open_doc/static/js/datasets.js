@@ -7,7 +7,7 @@
     const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
     const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
     let row=0, column=0, current, busy=false, querying=false, selected=null, anchor=null, editing=null, menu=null;
-    const undo=[],redo=[];
+    let conversion=null;
     const sqlField=$("[data-dataset-sql]");
     const pythonEditor=window.OpenDocCodeEditor.create({field:code,language:"python",request,signal,
       signature:$("[data-dataset-signature]"),run:()=>run(executePython)});
@@ -96,7 +96,7 @@
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
       if(current?.id!==result.id){
-        undo.length=0;redo.length=0;selected=null;anchor=null;
+        selected=null;anchor=null;conversion=null;
         output.textContent="";
         const schema=await request("dataset",{operation:"columns",id:result.id});
         sqlEditor.columns(schema.columns);
@@ -153,21 +153,70 @@
       if(!extend||!anchor)anchor=[r,c];
       selected=[r,c];paintSelection();
     }
-    async function persistCell(datasetId,r,c,value,record=true){
-      const result=await request("dataset",{operation:"edit",id:datasetId,row:r,column:c,value});
-      if(record&&result.previous!==value){
-        undo.push({id:datasetId,row:r,column:c,before:result.previous,after:value});
-        if(undo.length>50)undo.shift();redo.length=0;
-      }
+    async function persistCell(datasetId,r,c,value){
+      await request("dataset",{operation:"edit",id:datasetId,row:r,column:c,value});
       if(list.value===datasetId&&!querying)await showPage(row,column);
       status.textContent="Célula atualizada: linha "+r+", coluna "+(c+1)+".";
     }
     async function undoEdit(reverse=false){
-      const from=reverse?redo:undo,to=reverse?undo:redo,item=from.pop();
-      if(!item)return status.textContent="Nenhuma edição para "+(reverse?"refazer.":"desfazer.");
-      if(item.id!==list.value){from.push(item);throw Error("A operação pertence a outro dataset.");}
-      try{await persistCell(item.id,item.row,item.column,reverse?item.after:item.before,false);
-        to.push(item);}catch(error){from.push(item);throw error;}
+      if(!current||querying)return;
+      const result=await request("dataset",{operation:reverse?"redo":"undo",id:list.value});
+      if(result.changed){await showPage(row,column);
+        status.textContent=(reverse?"Refazida: ":"Desfeita: ")+result.operation+".";}
+      else status.textContent=result.message;
+    }
+    async function openHistory(){
+      const result=await request("dataset",{operation:"history",id:list.value});
+      const listUI=$("[data-dataset-history-list]");
+      listUI.replaceChildren(...result.entries.map(item=>{
+        const entry=document.createElement("li");
+        entry.textContent=new Date(item.created_at+"Z").toLocaleString("pt-BR")+
+          " · "+({edit:"Edição de célula",type:"Alteração de tipo",
+            conversion:"Conversão confirmada"}[item.operation]||item.operation)+
+          (item.undone?" (desfeita)":"");
+        return entry;
+      }));
+      $("[data-dataset-history]").hidden=false;
+    }
+    function showConversionPreview(result,data){
+      conversion={result,data};
+      $("[data-conversion-summary]").textContent=
+        result.count.toLocaleString("pt-BR")+" células analisadas · "+
+        result.changed.toLocaleString("pt-BR")+" alterações propostas · "+
+        result.invalid.toLocaleString("pt-BR")+" incompatíveis · "+
+        result.exceptions.toLocaleString("pt-BR")+" exceções individuais preservadas.";
+      const samples=$("[data-conversion-samples]"),fragment=document.createDocumentFragment();
+      for(const example of result.sample){
+        const p=document.createElement("p");
+        p.textContent="Linha "+example.row+", coluna "+(example.column+1)+
+          ": "+example.before+" → "+example.after;fragment.append(p);
+      }
+      for(const error of result.invalid_sample){
+        const p=document.createElement("p");p.className="dataset-invalid-example";
+        p.textContent="Linha "+error.row+", coluna "+(error.column+1)+
+          ": "+error.value+" — "+error.reason;fragment.append(p);
+      }
+      if(!fragment.childNodes.length){
+        const p=document.createElement("p");p.textContent="Nenhuma alteração necessária.";fragment.append(p);
+      }
+      samples.replaceChildren(fragment);
+      const checkbox=$("[data-conversion-keep-invalid]");
+      checkbox.checked=false;checkbox.disabled=result.invalid===0;
+      $("[data-dataset-command=confirm-conversion]").disabled=result.invalid>0;
+      $("[data-dataset-conversion]").hidden=false;
+      $("[data-dataset-command=cancel-conversion]").focus();
+    }
+    async function confirmConversion(){
+      if(!conversion)return;
+      const {result,data}=conversion;
+      const keep=$("[data-conversion-keep-invalid]").checked;
+      if(result.invalid&&!keep)throw Error("Marque a preservação dos incompatíveis ou cancele.");
+      const answer=await request("dataset",{...data,operation:"conversion-commit",
+        token:result.token,confirm:true,on_invalid:keep?"keep":"abort"});
+      $("[data-dataset-conversion]").hidden=true;conversion=null;
+      await showPage(row,column);
+      status.textContent=answer.converted+" valores convertidos; "+
+        answer.invalid+" incompatíveis preservados; alterações reversíveis no Histórico.";
     }
     function editCell(target) {
       if(busy||querying||!current||editing)return;
