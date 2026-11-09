@@ -340,3 +340,42 @@
 .open-doc .dataset :is(.dataset-conversion-dialog,.dataset-history) :focus-visible {
   outline:2px solid var(--color-primary);outline-offset:2px
 }
+
+
+/* Project-only Python packages: explicit consent and readable installation logs. */
+.open-doc .python-packages {margin:11px 0;border-top:1px solid var(--color-border);padding:12px 0}
+.open-doc .python-packages>[data-python-env-command=toggle] {
+  display:flex;align-items:center;gap:7px;border-radius:7px;min-height:36px;
+  font-size:12px;font-weight:700
+}
+.open-doc .python-packages>[data-python-env-command=toggle] svg {width:15px;height:15px}
+.open-doc .python-packages [data-python-env-body] {padding:10px 4px}
+.open-doc .python-packages [data-python-env-body][hidden] {display:none}
+.open-doc .python-packages p,.open-doc .python-packages small {
+  display:block;font-size:11px;color:var(--color-text-secondary);line-height:1.45
+}
+.open-doc .python-packages label {display:block;margin:10px 0;font-size:12px}
+.open-doc .python-packages input[data-python-env-names]{
+  box-sizing:border-box;display:block;width:100%;min-height:35px;margin-top:5px;
+  padding:6px 9px;border-radius:6px;border:1px solid var(--color-border);
+  background:var(--color-panel);color:var(--color-text-primary)
+}
+.open-doc .python-packages .python-packages-consent {
+  display:flex;gap:8px;align-items:flex-start
+}
+.open-doc .python-packages input[type=checkbox] {appearance:auto;flex:none;width:15px;height:15px;margin-top:2px}
+.open-doc .python-packages [data-python-env-command=install] {
+  background:var(--color-primary);color:white;border-color:var(--color-primary);
+  padding:9px 12px;border-radius:6px;min-height:38px
+}
+.open-doc .python-packages [data-python-env-status] {
+  display:block;margin:7px 0;font-size:12px;overflow-wrap:anywhere
+}
+.open-doc .python-packages pre {
+  max-height:160px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
+  font-family:monospace;font-size:11px
+}
+.open-doc .python-packages [data-python-env-installed] {
+  max-height:160px;overflow:auto;padding-left:18px;font-size:11px
+}
+.open-doc .python-packages details summary {font-size:12px;cursor:pointer}
