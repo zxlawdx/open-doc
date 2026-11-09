@@ -281,7 +281,7 @@
     panel.addEventListener("keydown",event=>{
       if(event.key==="Escape"){event.stopPropagation();close();}
     },{signal});
-    return {open,close,reload,apply,isOpen:()=>!panel.hidden};
+    return {open,close,reload,apply,drillAt:drill,isOpen:()=>!panel.hidden};
   }
   window.OpenDocWorkbookPivotUI={create};
 })();
