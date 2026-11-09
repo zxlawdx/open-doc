@@ -115,6 +115,30 @@ def main():
                 })()""")
                 wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
                 capture(output, "inline-and-types")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:130,clientY:140}));
+                })()""")
+                wait(window, "!!document.querySelector('.book-context-menu select[aria-label=\"Tipo para converter\"]')")
+                window.evaluate_js("""(() => {
+                  const choice=document.querySelector('.book-context-menu select[aria-label="Tipo para converter"]');
+                  choice.value='integer';
+                  Array.from(document.querySelectorAll('.book-context-menu button'))
+                    .find(button=>button.textContent.includes('Prévia e conversão')).click();
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-conversion]').hidden===false")
+                assert "alterações propostas" in window.evaluate_js(
+                    "document.querySelector('[data-conversion-summary]').textContent")
+                capture(output, "conversion-preview")
+                window.evaluate_js("document.querySelector('[data-dataset-command=confirm-conversion]').click()")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='9'")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
+                capture(output, "conversion-undo")
+                print("QT_DATASET_CONVERSION_PREVIEW_CONFIRM_UNDO_OK", flush=True)
                 print("QT_DATASET_INLINE_TYPES_UNDO_REDO_OK", flush=True)
                 print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_COMPLETION_OK", flush=True)
             except Exception as error:
