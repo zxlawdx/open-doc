@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {JSDOM} = require('jsdom');
 const base = path.resolve(__dirname, '..');
-async function mount(t, brokenNavigation = false) {
+async function mount(t, brokenNavigation = false, startInLibrary = false) {
   const template = fs.readFileSync(path.join(base, 'apps/open_doc/templates/base.html'), 'utf8')
     .replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g, (_, name) => fs.readFileSync(path.join(base, 'apps/open_doc/templates/' + name + '.html'), 'utf8'));
   const dom = new JSDOM(template, {url: 'http://localhost', runScripts: 'outside-only'});
@@ -13,8 +13,21 @@ async function mount(t, brokenNavigation = false) {
   delete w.Element.prototype.replaceChildren;
   w.OpenDocPdf={};w.OpenDocPptxVendor={};w.OpenDocFreehand={};w.requestAnimationFrame=fn=>setTimeout(fn,0);
   const note = {id: 'note', title: 'Documento', markdown: '# Título\n\nTexto selecionado', revision: 1};
-  w.pywebview = {api: {get_bootstrap: async () => ({token: 'test', settings: {theme: 'light', zoom: 100}, document: note, autosave_seconds: 30}), set_dirty: async () => {}}};
-  w.fetch = async (_, options) => ({ok: true, json: async () => options?.body ? {...JSON.parse(options.body), revision: 2} : {documents: [note], files: []}});
+  w.pywebview = {api: {get_bootstrap: async () => ({token: 'test', start_in_library: startInLibrary, settings: {theme: 'light', zoom: 100}, document: note, autosave_seconds: 30}), set_dirty: async () => {}}};
+  const requests = [];
+  w.fetch = async (url, options) => {
+    requests.push({url: String(url), body: options?.body});
+    const library = {
+      documents: [note], files: [],
+      templates: [
+        {id:'field', format:'docx', title:'Relatório', category:'Pesquisa', sections:[['Método','Descreva a coleta']]},
+        {id:'slides', format:'pptx', title:'Projeto', category:'Profissional', sections:[['Plano','Defina o escopo']]},
+      ],
+    };
+    const data = String(url).endsWith('/document/template') ? {...note, id:'copy', title:'Relatório'} :
+      options?.body ? {...JSON.parse(options.body), revision:2} : library;
+    return {ok:true,json:async()=>data};
+  };
   for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','fixed_document.js','document_kinds.js','ink.js', 'design_system.js', 'menus.js', 'theme.js', 'paper_layout.js', 'navigation.js']) {
     w.eval(fs.readFileSync(path.join(base, 'apps/open_doc/static/js', file), 'utf8'));
   }
@@ -50,7 +63,7 @@ async function mount(t, brokenNavigation = false) {
     range.selectNodeContents(rich.querySelector('p')); rich.focus();
     w.getSelection().removeAllRanges(); w.getSelection().addRange(range);
   };
-  return {w, root, click, select};
+  return {w, root, click, select, requests};
 }
 test('app.js boots without replaceChildren and binds toolbar, select, menus and navigation', async t => {
   const {w, root, click, select} = await mount(t);
@@ -149,4 +162,37 @@ test('link modal Cancel and Escape always close and preserve document', async t 
     await new Promise(resolve=>setTimeout(resolve,10));
     assert.equal(source.value,initial,'cancel must not modify the document');
   }
+});
+
+test('the startup library scopes formats and previews a template before creating a copy', async t => {
+  const {w, root, click, requests} = await mount(t, false, true);
+  const wait = () => new Promise(resolve => setTimeout(resolve, 10));
+  await wait();
+  assert.equal(root.querySelector('[data-library]').hidden, false);
+  assert.equal(root.querySelector('[data-template-section]').hidden, true);
+  click('[data-library-route=docx]');
+  assert.equal(root.querySelector('[data-template-section]').hidden, false);
+  assert.equal(root.querySelector('[data-template-id=slides]').hidden, true);
+  click('[data-library-section=recent]');
+  assert.equal(root.querySelector('[data-library-recent]').hidden, false);
+  assert.equal(root.querySelector('[data-library-imports]').hidden, true);
+  click('[data-library-section=imports]');
+  assert.equal(root.querySelector('[data-library-imports]').hidden, false);
+  click('[data-library-route=templates]');
+  const search = root.querySelector('[data-library-search]');
+  search.value = 'pesquisa';
+  search.dispatchEvent(new w.Event('input'));
+  assert.equal(root.querySelector('[data-template-id=slides]').hidden, true);
+  click('[data-template-id=field]');
+  assert.match(root.querySelector('[data-dialog-body]').textContent, /Descreva a coleta/);
+  click('[data-dialog-cancel]');
+  await wait();
+  assert.equal(requests.filter(item=>item.url.endsWith('/document/template')).length, 0);
+  click('[data-template-id=field]');
+  click('[data-dialog-confirm]');
+  await wait();
+  assert.equal(root.querySelector('[data-library]').hidden, true);
+  assert.equal(w.OpenDocApp.editor().snapshot().id, 'copy');
+  assert.deepEqual(JSON.parse(requests.find(item=>item.url.endsWith('/document/template')).body), {id:'field'});
+  assert.equal(requests.filter(item=>item.url.endsWith('/files')).length, 1);
 });

@@ -109,12 +109,13 @@
     catch (error) { collapsed(previous); status(error.message); }
   }
   function showView(home = false) {
+    const wasHome = root.dataset.homeView === 'true';
     root.dataset.homeView = String(home);
     root.querySelector('[data-library]').hidden = !home;
     root.querySelector('[data-document-body]').hidden = home || root.dataset.documentKind==='fixed';
     design?.sync();
-    if (home) refresh().catch(error => status(error.message));
-    else {
+    if (home && !wasHome) refresh().catch(error => status(error.message));
+    else if (!home) {
       layout?.measure(); editor?.refresh();
       // The view was hidden during document.load(). Fixed slides must only
       // compute fit-to-window once this canvas has measurable dimensions.
@@ -166,7 +167,71 @@
         list.append(row);
       }
     }
+    renderTemplates(data.templates || []);
     design?.refreshLibrary();
+  }
+  function renderTemplates(templates) {
+    const grid = root.querySelector('[data-templates]');
+    grid.replaceChildren();
+    const categories = root.querySelector('[data-template-category]');
+    const previous = categories.value;
+    categories.replaceChildren(new Option('Todas', ''));
+    for (const category of [...new Set(templates.map(template => template.category))].sort((a,b) => a.localeCompare(b, 'pt-BR'))) {
+      categories.add(new Option(category, category));
+    }
+    categories.value = [...categories.options].some(option => option.value === previous) ? previous : '';
+    for (const template of templates) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'template-card';
+      card.dataset.templateId = template.id;
+      card.dataset.fileFormat = template.format;
+      card.dataset.category = template.category;
+      card.dataset.search = [template.title, template.category, template.format, ...template.sections.flat()].join(' ');
+      const preview = document.createElement('span');
+      preview.className = 'template-preview';
+      preview.setAttribute('aria-hidden', 'true');
+      const heading = document.createElement('strong');
+      heading.textContent = template.title;
+      preview.append(heading);
+      for (const [section] of template.sections.slice(0, 3)) {
+        const line = document.createElement('span');
+        line.textContent = section;
+        preview.append(line);
+      }
+      const title = document.createElement('strong');
+      title.textContent = template.title;
+      const meta = document.createElement('small');
+      meta.textContent = template.format.toUpperCase() + ' · ' + template.category;
+      card.append(preview, title, meta);
+      card.addEventListener('click', () => operate(async () => {
+        const confirm = root.querySelector('[data-dialog-confirm]');
+        const label = confirm.textContent;
+        const decision = dialog(template.title, meta.textContent);
+        const list = document.createElement('ul');
+        for (const [section, text] of template.sections) {
+          const item = document.createElement('li');
+          const title = document.createElement('strong');
+          title.textContent = section + ' · ';
+          item.append(title, text);
+          list.append(item);
+        }
+        root.querySelector('[data-dialog-body]').append(list);
+        confirm.textContent = 'Usar template';
+        const accepted = await decision;
+        confirm.textContent = label;
+        if (!accepted) return;
+        await editor.flush();
+        editor.load(await request('document/template', {id: template.id}));
+        showView(false);
+        status('Cópia criada a partir do template.');
+      }), {signal});
+      grid.append(card);
+    }
+  }
+  function libraryRoute(route = 'home', section) {
+    showView(true);
+    design?.navigateLibrary(route, section);
   }
   async function newDocument() {
     await editor.flush(); editor.load(await request('document/new', {title: 'Documento sem título'}));
@@ -277,9 +342,10 @@
         ? editor.insertTable() : tableDialog(),
 
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
-      home: () => { showView(true); },
-      'library-recent':()=>{showView(true);root.querySelector('[data-library-recent]')?.scrollIntoView({block:'start'});},
-      'library-files':()=>{showView(true);root.querySelector('[data-library-imports]')?.scrollIntoView({block:'start'});},
+      home: () => libraryRoute(),
+      'resume-editor': () => showView(false),
+      'library-recent':()=>libraryRoute('home','recent'),
+      'library-files':()=>libraryRoute('home','imports'),
       save: async()=>{
         status('Salvando…');
         try{
@@ -376,7 +442,7 @@
       editor?.destroy(); design?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
       if (dialogResolver) closeDialog();
     },
-    action, showHome: () => showView(true), editor: () => editor,
+    action, showHome: () => libraryRoute(), editor: () => editor,
     failures, theme: () => theme, layout: () => layout, refresh, status
   };
   window.OpenDocApp = page;
@@ -494,7 +560,8 @@
     layout = await auxiliary('zoom', 'OpenDocPaperLayout', 'paper_layout.js', module => module.create(root, settings, persist, signal));
     navigation = await auxiliary('navegação', 'OpenDocNavigation', 'navigation.js', module => module.create(root, editor, signal));
     design = await auxiliary('interface de documentos', 'OpenDocDesign', 'design_system.js', module => module.create({root,action,signal}));
-    showView(false);
+    if (bootstrap.start_in_library) libraryRoute();
+    else showView(false);
     installTooltips();
     if (bootstrap.startup_error) status(bootstrap.startup_error);
     root.dataset.ready = 'true';

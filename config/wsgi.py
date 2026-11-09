@@ -17,7 +17,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 def create_app(
-    workspace: Config | None = None, *, startup_path: Path | None = None
+    workspace: Config | None = None, *, startup_path: Path | None = None,
+    start_in_library: bool | None = None,
 ) -> VelaApp:
     """Configure application dependencies, then build the Vela runtime."""
     from tools.check_runtime_assets import check
@@ -25,13 +26,16 @@ def create_app(
     manifest = check()
     context = configure(workspace)
     context.assets = manifest
+    context.start_in_library = workspace is None if start_in_library is None else start_in_library
     LOGGER.info(
         "Open Doc vendors: %s (%s)", manifest["versions"], manifest["build_hash"]
     )
 
     if startup_path is not None:
         try:
-            context.documents.import_path(startup_path)
+            result = context.documents.import_path(startup_path)
+            if result.get("document"):
+                context.start_in_library = False
         except (ValueError, OSError) as exc:
             LOGGER.warning("Abertura pelo sistema falhou: %s", exc)
             context.startup_error = (

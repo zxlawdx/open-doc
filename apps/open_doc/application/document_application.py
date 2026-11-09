@@ -6,10 +6,12 @@ import io
 import re
 from dataclasses import asdict
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from PIL import Image
 
+from apps.open_doc.application import template_catalog
 from apps.open_doc.infrastructure.workspace import WorkspacePathResolver
 from apps.open_doc.services.document_service import AUTOSAVE_SECONDS
 from apps.open_doc.services.export_service import EXTENSIONS, ExportError, safe_stem
@@ -33,15 +35,38 @@ class DocumentApplication:
             or self.context.editor.current(),
             "autosave_seconds": AUTOSAVE_SECONDS,
             "assets": self.context.assets,
+            "start_in_library": self.context.start_in_library,
             "startup_error": self.context.startup_error,
         }
 
     def list_library(self) -> dict[str, Any]:
         return {
             "files": self.context.organizer.list_files(),
-            "documents": self.context.editor.list_documents()
-            + self.context.fixed_documents.list_documents(),
+            "templates": [asdict(template) for template in template_catalog.CATALOG],
+            "documents": sorted(
+                self.context.editor.list_documents() + self.context.fixed_documents.list_documents(),
+                key=lambda document: document["updated_at"],
+                reverse=True,
+            ),
         }
+
+    def create_from_template(self, identifier: str) -> dict[str, Any]:
+        template = next((item for item in template_catalog.CATALOG if item.id == identifier), None)
+        if template is None:
+            raise ValueError("Modelo não encontrado.")
+        if template.format == "docx":
+            return self.create({
+                "title": template.title, "content_format": "opendoc-rich-v1",
+                "content": template_catalog.rich_document(template),
+            })
+        if template.format == "pptx":
+            return self.context.fixed_documents.create_presentation(
+                template.title, deck=template_catalog.presentation(template),
+            )
+        with TemporaryDirectory(dir=self.context.config.root) as directory:
+            source = Path(directory) / (template.title + ".pdf")
+            template_catalog.write_pdf(template, source)
+            return self.context.fixed_documents.import_pdf(source)
 
     def save_settings(self, settings: Any) -> dict[str, bool]:
         self.context.config.save_settings(settings)
