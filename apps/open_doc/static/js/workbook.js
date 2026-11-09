@@ -2,12 +2,15 @@
 (() => {
   const ROWS=10000, COLS=100, WIDTH=112, HEIGHT=28, GUTTER=52;
   const key=(r,c)=>r+","+c;
-  function create({host,request,dialog,signal}) {
+  function create({host,request,dialog,signal,loadCodeEditors}) {
     const {address,column,evaluate}=window.OpenDocWorkbookFormula;
     const $=selector=>host.querySelector(selector);
     const viewport=$("[data-book-scroll]"), space=$("[data-book-space]");
     const title=$("[data-book-title]"), formula=$("[data-book-formula]");
     const coord=$("[data-book-address]"), tabs=$("[data-book-tabs]"), status=$("[data-book-status]");
+    const inline=$("[data-book-inline]"), sidebar=$("[data-book-sidebar]");
+    const analysis=$("[data-book-analysis]"), analysisButton=$("[data-book-command=analysis]");
+    let sqlEditor, pythonEditor, analysisLoading, analysisBusy=false, lastSchema;
     const undo=[], redo=[];
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
     const sheet=()=>book.sheets[index];
@@ -71,7 +74,7 @@
     }
     function schedule() {if(frame===undefined)frame=requestAnimationFrame(draw);}
     function update(recalculate=true) {
-      if(recalculate)calc=evaluate(book.sheets);
+      if(recalculate){calc=evaluate(book.sheets);updateSchema();}
       controls();schedule();
     }
     function select(r,c,extend=false,reveal=false) {
@@ -99,7 +102,9 @@
     function choose(next) {
       index=next;
       viewport.scrollTop=0;viewport.scrollLeft=0;
-      select(0,0);update();viewport.focus();
+      select(0,0);update();
+      $("[data-book-query-results]").replaceChildren();
+      $("[data-book-python-output]").textContent="";viewport.focus();
     }
     function change(back, forward) {
       if(pending || importing)return;
@@ -130,7 +135,212 @@
       }
       return rows;
     }
+    function finishInline(accept=true) {
+      if(inline.hidden)return;
+      const value=inline.value;
+      inline.hidden=true;
+      if(accept)applyCells([[key(row,col),value]]);
+      native().set_dirty?.(dirty);
+    }
+    function editInline(initial=raw()) {
+      if(!inline.hidden||pending||importing)return;
+      select(row,col,false,true);
+      inline.style.left=GUTTER+col*WIDTH+"px";
+      inline.style.top=(row+1)*HEIGHT+"px";
+      inline.style.width=WIDTH+"px";
+      inline.value=initial;inline.hidden=false;
+      inline.focus();inline.setSelectionRange(initial.length,initial.length);
+    }
+    function pivotBounds() {
+      const values=$("[data-pivot-range]").value.split(":").map(value=>address(value.trim()));
+      if(values.length!==2||values.some(value=>!value))throw Error("Informe um intervalo como A1:D10.");
+      const [[top,left],[bottom,right]]=values;
+      if(top>=bottom||left>right||(bottom-top+1)*(right-left+1)>50000)
+        throw Error("Selecione cabeçalho e dados em até 50 mil células.");
+      return [top,left,bottom,right];
+    }
+    function pivotFields() {
+      const [top,left,,right]=pivotBounds();
+      for(const [selector,optional] of [["row",false],["column",true],["value",false]]){
+        const menu=$("[data-pivot-"+selector+"]"), old=menu.value;
+        const options=optional ? [new Option("Sem agrupamento em colunas","")] : [];
+        for(let c=left;c<=right;c++)options.push(new Option(
+          String(calc(index,top,c) || column(c)),String(c)));
+        menu.replaceChildren(...options);
+        if(options.some(option=>option.value===old))menu.value=old;
+        else if(selector==="value")menu.selectedIndex=options.length-1;
+      }
+    }
+    function usedBounds() {
+      let top=ROWS,left=COLS,bottom=0,right=0;
+      for(const cell of Object.keys(sheet().cells)){
+        const [r,c]=cell.split(",").map(Number);
+        top=Math.min(top,r);left=Math.min(left,c);
+        bottom=Math.max(bottom,r);right=Math.max(right,c);
+      }
+      return top===ROWS ? null : [top,left,bottom,right];
+    }
+    function worksheetSnapshot(includeRows=true) {
+      const used=usedBounds();
+      if(!used)throw Error("A aba está vazia.");
+      const [top,left,bottom,right]=used;
+      if((bottom-top+1)*(right-left+1)>50000)
+        throw Error("A análise da planilha aceita até 50 mil células.");
+      const evaluateCell=evaluate(book.sheets);
+      const columns=[], seen=new Set(), rows=[];
+      for(let c=left;c<=right;c++){
+        const label=String(evaluateCell(index,top,c)).trim() || column(c);
+        let name=label, suffix=2;
+        while(seen.has(name.toLowerCase()))name=label+"_"+suffix++;
+        seen.add(name.toLowerCase());columns.push(name);
+      }
+      for(let r=top+1;includeRows&&r<=bottom;r++){
+        const values=[];
+        for(let c=left;c<=right;c++)values.push(String(evaluateCell(index,r,c)));
+        rows.push(values);
+      }
+      return {columns,rows};
+    }
+    function updateSchema(){
+      if(sqlEditor && !analysis.hidden){
+        let columns;
+        try{columns=worksheetSnapshot(false).columns;}
+        catch{columns=[];}
+        const signature=JSON.stringify(columns);
+        if(signature!==lastSchema){sqlEditor.columns(columns);lastSchema=signature;}
+      }
+    }
+    async function toggleAnalysis(open) {
+      analysis.hidden=!open;
+      analysisButton.setAttribute("aria-expanded",String(open));
+      schedule();
+      if(!open)return;
+      togglePivot(false);
+      if(!analysisLoading)analysisLoading=(async()=>{
+        await loadCodeEditors();
+        const createEditor=window.OpenDocCodeEditor.create;
+        sqlEditor=createEditor({field:$("#book-sql"),language:"sql",request,signal,run:()=>run("run-sql")});
+        pythonEditor=createEditor({field:$("#book-python"),language:"python",request,signal,
+          signature:$("[data-book-signature]"),run:()=>run("run-python")});
+      })().catch(error=>{analysisLoading=null;throw error;});
+      await analysisLoading;
+      updateSchema();
+    }
+    async function analyzeWorkbook(language){
+      if(analysisBusy)return;
+      await analysisLoading;
+      if(analysisBusy||!sqlEditor||!pythonEditor)return;
+      finishInline();commit();
+      const snapshot=worksheetSnapshot();
+      const source=sheet();
+      analysisBusy=true;
+      try{
+        report("Executando "+language+" na aba "+source.name+"…");
+        if(language==="Python"){
+          const result=await native().run_workbook_python(snapshot.columns,snapshot.rows,pythonEditor.value());
+          if(result.error)throw Error(result.error);
+          if(result.cancelled)return report("Execução cancelada.");
+          if(sheet()!==source)return;
+          $("[data-book-python-output]").textContent=result.output;
+          report(result.stopped==="timeout" ? "Execução encerrada após 15 segundos." :
+            result.stopped==="output" ? "Saída limitada a 64 KiB." :
+            result.returncode===0 ? "Python concluído." : "Python terminou com código "+result.returncode+".");
+        }else{
+          const result=await request("workbook",{operation:"query",...snapshot,sql:sqlEditor.value()});
+          if(sheet()!==source)return;
+          const table=document.createElement("table");
+          const headers=table.createTHead().insertRow();
+          for(const name of result.columns){
+            const th=document.createElement("th");th.textContent=name;headers.append(th);
+          }
+          const body=table.createTBody();
+          for(const values of result.rows){
+            const line=body.insertRow();
+            for(const value of values)line.insertCell().textContent=value ?? "NULL";
+          }
+          $("[data-book-query-results]").replaceChildren(table);
+          report(result.rows.length+" linhas de resultado"+(result.limited?" · prévia limitada":""));
+        }
+      }finally{analysisBusy=false;}
+    }
+    function togglePivot(open) {
+      sidebar.hidden=!open;
+      $("[data-book-command=pivot]").setAttribute("aria-expanded",String(open));
+      schedule();
+      if(!open)return;
+      toggleAnalysis(false);
+      const selected=bounds();
+      const [top,left,bottom,right]=(selected[0]===selected[2]&&selected[1]===selected[3]
+        ? usedBounds() : selected) || [0,0,0,0];
+      const range=$("[data-pivot-range]");
+      range.value=top<bottom ? column(left)+(top+1)+":"+column(right)+(bottom+1) : "";
+      if(range.value)pivotFields();
+      range.focus();
+    }
+    function createPivot() {
+      if(book.sheets.length>=20)throw Error("Limite de 20 abas.");
+      pivotFields();
+      const [top,left,bottom,right]=pivotBounds();
+      const rowField=Number($("[data-pivot-row]").value);
+      const columnValue=$("[data-pivot-column]").value;
+      const colField=columnValue==="" ? null : Number(columnValue);
+      const valueField=Number($("[data-pivot-value]").value);
+      const operation=$("[data-pivot-operation]").value;
+      const groups=new Map(), columns=new Set();
+      const heading=String(calc(index,top,valueField) || column(valueField));
+      for(let r=top+1;r<=bottom;r++){
+        if(!Array.from({length:right-left+1},(_,i)=>key(r,left+i)).some(id=>sheet().cells[id]))continue;
+        const label=String(calc(index,r,rowField)), category=colField===null ? heading : String(calc(index,r,colField));
+        columns.add(category);
+        if(!groups.has(label))groups.set(label,new Map());
+        const group=groups.get(label);
+        if(!group.has(category))group.set(category,{count:0,numbers:0,sum:0,min:Infinity,max:-Infinity});
+        const stats=group.get(category), value=calc(index,r,valueField);
+        if(value!=="")stats.count++;
+        if(typeof value==="number"&&Number.isFinite(value)){
+          stats.numbers++;stats.sum+=value;
+          stats.min=Math.min(stats.min,value);stats.max=Math.max(stats.max,value);
+        }
+      }
+      if(!groups.size)throw Error("O intervalo não tem dados.");
+      if(columns.size>=COLS||(groups.size+1)*(columns.size+1)+columns.size+1>50000)
+        throw Error("O resumo ultrapassa os limites da grade. Reduza o intervalo ou os agrupamentos.");
+      const cells={}, bold=[];
+      function write(r,c,value){
+        if(value==="")return;
+        const text=String(value);
+        cells[key(r,c)]=typeof value==="string"&&text.startsWith("=") ? "'"+text : text;
+      }
+      write(0,0,calc(index,top,rowField));
+      bold.push(key(0,0));
+      [...columns].forEach((label,i)=>{write(0,i+1,label||"(vazio)");bold.push(key(0,i+1));});
+      let targetRow=1;
+      for(const [label,group] of groups){
+        write(targetRow,0,label||"(vazio)");
+        [...columns].forEach((category,i)=>{
+          const stats=group.get(category);
+          if(!stats)return;
+          const result=operation==="count" ? stats.count : !stats.numbers ? "" :
+            {sum:stats.sum,average:stats.sum/stats.numbers,min:stats.min,max:stats.max}[operation];
+          write(targetRow,i+1,result);
+        });
+        targetRow++;
+      }
+      let name="Tabela dinâmica", suffix=2;
+      while(book.sheets.some(item=>item.name.toLowerCase()===name.toLowerCase()))name="Tabela dinâmica "+suffix++;
+      const previous=index, result={name,cells,bold};
+      change(()=>{book.sheets.pop();renderTabs();choose(previous);},()=>{
+        book.sheets.push(result);renderTabs();choose(book.sheets.length-1);
+      });
+      togglePivot(false);
+      report("Tabela dinâmica criada em "+name+".");
+    }
+    function clearSelection() {
+      applyCells(rectangle().flat().map(id=>[id,""]));
+    }
     function load(value) {
+      inline.hidden=true;sidebar.hidden=true;
+      $("[data-book-command=pivot]").setAttribute("aria-expanded","false");
       book=value;title.value=value.title;
       undo.length=0;redo.length=0;dirty=false;
       renderTabs();choose(0);report("Salvo neste dispositivo");
@@ -139,7 +349,7 @@
       if(importing)throw Error("Aguarde a importação terminar.");
       if(pending)return pending;
       if(!book)return;
-      commit();
+      finishInline();commit();
       if(!dirty)return;
       const id=book.id;
       const controls=Array.from(host.querySelectorAll("button,input,select")).filter(input=>!input.disabled);
@@ -158,6 +368,24 @@
     async function command(name) {
       if(!book||pending||importing)return;
       if(name==="save") return save();
+      if(name==="edit")return editInline();
+      if(name==="clear")return clearSelection();
+      if(name==="select-used"){
+        const used=usedBounds();
+        if(!used)return report("A aba está vazia.");
+        select(used[0],used[1],false,true);
+        select(used[2],used[3],true);
+        viewport.focus();
+        return;
+      }
+      if(name==="pivot")return togglePivot(sidebar.hidden);
+      if(name==="analysis")return toggleAnalysis(analysis.hidden);
+      if(name==="close-analysis")return toggleAnalysis(false);
+      if(name==="run-sql")return analyzeWorkbook("SQL");
+      if(name==="run-python")return analyzeWorkbook("Python");
+      if(name==="close-pivot")return togglePivot(false);
+      if(name==="pivot-fields")return pivotFields();
+      if(name==="pivot-create")return createPivot();
       if(name==="undo"||name==="redo"){
         const stack=name==="undo"?undo:redo, other=name==="undo"?redo:undo;
         const item=stack.pop();
@@ -225,15 +453,38 @@
       const command=event.target.closest("[data-book-command]");
       const tab=event.target.closest("[data-index]");
       const cell=event.target.closest("[data-cell]");
+      const ribbon=event.target.closest("[data-ribbon-tab]");
+      if(ribbon){
+        const active=ribbon.dataset.ribbonTab;
+        for(const tab of host.querySelectorAll("[data-ribbon-tab]"))tab.setAttribute("aria-pressed",String(tab===ribbon));
+        for(const group of host.querySelectorAll("[data-ribbon-group]"))group.hidden=active!=="home"&&active!==group.dataset.ribbonGroup;
+        if(active==="analysis"&&analysis.hidden)run("analysis");
+      }
       if(command)run(command.dataset.bookCommand);
-      if(tab)choose(Number(tab.dataset.index));
+      if(tab){finishInline();choose(Number(tab.dataset.index));}
       if(cell){
+        finishInline();
         const id=cell.dataset.cell;
         const now=Date.now(), double=lastClick?.id===id && now-lastClick.time<350;
         lastClick=double ? null : {id,time:now};
         select(...id.split(",").map(Number),event.shiftKey);viewport.focus();
-        if(double){formula.focus();formula.select();}
+        if(double)editInline();
       }
+    },{signal});
+    viewport.addEventListener("dblclick",event=>{
+      const cell=event.target.closest("[data-cell]");
+      if(cell&&inline.hidden){select(...cell.dataset.cell.split(",").map(Number));editInline();}
+    },{signal});
+    inline.addEventListener("blur",()=>finishInline(),{signal});
+    inline.addEventListener("input",()=>native().set_dirty?.(true),{signal});
+    inline.addEventListener("keydown",event=>{
+      event.stopPropagation();
+      if(event.isComposing||!["Escape","Enter","Tab"].includes(event.key))return;
+      event.preventDefault();
+      finishInline(event.key!=="Escape");
+      viewport.focus();
+      if(event.key==="Enter")select(row+(event.shiftKey?-1:1),col,false,true);
+      if(event.key==="Tab")select(row,col+(event.shiftKey?-1:1),false,true);
     },{signal});
     viewport.addEventListener("scroll",schedule,{signal,passive:true});
     window.addEventListener("resize",schedule,{signal});
@@ -267,12 +518,12 @@
       if(move){event.preventDefault();select(row+move[0],col+move[1],event.shiftKey&&event.key.startsWith("Arrow"),true);}
       else if(event.key==="Delete"||event.key==="Backspace"){
         event.preventDefault();
-        try {applyCells(rectangle().flat().map(id=>[id,""]));} catch(error){report(error.message);}
-      } else if(event.key==="F2"){formula.focus();formula.select();}
-      else if(!event.altKey&&event.key.length===1){event.preventDefault();formula.focus();formula.value=event.key;mark();}
+        try {clearSelection();} catch(error){report(error.message);}
+      } else if(event.key==="F2"){event.preventDefault();editInline();}
+      else if(!event.altKey&&event.key.length===1){event.preventDefault();editInline(event.key);}
     },{signal});
     for(const type of ["copy","cut","paste"]) viewport.addEventListener(type,event=>{
-      if(!event.clipboardData||pending||importing)return;
+      if(event.target===inline||!event.clipboardData||pending||importing)return;
       event.preventDefault();
       try {
         if(type==="paste"){

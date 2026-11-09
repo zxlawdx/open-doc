@@ -45,8 +45,15 @@ def main():
             wait(window, "!document.querySelector('[data-dialog]').hidden")
             click("[data-dialog-confirm]")
             wait(window, "document.querySelector('[data-cell=\"1,3\"]')?.textContent==='20'")
-            click('[data-cell="1,1"]')
-            type_formula("2000")
+            js("""document.querySelector('[data-cell="1,1"]').dispatchEvent(
+              new MouseEvent('dblclick',{bubbles:true}));""")
+            wait(window, "document.activeElement.matches('[data-book-inline]')")
+            capture(output, "inline")
+            js("""(() => {
+              const field=document.querySelector('[data-book-inline]');
+              field.value='2000';
+              field.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+            })()""")
             wait(window, "document.querySelector('[data-cell=\"1,3\"]')?.textContent==='520'")
             click("[data-book-command=undo]")
             wait(window, "document.querySelector('[data-cell=\"1,3\"]')?.textContent==='20'")
@@ -65,7 +72,40 @@ def main():
             click("[data-library-recent] .library-file-title")
             wait(window, "document.querySelector('[data-cell=\"1,3\"]')?.textContent==='520'")
             assert js("document.querySelectorAll('[data-cell]').length<1500")
-            print("QT_WORKBOOK_TEMPLATE_EDIT_UNDO_SAVE_REOPEN_OK", flush=True)
+            click("[data-book-command=pivot]")
+            wait(window, "!document.querySelector('[data-book-sidebar]').hidden")
+            js("document.querySelector('[data-pivot-range]').value='A1:D2'")
+            click("[data-book-command=pivot-fields]")
+            capture(output, "pivot")
+            capture(output, "pivot-narrow", width=640)
+            assert js("""(() => {
+                const host=document.querySelector('[data-workbook]');
+                const panel=document.querySelector('[data-book-sidebar]');
+                return innerWidth===640 && host.scrollWidth<=innerWidth &&
+                  getComputedStyle(panel).position==='absolute' &&
+                  panel.getBoundingClientRect().right<=innerWidth;
+            })()""")
+            capture(output, "pivot")
+            click("[data-book-command=pivot-create]")
+            wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
+            wait(window, "document.querySelector('[data-cell=\"1,1\"]')?.textContent==='520'")
+            click("[data-book-command=undo]")
+            wait(window, "document.querySelectorAll('[data-book-tabs] button').length===2")
+            click('[data-cell="1,1"]')
+            type_formula("2050")
+            click("[data-ribbon-tab=analysis]")
+            wait(window, "!!document.querySelector('#book-sql + .dataset-code-editor .cm-editor')")
+            click("[data-book-command=run-sql]")
+            wait(window, "document.querySelector('[data-book-query-results] tbody tr')?.cells[1]?.textContent==='2050'")
+            confirm=window.create_confirmation_dialog
+            window.create_confirmation_dialog=lambda *args: True
+            try:
+                click("[data-book-command=run-python]")
+                wait(window, "document.querySelector('[data-book-python-output]').textContent.includes('Total de registros: 2')")
+            finally:
+                window.create_confirmation_dialog=confirm
+            capture(output, "analysis")
+            print("QT_WORKBOOK_INLINE_PIVOT_SQL_PYTHON_OK", flush=True)
         except Exception as error:
             errors.append(error)
         finally:

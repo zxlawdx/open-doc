@@ -153,6 +153,14 @@ class OpenDocBridge(BaseBridge):
             return {"error": str(error)}
 
     def run_dataset_python(self, identifier, code):
+        return self._run_analysis_python(lambda: get_context().datasets, identifier, code)
+
+    def run_workbook_python(self, columns, rows, code):
+        from apps.open_doc.datasets.worksheet import WorksheetSnapshot
+
+        return self._run_analysis_python(lambda: WorksheetSnapshot(columns, rows), None, code)
+
+    def _run_analysis_python(self, source, identifier, code):
         import sqlite3
         from apps.open_doc.datasets.python_runner import run_python
 
@@ -169,7 +177,7 @@ class OpenDocBridge(BaseBridge):
                 "e à rede com as permissões da sua conta. Executar agora?",
             ):
                 return {"cancelled": True}
-            return run_python(get_context().datasets, identifier, code)
+            return run_python(source(), identifier, code)
         except (ValueError, OSError, sqlite3.Error) as error:
             return {"error": str(error)}
         finally:

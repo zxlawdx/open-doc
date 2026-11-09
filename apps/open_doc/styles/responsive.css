@@ -329,3 +329,13 @@
   .open-doc .slide-font-picker{width:150px;}
   .open-doc .slide-context-panel > label .slide-font-label{display:none;}
 }
+
+@media(max-width:760px){
+  .open-doc .workbook-body>.workbook-sidebar{
+    position:absolute;z-index:5;inset:0 0 0 auto;width:min(24rem,100%);
+    box-sizing:border-box;box-shadow:-4px 0 14px #0002
+  }
+  .open-doc .workbook-formula [data-book-formula]{min-width:0}
+  .open-doc .dataset>.workbook-toolbar{flex-wrap:nowrap;overflow-x:auto}
+  .open-doc .dataset>.workbook-toolbar>*{flex:0 0 auto}
+}

@@ -246,6 +246,10 @@ def workbook(context=None):
         data = _data(context)
         store = get_context().workbooks
         command = data["operation"]
+        if command == "query":
+            from apps.open_doc.datasets.worksheet import WorksheetSnapshot
+
+            return WorksheetSnapshot(data["columns"], data["rows"]).query(data["sql"])
         if command == "new":
             return store.create()
         if command == "template":
