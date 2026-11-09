@@ -40,10 +40,53 @@ No Linux Mint, atualize a branch e inicie o Open Doc com as dependências do rep
 - Capturas da tabela dinâmica: \`pivot.png\`, \`pivot-1920.png\`, \`pivot-1500.png\`, \`pivot-1000.png\`, \`pivot-800.png\`, \`pivot-390.png\`, \`pivot-narrow.png\`.
 - Verificar ausência de sobreposição e prévia alcançável por rolagem em todas as larguras, inclusive 390 px.
 
+## Recursos adicionais desta etapa
+
+### Agrupamento temporal e gráficos
+1. Importe um arquivo com campo \`data\` contendo valores \`18/08/2026\`, \`19/08/2026\`, \`01/09/2026\` e um campo numérico \`quantidade\`.
+2. No construtor da tabela dinâmica, mova \`data\` para **Linhas** e \`quantidade\` para **Valores**. No chip de data, selecione **Por mês**: a prévia deve mostrar **08/2026** e **09/2026**.
+3. Mude a ordenação para A→Z/Z→A/maior valor; teste **Produto** e **Moeda R$**, inclusive 0 casas decimais.
+4. Alterne a prévia **Tabela/Barras/Linhas/Pizza**. Confirme que o gráfico utiliza os valores numéricos reais, e que a configuração continua após salvar e reabrir a tabela. Gráficos de pizza exigem valores positivos.
+
+### Conversão explícita e histórico de esquema
+1. Na área Dados, clique direito na coluna **valor**. **Alterar tipo** marca o tipo, mas não altera texto bruto.
+2. Escolha **Prévia e conversão…**, selecione **Número decimal**. Confira contagens, valores antigos/novos e erros antes de confirmar. **Cancelar** deve preservar tudo.
+3. Se houver valores incompatíveis, confirme apenas depois de selecionar **Preservar valores incompatíveis**. Sem a opção a conversão é recusada.
+4. Use Ctrl+Z/Ctrl+Y: cada conversão, edição e alteração de tipo ocupa uma etapa própria. Consulte **Histórico** e reinicie o aplicativo para confirmar persistência.
+5. Verifique que mudar valores depois da prévia impede confirmar o token antigo; refaça a prévia.
+6. Teste células com exceções individuais à coluna e conversões de datas, valores pt-BR, booleanos e porcentagens.
+7. Para datasets com mais de **50 mil células** na seleção/coluna, o backend deve solicitar intervalo menor.
+
+### SQL, Python e ambientes por projeto
+1. No SQL da planilha, execute uma consulta e clique **Enviar para aba**. A nova aba deve ser editável e aparecer no histórico de desfazer.
+2. Na área Dados, execute \`SELECT id, nome FROM dados LIMIT 2\` e clique **Enviar à planilha**. A planilha criada é independente da fonte.
+3. Abra **Bibliotecas Python**. Sem autorização, não pode instalar nada.
+4. Digite um nome PyPI válido, marque o consentimento e clique **Instalar no projeto**. O instalador usa um \`venv\` dentro do workspace do Open Doc e retorna logs. A instalação exige internet e o Python de desenvolvimento.
+5. Refaça o autocomplete Python com uma biblioteca instalada e execute um script com ela. Em outro projeto, confirme que o ambiente de pacotes é independente.
+6. **Atenção:** instalar pacotes e executar scripts locais pode executar código de terceiros com permissões do usuário; não é um sandbox. Colab ainda não está conectado.
+
+## Como rodar no Linux Mint
+
+A partir de um clone existente do Open Doc (não substitua a \`main\`):
+
+\`\`\`bash
+cd ~/estudos/open-doc
+git fetch origin
+git switch feat/pivot-v2-typed-cells-20261109
+git pull --ff-only origin feat/pivot-v2-typed-cells-20261109
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python manage.py collectstatic --yes
+python manage.py runapp
+\`\`\`
+
+Ao voltar para a \`main\`, use \`git switch main\` **no worktree que já a contém**. Se a branch estiver em outro worktree, não force um \`git switch\` que sobrescreva a árvore atual.
+
 ## Limitações conhecidas a tratar separadamente
 
-- A tipagem de dados é não destrutiva por padrão. Não existe ainda um fluxo completo de conversão explícita com diagnóstico de todas as células e confirmação transacional para tipos.
-- A área Dados ainda não tem histórico persistente de versões de esquema, nem desfazer/refazer das alterações de tipo (somente de edição de valores).
-- A tabela dinâmica oferece agrupamentos por campos, mas agrupamento temporal mês/ano, expandir/recolher hierarquias e criação de gráficos vinculados continuam para evolução.
-- A integração remota com Google Colab depende de autenticação e API suportadas; não foi implementada, nem simulada.
-- Não interpretar um teste de unidade verde como evidência visual: screenshots reais de Qt e testes de interação precisam ser revistos antes do merge.
+- Faltam agrupamentos hierárquicos expansíveis/recolhíveis, gráficos ancorados permanentemente na grade, e conversões sem limite de 50 mil células por operação.
+- A área Dados ainda não dispõe de uma barra lateral completa estilo Excel/Calc, redimensionamento de colunas por arrastar, filtros e ordenação de toda a base com edição por índices estáveis, e versão histórica em nível de importação.
+- O gerenciador Python é local, opt-in e usa pacotes binários de PyPI. A execução do código **não** é isolada contra acesso a arquivos/rede; só execute scripts e pacotes confiáveis.
+- Não existe conexão autenticada com Google Colab ou execução em sessão remota. A documentação e a UI não devem sugerir suporte que não foi implementado.
+- Não interprete teste de unidade verde como evidência visual: screenshots do Qt e testes de interação em Linux e Windows precisam passar antes do merge.
