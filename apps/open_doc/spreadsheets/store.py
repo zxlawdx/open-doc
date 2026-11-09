@@ -58,7 +58,7 @@ def validate(sheets):
                     (0 <= rng[0] < rng[2] < ROWS and 0 <= rng[1] <= rng[3] < COLUMNS) or
                     (rng[2]-rng[0]+1)*(rng[3]-rng[1]+1) > MAX_CELLS):
                 raise ValueError("Fonte ou intervalo da tabela dinâmica inválido.")
-            if not isinstance(config, dict) or set(config) - {"rows", "columns", "values", "filters", "totals"}:
+            if not isinstance(config, dict) or set(config) - {"rows", "columns", "values", "filters", "totals", "grouping", "sort", "chart"}:
                 raise ValueError("Campos da tabela dinâmica inválidos.")
             for kind in ("rows", "columns"):
                 fields = config.get(kind, [])
@@ -69,17 +69,33 @@ def validate(sheets):
             values = config.get("values", [])
             if not isinstance(values, list) or not 1 <= len(values) <= 12:
                 raise ValueError("Métricas inválidas.")
-            operations = {"sum", "average", "count", "distinct", "min", "max", "median", "stdev"}
+            operations = {"sum", "average", "count", "distinct", "min", "max", "median", "stdev", "product"}
             views = {"value", "grand_pct", "row_pct", "col_pct"}
             for metric in values:
-                if (not isinstance(metric, dict) or set(metric) - {"field", "operation", "show", "decimals"}
+                if (not isinstance(metric, dict) or set(metric) - {"field", "operation", "show", "decimals", "format"}
                         or type(metric.get("field")) is not int
                         or not rng[1] <= metric["field"] <= rng[3]
                         or metric.get("operation", "sum") not in operations
                         or metric.get("show", "value") not in views
+                        or metric.get("format", "number") not in {"number", "decimal", "currency"}
                         or type(metric.get("decimals", 2)) is not int
                         or not 0 <= metric.get("decimals", 2) <= 8):
                     raise ValueError("Métrica inválida.")
+            grouping = config.get("grouping", {})
+            if (not isinstance(grouping, dict) or len(grouping) > 16
+                    or any(not isinstance(k, str) or not k.isascii() or not k.isdecimal()
+                           or not rng[1] <= int(k) <= rng[3]
+                           or unit not in {"none", "day", "month", "year"}
+                           for k, unit in grouping.items())):
+                raise ValueError("Agrupamento temporal inválido.")
+            sort = config.get("sort", {})
+            if (not isinstance(sort, dict) or set(sort) - {"rows", "columns"}
+                    or any(value not in {"none", "asc", "desc", "value_asc", "value_desc"}
+                           for value in sort.values())):
+                raise ValueError("Ordenação inválida.")
+            chart = config.get("chart", "table")
+            if chart not in {"table", "bar", "line", "pie"}:
+                raise ValueError("Gráfico de tabela dinâmica inválido.")
             filters = config.get("filters", [])
             if not isinstance(filters, list) or len(filters) > 16:
                 raise ValueError("Filtros inválidos.")
