@@ -250,6 +250,22 @@ def workbook(context=None):
             from apps.open_doc.datasets.worksheet import WorksheetSnapshot
 
             return WorksheetSnapshot(data["columns"], data["rows"]).query(data["sql"])
+        if command == "from-query":
+            from apps.open_doc.datasets.worksheet import WorksheetSnapshot
+            from apps.open_doc.spreadsheets.store import empty_sheet
+
+            data_sheet = WorksheetSnapshot(data["columns"], data["rows"])
+            new_sheet = empty_sheet("Resultados SQL")
+            for col, name in enumerate(data_sheet.columns):
+                new_sheet["cells"][f"0,{col}"] = name
+                new_sheet["bold"].append(f"0,{col}")
+            for row, values in enumerate(data_sheet.rows, start=1):
+                for col, value in enumerate(values):
+                    if value:
+                        new_sheet["cells"][f"{row},{col}"] = (
+                            "'" + value if value.startswith(("=", "'")) else value
+                        )
+            return store.create("Resultado SQL", [new_sheet])
         if command == "new":
             return store.create()
         if command == "template":
@@ -278,6 +294,43 @@ def dataset(context=None):
             return store.page(data["id"], data["row"], data["column"])
         if data["operation"] == "columns":
             return {"columns": store.columns(data["id"])}
+        if data["operation"] == "cell":
+            return store.cell(data["id"], data["row"], data["column"])
+        if data["operation"] == "edit":
+            return store.edit_cell(data["id"], data["row"], data["column"], data["value"])
+        if data["operation"] == "type":
+            return store.set_type(
+                data["id"], data["scope"], data["column"], data["kind"],
+                data.get("row"), data.get("last_row"), data.get("last_column"),
+            )
+        if data["operation"] == "history":
+            return store.history(data["id"])
+        if data["operation"] == "undo":
+            return store.undo(data["id"])
+        if data["operation"] == "redo":
+            return store.undo(data["id"], redo=True)
+        if data["operation"] in {"python-env-status", "python-env-install"}:
+            from apps.open_doc.datasets.python_envs import PythonEnvironments
+            manager = PythonEnvironments(get_context().config.root)
+            if data["operation"] == "python-env-status":
+                return manager.status(data["id"])
+            result = manager.install(data["id"], data["packages"],
+                                     confirm=data.get("confirm") is True)
+            from apps.open_doc.datasets.python_analysis import environment
+            environment.cache_clear()
+            return result
+        if data["operation"] == "conversion-preview":
+            return store.conversion_preview(
+                data["id"], data["scope"], data["column"], data["kind"],
+                data.get("row"), data.get("last_row"), data.get("last_column"),
+            )
+        if data["operation"] == "conversion-commit":
+            return store.conversion_commit(
+                data["id"], data["scope"], data["column"], data["kind"],
+                data["token"], data.get("row"), data.get("last_row"),
+                data.get("last_column"), on_invalid=data.get("on_invalid", "abort"),
+                confirm=data.get("confirm", False),
+            )
         if data["operation"] == "query":
             return store.query(data["id"], data["sql"])
         raise ValueError("Operação de dataset inválida.")
@@ -305,6 +358,7 @@ def dataset_python_analysis(context=None):
 
     def operation():
         data = _data(context)
-        return analyze(data["code"], data["line"], data["column"], data["operation"])
+        return analyze(data["code"], data["line"], data["column"], data["operation"],
+                       data.get("project"))
 
     return _handle(operation)

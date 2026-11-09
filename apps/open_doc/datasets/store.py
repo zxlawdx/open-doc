@@ -31,6 +31,53 @@ def delimited(path, encoding, delimiter):
         yield header, reader
 
 
+def typed_value(value, kind):
+    """Adapt a *copy* of explicitly typed data for read-only SQL, without changing source."""
+    from decimal import Decimal, InvalidOperation
+    from datetime import date
+
+    if value is None or kind in {"auto", "text"}:
+        return value
+    if kind == "boolean":
+        token = str(value).strip().casefold()
+        if token in {"sim", "true", "1", "verdadeiro"}:
+            return 1
+        if token in {"não", "nao", "false", "0", "falso"}:
+            return 0
+        return value
+    if kind in {"integer", "decimal", "currency", "percent"}:
+        token = str(value).strip().replace("\u00a0", "").replace(" ", "")
+        token = token.removeprefix("R$").replace("%", "")
+        if "," in token and "." in token:
+            token = token.replace(".", "").replace(",", ".") if token.rfind(",") > token.rfind(".") else token.replace(",", "")
+        elif "," in token:
+            token = token.replace(",", ".")
+        elif token.count(".") > 1 or (token.count(".") == 1 and len(token.split(".")[1]) == 3 and
+              1 <= len(token.split(".")[0]) <= 3):
+            token = token.replace(".", "")
+        try:
+            number = Decimal(token)
+            if not number.is_finite():
+                return value
+            if kind == "percent" and str(value).strip().endswith("%"):
+                number /= 100
+            if kind == "integer":
+                integer = int(number)
+                return integer if number == integer and -(2**63) <= integer < 2**63 else value
+            converted = float(number)
+            return converted if converted not in (float("inf"), float("-inf")) else value
+        except (InvalidOperation, ValueError, OverflowError):
+            return value
+    if kind == "date":
+        parts = str(value).split("/")
+        if len(parts) == 3:
+            try:
+                return date(int(parts[2]), int(parts[1]), int(parts[0])).isoformat()
+            except ValueError:
+                return value
+    return value
+
+
 def preview(value):
     return value if len(value) <= 512 else value[:512] + "…"
 
@@ -63,7 +110,15 @@ class Datasets:
                     dataset_id TEXT NOT NULL REFERENCES datasets(id), number INTEGER NOT NULL,
                     values_json TEXT NOT NULL, PRIMARY KEY(dataset_id, number)
                 ) WITHOUT ROWID;
+                CREATE TABLE IF NOT EXISTS dataset_field_types (
+                    dataset_id TEXT NOT NULL REFERENCES datasets(id),
+                    scope TEXT NOT NULL, row_number INTEGER NOT NULL, column_number INTEGER NOT NULL,
+                    kind TEXT NOT NULL,
+                    PRIMARY KEY(dataset_id,scope,row_number,column_number)
+                ) WITHOUT ROWID;
             """)
+            from . import history
+            history.initialize(db)
 
     @staticmethod
     def get(db, identifier):
@@ -141,19 +196,237 @@ class Datasets:
             if row >= max(1, dataset["row_count"]) or column >= len(names):
                 raise ValueError("Posição fora do dataset.")
             columns = names[column:column + 12]
-            rows = db.execute(
+            records = db.execute(
                 "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number>? ORDER BY number LIMIT 50",
                 (identifier, row),
-            )
+            ).fetchall()
+            column_types, cell_types = {}, {}
+            for entry in db.execute(
+                "SELECT scope,row_number,column_number,kind FROM dataset_field_types "
+                "WHERE dataset_id=? AND column_number>=? AND column_number<? "
+                "AND (scope='column' OR (row_number>? AND row_number<=?))",
+                (identifier, column, column + len(columns), row, row + len(records)),
+            ):
+                if entry["scope"] == "column":
+                    column_types[str(entry["column_number"])] = entry["kind"]
+                else:
+                    cell_types[f'{entry["row_number"]},{entry["column_number"]}'] = entry["kind"]
             return {
                 "id": identifier, "title": dataset["title"], "row_count": dataset["row_count"],
                 "column_count": len(names), "columns": [preview(name) for name in columns],
                 "rows": [[preview(value) for value in json.loads(item[0])[column:column + len(columns)]]
-                         for item in rows],
+                         for item in records],
+                "types": {"columns": column_types, "cells": cell_types},
                 "source_count": db.execute(
                     "SELECT COUNT(*) FROM sources WHERE dataset_id=?", (identifier,)
                 ).fetchone()[0],
             }
+
+    def cell(self, identifier, row, column):
+        """Fetch the untruncated raw cell for in-grid editing."""
+        if type(row) is not int or type(column) is not int or row < 1 or column < 0:
+            raise ValueError("Endereço inválido.")
+        with self.connect() as db:
+            dataset = self.get(db, identifier)
+            if row > dataset["row_count"] or column >= len(json.loads(dataset["columns_json"])):
+                raise ValueError("Célula fora do dataset.")
+            result = db.execute(
+                "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number=?",
+                (identifier, row),
+            ).fetchone()
+            if result is None:
+                raise ValueError("Linha não encontrada.")
+            return {"row": row, "column": column, "value": json.loads(result["values_json"])[column]}
+
+    def edit_cell(self, identifier, row, column, value):
+        """Atomically edit one stored data cell without rewriting a large CSV."""
+        if (type(row) is not int or type(column) is not int or
+                not isinstance(value, str) or len(value) > 8192 or row < 1 or column < 0):
+            raise ValueError("Célula ou valor inválido.")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            dataset = self.get(db, identifier)
+            names = json.loads(dataset["columns_json"])
+            if row > dataset["row_count"] or column >= len(names):
+                raise ValueError("Célula fora do dataset.")
+            record = db.execute(
+                "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number=?",
+                (identifier, row),
+            ).fetchone()
+            if record is None:
+                raise ValueError("Linha não encontrada.")
+            cells = json.loads(record["values_json"])
+            previous = cells[column]
+            cells[column] = value
+            db.execute(
+                "UPDATE dataset_rows SET values_json=? WHERE dataset_id=? AND number=?",
+                (json.dumps(cells, ensure_ascii=False, separators=(",", ":")), identifier, row),
+            )
+            from . import history
+            history.remember(
+                db, identifier, "edit", {"values": [[row, column, previous]]},
+                {"values": [[row, column, value]]},
+            )
+            return {"row": row, "column": column, "previous": previous, "value": value}
+
+    def set_type(self, identifier, scope, column, kind, row=None, last_row=None, last_column=None):
+        """Store non-destructive column/cell type overrides; raw values remain intact."""
+        allowed = {"auto", "text", "integer", "decimal", "currency", "percent",
+                   "date", "time", "datetime", "boolean"}
+        if (scope not in {"column", "cell", "selection"} or kind not in allowed or
+                type(column) is not int or column < 0):
+            raise ValueError("Tipo, coluna ou escopo inválido.")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            dataset = self.get(db, identifier)
+            names = json.loads(dataset["columns_json"])
+            if column >= len(names):
+                raise ValueError("Coluna fora do dataset.")
+            if scope == "column":
+                positions = [(0, column)]
+            else:
+                if type(row) is not int or not 1 <= row <= dataset["row_count"]:
+                    raise ValueError("Linha fora do dataset.")
+                if scope == "cell":
+                    positions = [(row, column)]
+                else:
+                    if (type(last_row) is not int or type(last_column) is not int or
+                            not row <= last_row <= dataset["row_count"] or
+                            not column <= last_column < len(names) or
+                            (last_row-row+1)*(last_column-column+1) > 50000):
+                        raise ValueError("Seleção inválida ou maior que 50 mil células.")
+                    positions = [(r, c) for r in range(row, last_row+1)
+                                 for c in range(column, last_column+1)]
+            storage_scope = "column" if scope == "column" else "cell"
+            previous = {}
+            for entry in db.execute(
+                    "SELECT row_number,column_number,kind FROM dataset_field_types "
+                    "WHERE dataset_id=? AND scope=? AND column_number>=? AND column_number<=?",
+                    (identifier, storage_scope, column,
+                     last_column if scope == "selection" else column)):
+                previous[(entry["row_number"], entry["column_number"])] = entry["kind"]
+            before_types = [
+                [storage_scope, r, c, previous.get((r, c))] for r, c in positions
+            ]
+            new_kind = None if kind == "auto" and storage_scope == "column" else kind
+            after_types = [[storage_scope, r, c, new_kind] for r, c in positions]
+            if kind == "auto" and storage_scope == "column":
+                db.executemany(
+                    "DELETE FROM dataset_field_types WHERE dataset_id=? AND scope=? AND row_number=? AND column_number=?",
+                    ((identifier, storage_scope, r, c) for r, c in positions),
+                )
+            else:
+                db.executemany(
+                    "INSERT OR REPLACE INTO dataset_field_types "
+                    "(dataset_id,scope,row_number,column_number,kind) VALUES (?,?,?,?,?)",
+                    ((identifier, storage_scope, r, c, kind) for r, c in positions),
+                )
+            from . import history
+            history.remember(db, identifier, "type",
+                             {"types": before_types}, {"types": after_types})
+            return {"updated": len(positions), "scope": scope, "kind": kind}
+
+    def conversion_preview(self, identifier, scope, column, kind, row=None,
+                           last_row=None, last_column=None):
+        """Read-only, bounded sample and full mismatch counts; no mutation."""
+        from . import conversion
+        with self.connect() as db:
+            db.execute("BEGIN")
+            dataset = self.get(db, identifier)
+            report = conversion.plan(db, dataset, scope, column, kind,
+                                     row, last_row, last_column)
+            return {key: value for key, value in report.items() if key != "changes"}
+
+    def conversion_commit(self, identifier, scope, column, kind, token, row=None,
+                          last_row=None, last_column=None, *, on_invalid="abort", confirm=False):
+        """Explicit user-confirmed, stale-data-checked conversion + type in one transaction."""
+        if confirm is not True or on_invalid not in {"abort", "keep"} or not (
+                isinstance(token, str) and len(token) == 64):
+            raise ValueError("A conversão exige prévia e confirmação explícita.")
+        from . import conversion, history
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            dataset = self.get(db, identifier)
+            report = conversion.plan(db, dataset, scope, column, kind,
+                                     row, last_row, last_column)
+            if report["token"] != token:
+                raise ValueError("Os dados mudaram desde a prévia. Refaça a análise.")
+            if report["invalid"] and on_invalid == "abort":
+                raise ValueError(
+                    f"Há {report['invalid']} valores incompatíveis. Corrija-os ou escolha preservá-los."
+                )
+            changes = report["changes"]
+            before_values = [[r, c, old] for r, c, old, new in changes]
+            after_values = [[r, c, new] for r, c, old, new in changes]
+            for r, c, old, new in changes:
+                record = db.execute(
+                    "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number=?",
+                    (identifier, r),
+                ).fetchone()
+                if record is None:
+                    raise ValueError("A origem mudou durante a conversão.")
+                values = json.loads(record[0])
+                if values[c] != old:
+                    raise ValueError("Valor da origem modificado. Refaça a prévia.")
+                values[c] = new
+                db.execute(
+                    "UPDATE dataset_rows SET values_json=? WHERE dataset_id=? AND number=?",
+                    (json.dumps(values, ensure_ascii=False, separators=(",", ":")), identifier, r),
+                )
+            r0, r1, c0, c1 = report["region"]
+            if scope == "column":
+                positions = [("column", 0, column)]
+            else:
+                positions = [
+                    ("cell", r, c) for r in range(r0, r1+1)
+                    for c in range(c0, c1+1)
+                ]
+            types_before, types_after = [], []
+            # Retain all explicit cell exceptions in column scope.
+            for target_scope, r, c in positions:
+                existing = db.execute(
+                    "SELECT kind FROM dataset_field_types WHERE dataset_id=? "
+                    "AND scope=? AND row_number=? AND column_number=?",
+                    (identifier, target_scope, r, c),
+                ).fetchone()
+                old_kind = existing[0] if existing else None
+                new_kind = None if kind == "auto" and target_scope == "column" else kind
+                types_before.append([target_scope, r, c, old_kind])
+                types_after.append([target_scope, r, c, new_kind])
+                if new_kind is None:
+                    db.execute(
+                        "DELETE FROM dataset_field_types WHERE dataset_id=? AND scope=? "
+                        "AND row_number=? AND column_number=?",
+                        (identifier, target_scope, r, c),
+                    )
+                else:
+                    db.execute(
+                        "INSERT OR REPLACE INTO dataset_field_types "
+                        "(dataset_id,scope,row_number,column_number,kind) VALUES(?,?,?,?,?)",
+                        (identifier, target_scope, r, c, new_kind),
+                    )
+            history.remember(
+                db, identifier, "conversion",
+                {"values": before_values, "types": types_before},
+                {"values": after_values, "types": types_after},
+            )
+            return {"converted": len(changes), "invalid": report["invalid"],
+                    "exceptions": report["exceptions"], "kind": kind}
+
+    def undo(self, identifier, redo=False):
+        if type(redo) is not bool:
+            raise ValueError("Operação de histórico inválida.")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self.get(db, identifier)
+            from . import history
+            return history.traverse(db, identifier, redo)
+
+    def history(self, identifier, limit=25):
+        with self.connect() as db:
+            self.get(db, identifier)
+            from . import history
+            return {"entries": history.list_history(db, identifier, limit)}
 
     def columns(self, identifier):
         with self.connect() as db:
@@ -182,9 +455,31 @@ class Datasets:
                 raise ValueError("O dataset ultrapassa o número de colunas que o SQLite pode consultar.")
             if any("\x00" in name for name in names):
                 raise ValueError("O cabeçalho contém caracteres incompatíveis com SQL.")
-            fields = ", ".join(
-                f"json_extract(values_json, '$[{index}]') AS {quote(name)}" for index, name in enumerate(names)
-            )
+            typed_columns = {
+                index: kind for index, kind in db.execute(
+                    "SELECT column_number,kind FROM dataset_field_types "
+                    "WHERE dataset_id=? AND scope='column'", (identifier,),
+                )
+            }
+            typed_indices = {
+                item[0] for item in db.execute(
+                    "SELECT DISTINCT column_number FROM dataset_field_types WHERE dataset_id=?", (identifier,),
+                )
+            }
+            db.create_function("od_typed", 2, typed_value, deterministic=True)
+            fields = []
+            for index, name in enumerate(names):
+                value = f"json_extract(values_json, '$[{index}]')"
+                if index in typed_indices:
+                    override = (
+                        "(SELECT kind FROM main.dataset_field_types AS override "
+                        f"WHERE override.dataset_id='{identifier}' AND override.scope='cell' "
+                        f"AND override.row_number=dataset_rows.number AND override.column_number={index})"
+                    )
+                    default = typed_columns.get(index, "auto")
+                    value = f"od_typed({value},COALESCE({override},'{default}'))"
+                fields.append(f"{value} AS {quote(name)}")
+            fields = ", ".join(fields)
             private_view = "_dataset_" + uuid4().hex
             db.execute(
                 f"CREATE TEMP VIEW {private_view} AS SELECT {fields} "
@@ -198,7 +493,7 @@ class Datasets:
                     # unguessable, per-connection view can read base rows.
                     allowed = (
                         database == "temp" and (arg1 == "dados" or (arg1 == private_view and view == "dados"))
-                    ) or (arg1 == "dataset_rows" and database == "main" and view == private_view)
+                    ) or (arg1 in {"dataset_rows", "dataset_field_types"} and database == "main" and view == private_view)
                 elif action == sqlite3.SQLITE_FUNCTION:
                     allowed = arg2.lower() not in {"load_extension", "readfile", "writefile"}
                 else:
@@ -224,6 +519,36 @@ class Datasets:
                 if monotonic() > deadline:
                     raise ValueError("A consulta excedeu cinco segundos.") from error
                 raise ValueError(f"Consulta somente leitura inválida: {error}") from error
+
+    def write_analysis_csv(self, identifier, stream):
+        """Stream a typed analysis snapshot for Python, leaving exported source CSV unchanged."""
+        with self.connect() as db:
+            db.execute("BEGIN")
+            dataset = self.get(db, identifier)
+            columns = json.loads(dataset["columns_json"])
+            writer = csv.writer(stream)
+            writer.writerow(columns)
+            column_types, cell_types = {}, {}
+            for scope, row, column, kind in db.execute(
+                    "SELECT scope,row_number,column_number,kind FROM dataset_field_types WHERE dataset_id=?",
+                    (identifier,)):
+                if scope == "column":
+                    column_types[column] = kind
+                else:
+                    cell_types[(row, column)] = kind
+            rows = db.execute(
+                "SELECT number,values_json FROM dataset_rows WHERE dataset_id=? ORDER BY number",
+                (identifier,),
+            )
+            count = 0
+            for number, encoded in rows:
+                values = json.loads(encoded)
+                writer.writerow([
+                    typed_value(value, cell_types.get((number, col), column_types.get(col, "auto")))
+                    for col, value in enumerate(values)
+                ])
+                count += 1
+            return count
 
     def write_csv(self, identifier, stream):
         """Write one consistent snapshot without loading the dataset into memory."""

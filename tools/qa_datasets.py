@@ -81,6 +81,88 @@ def main():
                 })()""")
                 wait(window, "Array.from(document.querySelectorAll('.cm-tooltip-autocomplete li')).some(item=>item.textContent.includes('nome'))")
                 capture(output, "autocomplete-sql")
+                window.evaluate_js("document.querySelector('[data-dataset-command=reset]').click()")
+                wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "!!document.querySelector('.dataset-inline-editor')")
+                window.evaluate_js("""(() => {
+                  const editor=document.querySelector('.dataset-inline-editor');
+                  editor.value='009';
+                  editor.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
+                window.evaluate_js("""(() => {
+                  const header=document.querySelector('thead [data-dataset-col="0"]');
+                  header.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:150}));
+                })()""")
+                wait(window, "!!document.querySelector('.book-context-menu')")
+                window.evaluate_js("""Array.from(document.querySelectorAll('.book-context-menu button'))
+                  .find(button=>button.textContent==='Texto').click()""")
+                wait(window, "document.querySelector('thead [data-dataset-col=\"0\"]')?.classList.contains('dataset-typed')")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.focus();
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('thead [data-dataset-col=\"0\"]')?.classList.contains('dataset-typed')===false")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.focus();
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='001'")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.focus();
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'y',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.focus();
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'y',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('thead [data-dataset-col=\"0\"]')?.classList.contains('dataset-typed')")
+                capture(output, "inline-and-types")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:130,clientY:140}));
+                })()""")
+                wait(window, "!!document.querySelector('.book-context-menu select[aria-label=\"Tipo para converter\"]')")
+                window.evaluate_js("""(() => {
+                  const choice=document.querySelector('.book-context-menu select[aria-label="Tipo para converter"]');
+                  choice.value='integer';
+                  Array.from(document.querySelectorAll('.book-context-menu button'))
+                    .find(button=>button.textContent.includes('Prévia e conversão')).click();
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-conversion]').hidden===false")
+                assert "alterações propostas" in window.evaluate_js(
+                    "document.querySelector('[data-conversion-summary]').textContent")
+                capture(output, "conversion-preview")
+                window.evaluate_js("document.querySelector('[data-dataset-command=confirm-conversion]').click()")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='9'")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
+                capture(output, "conversion-undo")
+                print("QT_DATASET_CONVERSION_PREVIEW_CONFIRM_UNDO_OK", flush=True)
+                window.evaluate_js("""(() => {
+                  const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-query] .cm-editor'));
+                  view.dispatch({changes:{from:0,to:view.state.doc.length,insert:'SELECT id,nome FROM dados LIMIT 2'}});
+                  document.querySelector('[data-dataset-command=query]').click();
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-command=sql-to-workbook]').disabled===false")
+                window.evaluate_js("document.querySelector('[data-dataset-command=sql-to-workbook]').click()")
+                wait(window, "document.querySelector('[data-workbook]').hidden===false")
+                wait(window, "document.querySelector('[data-cell=\"1,0\"]')?.textContent==='009'")
+                capture(output, "sql-to-workbook")
+                print("QT_DATASET_SQL_TO_WORKBOOK_OK", flush=True)
+                print("QT_DATASET_INLINE_TYPES_UNDO_REDO_OK", flush=True)
                 print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_COMPLETION_OK", flush=True)
             except Exception as error:
                 errors.append(error)

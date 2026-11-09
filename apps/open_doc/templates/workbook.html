@@ -44,19 +44,70 @@
     <div class="workbook-space" data-book-space></div>
     <input class="book-inline-editor" data-book-inline hidden aria-label="Editar célula na grade" maxlength="8192" autocomplete="off">
   </div>
-  <aside class="workbook-sidebar" id="book-sidebar" data-book-sidebar hidden aria-label="Tabela dinâmica">
-    <div class="workbook-sidebar-title"><strong>Tabela dinâmica</strong><button type="button" data-book-command="close-pivot" aria-label="Recolher painel"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chevron-right"></use></svg></button></div>
-    <p>Use a primeira linha do intervalo como cabeçalho.</p>
-    <label>Intervalo <input data-pivot-range placeholder="A1:D10"></label>
-    <button type="button" data-book-command="pivot-fields"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#list-check"></use></svg>Carregar campos</button>
-    <label>Linhas <select data-pivot-row></select></label>
-    <label>Colunas <select data-pivot-column></select></label>
-    <label>Valores <select data-pivot-value></select></label>
-    <label>Agregação <select data-pivot-operation>
-      <option value="sum">Soma</option><option value="count">Contagem</option>
-      <option value="average">Média</option><option value="min">Mínimo</option><option value="max">Máximo</option>
-    </select></label>
-    <button type="button" data-book-command="pivot-create"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg>Criar em nova aba</button>
+  <aside class="workbook-sidebar workbook-pivot-dialog" id="book-sidebar" data-book-sidebar hidden
+         aria-label="Construtor de tabela dinâmica" role="dialog" aria-modal="false" aria-labelledby="pivot-v2-title">
+    <header class="pivot-v2-header">
+      <div><small>OPEN DOC · ANÁLISE</small>
+        <strong id="pivot-v2-title">Construtor de tabela dinâmica</strong>
+        <p data-pivot-source>Fonte: aba selecionada · configure os campos e visualize o resultado</p>
+      </div>
+      <button type="button" data-book-command="close-pivot" aria-label="Fechar construtor">×</button>
+    </header>
+    <div class="pivot-v2-content">
+      <div class="pivot-v2-columns">
+        <section class="pivot-v2-field-panel" aria-label="Campos disponíveis">
+          <strong>Campos disponíveis <span data-pivot-field-count></span></strong>
+          <label>Intervalo de origem
+            <input data-pivot-range aria-label="Intervalo da tabela dinâmica" placeholder="A1:D100">
+          </label>
+          <button type="button" data-book-command="pivot-fields">↻ Recarregar campos</button>
+          <input data-pivot-search type="search" placeholder="Buscar campo..." aria-label="Buscar campos">
+          <div class="pivot-v2-field-list" data-pivot-available role="list"></div>
+        </section>
+        <div class="pivot-v2-zones">
+          <section class="pivot-v2-zone" data-pivot-zone="rows" aria-label="Campos de linhas">
+            <div class="pivot-v2-zone-title">Linhas <small data-pivot-count="rows">0</small></div>
+            <p>Agrupe os registros por categorias.</p><div class="pivot-v2-chips" data-pivot-chips="rows"></div>
+          </section>
+          <section class="pivot-v2-zone" data-pivot-zone="columns" aria-label="Campos de colunas">
+            <div class="pivot-v2-zone-title">Colunas <small data-pivot-count="columns">0</small></div>
+            <p>Separe os resultados em colunas.</p><div class="pivot-v2-chips" data-pivot-chips="columns"></div>
+          </section>
+          <section class="pivot-v2-zone" data-pivot-zone="values" aria-label="Métricas e operações">
+            <div class="pivot-v2-zone-title">Valores <small data-pivot-count="values">0</small></div>
+            <p>Calcule soma, média, contagem e mais.</p><div class="pivot-v2-chips" data-pivot-chips="values"></div>
+          </section>
+          <section class="pivot-v2-zone" data-pivot-zone="filters" aria-label="Filtros dos dados">
+            <div class="pivot-v2-zone-title">Filtros <small data-pivot-count="filters">0</small></div>
+            <p>Escolha as categorias realmente incluídas.</p><div class="pivot-v2-chips" data-pivot-chips="filters"></div>
+          </section>
+        </div>
+      </div>
+      <section class="pivot-v2-preview" aria-label="Prévia agregada">
+        <div class="pivot-v2-preview-toolbar">
+          <h3>Prévia · <span data-pivot-record-count>0 registros</span></h3>
+          <label>Ordenar linhas <select data-pivot-sort-rows aria-label="Ordenar linhas">
+            <option value="none">Fonte</option><option value="asc">A → Z</option>
+            <option value="desc">Z → A</option><option value="value_desc">Maior valor</option>
+            <option value="value_asc">Menor valor</option>
+          </select></label>
+          <label>Visualização <select data-pivot-chart aria-label="Visualização dos agregados">
+            <option value="table">Tabela</option><option value="bar">Barras</option>
+            <option value="line">Linhas</option><option value="pie">Pizza</option>
+          </select></label>
+        </div>
+        <div class="pivot-v2-table-scroll" data-pivot-preview></div>
+      </section>
+    </div>
+    <footer class="pivot-v2-footer">
+      <span>Os dados de origem não são sobrescritos. Atualização mediante comando.</span>
+      <div>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" data-pivot-totals checked> Totais</label>
+        <button type="button" data-book-command="pivot-refresh" hidden>Atualizar resultado</button>
+        <button type="button" data-book-command="close-pivot">Fechar</button>
+        <button type="button" data-book-command="pivot-create">Criar tabela</button>
+      </div>
+    </footer>
   </aside>
   <aside class="workbook-sidebar workbook-analysis" id="book-analysis" data-book-analysis hidden aria-label="Análise da aba ativa">
     <div class="workbook-sidebar-title"><strong>Análise da aba ativa</strong><button type="button" data-book-command="close-analysis" aria-label="Recolher análise"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chevron-right"></use></svg></button></div>
@@ -64,6 +115,7 @@
     <label for="book-sql">SQL</label>
     <textarea id="book-sql" aria-label="Editor SQL da planilha" maxlength="12000">SELECT * FROM dados LIMIT 20</textarea>
     <button type="button" data-book-command="run-sql"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar SQL</button>
+    <button type="button" data-book-command="sql-to-sheet" title="Copiar resultados SQL para nova aba editável" disabled>Enviar para aba</button>
     <div class="book-query-results" data-book-query-results></div>
     <label for="book-python">Python local</label>
     <textarea id="book-python" aria-label="Editor Python da planilha" maxlength="24000">import csv
@@ -75,6 +127,30 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
     <output data-book-signature aria-live="polite"></output>
     <button type="button" data-book-command="run-python"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar Python</button>
     <pre data-book-python-output aria-label="Saída Python" tabindex="0"></pre>
+    <section class="python-packages" data-python-packages aria-label="Bibliotecas Python do projeto">
+      <button type="button" data-python-env-command="toggle"
+        title="Gerenciar pacotes em ambiente virtual exclusivo desta planilha ou dataset">
+        <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg>Bibliotecas Python
+      </button>
+      <div data-python-env-body hidden>
+        <p>Instalação opcional por projeto em um venv separado. Pacotes PyPI executam código de terceiros
+          com permissões da sua conta; não constituem isolamento de segurança.</p>
+        <label>Pacotes (separe por vírgulas, até 5)
+          <input data-python-env-names placeholder="pandas, numpy" maxlength="500">
+        </label>
+        <label class="python-packages-consent">
+          <input type="checkbox" data-python-env-agree>
+          Autorizo instalar esses pacotes de terceiros no ambiente do projeto.
+        </label>
+        <button type="button" data-python-env-command="install">Instalar no projeto</button>
+        <output data-python-env-status role="status" aria-live="polite"></output>
+        <details><summary>Pacotes instalados e log</summary>
+          <ul data-python-env-installed></ul><pre data-python-env-log></pre>
+        </details>
+        <small>Google Colab: integração remota ainda não disponível; nenhum acesso ou execução externa é simulado.</small>
+      </div>
+    </section>
+
   </aside>
   </div>
   <div class="workbook-tabs">
@@ -90,6 +166,12 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
   <div class="workbook-toolbar workbook-ribbon">
     <div class="workbook-tools" role="group" aria-label="Fonte">
     <strong>Datasets locais</strong>
+    <button type="button" data-dataset-command="undo" title="Desfazer alteração de dados ou tipo (Ctrl+Z)">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#undo"></use></svg>Desfazer</button>
+    <button type="button" data-dataset-command="redo" title="Refazer (Ctrl+Y)">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#redo"></use></svg>Refazer</button>
+    <button type="button" data-dataset-command="history" title="Consultar histórico persistente de alterações">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#clock"></use></svg>Histórico</button>
     <select data-dataset-list aria-label="Dataset"></select>
     <label>Codificação <select data-dataset-encoding><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
     <label>Separador <select data-dataset-delimiter><option value="auto">Automático</option><option value=",">Vírgula</option><option value=";">Ponto e vírgula</option><option value="&#9;">Tabulação</option><option value="|">Barra vertical</option></select></label>
@@ -123,6 +205,7 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
   <div class="workbook-toolbar" data-dataset-query hidden>
     <label>SQL <textarea data-dataset-sql aria-label="Editor SQL" rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
     <button type="button" data-dataset-command="query"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar SQL</button>
+    <button type="button" data-dataset-command="sql-to-workbook" title="Criar planilha editável a partir dos resultados SQL" disabled>Enviar à planilha</button>
     <button type="button" data-dataset-command="reset"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#table"></use></svg>Voltar à prévia</button>
   </div>
   <details class="dataset-python" data-dataset-python hidden>
@@ -137,8 +220,55 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
     <output data-dataset-signature aria-live="polite"></output>
     <button type="button" data-dataset-command="python"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar Python</button>
     <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
+    <section class="python-packages" data-python-packages aria-label="Bibliotecas Python do projeto">
+      <button type="button" data-python-env-command="toggle"
+        title="Gerenciar pacotes em ambiente virtual exclusivo desta planilha ou dataset">
+        <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg>Bibliotecas Python
+      </button>
+      <div data-python-env-body hidden>
+        <p>Instalação opcional por projeto em um venv separado. Pacotes PyPI executam código de terceiros
+          com permissões da sua conta; não constituem isolamento de segurança.</p>
+        <label>Pacotes (separe por vírgulas, até 5)
+          <input data-python-env-names placeholder="pandas, numpy" maxlength="500">
+        </label>
+        <label class="python-packages-consent">
+          <input type="checkbox" data-python-env-agree>
+          Autorizo instalar esses pacotes de terceiros no ambiente do projeto.
+        </label>
+        <button type="button" data-python-env-command="install">Instalar no projeto</button>
+        <output data-python-env-status role="status" aria-live="polite"></output>
+        <details><summary>Pacotes instalados e log</summary>
+          <ul data-python-env-installed></ul><pre data-python-env-log></pre>
+        </details>
+        <small>Google Colab: integração remota ainda não disponível; nenhum acesso ou execução externa é simulado.</small>
+      </div>
+    </section>
+
   </details>
   </aside>
   </div>
   <p data-dataset-status role="status" aria-live="polite"></p>
+  <div data-dataset-conversion class="dataset-conversion-dialog" hidden role="dialog"
+       aria-modal="true" aria-labelledby="dataset-conversion-title">
+    <section class="dataset-conversion-content">
+      <header><strong id="dataset-conversion-title">Prévia da conversão</strong>
+        <button type="button" data-dataset-command="cancel-conversion" aria-label="Cancelar conversão">×</button></header>
+      <p data-conversion-summary>Verificando valores...</p>
+      <div data-conversion-samples class="dataset-conversion-samples"></div>
+      <label class="dataset-conversion-keep">
+        <input type="checkbox" data-conversion-keep-invalid>
+        Preservar valores incompatíveis sem alteração (eles continuarão sinalizados)
+      </label>
+      <footer>
+        <button type="button" data-dataset-command="cancel-conversion">Cancelar</button>
+        <button type="button" data-dataset-command="confirm-conversion">Confirmar conversão</button>
+      </footer>
+    </section>
+  </div>
+  <aside data-dataset-history class="dataset-history" hidden aria-label="Histórico persistente">
+    <div class="workbook-sidebar-title"><strong>Histórico de dados</strong>
+      <button type="button" data-dataset-command="close-history">Fechar</button></div>
+    <p>Alterações de valores, tipos e conversões; as versões persistem após reiniciar.</p>
+    <ol data-dataset-history-list></ol>
+  </aside>
 </section>

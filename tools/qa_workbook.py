@@ -76,19 +76,52 @@ def main():
             wait(window, "!document.querySelector('[data-book-sidebar]').hidden")
             js("document.querySelector('[data-pivot-range]').value='A1:D2'")
             click("[data-book-command=pivot-fields]")
+            wait(window, "document.querySelectorAll('[data-pivot-field]').length===4")
+            click('[data-pivot-add="0"]')  # Categoria -> Linhas
+            js("document.querySelector('[data-pivot-choice=\"3\"]').value='values'")
+            click('[data-pivot-add="3"]')  # Saldo -> Valores
+            wait(window, """Array.from(document.querySelectorAll('[data-pivot-preview] td'))
+              .some(cell=>cell.textContent==='520')""")
+            js("document.querySelector('[data-pivot-choice=\"1\"]').value='values'")
+            click('[data-pivot-add="1"]')  # Previsto -> segunda métrica
+            wait(window, "document.querySelectorAll('[data-pivot-chips=values] .pivot-v2-chip').length===2")
+            assert js("""Array.from(document.querySelectorAll('[data-pivot-preview] td'))
+              .some(cell=>cell.textContent==='2000')""")
             capture(output, "pivot")
+            for width in (1920, 1500, 1000, 800, 390):
+                capture(output, f"pivot-{width}", width=width)
             capture(output, "pivot-narrow", width=640)
             assert js("""(() => {
-                const host=document.querySelector('[data-workbook]');
                 const panel=document.querySelector('[data-book-sidebar]');
-                return innerWidth===640 && host.scrollWidth<=innerWidth &&
-                  getComputedStyle(panel).position==='absolute' &&
-                  panel.getBoundingClientRect().right<=innerWidth;
+                return innerWidth===640 && getComputedStyle(panel).position==='fixed' &&
+                  panel.getBoundingClientRect().right<=innerWidth+2 &&
+                  panel.getBoundingClientRect().left>=-2;
+            })()""")
+            assert js("""(() => {
+                const available=document.querySelector('.pivot-v2-field-panel');
+                const firstZone=document.querySelector('[data-pivot-zone=rows]');
+                const list=document.querySelector('[data-pivot-available]');
+                return available.getBoundingClientRect().bottom+2<=firstZone.getBoundingClientRect().top &&
+                  list.getBoundingClientRect().bottom<=available.getBoundingClientRect().bottom+1;
             })()""")
             capture(output, "pivot")
+            js("""(() => {
+                const option=document.querySelector('[data-pivot-chart]');
+                option.value='bar';
+                option.dispatchEvent(new Event('change',{bubbles:true}));
+            })()""")
+            wait(window, "!!document.querySelector('[data-pivot-preview] svg')")
+            capture(output, "pivot-chart")
+            js("""(() => {
+                const option=document.querySelector('[data-pivot-chart]');
+                option.value='table';
+                option.dispatchEvent(new Event('change',{bubbles:true}));
+            })()""")
+            wait(window, "!!document.querySelector('[data-pivot-preview] table')")
             click("[data-book-command=pivot-create]")
             wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
             wait(window, "document.querySelector('[data-cell=\"1,1\"]')?.textContent==='520'")
+            wait(window, "document.querySelector('[data-cell=\"1,2\"]')?.textContent==='2000'")
             click("[data-book-command=undo]")
             wait(window, "document.querySelectorAll('[data-book-tabs] button').length===2")
             click('[data-cell="1,1"]')
@@ -105,6 +138,10 @@ def main():
             finally:
                 window.create_confirmation_dialog=confirm
             capture(output, "analysis")
+            click("[data-book-command=sql-to-sheet]")
+            wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
+            wait(window, "document.querySelector('[data-cell=\"1,1\"]')?.textContent==='2050'")
+            capture(output, "sql-to-sheet")
             print("QT_WORKBOOK_INLINE_PIVOT_SQL_PYTHON_OK", flush=True)
         except Exception as error:
             errors.append(error)
