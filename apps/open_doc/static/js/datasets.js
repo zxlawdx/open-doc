@@ -1,13 +1,13 @@
 "use strict";
 (() => {
-  function create({host,request,signal}) {
+  function create({host,request,signal,onOpenWorkbook}) {
     const $=selector=>host.querySelector(selector);
     const list=$("[data-dataset-list]"), table=$("[data-dataset-table]");
     const status=$("[data-dataset-status]"), pagination=$("[data-dataset-pagination]");
     const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
     const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
     let row=0, column=0, current, busy=false, querying=false, selected=null, anchor=null, editing=null, menu=null;
-    let conversion=null;
+    let conversion=null,lastQuery=null;
     const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>list.value,signal});
     const sqlField=$("[data-dataset-sql]");
     const pythonEditor=window.OpenDocCodeEditor.create({field:code,language:"python",request,signal,
@@ -30,6 +30,9 @@
       showTools();
       $("[data-dataset-empty]").hidden=Boolean(current);
       pagination.hidden=!current || querying;
+      const toBook=$("[data-dataset-command=sql-to-workbook]");
+      toBook.hidden=!querying;
+      toBook.disabled=busy || !lastQuery;
       $("[data-dataset-command=confirm-conversion]").disabled=busy ||
         (!!conversion?.result.invalid&&!$("[data-conversion-keep-invalid]").checked);
       $("[data-dataset-query]").hidden=!current;
@@ -104,7 +107,7 @@
         const schema=await request("dataset",{operation:"columns",id:result.id});
         sqlEditor.columns(schema.columns);
       }
-      current=result;row=nextRow;column=nextColumn;querying=false;
+      current=result;row=nextRow;column=nextColumn;querying=false;lastQuery=null;
       rowInput.value=row+1;columnInput.value=column+1;
       draw(result);
       const number=value=>value.toLocaleString("pt-BR");
@@ -148,7 +151,7 @@
     }
     async function executeQuery(){
       const result=await request("dataset",{operation:"query",id:list.value,sql:sqlEditor.value()});
-      querying=true;
+      querying=true;lastQuery=result;
       draw(result,false);
       status.textContent=result.rows.length+" linhas de resultado"+(result.limited?" · prévia limitada a 100 linhas":"");
     }
@@ -372,6 +375,13 @@
       if(command==="previous")run(()=>showPage(Math.max(0,row-50),column));
       if(command==="next")run(()=>showPage(row+50,column));
       if(command==="query")run(executeQuery);
+      if(command==="sql-to-workbook")run(async()=>{
+        if(!lastQuery)throw Error("Execute uma consulta SQL antes.");
+        const sheets=await request("workbook",{operation:"from-query",
+          columns:lastQuery.columns,rows:lastQuery.rows.map(line=>line.map(v=>v??""))});
+        if(typeof onOpenWorkbook!=="function")throw Error("Abertura de planilha indisponível.");
+        await onOpenWorkbook(sheets);
+      });
       if(command==="undo")run(()=>undoEdit(false));
       if(command==="redo")run(()=>undoEdit(true));
       if(command==="history")run(openHistory);
