@@ -5,10 +5,13 @@
     const list=$("[data-dataset-list]"), table=$("[data-dataset-table]");
     const status=$("[data-dataset-status]"), pagination=$("[data-dataset-pagination]");
     const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
+    const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
     let row=0, column=0, current, busy=false, querying=false;
     function controls() {
       for (const control of host.querySelectorAll("input,select,button,textarea")) control.disabled=busy;
       $("[data-dataset-command=append]").disabled=busy || !list.value;
+      $("[data-dataset-command=export]").disabled=busy || !current;
+      $("[data-dataset-python]").hidden=!current;
       pagination.hidden=!current || querying;
       $("[data-dataset-query]").hidden=!current;
       $("[data-dataset-command=reset]").disabled=busy || !querying;
@@ -38,6 +41,7 @@
         return;
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
+      if(current?.id!==result.id)output.textContent="";
       current=result;row=nextRow;column=nextColumn;querying=false;
       rowInput.value=row+1;columnInput.value=column+1;
       draw(result);
@@ -69,9 +73,30 @@
       if(first)await showPage(first);
       status.textContent=result.added.toLocaleString("pt-BR")+" linhas acrescentadas. "+status.textContent;
     }
+    async function executePython() {
+      output.textContent="";
+      status.textContent="Aguardando confirmação para executar Python…";
+      const result=await window.pywebview.api.run_dataset_python(list.value,code.value);
+      if(result.error)throw Error(result.error);
+      if(result.cancelled){status.textContent="Execução cancelada.";return;}
+      output.textContent=result.output;
+      status.textContent=result.stopped==="timeout" ? "Execução encerrada após 15 segundos." :
+        result.stopped==="output" ? "Saída limitada a 64 KiB." :
+        result.returncode===0 ? "Python concluído." : "Python terminou com código "+result.returncode+".";
+    }
+    code.addEventListener("keydown",event=>{
+      if(event.ctrlKey && event.key==="Enter"){event.preventDefault();run(executePython);}
+    },{signal});
     host.addEventListener("click",event=>{
       const command=event.target.closest("[data-dataset-command]")?.dataset.datasetCommand;
       if(command==="new" || command==="append")run(()=>ingest(command==="append"));
+      if(command==="python")run(executePython);
+      if(command==="export")run(async()=>{
+        const result=await window.pywebview.api.export_dataset(list.value,current.title);
+        if(result.error)throw Error(result.error);
+        status.textContent=result.cancelled ? "Exportação cancelada." :
+          result.rows.toLocaleString("pt-BR")+" linhas exportadas para "+result.name+".";
+      });
       if(command==="previous")run(()=>showPage(Math.max(0,row-50),column));
       if(command==="next")run(()=>showPage(row+50,column));
       if(command==="query")run(async()=>{

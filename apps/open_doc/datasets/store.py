@@ -220,3 +220,17 @@ class Datasets:
                 if monotonic() > deadline:
                     raise ValueError("A consulta excedeu cinco segundos.") from error
                 raise ValueError(f"Consulta somente leitura inválida: {error}") from error
+
+    def write_csv(self, identifier, stream):
+        """Write one consistent snapshot without loading the dataset into memory."""
+        with self.connect() as db:
+            db.execute("BEGIN")
+            dataset = self.get(db, identifier)
+            writer = csv.writer(stream)
+            writer.writerow(json.loads(dataset["columns_json"]))
+            rows = db.execute(
+                "SELECT values_json FROM dataset_rows WHERE dataset_id=? ORDER BY number",
+                (identifier,),
+            )
+            writer.writerows(json.loads(row[0]) for row in rows)
+            return dataset["row_count"]
