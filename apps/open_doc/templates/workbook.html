@@ -45,19 +45,20 @@
     <button type="button" data-dataset-command="go">Ir para posição</button>
   </div>
   <div class="workbook-toolbar" data-dataset-query hidden>
-    <label>SQL <textarea data-dataset-sql rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
+    <label>SQL <textarea data-dataset-sql aria-label="Editor SQL" rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
     <button type="button" data-dataset-command="query">Executar SQL</button>
     <button type="button" data-dataset-command="reset">Voltar à prévia</button>
   </div>
   <details class="dataset-python" data-dataset-python hidden>
     <summary>Python local</summary>
     <label for="dataset-python-code">Script Python · Ctrl+Enter para executar</label>
-    <textarea id="dataset-python-code" data-dataset-code rows="7" maxlength="24000" spellcheck="false">import csv
+    <textarea id="dataset-python-code" data-dataset-code aria-label="Editor Python" rows="7" maxlength="24000" spellcheck="false">import csv
 
 with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
     linhas = csv.DictReader(arquivo)
     print("Colunas:", linhas.fieldnames)
     print("Total de registros:", sum(1 for _ in linhas))</textarea>
+    <output data-dataset-signature aria-live="polite"></output>
     <button type="button" data-dataset-command="python">Executar Python</button>
     <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
   </details>

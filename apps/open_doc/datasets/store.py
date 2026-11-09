@@ -155,6 +155,10 @@ class Datasets:
                 ).fetchone()[0],
             }
 
+    def columns(self, identifier):
+        with self.connect() as db:
+            return json.loads(self.get(db, identifier)["columns_json"])
+
     def query(self, identifier, sql):
         """Run bounded, read-only SQL over one dataset."""
         from time import monotonic

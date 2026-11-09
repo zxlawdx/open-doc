@@ -193,3 +193,17 @@
 .open-doc .dataset-python textarea{display:block;width:100%;max-width:72rem;margin-bottom:.45rem}
 .open-doc .dataset-python pre{max-height:10rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 .open-doc .dataset-python pre:empty{display:none}
+
+.open-doc .dataset textarea[hidden]{display:none}
+.open-doc .dataset-code-editor{
+  border:1px solid var(--color-border);min-width:15rem;margin:.3rem 0;
+  background:var(--color-paper);color:var(--color-paper-ink)
+}
+.open-doc [data-dataset-query] .dataset-code-editor{width:min(48rem,70vw)}
+.open-doc .dataset-code-editor .cm-scroller{max-height:13rem}
+.open-doc .dataset-python .dataset-code-editor .cm-editor{min-height:8rem}
+.open-doc .dataset-code-documentation{
+  max-width:min(34rem,80vw);max-height:14rem;overflow:auto;
+  white-space:pre-wrap;padding:.5rem;margin:0
+}
+.open-doc [data-dataset-signature]{display:block;font-family:monospace}

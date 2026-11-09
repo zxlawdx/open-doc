@@ -7,11 +7,17 @@
     const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
     const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
     let row=0, column=0, current, busy=false, querying=false;
+    const sqlField=$("[data-dataset-sql]");
+    const pythonEditor=window.OpenDocCodeEditor.create({field:code,language:"python",request,signal,
+      signature:$("[data-dataset-signature]"),run:()=>run(executePython)});
+    const sqlEditor=window.OpenDocCodeEditor.create({field:sqlField,language:"sql",request,signal,
+      run:()=>run(executeQuery)});
     function controls() {
       for (const control of host.querySelectorAll("input,select,button,textarea")) control.disabled=busy;
       $("[data-dataset-command=append]").disabled=busy || !list.value;
       $("[data-dataset-command=export]").disabled=busy || !current;
       $("[data-dataset-python]").hidden=!current;
+      pythonEditor.lock(busy);sqlEditor.lock(busy);
       pagination.hidden=!current || querying;
       $("[data-dataset-query]").hidden=!current;
       $("[data-dataset-command=reset]").disabled=busy || !querying;
@@ -41,7 +47,11 @@
         return;
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
-      if(current?.id!==result.id)output.textContent="";
+      if(current?.id!==result.id){
+        output.textContent="";
+        const schema=await request("dataset",{operation:"columns",id:result.id});
+        sqlEditor.columns(schema.columns);
+      }
       current=result;row=nextRow;column=nextColumn;querying=false;
       rowInput.value=row+1;columnInput.value=column+1;
       draw(result);
@@ -76,7 +86,7 @@
     async function executePython() {
       output.textContent="";
       status.textContent="Aguardando confirmação para executar Python…";
-      const result=await window.pywebview.api.run_dataset_python(list.value,code.value);
+      const result=await window.pywebview.api.run_dataset_python(list.value,pythonEditor.value());
       if(result.error)throw Error(result.error);
       if(result.cancelled){status.textContent="Execução cancelada.";return;}
       output.textContent=result.output;
@@ -84,9 +94,12 @@
         result.stopped==="output" ? "Saída limitada a 64 KiB." :
         result.returncode===0 ? "Python concluído." : "Python terminou com código "+result.returncode+".";
     }
-    code.addEventListener("keydown",event=>{
-      if(event.ctrlKey && event.key==="Enter"){event.preventDefault();run(executePython);}
-    },{signal});
+    async function executeQuery(){
+      const result=await request("dataset",{operation:"query",id:list.value,sql:sqlEditor.value()});
+      querying=true;
+      draw(result,false);
+      status.textContent=result.rows.length+" linhas de resultado"+(result.limited?" · prévia limitada a 100 linhas":"");
+    }
     host.addEventListener("click",event=>{
       const command=event.target.closest("[data-dataset-command]")?.dataset.datasetCommand;
       if(command==="new" || command==="append")run(()=>ingest(command==="append"));
@@ -99,12 +112,7 @@
       });
       if(command==="previous")run(()=>showPage(Math.max(0,row-50),column));
       if(command==="next")run(()=>showPage(row+50,column));
-      if(command==="query")run(async()=>{
-        const result=await request("dataset",{operation:"query",id:list.value,sql:$("[data-dataset-sql]").value});
-        querying=true;
-        draw(result,false);
-        status.textContent=result.rows.length+" linhas de resultado"+(result.limited?" · prévia limitada a 100 linhas":"");
-      });
+      if(command==="query")run(executeQuery);
       if(command==="reset")run(()=>showPage(row,column));
       if(command==="go")run(()=>{
         if(!/^[1-9]\d*$/.test(rowInput.value) || !/^[1-9]\d*$/.test(columnInput.value))throw Error("Informe linha e coluna a partir de 1.");

@@ -17,6 +17,7 @@ BUNDLES = (
     "pdf.worker.bundle.js",
     "freehand.bundle.js",
     "pptx.bundle.js",
+    "code-editor.bundle.js",
 )
 
 

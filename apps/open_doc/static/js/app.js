@@ -272,6 +272,8 @@
     await editor.flush();
     const host = root.querySelector('[data-dataset]');
     if (!datasets) {
+      if (!window.OpenDocCodeVendor) await loadScript('vendor/code-editor.bundle.js');
+      if (!window.OpenDocCodeEditor) await loadScript('code_editor.js');
       if (!window.OpenDocDatasets) await loadScript('datasets.js');
       datasets = window.OpenDocDatasets.create({host,request,signal});
     }

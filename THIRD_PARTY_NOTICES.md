@@ -40,3 +40,5 @@ ZIP: [fflate](https://github.com/101arrowz/fflate).
 
 - openpyxl (MIT), used for XLSX import and export. https://openpyxl.readthedocs.io/
 - defusedxml (PSF-2.0), used to protect XLSX XML parsing. https://pypi.org/project/defusedxml/
+- CodeMirror 6, its Python and SQL language modes, and bundled editor dependencies. See apps/open_doc/static/js/vendor/code-editor-LICENSE.txt.
+- Jedi (MIT) and Parso (MIT), for static Python analysis. https://github.com/davidhalter/jedi

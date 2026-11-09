@@ -272,6 +272,8 @@ def dataset(context=None):
             return {"datasets": store.list()}
         if data["operation"] == "page":
             return store.page(data["id"], data["row"], data["column"])
+        if data["operation"] == "columns":
+            return {"columns": store.columns(data["id"])}
         if data["operation"] == "query":
             return store.query(data["id"], data["sql"])
         raise ValueError("Operação de dataset inválida.")
@@ -289,5 +291,16 @@ def template_save(context=None):
     def operation():
         data = _data(context)
         return get_context().templates.save(data["id"], data["title"], data.get("workbook") is True)
+
+    return _handle(operation)
+
+
+@api.post("/open_doc/dataset/python-analysis")
+def dataset_python_analysis(context=None):
+    from apps.open_doc.datasets.python_analysis import analyze
+
+    def operation():
+        data = _data(context)
+        return analyze(data["code"], data["line"], data["column"], data["operation"])
 
     return _handle(operation)

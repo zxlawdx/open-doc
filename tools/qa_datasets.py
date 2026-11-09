@@ -44,7 +44,8 @@ def main():
                 wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
                 assert "2 arquivos" in window.evaluate_js("document.querySelector('[data-dataset-status]').textContent")
                 capture(output, "append")
-                window.evaluate_js("""document.querySelector('[data-dataset-sql]').value='SELECT COUNT(*) FROM dados';
+                window.evaluate_js("""const editor=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-query] .cm-editor'));
+                  editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:'SELECT COUNT(*) FROM dados'}});
                   document.querySelector('[data-dataset-command=query]').click();""")
                 wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='2'")
                 window.evaluate_js("document.querySelector('[data-dataset-command=export]').click()")
@@ -54,7 +55,29 @@ def main():
                   document.querySelector('[data-dataset-command=python]').click();""")
                 wait(window, "document.querySelector('[data-dataset-output]').textContent.includes('Total de registros: 2')")
                 capture(output, "python")
-                print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_OK", flush=True)
+                window.evaluate_js("""(() => {
+                  const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-python] .cm-editor'));
+                  const code='import pathlib as p\\np.Pa';
+                  view.dispatch({changes:{from:0,to:view.state.doc.length,insert:code},
+                    selection:{anchor:code.length},userEvent:'input.type'});
+                  view.focus();
+                  view.contentDOM.dispatchEvent(new KeyboardEvent('keydown',
+                    {key:' ',code:'Space',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "Array.from(document.querySelectorAll('.cm-tooltip-autocomplete li')).some(item=>item.textContent.includes('Path'))")
+                capture(output, "autocomplete-python")
+                window.evaluate_js("""(() => {
+                  const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-query] .cm-editor'));
+                  const code='SELECT * FROM dados WHERE nom';
+                  view.dispatch({changes:{from:0,to:view.state.doc.length,insert:code},
+                    selection:{anchor:code.length},userEvent:'input.type'});
+                  view.focus();
+                  view.contentDOM.dispatchEvent(new KeyboardEvent('keydown',
+                    {key:' ',code:'Space',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "Array.from(document.querySelectorAll('.cm-tooltip-autocomplete li')).some(item=>item.textContent.includes('nome'))")
+                capture(output, "autocomplete-sql")
+                print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_COMPLETION_OK", flush=True)
             except Exception as error:
                 errors.append(error)
             finally:
