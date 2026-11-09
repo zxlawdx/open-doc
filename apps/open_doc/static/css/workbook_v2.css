@@ -1,0 +1,144 @@
+/* Open Doc: workbook / dataset workspace refresh and Pivot V2.
+   Local styles only; use existing theme tokens and never rely on a CDN. */
+.open-doc .workbook-ribbon-tabs {min-height:40px;padding:0 12px;gap:4px}
+.open-doc .workbook-ribbon-tabs button {min-height:40px;padding:8px 13px;border-radius:7px 7px 0 0;font-size:13px}
+.open-doc .workbook .workbook-ribbon {min-height:64px;gap:8px;align-items:stretch;padding:6px 10px}
+.open-doc .workbook-tools {border-right:1px solid var(--color-border);padding-right:13px}
+.open-doc .workbook-tools button {border-radius:7px;min-width:54px}
+.open-doc .workbook-formula {gap:9px;min-height:38px}
+.open-doc .workbook-formula [data-book-formula],
+.open-doc .workbook-formula [data-book-address] {border-radius:5px;background:var(--color-panel)}
+.open-doc .book-cell {font-variant-numeric:tabular-nums}
+.open-doc .book-cell.book-type-error {box-shadow:inset 0 -2px #c84a4a}
+.open-doc .book-heading.book-typed {color:var(--color-primary);font-weight:750}
+.open-doc .book-cell:hover {background:var(--color-primary-soft)}
+.open-doc .workbook-scroll:focus-visible {outline:2px solid var(--color-primary);outline-offset:-3px}
+.open-doc .workbook .book-inline-editor {min-width:112px;z-index:4;box-shadow:0 3px 9px #0002}
+.open-doc .workbook-tabs {min-height:40px}
+.open-doc .workbook-tabs [data-index] {border-radius:6px 6px 0 0;max-width:160px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.open-doc .workbook-tabs [aria-pressed=true] {border-bottom:2px solid var(--color-primary);font-weight:650}
+
+/* Dataset: well-spaced toolbar and grid, with scrolling confined to data. */
+.open-doc .dataset .workbook-ribbon-tabs {min-height:42px;font-size:15px}
+.open-doc .dataset .workbook-toolbar {gap:9px}
+.open-doc .dataset .workbook-tools {gap:7px}
+.open-doc .dataset .workbook-tools>strong {font-size:12px;letter-spacing:.03em}
+.open-doc .dataset .workbook-tools>label {display:flex;gap:5px;align-items:center;white-space:nowrap;font-size:12px}
+.open-doc .dataset .workbook-tools select {max-width:200px;min-height:33px;border-radius:6px}
+.open-doc .dataset .workbook-tools button {min-height:44px}
+.open-doc .dataset-body>.workbook-scroll {background:var(--color-panel);min-width:0}
+.open-doc .dataset table {font-size:12px;table-layout:auto;min-width:100%;width:max-content}
+.open-doc .dataset thead th {z-index:2;padding:11px 12px;min-width:108px;white-space:nowrap;background:var(--color-workspace);font-weight:700;border-bottom:2px solid var(--color-border)}
+.open-doc .dataset thead th:first-child {position:sticky;left:0;z-index:3;min-width:56px;text-align:center}
+.open-doc .dataset tbody th {position:sticky;left:0;z-index:1;background:var(--color-workspace);text-align:center;font-weight:550}
+.open-doc .dataset tbody td {min-width:100px;max-width:260px;padding:8px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.open-doc .dataset tbody tr:nth-child(even) td {background:color-mix(in srgb,var(--color-workspace) 47%,transparent)}
+.open-doc .dataset tbody tr:hover td {background:var(--color-primary-soft)}
+.open-doc .dataset-body .workbook-sidebar {border-left:1px solid var(--color-border)}
+.open-doc .dataset-body [data-dataset-query] {display:grid;gap:9px;padding:7px 0}
+.open-doc .dataset-body [data-dataset-query] button {width:max-content;max-width:100%;border-radius:6px}
+.open-doc .dataset [data-dataset-status] {border-top:1px solid var(--color-border);font-size:12px;min-height:30px}
+
+/* Pivot builder is a bounded, accessible overlay in the real workbook UI. */
+.open-doc .workbook-body>.workbook-pivot-dialog {
+  position:absolute;inset:8px;left:auto;z-index:20;
+  box-sizing:border-box;width:min(1140px,calc(100% - 16px));min-width:0;
+  padding:0;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--color-panel);color:var(--color-text-primary);
+  border:1px solid var(--color-border);border-radius:13px;
+  box-shadow:0 16px 42px #0003
+}
+.open-doc .workbook-body>.workbook-pivot-dialog[hidden] {display:none}
+.open-doc .pivot-v2-header {
+  display:flex;align-items:center;justify-content:space-between;gap:15px;
+  padding:14px 20px;border-bottom:1px solid var(--color-border);flex:none;
+  background:var(--color-panel)
+}
+.open-doc .pivot-v2-header small {display:block;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--color-primary);font-weight:750}
+.open-doc .pivot-v2-header strong {display:block;font-size:19px;letter-spacing:-.3px}
+.open-doc .pivot-v2-header p {margin:3px 0 0;font-size:12px;color:var(--color-text-secondary)}
+.open-doc .pivot-v2-header button {width:34px;height:34px;border-radius:7px;font-size:21px}
+.open-doc .pivot-v2-content {display:flex;flex:1;flex-direction:column;min-height:0;overflow:auto;background:var(--color-workspace)}
+.open-doc .pivot-v2-columns {display:grid;grid-template-columns:minmax(190px,25%) minmax(0,1fr);gap:12px;padding:14px;flex:none;min-width:0}
+.open-doc .pivot-v2-field-panel,.open-doc .pivot-v2-zone,.open-doc .pivot-v2-preview {
+  box-sizing:border-box;border:1px solid var(--color-border);border-radius:9px;
+  background:var(--color-panel);min-width:0
+}
+.open-doc .pivot-v2-field-panel {display:flex;flex-direction:column;padding:12px;min-height:210px;max-height:360px}
+.open-doc .pivot-v2-field-panel>strong {font-size:13px;margin-bottom:9px}
+.open-doc .pivot-v2-field-panel label {margin:3px 0;font-size:11px;color:var(--color-text-secondary)}
+.open-doc .pivot-v2-field-panel input {box-sizing:border-box;width:100%;min-height:34px;border-radius:6px;margin-top:4px}
+.open-doc .pivot-v2-field-panel>button {width:100%;min-height:33px;border-radius:6px;margin:5px 0 8px}
+.open-doc .pivot-v2-field-list {overflow:auto;min-height:70px;flex:1;margin-top:7px}
+.open-doc .pivot-v2-field {display:flex;align-items:center;gap:5px;border-bottom:1px solid var(--color-border);padding:5px 2px;min-width:0}
+.open-doc .pivot-v2-field>span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:12px}
+.open-doc .pivot-v2-field em {font-size:10px;font-style:normal;color:var(--color-text-secondary)}
+.open-doc .pivot-v2-field select {max-width:91px;min-width:0;border-radius:5px;font-size:11px;height:28px;padding:2px}
+.open-doc .pivot-v2-field button {flex:none;height:28px;min-width:28px;border-radius:5px;font-weight:750}
+.open-doc .pivot-v2-zones {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:1fr 1fr;gap:10px;min-height:0}
+.open-doc .pivot-v2-zone {padding:10px;min-height:146px;max-height:230px;display:flex;flex-direction:column;overflow:hidden}
+.open-doc .pivot-v2-zone[data-dragover=true] {outline:2px dashed var(--color-primary);background:var(--color-primary-soft)}
+.open-doc .pivot-v2-zone-title {display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:750;margin-bottom:6px}
+.open-doc .pivot-v2-zone-title small {font-size:10px;background:var(--color-workspace);padding:2px 6px;border-radius:10px}
+.open-doc .pivot-v2-zone>p {font-size:11px;color:var(--color-text-secondary);margin:0 0 8px}
+.open-doc .pivot-v2-chips {flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.open-doc .pivot-v2-empty {color:var(--color-text-secondary);font-size:11px;line-height:1.5;border:1px dashed var(--color-border);border-radius:6px;padding:10px}
+.open-doc .pivot-v2-chip {display:flex;align-items:center;gap:6px;background:var(--color-workspace);
+  border:1px solid var(--color-border);border-radius:6px;padding:5px;flex-wrap:wrap}
+.open-doc .pivot-v2-chip>span {min-width:0;flex:1 1 100px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.open-doc .pivot-v2-chip button {width:25px;height:25px;border-radius:5px;padding:0;color:var(--color-text-secondary)}
+.open-doc .pivot-v2-chip select {border-radius:5px;max-width:100%;font-size:11px;padding:3px;min-height:26px}
+.open-doc .pivot-v2-chip .pivot-v2-filter-choices {flex-basis:100%;display:flex;flex-wrap:wrap;gap:5px;max-height:75px;overflow:auto}
+.open-doc .pivot-v2-filter-choices label {display:inline-flex;align-items:center;gap:3px;font-size:10px;margin:0}
+.open-doc .pivot-v2-chip input[type=checkbox] {accent-color:var(--color-primary)}
+.open-doc .pivot-v2-preview {margin:0 14px 14px;min-height:115px;display:flex;flex-direction:column;flex:1;overflow:hidden}
+.open-doc .pivot-v2-preview h3 {font-size:12px;font-weight:700;padding:12px 12px 8px;margin:0}
+.open-doc .pivot-v2-table-scroll {overflow:auto;min-height:0;flex:1;max-height:240px}
+.open-doc .pivot-v2-table {border-collapse:separate;border-spacing:0;min-width:100%;width:max-content;font-size:11px;white-space:nowrap}
+.open-doc .pivot-v2-table th,.open-doc .pivot-v2-table td {border-right:1px solid var(--color-border);border-bottom:1px solid var(--color-border);padding:8px 10px;max-width:250px;overflow:hidden;text-overflow:ellipsis}
+.open-doc .pivot-v2-table thead th {position:sticky;top:0;z-index:2;background:var(--color-workspace);text-align:left}
+.open-doc .pivot-v2-table tbody th {position:sticky;left:0;z-index:1;background:var(--color-panel);text-align:left}
+.open-doc .pivot-v2-table tbody td {text-align:right;font-variant-numeric:tabular-nums}
+.open-doc .pivot-v2-table tbody tr:last-child {font-weight:700;background:var(--color-primary-soft)}
+.open-doc .pivot-v2-message {padding:16px;color:var(--color-text-secondary);font-size:12px}
+.open-doc .pivot-v2-footer {
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  border-top:1px solid var(--color-border);padding:12px 15px;background:var(--color-panel);flex:none
+}
+.open-doc .pivot-v2-footer>span {font-size:11px;color:var(--color-text-secondary)}
+.open-doc .pivot-v2-footer>div {display:flex;gap:8px;flex-wrap:wrap}
+.open-doc .pivot-v2-footer button {border-radius:7px;min-height:36px;padding:7px 13px}
+.open-doc .pivot-v2-footer [data-book-command=pivot-create] {background:var(--color-primary);color:white;font-weight:700}
+.open-doc .pivot-v2-footer [data-book-command=pivot-create]:hover {filter:brightness(.95)}
+.open-doc .pivot-v2-footer [data-book-command=pivot-refresh] {border-color:var(--color-primary);color:var(--color-primary)}
+.open-doc .workbook-pivot-dialog :focus-visible,.open-doc .book-context-menu :focus-visible {outline:2px solid var(--color-primary);outline-offset:2px}
+.open-doc .book-context-menu {position:fixed;z-index:90;box-sizing:border-box;min-width:216px;
+  max-width:calc(100vw - 20px);background:var(--color-panel);color:var(--color-text-primary);
+  border:1px solid var(--color-border);border-radius:9px;padding:8px;box-shadow:0 12px 32px #0004}
+.open-doc .book-context-menu strong {display:block;padding:6px 8px;font-size:12px}
+.open-doc .book-context-menu button {display:flex;width:100%;align-items:center;justify-content:space-between;border:0;
+  text-align:left;border-radius:6px;padding:8px;font-size:12px;cursor:pointer}
+.open-doc .book-context-menu button:hover {background:var(--color-primary-soft)}
+.open-doc .book-context-menu small {display:block;margin-top:6px;border-top:1px solid var(--color-border);
+  padding:8px 7px 2px;font-size:10px;color:var(--color-text-secondary)}
+@media(max-width:950px){
+ .open-doc .pivot-v2-columns {grid-template-columns:200px minmax(0,1fr)}
+ .open-doc .pivot-v2-zones {gap:7px}
+ .open-doc .pivot-v2-zone {padding:8px}
+}
+@media(max-width:730px){
+ .open-doc .workbook-body>.workbook-pivot-dialog {inset:0;width:100%;border-radius:0;max-height:100%}
+ .open-doc .pivot-v2-columns {grid-template-columns:minmax(0,1fr);gap:10px;padding:10px}
+ .open-doc .pivot-v2-field-panel {max-height:230px;min-height:180px}
+ .open-doc .pivot-v2-zones {grid-template-columns:minmax(0,1fr);grid-template-rows:auto}
+ .open-doc .pivot-v2-zone {min-height:95px;max-height:none}
+ .open-doc .pivot-v2-chips {min-height:35px;max-height:190px}
+ .open-doc .pivot-v2-preview {margin:0 10px 10px;min-height:180px;flex:none}
+ .open-doc .pivot-v2-table-scroll {max-height:175px}
+ .open-doc .pivot-v2-header {padding:10px 14px}
+ .open-doc .pivot-v2-header strong {font-size:16px}
+ .open-doc .pivot-v2-footer {padding:8px 10px}
+ .open-doc .pivot-v2-footer>div {width:100%}
+ .open-doc .pivot-v2-footer button {flex:1}
+}
+@media(prefers-reduced-motion:reduce){.open-doc .book-context-menu{transition:none}}
