@@ -151,6 +151,17 @@ def main():
                 wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
                 capture(output, "conversion-undo")
                 print("QT_DATASET_CONVERSION_PREVIEW_CONFIRM_UNDO_OK", flush=True)
+                window.evaluate_js("""(() => {
+                  const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-query] .cm-editor'));
+                  view.dispatch({changes:{from:0,to:view.state.doc.length,insert:'SELECT id,nome FROM dados LIMIT 2'}});
+                  document.querySelector('[data-dataset-command=query]').click();
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-command=sql-to-workbook]').disabled===false")
+                window.evaluate_js("document.querySelector('[data-dataset-command=sql-to-workbook]').click()")
+                wait(window, "document.querySelector('[data-workbook]').hidden===false")
+                wait(window, "document.querySelector('[data-cell=\"1,0\"]')?.textContent==='009'")
+                capture(output, "sql-to-workbook")
+                print("QT_DATASET_SQL_TO_WORKBOOK_OK", flush=True)
                 print("QT_DATASET_INLINE_TYPES_UNDO_REDO_OK", flush=True)
                 print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_COMPLETION_OK", flush=True)
             except Exception as error:
