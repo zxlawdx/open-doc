@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  function create({field,language,request,run,signature,signal}) {
+  function create({field,language,request,run,signature,signal,project}) {
     const {basicSetup,EditorView,keymap,hoverTooltip,EditorState,Compartment,
       python,sql,SQLite,autocompletion,acceptCompletion,linter}=window.OpenDocCodeVendor;
     const dialect=new Compartment(), access=new Compartment();
@@ -10,7 +10,8 @@
     function analyze(operation, state, pos) {
       const line=state.doc.lineAt(pos);
       return request("dataset/python-analysis",{operation,code:state.doc.toString(),
-        line:line.number,column:Array.from(line.text.slice(0,pos-line.from)).length});
+        line:line.number,column:Array.from(line.text.slice(0,pos-line.from)).length,
+        project:typeof project==="function"?project():null});
     }
     const sqlLanguage=columns=>sql({dialect:SQLite,schema:{dados:columns},defaultTable:"dados"});
     const extensions=[
