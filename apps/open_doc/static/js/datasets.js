@@ -10,7 +10,7 @@
     let conversion=null;
     const sqlField=$("[data-dataset-sql]");
     const pythonEditor=window.OpenDocCodeEditor.create({field:code,language:"python",request,signal,
-      signature:$("[data-dataset-signature]"),run:()=>run(executePython)});
+      signature:$("[data-dataset-signature]"),run:()=>run(executePython),project:()=>list.value});
     const sqlEditor=window.OpenDocCodeEditor.create({field:sqlField,language:"sql",request,signal,
       run:()=>run(executeQuery)});
     const tools=$("[data-dataset-tools]"), toolsButton=$("[data-dataset-command=tools]");
