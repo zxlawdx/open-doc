@@ -238,3 +238,16 @@
     max-height:235px;min-height:200px
   }
 }
+
+
+@media(max-width:730px){
+  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-field-panel{
+    box-sizing:border-box;height:285px;min-height:0;max-height:285px;flex:none
+  }
+  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-field-list{
+    min-height:0;max-height:none;overflow-y:auto;overflow-x:hidden;flex:1 1 0
+  }
+  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-field{
+    min-height:36px;flex:none
+  }
+}
