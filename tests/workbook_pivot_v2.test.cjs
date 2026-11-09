@@ -85,3 +85,36 @@ test('explicit typed SQL/Python snapshots normalize data without mutating source
   assert.equal(types.analysisValue('abc','decimal'),'abc');
   assert.equal(raw,'R$ 1.234,56');
 });
+
+test('month/year grouping accepts pt-BR and ISO, preserving source and identifiers',()=>{
+  const src={name:'Observações',cells:{
+    '0,0':'Data','0,1':'Valor','0,2':'Categoria',
+    '1,0':'18/08/2026','1,1':'2','1,2':'X',
+    '2,0':'2026-08-19','2,1':'3','2,2':'Y',
+    '3,0':'2026-09-01','3,1':'5','3,2':'X',
+  }};
+  const before=JSON.stringify(src);
+  const result=pivot.build({source:src,range:[0,0,3,2],
+    config:{rows:[0],columns:[],grouping:{'0':'month'},sort:{rows:'asc'},
+      values:[{field:1,operation:'sum',decimals:0}],filters:[],totals:true}});
+  assert.deepEqual(result.rows,[['08/2026','5'],['09/2026','5'],['Total geral','10']]);
+  assert.equal(JSON.stringify(src),before);
+  assert.equal(pivot.dateGroup('2026-09-01','year'),'2026');
+  assert.equal(pivot.dateGroup('18/08/2026','day'),'18/08/2026');
+  assert.throws(()=>pivot.dateGroup('31/02/2026','month'),/Data inválida/);
+});
+
+test('product, numeric sort, and decimal/currency precision',()=>{
+  const data=source();
+  const product=pivot.build({source:data,range,
+    config:config([{field:2,operation:'product',decimals:0,format:'number'}],{sort:{rows:'value_desc'}})});
+  assert.equal(product.rows[0][0],'B');
+  assert.equal(product.rows[1][0],'A');
+  assert.equal(product.rows[1].at(-1),'200');
+  const money=pivot.build({source:data,range,
+    config:config([{field:2,operation:'sum',decimals:2,format:'currency'}])});
+  assert.match(money.rows[0].at(-1),/R\$\s*30,00/);
+  const zero=pivot.build({source:data,range,
+    config:config([{field:2,operation:'sum',decimals:0,format:'decimal'}])});
+  assert.equal(zero.rows[0].at(-1),'30');
+});
