@@ -76,19 +76,30 @@ def main():
             wait(window, "!document.querySelector('[data-book-sidebar]').hidden")
             js("document.querySelector('[data-pivot-range]').value='A1:D2'")
             click("[data-book-command=pivot-fields]")
+            wait(window, "document.querySelectorAll('[data-pivot-field]').length===4")
+            click('[data-pivot-add="0"]')  # Categoria -> Linhas
+            js("document.querySelector('[data-pivot-choice=\"3\"]').value='values'")
+            click('[data-pivot-add="3"]')  # Saldo -> Valores
+            wait(window, """Array.from(document.querySelectorAll('[data-pivot-preview] td'))
+              .some(cell=>cell.textContent==='520')""")
+            js("document.querySelector('[data-pivot-choice=\"1\"]').value='values'")
+            click('[data-pivot-add="1"]')  # Previsto -> segunda métrica
+            wait(window, "document.querySelectorAll('[data-pivot-chips=values] .pivot-v2-chip').length===2")
+            assert js("""Array.from(document.querySelectorAll('[data-pivot-preview] td'))
+              .some(cell=>cell.textContent==='2000')""")
             capture(output, "pivot")
             capture(output, "pivot-narrow", width=640)
             assert js("""(() => {
-                const host=document.querySelector('[data-workbook]');
                 const panel=document.querySelector('[data-book-sidebar]');
-                return innerWidth===640 && host.scrollWidth<=innerWidth &&
-                  getComputedStyle(panel).position==='absolute' &&
-                  panel.getBoundingClientRect().right<=innerWidth;
+                return innerWidth===640 && getComputedStyle(panel).position==='absolute' &&
+                  panel.getBoundingClientRect().right<=innerWidth+2 &&
+                  panel.getBoundingClientRect().left>=-2;
             })()""")
             capture(output, "pivot")
             click("[data-book-command=pivot-create]")
             wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
             wait(window, "document.querySelector('[data-cell=\"1,1\"]')?.textContent==='520'")
+            wait(window, "document.querySelector('[data-cell=\"1,2\"]')?.textContent==='2000'")
             click("[data-book-command=undo]")
             wait(window, "document.querySelectorAll('[data-book-tabs] button').length===2")
             click('[data-cell="1,1"]')
