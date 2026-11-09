@@ -10,7 +10,7 @@
     const coord=$("[data-book-address]"), tabs=$("[data-book-tabs]"), status=$("[data-book-status]");
     const inline=$("[data-book-inline]"), sidebar=$("[data-book-sidebar]");
     const analysis=$("[data-book-analysis]"), analysisButton=$("[data-book-command=analysis]");
-    let sqlEditor, pythonEditor, analysisLoading, analysisBusy=false, lastSchema;
+    let sqlEditor, pythonEditor, analysisLoading, analysisBusy=false, lastSchema,lastSqlQuery=null;
     const undo=[], redo=[];
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
     const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>book?.id,signal});
@@ -138,7 +138,8 @@
       index=next;
       viewport.scrollTop=0;viewport.scrollLeft=0;
       select(0,0);update();
-      $("[data-book-query-results]").replaceChildren();
+      $("[data-book-query-results]").replaceChildren();lastSqlQuery=null;
+      $("[data-book-command=sql-to-sheet]").disabled=true;
       $("[data-book-python-output]").textContent="";viewport.focus();
     }
     function change(back, forward) {
@@ -298,6 +299,7 @@
             for(const value of values)line.insertCell().textContent=value ?? "NULL";
           }
           $("[data-book-query-results]").replaceChildren(table);
+          lastSqlQuery=result;$("[data-book-command=sql-to-sheet]").disabled=false;
           report(result.rows.length+" linhas de resultado"+(result.limited?" · prévia limitada":""));
         }
       }finally{analysisBusy=false;}
@@ -363,6 +365,25 @@
       if(name==="close-analysis")return toggleAnalysis(false);
       if(name==="run-sql")return analyzeWorkbook("SQL");
       if(name==="run-python")return analyzeWorkbook("Python");
+      if(name==="sql-to-sheet"){
+        if(!lastSqlQuery)throw Error("Execute uma consulta SQL antes de criar a aba.");
+        if(book.sheets.length>=20)throw Error("A pasta chegou ao limite de 20 abas.");
+        const result=lastSqlQuery;
+        let nameSheet="Consulta SQL",suffix=2;
+        while(book.sheets.some(item=>item.name.toLowerCase()===nameSheet.toLowerCase()))
+          nameSheet="Consulta SQL "+suffix++;
+        const cells={},bold=[];
+        const put=(r,c,value)=>{
+          const raw=String(value??"");
+          if(raw)cells[key(r,c)]=raw.startsWith(("="))||raw.startsWith("'")?"'"+raw:raw;
+        };
+        result.columns.forEach((name,c)=>{put(0,c,name);bold.push(key(0,c));});
+        result.rows.forEach((values,r)=>values.forEach((value,c)=>put(r+1,c,value)));
+        const previous=index,next={name:nameSheet,cells,bold};
+        change(()=>{book.sheets.pop();renderTabs();choose(previous);},
+          ()=>{book.sheets.push(next);renderTabs();choose(book.sheets.length-1);});
+        report("Resultado SQL enviado à aba "+nameSheet+(result.limited?" (100 linhas de prévia).":"."));return;
+      }
       if(name==="close-pivot")return togglePivot(false);
       if(name==="pivot-fields")return pivotUI.reload();
       if(name==="pivot-create"||name==="pivot-refresh")return createPivot();
