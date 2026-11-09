@@ -9,15 +9,15 @@ from .python_runner import MAX_CODE
 _analysis_lock = Lock()
 
 
-@lru_cache(maxsize=1)
-def environment():
+@lru_cache(maxsize=8)
+def environment(interpreter):
     import jedi
 
-    # The path is the already-running interpreter, never supplied by the editor.
-    return jedi.create_environment(sys.executable, safe=False)
+    # Selected only from project-owned venv paths, never from an arbitrary client path.
+    return jedi.create_environment(str(interpreter), safe=False)
 
 
-def analyze(code, line, column, operation):
+def analyze(code, line, column, operation, project=None):
     import jedi
 
     if getattr(sys, "frozen", False):
@@ -32,7 +32,14 @@ def analyze(code, line, column, operation):
     if operation not in ("complete", "diagnostics", "inspect"):
         raise ValueError("Operação de análise inválida.")
     with _analysis_lock:
-        script = jedi.Script(code, environment=environment())
+        executable = sys.executable
+        if project:
+            from apps.open_doc.application.context import get_context
+            from .python_envs import PythonEnvironments
+            chosen = PythonEnvironments(get_context().config.root).interpreter(project)
+            if chosen is not None:
+                executable = chosen
+        script = jedi.Script(code, environment=environment(str(executable)))
         if operation == "complete":
             return {"items": [
                 {"label": item.name, "type": item.type}
