@@ -31,6 +31,53 @@ def delimited(path, encoding, delimiter):
         yield header, reader
 
 
+def typed_value(value, kind):
+    """Adapt a *copy* of explicitly typed data for read-only SQL, without changing source."""
+    from decimal import Decimal, InvalidOperation
+    from datetime import date
+
+    if value is None or kind in {"auto", "text"}:
+        return value
+    if kind == "boolean":
+        token = str(value).strip().casefold()
+        if token in {"sim", "true", "1", "verdadeiro"}:
+            return 1
+        if token in {"não", "nao", "false", "0", "falso"}:
+            return 0
+        return value
+    if kind in {"integer", "decimal", "currency", "percent"}:
+        token = str(value).strip().replace("\u00a0", "").replace(" ", "")
+        token = token.removeprefix("R$").replace("%", "")
+        if "," in token and "." in token:
+            token = token.replace(".", "").replace(",", ".") if token.rfind(",") > token.rfind(".") else token.replace(",", "")
+        elif "," in token:
+            token = token.replace(",", ".")
+        elif token.count(".") > 1 or (token.count(".") == 1 and len(token.split(".")[1]) == 3 and
+              1 <= len(token.split(".")[0]) <= 3):
+            token = token.replace(".", "")
+        try:
+            number = Decimal(token)
+            if not number.is_finite():
+                return value
+            if kind == "percent" and str(value).strip().endswith("%"):
+                number /= 100
+            if kind == "integer":
+                integer = int(number)
+                return integer if number == integer and -(2**63) <= integer < 2**63 else value
+            converted = float(number)
+            return converted if converted not in (float("inf"), float("-inf")) else value
+        except (InvalidOperation, ValueError, OverflowError):
+            return value
+    if kind == "date":
+        parts = str(value).split("/")
+        if len(parts) == 3:
+            try:
+                return date(int(parts[2]), int(parts[1]), int(parts[0])).isoformat()
+            except ValueError:
+                return value
+    return value
+
+
 def preview(value):
     return value if len(value) <= 512 else value[:512] + "…"
 
@@ -284,9 +331,31 @@ class Datasets:
                 raise ValueError("O dataset ultrapassa o número de colunas que o SQLite pode consultar.")
             if any("\x00" in name for name in names):
                 raise ValueError("O cabeçalho contém caracteres incompatíveis com SQL.")
-            fields = ", ".join(
-                f"json_extract(values_json, '$[{index}]') AS {quote(name)}" for index, name in enumerate(names)
-            )
+            typed_columns = {
+                index: kind for index, kind in db.execute(
+                    "SELECT column_number,kind FROM dataset_field_types "
+                    "WHERE dataset_id=? AND scope='column'", (identifier,),
+                )
+            }
+            typed_indices = {
+                item[0] for item in db.execute(
+                    "SELECT DISTINCT column_number FROM dataset_field_types WHERE dataset_id=?", (identifier,),
+                )
+            }
+            db.create_function("od_typed", 2, typed_value, deterministic=True)
+            fields = []
+            for index, name in enumerate(names):
+                value = f"json_extract(values_json, '$[{index}]')"
+                if index in typed_indices:
+                    override = (
+                        "(SELECT kind FROM main.dataset_field_types AS override "
+                        f"WHERE override.dataset_id='{identifier}' AND override.scope='cell' "
+                        f"AND override.row_number=dataset_rows.number AND override.column_number={index})"
+                    )
+                    default = typed_columns.get(index, "auto")
+                    value = f"od_typed({value},COALESCE({override},'{default}'))"
+                fields.append(f"{value} AS {quote(name)}")
+            fields = ", ".join(fields)
             private_view = "_dataset_" + uuid4().hex
             db.execute(
                 f"CREATE TEMP VIEW {private_view} AS SELECT {fields} "
@@ -300,7 +369,7 @@ class Datasets:
                     # unguessable, per-connection view can read base rows.
                     allowed = (
                         database == "temp" and (arg1 == "dados" or (arg1 == private_view and view == "dados"))
-                    ) or (arg1 == "dataset_rows" and database == "main" and view == private_view)
+                    ) or (arg1 in {"dataset_rows", "dataset_field_types"} and database == "main" and view == private_view)
                 elif action == sqlite3.SQLITE_FUNCTION:
                     allowed = arg2.lower() not in {"load_extension", "readfile", "writefile"}
                 else:
