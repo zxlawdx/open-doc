@@ -105,7 +105,7 @@ test('month/year grouping accepts pt-BR and ISO, preserving source and identifie
 });
 
 test('product, numeric sort, and decimal/currency precision',()=>{
-  const data=source();
+  const data=source();data.cells['3,2']='300';
   const product=pivot.build({source:data,range,
     config:config([{field:2,operation:'product',decimals:0,format:'number'}],{sort:{rows:'value_desc'}})});
   assert.equal(product.rows[0][0],'B');
