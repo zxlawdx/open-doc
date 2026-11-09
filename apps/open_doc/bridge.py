@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from subprocess import SubprocessError
+from threading import Lock
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ class OpenDocBridge(BaseBridge):
     def __init__(self, router: Any = None, config: dict[str, Any] | None = None) -> None:
         super().__init__(router=router, config=config)
         self._window: Any = None
+        self._dataset_python_lock = Lock()
 
     @property
     def _documents(self):
@@ -130,6 +132,48 @@ class OpenDocBridge(BaseBridge):
         except sqlite3.Error:
             LOGGER.exception("Falha ao gravar dataset")
             return {"error": "Não foi possível gravar os dados. Verifique o espaço e tente novamente."}
+
+    def export_dataset(self, identifier, title):
+        import sqlite3
+        import webview
+        from apps.open_doc.datasets.python_runner import export_csv
+        from apps.open_doc.services.export_service import safe_stem
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        try:
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE, save_filename=f"{safe_stem(title)}.csv",
+                file_types=("Dados CSV (*.csv)",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            return export_csv(get_context().datasets, identifier, paths if isinstance(paths, str) else paths[0])
+        except (ValueError, OSError, sqlite3.Error) as error:
+            return {"error": str(error)}
+
+    def run_dataset_python(self, identifier, code):
+        import sqlite3
+        from apps.open_doc.datasets.python_runner import run_python
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        if getattr(sys, "frozen", False):
+            return {"error": "Abra o Open Doc pelo Python para executar scripts nesta versão."}
+        if not self._dataset_python_lock.acquire(blocking=False):
+            return {"error": "Uma execução Python já está em andamento."}
+        try:
+            if not self._window.create_confirmation_dialog(
+                "Executar Python local",
+                "Execute apenas código em que você confia. O script terá acesso aos arquivos "
+                "e à rede com as permissões da sua conta. Executar agora?",
+            ):
+                return {"cancelled": True}
+            return run_python(get_context().datasets, identifier, code)
+        except (ValueError, OSError, sqlite3.Error) as error:
+            return {"error": str(error)}
+        finally:
+            self._dataset_python_lock.release()
 
     def import_workbook(self):
         import csv

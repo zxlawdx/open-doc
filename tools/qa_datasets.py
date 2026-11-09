@@ -23,11 +23,14 @@ def main():
         first, second = root / "dados-2023.csv", root / "dados-2024.csv"
         first.write_text("id;ano;nome\n001;2023;Ana\n", encoding="utf-8")
         second.write_text("ano;nome;id\n2024;Bia;002\n", encoding="utf-8")
-        paths = iter([(str(first),), (str(second),)])
+        destination = root / "consolidado.csv"
+        paths = iter([(str(first),), (str(second),), (str(destination),)])
 
         def exercise():
             window = webview.windows[0]
             picker = window.create_file_dialog
+            confirm = window.create_confirmation_dialog
+            window.create_confirmation_dialog = lambda *args: True
             window.create_file_dialog = lambda *args, **kwargs: next(paths)
             try:
                 wait(window, "document.querySelector('[data-app]')?.dataset.ready==='true'")
@@ -44,11 +47,19 @@ def main():
                 window.evaluate_js("""document.querySelector('[data-dataset-sql]').value='SELECT COUNT(*) FROM dados';
                   document.querySelector('[data-dataset-command=query]').click();""")
                 wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='2'")
-                print("QT_DATASET_IMPORT_APPEND_QUERY_OK", flush=True)
+                window.evaluate_js("document.querySelector('[data-dataset-command=export]').click()")
+                wait(window, "document.querySelector('[data-dataset-status]').textContent.includes('2 linhas exportadas')")
+                assert "002,2024,Bia" in destination.read_text(encoding="utf-8")
+                window.evaluate_js("""document.querySelector('[data-dataset-python]').open=true;
+                  document.querySelector('[data-dataset-command=python]').click();""")
+                wait(window, "document.querySelector('[data-dataset-output]').textContent.includes('Total de registros: 2')")
+                capture(output, "python")
+                print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_OK", flush=True)
             except Exception as error:
                 errors.append(error)
             finally:
                 window.create_file_dialog = picker
+                window.create_confirmation_dialog = confirm
                 window.confirm_close = False
                 window.destroy()
 

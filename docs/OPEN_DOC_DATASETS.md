@@ -21,7 +21,15 @@ GROUP BY "ano"
 ORDER BY "ano";
 ```
 
-Python, edição em massa, exportação de datasets e junção por chave permanecem como etapas seguintes. O acréscimo atual empilha registros com o mesmo esquema.
+## Exportação e Python local
+
+**Exportar dataset CSV** grava todas as linhas e colunas do dataset em UTF-8. A exportação preserva os valores originais, incluindo zeros à esquerda, e substitui o destino somente após escrever o arquivo completo.
+
+Abra **Python local**, edite o script de exemplo e clique em **Executar Python** ou pressione **Ctrl+Enter**. O Open Doc usa o interpretador com que o aplicativo foi iniciado e entrega o caminho de um snapshot CSV na variável `DATASET_CSV`. O exemplo percorre o arquivo sem carregar todos os registros em memória.
+
+O script roda em outro processo, com as permissões locais da conta e confirmação a cada execução. A saída exibida combina stdout e stderr e é limitada a 64 KiB. O aplicativo encerra o processo principal após 15 segundos de execução. A cópia temporária do dataset é preparada antes desse prazo. A execução Python ainda exige iniciar o Open Doc pelo interpretador. Seleção de interpretador em builds empacotados, gerenciamento de bibliotecas, editor avançado e Colab seguem pendentes.
+
+[Captura do console Python](images/dataset-python/python.png).
 
 1. Em Linux Mint ou Windows, abra **Dados** pela Central e crie um dataset com CSV de cabeçalho preenchido.
 2. Acrescente um segundo CSV com os mesmos nomes em outra ordem e confira a contagem total. Vá diretamente à linha de transição pelo campo de posição.
