@@ -6,7 +6,8 @@
     const status=$("[data-dataset-status]"), pagination=$("[data-dataset-pagination]");
     const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
     const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
-    let row=0, column=0, current, busy=false, querying=false;
+    let row=0, column=0, current, busy=false, querying=false, selected=null, anchor=null, editing=null, menu=null;
+    const undo=[],redo=[];
     const sqlField=$("[data-dataset-sql]");
     const pythonEditor=window.OpenDocCodeEditor.create({field:code,language:"python",request,signal,
       signature:$("[data-dataset-signature]"),run:()=>run(executePython)});
@@ -33,22 +34,60 @@
       $("[data-dataset-command=previous]").disabled=busy || row===0;
       $("[data-dataset-command=next]").disabled=busy || !current || row+50>=current.row_count;
     }
-    function draw(result, preview=true) {
-      const head=document.createElement("thead"), body=document.createElement("tbody");
-      function add(target, text, kind) {
-        const cell=document.createElement(kind);
-        cell.textContent=text;
-        target.append(cell);
+    const typeNames=[["auto","Automático"],["text","Texto"],["integer","Inteiro"],["decimal","Número decimal"],
+      ["currency","Moeda (R$)"],["percent","Porcentagem"],["date","Data"],["time","Hora"],
+      ["datetime","Data e hora"],["boolean","Booleano"]];
+    function kindFor(r,c){
+      return current?.types?.cells?.[r+","+c]||current?.types?.columns?.[String(c)]||"auto";
+    }
+    function bounds(){
+      if(!selected)return null;
+      const other=anchor||selected;
+      return [Math.min(selected[0],other[0]),Math.min(selected[1],other[1]),
+        Math.max(selected[0],other[0]),Math.max(selected[1],other[1])];
+    }
+    function paintSelection(){
+      const extent=bounds();
+      for(const td of table.querySelectorAll("[data-dataset-cell]")){
+        const r=Number(td.dataset.datasetRow),c=Number(td.dataset.datasetCol);
+        td.classList.toggle("dataset-selected",!!extent&&r>=extent[0]&&r<=extent[2]&&c>=extent[1]&&c<=extent[3]);
+        td.classList.toggle("dataset-active",!!selected&&r===selected[0]&&c===selected[1]);
       }
+    }
+    function draw(result, preview=true) {
+      const head=document.createElement("thead"),body=document.createElement("tbody");
       const headings=head.insertRow();
-      if(preview)add(headings,"Linha","th");
-      for (const name of result.columns) add(headings,name,"th");
+      const cell=(tr,value,tag,r,c)=>{
+        const el=document.createElement(tag);el.textContent=value ?? "";
+        if(preview&&Number.isInteger(c)){
+          el.dataset.datasetCol=String(c);
+          if(tag==="td"){
+            el.dataset.datasetRow=String(r);el.dataset.datasetCell="true";
+            el.tabIndex=0;
+            const kind=kindFor(r,c);
+            const shown=window.OpenDocWorkbookTypes.show(value,kind);
+            el.textContent=shown.text;el.title=shown.valid?"Tipo: "+kind+" · original: "+String(value??""):
+              "Valor incompatível com "+kind+" · original: "+String(value??"");
+            if(!shown.valid)el.classList.add("dataset-type-error");
+          }else{
+            const kind=current.types?.columns?.[String(c)]||"auto";
+            if(kind!=="auto"){el.classList.add("dataset-typed");el.title="Tipo de coluna: "+kind;}
+            el.tabIndex=0;
+          }
+        }
+        tr.append(el);return el;
+      };
+      if(preview)cell(headings,"Linha","th");
+      for(let c=0;c<result.columns.length;c++)
+        cell(headings,result.columns[c],"th",null,preview?column+c:null);
       result.rows.forEach((cells,index)=>{
         const line=body.insertRow();
-        if(preview)add(line,(row+index+1).toLocaleString("pt-BR"),"th");
-        for (const value of cells) add(line,value ?? "NULL","td");
+        if(preview)cell(line,(row+index+1).toLocaleString("pt-BR"),"th");
+        cells.forEach((value,c)=>{
+          cell(line,value??"NULL","td",preview?row+index+1:null,preview?column+c:null);
+        });
       });
-      table.replaceChildren(head,body);
+      table.replaceChildren(head,body);paintSelection();
     }
     async function showPage(nextRow=0,nextColumn=0) {
       if(!list.value){
