@@ -309,6 +309,11 @@ test('read-only imported PPTX with three slides never stacks sheets under active
    source_kind:'pptx',capabilities:{preview:true},
    content:{version:'opendoc-fixed-v1',source_kind:'pptx',source_sha256:'abc',
      surfaces,annotations:[]}};
+ const viewport=root.querySelector('.fixed-scroll');
+ Object.defineProperties(viewport,{
+   clientWidth:{value:1200},
+   clientHeight:{value:700},
+ });
  await editor.load(note);
  const scroll=root.querySelector('.fixed-scroll'),sidebar=root.querySelector('.fixed-sidebar');
  const assertSingle=(index)=>{
@@ -320,6 +325,12 @@ test('read-only imported PPTX with three slides never stacks sheets under active
    assert.equal(scroll.querySelectorAll('.pptx-preview-workspace').length,1);
  };
  assertSingle(0);
+ root.dispatchEvent(new w.CustomEvent('open-doc:view-ready'));
+ const workspace=viewport.querySelector('.pptx-preview-workspace');
+ assert.equal(workspace.style.width,'1200px');
+ assert.equal(workspace.style.height,'700px');
+ assert.equal(parseFloat(workspace.firstElementChild.style.height),636);
+
  sidebar.querySelector('[data-thumbnail-index="1"]').click();assertSingle(1);
  sidebar.querySelector('[data-thumbnail-index="2"]').click();assertSingle(2);
  root.dispatchEvent(new w.CustomEvent('open-doc:fixed-zoom',{detail:150}));

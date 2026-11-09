@@ -379,12 +379,14 @@
     if(view){restorePdfView(view);rememberPdfView();}
     root.dispatchEvent(new CustomEvent('open-doc:layout'));lazy();
   }
+  const importedSlidePadding=32;
   function fit(whole){
     if(!model)return;
     const s=model.surfaces[Number(pageField.value)-1]||model.surfaces[0];
     if(!s)return;
-    const width=(scroller.clientWidth-(model.editable_deck?72:48))/(s.width_pt*4/3);
-    const height=(scroller.clientHeight-(model.editable_deck?72:32))/(s.height_pt*4/3);
+    const gutter=pptx?importedSlidePadding*2:0;
+    const width=(scroller.clientWidth-(model.editable_deck?72:gutter || 48))/(s.width_pt*4/3);
+    const height=(scroller.clientHeight-(model.editable_deck?72:gutter || 32))/(s.height_pt*4/3);
     if(model.editable_deck)slideFitMode=whole?'page':'width';
     scale(Math.max(.25,Math.min(width,whole?height:3)),Boolean(model.editable_deck));
   }
@@ -552,9 +554,9 @@
     workspace.append(surface);
     scroller.replaceChildren(workspace);
     Object.assign(workspace.style,{boxSizing:'border-box',display:'flex',
-      alignItems:'center',justifyContent:'center',padding:'32px',
-      width:Math.max(scroller.clientWidth,width+64)+'px',
-      height:Math.max(scroller.clientHeight,height+64)+'px'});
+      alignItems:'center',justifyContent:'center',padding:importedSlidePadding+'px',
+      width:Math.max(scroller.clientWidth,Math.ceil(width)+2*importedSlidePadding)+'px',
+      height:Math.max(scroller.clientHeight,Math.ceil(height)+2*importedSlidePadding)+'px'});
     pageNodes=[surface];
     pageField.value=String(index+1);
     pageField.max=String(model.surfaces.length);
@@ -679,7 +681,7 @@
   }
   root.addEventListener('open-doc:fixed-zoom',event=>{if(active)scale(event.detail/100);},{signal});
   root.addEventListener('open-doc:view-ready',()=>{
-    if(active && model?.editable_deck && host.dataset.slideEditor==='true' &&
+    if(active && (pptx || (model?.editable_deck && host.dataset.slideEditor==='true')) &&
        scroller.clientWidth>80 && scroller.clientHeight>80)fit(true);
   },{signal});
   title.addEventListener('input',()=>{if(active)changed();},{signal});scroller.addEventListener('scroll',()=>{
