@@ -46,11 +46,28 @@ test('literal replacement spans styled runs and supports undo',async t=>{
  const s=await setup(t),m=s.w.OpenDocModel.empty();m.blocks=[{id:'p',type:'paragraph',style:{},children:[{id:'a',type:'text',text:'Ola',style:{bold:true}},{id:'b',type:'text',text:' mundo Ola mundo',style:{italic:true}}]}];s.editor.load({...s.note,content:m});
  assert.equal(s.editor.replaceText('Ola mundo','Novo',true),2);assert.equal(s.editor.snapshot().content.blocks[0].children.map(r=>r.text).join(''),'Novo Novo');s.editor.format('undo');assert.equal(s.editor.snapshot().content.blocks[0].children.map(r=>r.text).join(''),'Ola mundo Ola mundo');
 });
+test('Word proofing, bookmarks and cached page breaks preserve XML without visible placeholders',async t=>{
+ const s=await setup(t),m=s.w.OpenDocModel.empty();
+ const ns='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+ const markers=['bookmarkStart','proofErr','lastRenderedPageBreak','bookmarkEnd'].map(tag=>({
+   id:tag,type:'opaque-ooxml',xml:'<w:'+tag+' xmlns:w="'+ns+'"/>',
+ }));
+ m.blocks=[{id:'p',type:'paragraph',style:{},children:[
+   {id:'a',type:'text',text:'Abril ',style:{}},...markers,{id:'b',type:'text',text:'2009',style:{}},
+ ]}];
+ s.editor.load({...s.note,content:m});
+ assert.equal(s.rich.textContent,'Abril 2009');
+ assert.equal(s.rich.querySelectorAll('span[hidden]').length,4);
+ const serialized=s.w.OpenDocRichSerializer.serialize(s.rich,m);
+ assert.deepEqual(Array.from(serialized.blocks[0].children.filter(n=>n.type==='opaque-ooxml'),n=>n.xml),markers.map(n=>n.xml));
+});
 test('automatic overflow and table row fragments serialize as logical blocks',async t=>{
  const s=await setup(t);s.w.HTMLElement.prototype.getBoundingClientRect=function(){const height=this.matches('[data-page-content]')?Array.from(this.children).reduce((sum,n)=>sum+(n.tagName==='TABLE'?n.rows.length*55:60),0):0;return {top:0,bottom:height,height,width:600,left:0,right:600};};
  const M=s.w.OpenDocModel,m=M.empty();m.sections=[{...s.w.OpenDocPagination.defaults,page_height_pt:220,margin_top_pt:20,margin_bottom_pt:20}];m.blocks=Array.from({length:6},(_,i)=>({id:'p'+i,type:'paragraph',style:{},children:[{id:'r'+i,type:'text',text:'Paragrafo '+i,style:{}}]}));
- m.blocks.push({id:'table-long',type:'table',rows:Array.from({length:8},(_,i)=>({id:'row'+i,cells:[{id:'cell'+i,col_span:1,row_span:1,blocks:[{id:'cp'+i,type:'paragraph',style:{},children:[{id:'cr'+i,type:'text',text:'Linha '+i,style:{}}]}]}]}))});s.editor.load({...s.note,content:m});s.editor.pagination().paginate();
- assert.ok(s.rich.querySelectorAll('[data-page-index]').length>=4);const serialized=s.w.OpenDocRichSerializer.serialize(s.rich,m);assert.equal(serialized.blocks.length,7);assert.equal(serialized.blocks[6].rows.length,8);assert.equal(new Set(serialized.blocks.map(b=>b.id)).size,7);
+ m.blocks.push({id:'table-long',type:'table',column_widths_pt:[900],rows:Array.from({length:8},(_,i)=>({id:'row'+i,cells:[{id:'cell'+i,col_span:1,row_span:1,blocks:[{id:'cp'+i,type:'paragraph',style:{},children:[{id:'cr'+i,type:'text',text:'Linha '+i,style:{}}]}]}]}))});s.editor.load({...s.note,content:m});s.editor.pagination().paginate();
+ assert.ok(s.rich.querySelectorAll('[data-page-index]').length>=4);
+ const fragments=Array.from(s.rich.querySelectorAll('table'));assert.ok(fragments.length>1);assert.ok(fragments.every(table=>table.querySelector('col')?.style.width==='100%'));
+ const serialized=s.w.OpenDocRichSerializer.serialize(s.rich,m);assert.equal(serialized.blocks.length,7);assert.equal(serialized.blocks[6].rows.length,8);assert.equal(new Set(serialized.blocks.map(b=>b.id)).size,7);
 });
 test('table rows, columns, merge/split, deletion and chosen dimensions',async t=>{
  const s=await setup(t);function cell(){const td=s.rich.querySelector('td'),r=s.w.document.createRange();r.selectNodeContents(td);r.collapse(true);s.w.getSelection().removeAllRanges();s.w.getSelection().addRange(r);s.editor.capture();}
