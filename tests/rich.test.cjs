@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {JSDOM}=require('jsdom');const base=path.resolve(__dirname,'..');
 async function setup(t){
- const html=fs.readFileSync(path.join(base,'apps/open_doc/templates/base.html'),'utf8').replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g,(_,n)=>fs.readFileSync(path.join(base,'apps/open_doc/templates/'+n+'.html'),'utf8'));
+ const html=fs.readFileSync(path.join(base,'apps/open_doc/templates/base.html'),'utf8').replace(/{{ (menus|toolbar|sidebar|editor|home|workbook) }}/g,(_,n)=>fs.readFileSync(path.join(base,'apps/open_doc/templates/'+n+'.html'),'utf8'));
  const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('[data-app]');
  const paragraph=(id,rid,text,style={})=>({id,type:'paragraph',style:{},children:[{id:rid,type:'text',text,style}]});
  const content={version:'opendoc-rich-v1',blocks:[paragraph('p1','r1','Texto selecionado',{font_family:'Fonte ausente',font_size_pt:12}),{id:'table',type:'table',rows:[{id:'row',cells:[{id:'cell',col_span:1,row_span:1,blocks:[paragraph('cp','cr','Célula original')]}]}]}],styles:{},media:{},numbering:{},sections:[],headers:{},footers:{},footnotes:{},endnotes:{},metadata:{},preserved_parts:['customXml/item1.xml']};

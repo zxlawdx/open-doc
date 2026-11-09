@@ -12,6 +12,7 @@ from typing import Any
 from PIL import Image
 
 from apps.open_doc.application import template_catalog
+from apps.open_doc.spreadsheets import templates as workbook_templates
 from apps.open_doc.infrastructure.workspace import WorkspacePathResolver
 from apps.open_doc.services.document_service import AUTOSAVE_SECONDS
 from apps.open_doc.services.export_service import EXTENSIONS, ExportError, safe_stem
@@ -40,11 +41,17 @@ class DocumentApplication:
         }
 
     def list_library(self) -> dict[str, Any]:
+        workbooks = self.context.workbooks.list()
         return {
-            "files": self.context.organizer.list_files(),
-            "templates": [asdict(template) for template in template_catalog.CATALOG],
+            "files": self.context.organizer.list_files() + [
+                {"id": book["id"], "name": book["title"], "type": "xlsx",
+                 "workbook": True, "capabilities": {"open": True}}
+                for book in workbooks if book["imported"]
+            ],
+            "templates": [asdict(template) for template in template_catalog.CATALOG] + workbook_templates.catalog(),
             "documents": sorted(
-                self.context.editor.list_documents() + self.context.fixed_documents.list_documents(),
+                self.context.editor.list_documents() + self.context.fixed_documents.list_documents()
+                + workbooks,
                 key=lambda document: document["updated_at"],
                 reverse=True,
             ),

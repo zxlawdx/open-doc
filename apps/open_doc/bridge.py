@@ -109,6 +109,49 @@ class OpenDocBridge(BaseBridge):
                 "error": "Não foi possível abrir/importar este documento. O arquivo original foi preservado."
             }
 
+    def import_workbook(self):
+        import csv
+        import webview
+        from apps.open_doc.spreadsheets.files import read
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        paths = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=False,
+            file_types=("Planilhas (*.xlsx;*.csv;*.tsv)",),
+        )
+        if not paths:
+            return {"cancelled": True}
+        try:
+            source = Path(paths[0])
+            return get_context().workbooks.create(source.stem, read(source), imported=True)
+        except (ValueError, OSError, csv.Error) as error:
+            return {"error": str(error)}
+        except Exception:
+            LOGGER.exception("Falha de importação de planilha")
+            return {"error": "Não foi possível ler a planilha."}
+
+    def export_workbook(self, identifier, revision, fmt, sheet_index):
+        import webview
+        from apps.open_doc.spreadsheets.files import FORMATS, export
+        from apps.open_doc.services.export_service import safe_stem
+
+        if self._window is None or fmt not in FORMATS:
+            return {"error": "Janela ou formato indisponível."}
+        try:
+            book = get_context().workbooks.get(identifier)
+            if book["revision"] != revision:
+                raise ValueError("A planilha foi alterada em outra janela.")
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE, save_filename=f"{safe_stem(book['title'])}.{fmt}",
+                file_types=(f"Planilha (*.{fmt})",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            return export(book["sheets"], paths if isinstance(paths, str) else paths[0], fmt, sheet_index)
+        except (ValueError, OSError) as error:
+            return {"error": str(error)}
+
     def get_font_catalog(self):
         return self._documents.font_catalog()
 
