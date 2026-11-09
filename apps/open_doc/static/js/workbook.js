@@ -275,7 +275,7 @@
       try{
         report("Executando "+language+" na aba "+source.name+"…");
         if(language==="Python"){
-          const result=await native().run_workbook_python(snapshot.columns,snapshot.rows,pythonEditor.value());
+          const result=await native().run_workbook_python(snapshot.columns,snapshot.rows,pythonEditor.value(),book.id);
           if(result.error)throw Error(result.error);
           if(result.cancelled)return report("Execução cancelada.");
           if(sheet()!==source)return;
