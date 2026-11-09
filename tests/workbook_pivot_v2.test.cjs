@@ -73,3 +73,15 @@ test('typed display does not mutate raw values; exceptions override column',()=>
   assert.equal(types.show('15:17','time').valid,true);
   assert.equal(types.show('25:12','time').valid,false);
 });
+
+
+test('explicit typed SQL/Python snapshots normalize data without mutating source',()=>{
+  const raw='R$ 1.234,56';
+  assert.equal(types.analysisValue(raw,'currency'),'1234.56');
+  assert.equal(types.analysisValue('12,5%','percent'),'0.125');
+  assert.equal(types.analysisValue('18/08/2026','date'),'2026-08-18');
+  assert.equal(types.analysisValue('sim','boolean'),'1');
+  assert.equal(types.analysisValue('00123','text'),'00123');
+  assert.equal(types.analysisValue('abc','decimal'),'abc');
+  assert.equal(raw,'R$ 1.234,56');
+});
