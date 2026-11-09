@@ -117,6 +117,8 @@ class Datasets:
                     PRIMARY KEY(dataset_id,scope,row_number,column_number)
                 ) WITHOUT ROWID;
             """)
+            from . import history
+            history.initialize(db)
 
     @staticmethod
     def get(db, identifier):
@@ -260,6 +262,11 @@ class Datasets:
                 "UPDATE dataset_rows SET values_json=? WHERE dataset_id=? AND number=?",
                 (json.dumps(cells, ensure_ascii=False, separators=(",", ":")), identifier, row),
             )
+            from . import history
+            history.remember(
+                db, identifier, "edit", {"values": [[row, column, previous]]},
+                {"values": [[row, column, value]]},
+            )
             return {"row": row, "column": column, "previous": previous, "value": value}
 
     def set_type(self, identifier, scope, column, kind, row=None, last_row=None, last_column=None):
@@ -291,6 +298,18 @@ class Datasets:
                     positions = [(r, c) for r in range(row, last_row+1)
                                  for c in range(column, last_column+1)]
             storage_scope = "column" if scope == "column" else "cell"
+            previous = {}
+            for entry in db.execute(
+                    "SELECT row_number,column_number,kind FROM dataset_field_types "
+                    "WHERE dataset_id=? AND scope=? AND column_number>=? AND column_number<=?",
+                    (identifier, storage_scope, column,
+                     last_column if scope == "selection" else column)):
+                previous[(entry["row_number"], entry["column_number"])] = entry["kind"]
+            before_types = [
+                [storage_scope, r, c, previous.get((r, c))] for r, c in positions
+            ]
+            new_kind = None if kind == "auto" and storage_scope == "column" else kind
+            after_types = [[storage_scope, r, c, new_kind] for r, c in positions]
             if kind == "auto" and storage_scope == "column":
                 db.executemany(
                     "DELETE FROM dataset_field_types WHERE dataset_id=? AND scope=? AND row_number=? AND column_number=?",
@@ -302,7 +321,25 @@ class Datasets:
                     "(dataset_id,scope,row_number,column_number,kind) VALUES (?,?,?,?,?)",
                     ((identifier, storage_scope, r, c, kind) for r, c in positions),
                 )
+            from . import history
+            history.remember(db, identifier, "type",
+                             {"types": before_types}, {"types": after_types})
             return {"updated": len(positions), "scope": scope, "kind": kind}
+
+    def undo(self, identifier, redo=False):
+        if type(redo) is not bool:
+            raise ValueError("Operação de histórico inválida.")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self.get(db, identifier)
+            from . import history
+            return history.traverse(db, identifier, redo)
+
+    def history(self, identifier, limit=25):
+        with self.connect() as db:
+            self.get(db, identifier)
+            from . import history
+            return {"entries": history.list_history(db, identifier, limit)}
 
     def columns(self, identifier):
         with self.connect() as db:
