@@ -138,8 +138,8 @@
       if(!["asc","desc","value_asc","value_desc"].includes(order))return;
       const byValue=order.startsWith("value_"),direction=order.endsWith("desc")?-1:1;
       keys.sort((a,b)=>{
-        const va=byValue?result(stats.get(a)?.[0],"sum"):labels.get(a);
-        const vb=byValue?result(stats.get(b)?.[0],"sum"):labels.get(b);
+        const va=byValue?result(stats.get(a)?.[0],metrics[0].operation):labels.get(a);
+        const vb=byValue?result(stats.get(b)?.[0],metrics[0].operation):labels.get(b);
         const comparison=byValue ? (Number(va)||0)-(Number(vb)||0) :
           collator.compare(String(va),String(vb));
         return direction*comparison;
