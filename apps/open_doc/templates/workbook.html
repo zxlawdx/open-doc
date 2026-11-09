@@ -115,6 +115,7 @@
     <label for="book-sql">SQL</label>
     <textarea id="book-sql" aria-label="Editor SQL da planilha" maxlength="12000">SELECT * FROM dados LIMIT 20</textarea>
     <button type="button" data-book-command="run-sql"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar SQL</button>
+    <button type="button" data-book-command="sql-to-sheet" title="Copiar resultados SQL para nova aba editável" disabled>Enviar para aba</button>
     <div class="book-query-results" data-book-query-results></div>
     <label for="book-python">Python local</label>
     <textarea id="book-python" aria-label="Editor Python da planilha" maxlength="24000">import csv
@@ -204,6 +205,7 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
   <div class="workbook-toolbar" data-dataset-query hidden>
     <label>SQL <textarea data-dataset-sql aria-label="Editor SQL" rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
     <button type="button" data-dataset-command="query"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar SQL</button>
+    <button type="button" data-dataset-command="sql-to-workbook" title="Criar planilha editável a partir dos resultados SQL" disabled>Enviar à planilha</button>
     <button type="button" data-dataset-command="reset"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#table"></use></svg>Voltar à prévia</button>
   </div>
   <details class="dataset-python" data-dataset-python hidden>
