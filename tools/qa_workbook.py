@@ -138,6 +138,10 @@ def main():
             finally:
                 window.create_confirmation_dialog=confirm
             capture(output, "analysis")
+            click("[data-book-command=sql-to-sheet]")
+            wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
+            wait(window, "document.querySelector('[data-cell=\"1,1\"]')?.textContent==='2050'")
+            capture(output, "sql-to-sheet")
             print("QT_WORKBOOK_INLINE_PIVOT_SQL_PYTHON_OK", flush=True)
         except Exception as error:
             errors.append(error)
