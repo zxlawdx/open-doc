@@ -396,6 +396,36 @@ class Datasets:
                     raise ValueError("A consulta excedeu cinco segundos.") from error
                 raise ValueError(f"Consulta somente leitura inválida: {error}") from error
 
+    def write_analysis_csv(self, identifier, stream):
+        """Stream a typed analysis snapshot for Python, leaving exported source CSV unchanged."""
+        with self.connect() as db:
+            db.execute("BEGIN")
+            dataset = self.get(db, identifier)
+            columns = json.loads(dataset["columns_json"])
+            writer = csv.writer(stream)
+            writer.writerow(columns)
+            column_types, cell_types = {}, {}
+            for scope, row, column, kind in db.execute(
+                    "SELECT scope,row_number,column_number,kind FROM dataset_field_types WHERE dataset_id=?",
+                    (identifier,)):
+                if scope == "column":
+                    column_types[column] = kind
+                else:
+                    cell_types[(row, column)] = kind
+            rows = db.execute(
+                "SELECT number,values_json FROM dataset_rows WHERE dataset_id=? ORDER BY number",
+                (identifier,),
+            )
+            count = 0
+            for number, encoded in rows:
+                values = json.loads(encoded)
+                writer.writerow([
+                    typed_value(value, cell_types.get((number, col), column_types.get(col, "auto")))
+                    for col, value in enumerate(values)
+                ])
+                count += 1
+            return count
+
     def write_csv(self, identifier, stream):
         """Write one consistent snapshot without loading the dataset into memory."""
         with self.connect() as db:
