@@ -278,6 +278,13 @@ def dataset(context=None):
             return store.page(data["id"], data["row"], data["column"])
         if data["operation"] == "columns":
             return {"columns": store.columns(data["id"])}
+        if data["operation"] == "edit":
+            return store.edit_cell(data["id"], data["row"], data["column"], data["value"])
+        if data["operation"] == "type":
+            return store.set_type(
+                data["id"], data["scope"], data["column"], data["kind"],
+                data.get("row"), data.get("last_row"), data.get("last_column"),
+            )
         if data["operation"] == "query":
             return store.query(data["id"], data["sql"])
         raise ValueError("Operação de dataset inválida.")
