@@ -35,7 +35,11 @@ def main():
             try:
                 wait(window, "document.querySelector('[data-app]')?.dataset.ready==='true'")
                 window.evaluate_js("document.querySelector('[data-action=datasets]').click()")
-                wait(window, "document.querySelector('[data-dataset]').hidden===false")
+                wait(window, """
+                    document.querySelector('[data-dataset]').hidden===false &&
+                    !document.querySelector('[data-dataset-command=new]').disabled &&
+                    document.querySelector('[data-dataset-status]').textContent.includes('para começar')
+                """)
                 window.evaluate_js("document.querySelector('[data-dataset-command=new]').click()")
                 wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='001'")
                 window.evaluate_js("document.querySelector('[data-dataset-command=append]').click()")
