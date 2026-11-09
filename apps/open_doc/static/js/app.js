@@ -291,6 +291,8 @@
     const host = root.querySelector('[data-workbook]');
     if (!workbook) {
       if (!window.OpenDocWorkbookFormula) await loadScript('workbook_formula.js');
+      if (!window.OpenDocWorkbookPivot) await loadScript('workbook_pivot.js');
+      if (!window.OpenDocWorkbookPivotUI) await loadScript('workbook_pivot_ui.js');
       if (!window.OpenDocWorkbook) await loadScript('workbook.js');
       workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors});
     }
