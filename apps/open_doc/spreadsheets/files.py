@@ -128,6 +128,38 @@ def export(sheets, destination, fmt, sheet_index=0):
                     row, col = map(int, key.split(","))
                     cell = output.cell(row + 1, col + 1)
                     raw = sheet["cells"].get(key, "")
+                    types = sheet.get("types") or {}
+                    kind = (types.get("cells") or {}).get(key,
+                        (types.get("columns") or {}).get(str(col), "auto"))
+                    from apps.open_doc.datasets.store import typed_value
+                    if kind == "text":
+                        cell.value = literal(raw)
+                        cell.data_type = "s"
+                        continue
+                    # Typed formatting changes XLSX cell semantics, but never mutates workbook source.
+                    if kind in {"integer", "decimal", "currency", "percent", "boolean"} and raw:
+                        result = typed_value(literal(raw), kind)
+                        if type(result) in {float, int}:
+                            cell.value = result
+                            cell.number_format = {
+                                "integer": "0", "decimal": "0.########",
+                                "currency": '"R$" #,##0.00', "percent": "0.00%",
+                                "boolean": "General",
+                            }[kind]
+                            if kind == "boolean":
+                                cell.value = bool(result)
+                            continue
+                    if kind == "date" and raw:
+                        result = typed_value(literal(raw), kind)
+                        try:
+                            from datetime import date
+                            value = date.fromisoformat(result)
+                        except (ValueError, TypeError):
+                            pass
+                        else:
+                            cell.value = value
+                            cell.number_format = "DD/MM/YYYY"
+                            continue
                     formula = safe_formula(raw) if raw.startswith("=") else None
                     if formula:
                         cell.value = formula
