@@ -97,6 +97,13 @@ def main():
                   panel.getBoundingClientRect().right<=innerWidth+2 &&
                   panel.getBoundingClientRect().left>=-2;
             })()""")
+            assert js("""(() => {
+                const available=document.querySelector('.pivot-v2-field-panel');
+                const firstZone=document.querySelector('[data-pivot-zone=rows]');
+                const list=document.querySelector('[data-pivot-available]');
+                return available.getBoundingClientRect().bottom+2<=firstZone.getBoundingClientRect().top &&
+                  list.getBoundingClientRect().bottom<=available.getBoundingClientRect().bottom+1;
+            })()""")
             capture(output, "pivot")
             click("[data-book-command=pivot-create]")
             wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
