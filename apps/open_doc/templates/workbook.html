@@ -44,19 +44,59 @@
     <div class="workbook-space" data-book-space></div>
     <input class="book-inline-editor" data-book-inline hidden aria-label="Editar célula na grade" maxlength="8192" autocomplete="off">
   </div>
-  <aside class="workbook-sidebar" id="book-sidebar" data-book-sidebar hidden aria-label="Tabela dinâmica">
-    <div class="workbook-sidebar-title"><strong>Tabela dinâmica</strong><button type="button" data-book-command="close-pivot" aria-label="Recolher painel"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chevron-right"></use></svg></button></div>
-    <p>Use a primeira linha do intervalo como cabeçalho.</p>
-    <label>Intervalo <input data-pivot-range placeholder="A1:D10"></label>
-    <button type="button" data-book-command="pivot-fields"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#list-check"></use></svg>Carregar campos</button>
-    <label>Linhas <select data-pivot-row></select></label>
-    <label>Colunas <select data-pivot-column></select></label>
-    <label>Valores <select data-pivot-value></select></label>
-    <label>Agregação <select data-pivot-operation>
-      <option value="sum">Soma</option><option value="count">Contagem</option>
-      <option value="average">Média</option><option value="min">Mínimo</option><option value="max">Máximo</option>
-    </select></label>
-    <button type="button" data-book-command="pivot-create"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg>Criar em nova aba</button>
+  <aside class="workbook-sidebar workbook-pivot-dialog" id="book-sidebar" data-book-sidebar hidden
+         aria-label="Construtor de tabela dinâmica" role="dialog" aria-modal="false" aria-labelledby="pivot-v2-title">
+    <header class="pivot-v2-header">
+      <div><small>OPEN DOC · ANÁLISE</small>
+        <strong id="pivot-v2-title">Construtor de tabela dinâmica</strong>
+        <p data-pivot-source>Fonte: aba selecionada · configure os campos e visualize o resultado</p>
+      </div>
+      <button type="button" data-book-command="close-pivot" aria-label="Fechar construtor">×</button>
+    </header>
+    <div class="pivot-v2-content">
+      <div class="pivot-v2-columns">
+        <section class="pivot-v2-field-panel" aria-label="Campos disponíveis">
+          <strong>Campos disponíveis <span data-pivot-field-count></span></strong>
+          <label>Intervalo de origem
+            <input data-pivot-range aria-label="Intervalo da tabela dinâmica" placeholder="A1:D100">
+          </label>
+          <button type="button" data-book-command="pivot-fields">↻ Recarregar campos</button>
+          <input data-pivot-search type="search" placeholder="Buscar campo..." aria-label="Buscar campos">
+          <div class="pivot-v2-field-list" data-pivot-available role="list"></div>
+        </section>
+        <div class="pivot-v2-zones">
+          <section class="pivot-v2-zone" data-pivot-zone="rows" aria-label="Campos de linhas">
+            <div class="pivot-v2-zone-title">Linhas <small data-pivot-count="rows">0</small></div>
+            <p>Agrupe os registros por categorias.</p><div class="pivot-v2-chips" data-pivot-chips="rows"></div>
+          </section>
+          <section class="pivot-v2-zone" data-pivot-zone="columns" aria-label="Campos de colunas">
+            <div class="pivot-v2-zone-title">Colunas <small data-pivot-count="columns">0</small></div>
+            <p>Separe os resultados em colunas.</p><div class="pivot-v2-chips" data-pivot-chips="columns"></div>
+          </section>
+          <section class="pivot-v2-zone" data-pivot-zone="values" aria-label="Métricas e operações">
+            <div class="pivot-v2-zone-title">Valores <small data-pivot-count="values">0</small></div>
+            <p>Calcule soma, média, contagem e mais.</p><div class="pivot-v2-chips" data-pivot-chips="values"></div>
+          </section>
+          <section class="pivot-v2-zone" data-pivot-zone="filters" aria-label="Filtros dos dados">
+            <div class="pivot-v2-zone-title">Filtros <small data-pivot-count="filters">0</small></div>
+            <p>Escolha as categorias realmente incluídas.</p><div class="pivot-v2-chips" data-pivot-chips="filters"></div>
+          </section>
+        </div>
+      </div>
+      <section class="pivot-v2-preview" aria-label="Prévia agregada">
+        <h3>Prévia da tabela dinâmica · <span data-pivot-record-count>0 registros</span></h3>
+        <div class="pivot-v2-table-scroll" data-pivot-preview></div>
+      </section>
+    </div>
+    <footer class="pivot-v2-footer">
+      <span>Os dados de origem não são sobrescritos. Atualização mediante comando.</span>
+      <div>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" data-pivot-totals checked> Totais</label>
+        <button type="button" data-book-command="pivot-refresh" hidden>Atualizar resultado</button>
+        <button type="button" data-book-command="close-pivot">Fechar</button>
+        <button type="button" data-book-command="pivot-create">Criar tabela</button>
+      </div>
+    </footer>
   </aside>
   <aside class="workbook-sidebar workbook-analysis" id="book-analysis" data-book-analysis hidden aria-label="Análise da aba ativa">
     <div class="workbook-sidebar-title"><strong>Análise da aba ativa</strong><button type="button" data-book-command="close-analysis" aria-label="Recolher análise"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chevron-right"></use></svg></button></div>
