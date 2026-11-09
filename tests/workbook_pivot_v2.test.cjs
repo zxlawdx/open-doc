@@ -118,3 +118,13 @@ test('product, numeric sort, and decimal/currency precision',()=>{
     config:config([{field:2,operation:'sum',decimals:0,format:'decimal'}])});
   assert.equal(zero.rows[0].at(-1),'30');
 });
+
+
+test('value ordering uses the chosen metric, not a hard-coded sum',()=>{
+  const src=source();src.cells['3,2']='50';
+  const settings=operation=>config([{field:2,operation}],{sort:{rows:'value_desc'}});
+  const product=pivot.build({source:src,range,config:settings('product')});
+  const sum=pivot.build({source:src,range,config:settings('sum')});
+  assert.equal(product.rows[0][0],'A'); // product 10*20=200 outranks B=50
+  assert.equal(sum.rows[0][0],'B'); // sum A=30 < B=50
+});
