@@ -63,6 +63,12 @@ class Datasets:
                     dataset_id TEXT NOT NULL REFERENCES datasets(id), number INTEGER NOT NULL,
                     values_json TEXT NOT NULL, PRIMARY KEY(dataset_id, number)
                 ) WITHOUT ROWID;
+                CREATE TABLE IF NOT EXISTS dataset_field_types (
+                    dataset_id TEXT NOT NULL REFERENCES datasets(id),
+                    scope TEXT NOT NULL, row_number INTEGER NOT NULL, column_number INTEGER NOT NULL,
+                    kind TEXT NOT NULL,
+                    PRIMARY KEY(dataset_id,scope,row_number,column_number)
+                ) WITHOUT ROWID;
             """)
 
     @staticmethod
@@ -141,19 +147,99 @@ class Datasets:
             if row >= max(1, dataset["row_count"]) or column >= len(names):
                 raise ValueError("Posição fora do dataset.")
             columns = names[column:column + 12]
-            rows = db.execute(
+            records = db.execute(
                 "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number>? ORDER BY number LIMIT 50",
                 (identifier, row),
-            )
+            ).fetchall()
+            column_types, cell_types = {}, {}
+            for entry in db.execute(
+                "SELECT scope,row_number,column_number,kind FROM dataset_field_types "
+                "WHERE dataset_id=? AND column_number>=? AND column_number<? "
+                "AND (scope='column' OR (row_number>? AND row_number<=?))",
+                (identifier, column, column + len(columns), row, row + len(records)),
+            ):
+                if entry["scope"] == "column":
+                    column_types[str(entry["column_number"])] = entry["kind"]
+                else:
+                    cell_types[f'{entry["row_number"]},{entry["column_number"]}'] = entry["kind"]
             return {
                 "id": identifier, "title": dataset["title"], "row_count": dataset["row_count"],
                 "column_count": len(names), "columns": [preview(name) for name in columns],
                 "rows": [[preview(value) for value in json.loads(item[0])[column:column + len(columns)]]
-                         for item in rows],
+                         for item in records],
+                "types": {"columns": column_types, "cells": cell_types},
                 "source_count": db.execute(
                     "SELECT COUNT(*) FROM sources WHERE dataset_id=?", (identifier,)
                 ).fetchone()[0],
             }
+
+    def edit_cell(self, identifier, row, column, value):
+        """Atomically edit one stored data cell without rewriting a large CSV."""
+        if (type(row) is not int or type(column) is not int or
+                not isinstance(value, str) or len(value) > 8192 or row < 1 or column < 0):
+            raise ValueError("Célula ou valor inválido.")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            dataset = self.get(db, identifier)
+            names = json.loads(dataset["columns_json"])
+            if row > dataset["row_count"] or column >= len(names):
+                raise ValueError("Célula fora do dataset.")
+            record = db.execute(
+                "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number=?",
+                (identifier, row),
+            ).fetchone()
+            if record is None:
+                raise ValueError("Linha não encontrada.")
+            cells = json.loads(record["values_json"])
+            previous = cells[column]
+            cells[column] = value
+            db.execute(
+                "UPDATE dataset_rows SET values_json=? WHERE dataset_id=? AND number=?",
+                (json.dumps(cells, ensure_ascii=False, separators=(",", ":")), identifier, row),
+            )
+            return {"row": row, "column": column, "previous": previous, "value": value}
+
+    def set_type(self, identifier, scope, column, kind, row=None, last_row=None, last_column=None):
+        """Store non-destructive column/cell type overrides; raw values remain intact."""
+        allowed = {"auto", "text", "integer", "decimal", "currency", "percent",
+                   "date", "time", "datetime", "boolean"}
+        if (scope not in {"column", "cell", "selection"} or kind not in allowed or
+                type(column) is not int or column < 0):
+            raise ValueError("Tipo, coluna ou escopo inválido.")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            dataset = self.get(db, identifier)
+            names = json.loads(dataset["columns_json"])
+            if column >= len(names):
+                raise ValueError("Coluna fora do dataset.")
+            if scope == "column":
+                positions = [(0, column)]
+            else:
+                if type(row) is not int or not 1 <= row <= dataset["row_count"]:
+                    raise ValueError("Linha fora do dataset.")
+                if scope == "cell":
+                    positions = [(row, column)]
+                else:
+                    if (type(last_row) is not int or type(last_column) is not int or
+                            not row <= last_row <= dataset["row_count"] or
+                            not column <= last_column < len(names) or
+                            (last_row-row+1)*(last_column-column+1) > 50000):
+                        raise ValueError("Seleção inválida ou maior que 50 mil células.")
+                    positions = [(r, c) for r in range(row, last_row+1)
+                                 for c in range(column, last_column+1)]
+            storage_scope = "column" if scope == "column" else "cell"
+            if kind == "auto" and storage_scope == "column":
+                db.executemany(
+                    "DELETE FROM dataset_field_types WHERE dataset_id=? AND scope=? AND row_number=? AND column_number=?",
+                    ((identifier, storage_scope, r, c) for r, c in positions),
+                )
+            else:
+                db.executemany(
+                    "INSERT OR REPLACE INTO dataset_field_types "
+                    "(dataset_id,scope,row_number,column_number,kind) VALUES (?,?,?,?,?)",
+                    ((identifier, storage_scope, r, c, kind) for r, c in positions),
+                )
+            return {"updated": len(positions), "scope": scope, "kind": kind}
 
     def columns(self, identifier):
         with self.connect() as db:
