@@ -272,6 +272,22 @@ def dataset(context=None):
             return {"datasets": store.list()}
         if data["operation"] == "page":
             return store.page(data["id"], data["row"], data["column"])
+        if data["operation"] == "query":
+            return store.query(data["id"], data["sql"])
         raise ValueError("Operação de dataset inválida.")
+
+    return _handle(operation)
+
+
+@api.post("/open_doc/template/preview")
+def template_preview(context=None):
+    return _handle(lambda: get_context().templates.preview(_data(context)["id"]))
+
+
+@api.post("/open_doc/template/save")
+def template_save(context=None):
+    def operation():
+        data = _data(context)
+        return get_context().templates.save(data["id"], data["title"], data.get("workbook") is True)
 
     return _handle(operation)

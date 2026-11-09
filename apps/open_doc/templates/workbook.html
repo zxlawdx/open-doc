@@ -2,6 +2,7 @@
   <div class="workbook-toolbar">
     <input data-book-title aria-label="Nome da planilha" maxlength="180">
     <button type="button" data-book-command="save">Salvar</button>
+    <button type="button" data-action="template-save">Salvar como template</button>
     <button type="button" data-book-command="undo">Desfazer</button>
     <button type="button" data-book-command="redo">Refazer</button>
     <button type="button" data-book-command="bold" aria-pressed="false"><strong>Negrito</strong></button>
@@ -41,6 +42,11 @@
     <label>Linha <input data-dataset-row inputmode="numeric" size="8" value="1"></label>
     <label>Coluna <input data-dataset-column inputmode="numeric" size="5" value="1"></label>
     <button type="button" data-dataset-command="go">Ir para posição</button>
+  </div>
+  <div class="workbook-toolbar" data-dataset-query hidden>
+    <label>SQL <textarea data-dataset-sql rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
+    <button type="button" data-dataset-command="query">Executar SQL</button>
+    <button type="button" data-dataset-command="reset">Voltar à prévia</button>
   </div>
   <div class="workbook-scroll" tabindex="0" aria-label="Prévia do dataset">
     <table data-dataset-table></table>

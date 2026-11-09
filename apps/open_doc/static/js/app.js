@@ -176,8 +176,42 @@
     renderTemplates(data.templates || []);
     design?.refreshLibrary();
   }
+  let previewObserver, previewDisposers = [], previewScript, previewRequests = new Map();
+  async function paintTemplate(target, template, width) {
+    try {
+      if (!previewScript) previewScript = (async()=>{
+        if (!window.OpenDocTemplatePreview) await loadScript('template_preview.js');
+        if (!window.OpenDocWorkbookFormula) await loadScript('workbook_formula.js');
+      })().catch(error=>{previewScript=null;throw error;});
+      await previewScript;
+      if (!previewRequests.has(template.id)) {
+        previewRequests.set(template.id, request('template/preview',{id:template.id})
+          .finally(()=>previewRequests.delete(template.id)));
+      }
+      const value = await previewRequests.get(template.id);
+      if (!target.isConnected || destroyed) return;
+      const dispose = await window.OpenDocTemplatePreview.render(target,value,{
+        width,request,asset:name=>new URL(name,scriptUrl).href
+      });
+      if (dispose) {
+        if (target.isConnected && !destroyed) previewDisposers.push(dispose);
+        else dispose();
+      }
+    } catch (error) {
+      target.textContent = 'Prévia indisponível. '+error.message;
+    }
+  }
   function renderTemplates(templates) {
     const grid = root.querySelector('[data-templates]');
+    previewObserver?.disconnect();
+    for (const dispose of previewDisposers.splice(0)) dispose();
+    previewObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries=>{
+      for (const entry of entries) if (entry.isIntersecting) {
+        previewObserver.unobserve(entry.target);
+        const card=entry.target.closest('[data-template-id]');
+        paintTemplate(entry.target,{id:card.dataset.templateId}, Number(entry.target.dataset.previewWidth));
+      }
+    }) : null;
     grid.replaceChildren();
     const categories = root.querySelector('[data-template-category]');
     const previous = categories.value;
@@ -197,14 +231,8 @@
       const preview = document.createElement('span');
       preview.className = 'template-preview';
       preview.setAttribute('aria-hidden', 'true');
-      const heading = document.createElement('strong');
-      heading.textContent = template.title;
-      preview.append(heading);
-      for (const [section] of template.sections.slice(0, 3)) {
-        const line = document.createElement('span');
-        line.textContent = section;
-        preview.append(line);
-      }
+      preview.textContent = 'Prévia visual';
+      preview.dataset.previewWidth = ['docx','pdf'].includes(template.format) ? '100' : '220';
       const title = document.createElement('strong');
       title.textContent = template.title;
       const meta = document.createElement('small');
@@ -214,26 +242,26 @@
         const confirm = root.querySelector('[data-dialog-confirm]');
         const label = confirm.textContent;
         const decision = dialog(template.title, meta.textContent);
-        const list = document.createElement('ul');
-        for (const [section, text] of template.sections) {
-          const item = document.createElement('li');
-          const title = document.createElement('strong');
-          title.textContent = section + ' · ';
-          item.append(title, text);
-          list.append(item);
-        }
-        root.querySelector('[data-dialog-body]').append(list);
+        const visual = document.createElement('div');
+        visual.className = 'template-preview template-preview-expanded';
+        visual.textContent = 'Renderizando prévia…';
+        root.querySelector('[data-dialog-body]').append(visual);
+        if (typeof IntersectionObserver === 'function') paintTemplate(visual,template,360);
+        else visual.textContent = template.sections.map(([,text])=>text).join(' · ');
         confirm.textContent = 'Usar template';
         const accepted = await decision;
         confirm.textContent = label;
         if (!accepted) return;
         await editor.flush();
-        if (template.format === 'xlsx') return openWorkbook({operation:'template', template:template.id});
-        editor.load(await request('document/template', {id: template.id}));
+        if (template.format === 'xlsx' && template.id.startsWith('sheet-')) return openWorkbook({operation:'template', template:template.id});
+        const copy = await request('document/template', {id: template.id});
+        if (template.format === 'xlsx') return openWorkbook(null,copy);
+        editor.load(copy);
         showView(false);
         status('Cópia criada a partir do template.');
       }), {signal});
       grid.append(card);
+      previewObserver?.observe(preview);
     }
   }
   function libraryRoute(route = 'home', section) {
@@ -253,7 +281,7 @@
     host.hidden = false;
     await datasets.load();
   }
-  async function openWorkbook(data) {
+  async function openWorkbook(data, existing) {
     await editor.flush();
     const host = root.querySelector('[data-workbook]');
     if (!workbook) {
@@ -261,7 +289,7 @@
       if (!window.OpenDocWorkbook) await loadScript('workbook.js');
       workbook = window.OpenDocWorkbook.create({host,request,dialog,signal});
     }
-    const value = data ? await request('workbook',data) : await window.pywebview.api.import_workbook();
+    const value = existing || (data ? await request('workbook',data) : await window.pywebview.api.import_workbook());
     if (value.error) throw Error(value.error);
     if (value.cancelled) return;
     showView(true);
@@ -269,6 +297,16 @@
     root.querySelector('[data-library]').hidden = true;
     host.hidden = false;
     workbook.load(value);
+  }
+  async function saveTemplate(fromWorkbook=false) {
+    if (fromWorkbook) await workbook.save();
+    else await editor.flush();
+    const title=await dialog('Salvar como template','Informe o nome do modelo pessoal.',true);
+    if (!title) return;
+    await request('template/save',{id:fromWorkbook ? workbook.id() : editor.snapshot().id,
+      title,workbook:fromWorkbook});
+    if (fromWorkbook) workbook.report('Template salvo em Meus templates.');
+    else status('Template salvo em Meus templates.');
   }
   async function leaveWorkbook() {
     try {
@@ -374,6 +412,7 @@
     }
     if (root.dataset.workbookView === 'true') {
       if (name === 'home') return leaveWorkbook();
+      if (name === 'template-save') return operate(()=>saveTemplate(true));
       if (name === 'save') return workbook.save().catch(error=>workbook.report(error.message));
       return;
     }
@@ -398,6 +437,7 @@
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
       home: () => libraryRoute(),
       datasets: () => operate(openDatasets),
+      'template-save': () => operate(()=>saveTemplate()),
       'workbook-new': () => operate(()=>openWorkbook({operation:'new'})),
       'workbook-import': () => operate(()=>openWorkbook()),
       'resume-editor': () => showView(false),
@@ -496,6 +536,8 @@
   }
   const page = {
     destroy() {
+      previewObserver?.disconnect();
+      for (const dispose of previewDisposers.splice(0)) dispose();
       editor?.destroy(); design?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
       if (dialogResolver) closeDialog();
     },

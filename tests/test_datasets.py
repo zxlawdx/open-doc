@@ -66,3 +66,20 @@ def test_append_to_existing_workbook_maps_columns_without_overwriting(tmp_path):
     result = append_delimited(sheets, 0, source)
     assert result == {"entries": {"2,0": "00002", "2,1": "2024"}, "added": 1}
     assert "2,0" not in cells
+
+
+def test_sql_queries_only_selected_dataset_and_caps_results(tmp_path, store):
+    path = tmp_path / "origem.csv"
+    path.write_text("id;Nome do município\n" + "001;Porto Velho\n" * 110, encoding="utf-8")
+    identifier = store.import_files([path])["id"]
+    store.import_files([path])
+    assert store.query(identifier, 'SELECT "Nome do município", COUNT(*) FROM dados GROUP BY 1')["rows"] == [
+        ["Porto Velho", "110"]
+    ]
+    result = store.query(identifier, "SELECT id FROM dados")
+    assert result["limited"] and len(result["rows"]) == 100
+    assert result["rows"][0] == ["001"]
+    for sql in ("DELETE FROM dados", "SELECT * FROM dataset_rows", "ATTACH DATABASE ':memory:' AS x",
+                "PRAGMA table_info(dados)", "SELECT randomblob(100000000)"):
+        with pytest.raises(ValueError):
+            store.query(identifier, sql)

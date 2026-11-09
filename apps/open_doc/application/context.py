@@ -26,6 +26,7 @@ class ApplicationContext:
     handwriting: Any
     workbooks: Any = None
     datasets: Any = None
+    templates: Any = None
     documents: Any = None
     assets: Any = None
     start_in_library: bool = False
@@ -75,7 +76,10 @@ def configure(config: Config | None = None) -> ApplicationContext:
         _context.workbooks = Workbooks(editor)
         _context.datasets = Datasets(workspace.root)
         _context.datasets.initialize()
+        from apps.open_doc.application.personal_templates import Templates
+
         _context.documents = DocumentApplication(_context)
+        _context.templates = Templates(_context)
         return _context
 
 

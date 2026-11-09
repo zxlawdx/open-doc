@@ -113,13 +113,6 @@
 }
 .open-doc .template-card:hover,.open-doc .template-card:focus-visible{border-color:var(--color-primary)}
 .open-doc .template-card small{color:var(--color-text-secondary)}
-.open-doc .template-preview{
-  display:flex;flex-direction:column;gap:.35rem;min-height:7rem;
-  background:#f1f5f9;color:#17304b;padding:.85rem;border-radius:.3rem;
-}
-.open-doc [data-template-id][data-file-format=pptx] .template-preview{background:#17304b;color:#fff}
-.open-doc .template-preview span{font-size:.75rem}
-
 .open-doc .home-mobile-modules{display:none}
 
 .open-doc .workbook[hidden]{display:none}
@@ -169,3 +162,24 @@
 .open-doc .dataset th{background:var(--color-workspace)}
 .open-doc .dataset thead th{position:sticky;top:0}
 .open-doc [data-dataset-status]{margin:0;padding:.4rem .65rem}
+
+.open-doc .template-preview{
+  display:grid;place-items:center;height:160px;padding:4px;
+  overflow:hidden;background:var(--color-workspace);color:var(--color-text-secondary)
+}
+.open-doc .template-preview-expanded{height:auto;max-height:52vh;overflow:auto;place-items:start center}
+.open-doc .template-preview canvas{display:block;max-width:100%;height:auto}
+.open-doc .template-preview .template-paper{
+  position:static;margin:0;overflow:hidden;transform-origin:top left;
+  box-sizing:border-box;background:#fff;color:#151515;box-shadow:none
+}
+.open-doc .template-preview table{
+  width:100%;table-layout:fixed;border-collapse:collapse;background:#fff;color:#161616;font-size:10px
+}
+.open-doc .template-preview th,.open-doc .template-preview td{
+  border:1px solid #d5dbe1;padding:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.open-doc .template-preview th{background:#ecf0f5}
+.open-doc .dataset [data-dataset-query][hidden]{display:none}
+.open-doc .dataset textarea{vertical-align:middle;font-family:monospace;max-width:72vw}
+.open-doc .template-preview .pptx-thumbnail>svg{width:100%;height:auto}

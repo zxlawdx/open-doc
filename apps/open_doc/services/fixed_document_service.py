@@ -376,8 +376,12 @@ class FixedDocumentService:
 
     def duplicate(self, identifier):
         old = self.get(identifier)
-        if old["content"].get("editable_deck"):
-            note = self.create_presentation(old["title"][:170] + " (cópia)")
+        if old["content"].get("editable_deck") and not old["content"].get("preserve_source"):
+            from pptx import Presentation
+
+            note = self.create_presentation(
+                old["title"][:170] + " (cópia)", deck=Presentation(self.source(identifier))
+            )
             model = json.loads(json.dumps(old["content"]))
             model["source_sha256"] = note["content"]["source_sha256"]
             return self.save(note["id"], note["title"], model, note["revision"])

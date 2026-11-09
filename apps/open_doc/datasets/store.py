@@ -154,3 +154,62 @@ class Datasets:
                     "SELECT COUNT(*) FROM sources WHERE dataset_id=?", (identifier,)
                 ).fetchone()[0],
             }
+
+    def query(self, identifier, sql):
+        """Run bounded, read-only SQL over one dataset."""
+        from time import monotonic
+        from uuid import UUID
+
+        identifier = str(UUID(identifier))
+        if not isinstance(sql, str) or not sql.strip() or len(sql) > 12000:
+            raise ValueError("Informe uma consulta SQL de até 12 mil caracteres.")
+
+        def quote(name):
+            return '"' + name.replace('"', '""') + '"'
+
+        with closing(sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+            dataset = db.execute(
+                "SELECT columns_json FROM datasets WHERE id=?", (identifier,)
+            ).fetchone()
+            if dataset is None:
+                raise ValueError("Dataset não encontrado.")
+            names = json.loads(dataset[0])
+            if len(names) > db.getlimit(sqlite3.SQLITE_LIMIT_COLUMN):
+                raise ValueError("O dataset ultrapassa o número de colunas que o SQLite pode consultar.")
+            if any("\x00" in name for name in names):
+                raise ValueError("O cabeçalho contém caracteres incompatíveis com SQL.")
+            fields = ", ".join(
+                f"json_extract(values_json, '$[{index}]') AS {quote(name)}" for index, name in enumerate(names)
+            )
+            db.execute(f"CREATE TEMP VIEW dados AS SELECT {fields} FROM main.dataset_rows WHERE dataset_id='{identifier}'")
+            db.execute("PRAGMA query_only=ON")
+            def authorize(action, arg1, arg2, database, view):
+                if action == sqlite3.SQLITE_READ:
+                    allowed = (arg1 == "dados" and database == "temp") or (
+                        arg1 == "dataset_rows" and database == "main" and view == "dados"
+                    )
+                elif action == sqlite3.SQLITE_FUNCTION:
+                    allowed = arg2.lower() not in {"load_extension", "readfile", "writefile"}
+                else:
+                    allowed = action in {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_RECURSIVE}
+                return sqlite3.SQLITE_OK if allowed else sqlite3.SQLITE_DENY
+
+            deadline = monotonic() + 5
+            db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 2 * 1024 * 1024)
+            db.set_authorizer(authorize)
+            db.set_progress_handler(lambda: int(monotonic() > deadline), 5000)
+            try:
+                cursor = db.execute(sql)
+                if len(cursor.description) > 100:
+                    raise ValueError("Selecione até 100 colunas por consulta.")
+                columns = [preview(item[0]) for item in cursor.description]
+                rows = []
+                for row in cursor:
+                    rows.append([preview(str(value)) if value is not None else None for value in row])
+                    if len(rows) > 100:
+                        break
+                return {"columns": columns, "rows": rows[:100], "limited": len(rows) > 100}
+            except sqlite3.Error as error:
+                if monotonic() > deadline:
+                    raise ValueError("A consulta excedeu cinco segundos.") from error
+                raise ValueError(f"Consulta somente leitura inválida: {error}") from error
