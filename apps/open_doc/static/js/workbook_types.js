@@ -65,7 +65,7 @@
       after.columns=after.columns||{};after.cells=after.cells||{};
       const update=(scope,id)=>{
         const group=after[scope];
-        if(type==="auto")delete group[id];else group[id]=type;
+        if(type==="auto"&&scope==="columns")delete group[id];else group[id]=type;
       };
       if(mode==="column")update("columns",String(col));
       else if(mode==="selection"){
