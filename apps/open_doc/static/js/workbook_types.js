@@ -12,7 +12,8 @@
     const value=String(raw??"");
     if(value===""||type==="auto"||type==="text")return {text:value,valid:true};
     if(type==="integer"||type==="decimal"||type==="currency"||type==="percent"){
-      const n=window.OpenDocWorkbookPivot.number(raw);
+      const engine=typeof window!=="undefined"?window.OpenDocWorkbookPivot:require("./workbook_pivot.js");
+      const n=engine.number(raw);
       if(!Number.isFinite(n)||(type==="integer"&&!Number.isInteger(n)))
         return {text:value,valid:false};
       const args=type==="currency"?{style:"currency",currency:"BRL"}:
