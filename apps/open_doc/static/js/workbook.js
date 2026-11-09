@@ -259,7 +259,7 @@
         const createEditor=window.OpenDocCodeEditor.create;
         sqlEditor=createEditor({field:$("#book-sql"),language:"sql",request,signal,run:()=>run("run-sql")});
         pythonEditor=createEditor({field:$("#book-python"),language:"python",request,signal,
-          signature:$("[data-book-signature]"),run:()=>run("run-python")});
+          signature:$("[data-book-signature]"),run:()=>run("run-python"),project:()=>book?.id});
       })().catch(error=>{analysisLoading=null;throw error;});
       await analysisLoading;
       updateSchema();
