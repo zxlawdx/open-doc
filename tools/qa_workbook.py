@@ -91,7 +91,7 @@ def main():
             capture(output, "pivot-narrow", width=640)
             assert js("""(() => {
                 const panel=document.querySelector('[data-book-sidebar]');
-                return innerWidth===640 && getComputedStyle(panel).position==='absolute' &&
+                return innerWidth===640 && getComputedStyle(panel).position==='fixed' &&
                   panel.getBoundingClientRect().right<=innerWidth+2 &&
                   panel.getBoundingClientRect().left>=-2;
             })()""")
