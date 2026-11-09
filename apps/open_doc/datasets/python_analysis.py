@@ -13,7 +13,8 @@ _analysis_lock = Lock()
 def environment():
     import jedi
 
-    return jedi.create_environment(sys.executable, safe=True)
+    # The path is the already-running interpreter, never supplied by the editor.
+    return jedi.create_environment(sys.executable, safe=False)
 
 
 def analyze(code, line, column, operation):
