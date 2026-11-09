@@ -47,15 +47,16 @@ def test_mismatched_or_malformed_batch_leaves_dataset_unchanged(tmp_path, store)
         assert store.page(dataset["id"], 0, 0)["source_count"] == 1
 
 
-def test_dynamic_width_encoding_and_quoted_newline(tmp_path, store):
+@pytest.mark.parametrize("line_break", ["\n", "\r\n"])
+def test_dynamic_width_encoding_and_quoted_newline(tmp_path, store, line_break):
     source = tmp_path / "wide.tsv"
     header = [f"coluna{i}" for i in range(130)]
-    values = [""] * 129 + ['"ação\n2024"']
-    source.write_text("\t".join(header) + "\n" + "\t".join(values) + "\n", encoding="cp1252")
+    values = [""] * 129 + [f'"ação{line_break}2024"']
+    source.write_bytes(("\t".join(header) + "\n" + "\t".join(values) + "\n").encode("cp1252"))
     dataset = store.import_files([source], encoding="cp1252", delimiter="\t")
     result = store.page(dataset["id"], 0, 129)
     assert result["column_count"] == 130
-    assert result["rows"] == [["ação\n2024"]]
+    assert result["rows"] == [[f"ação{line_break}2024"]]
 
 
 def test_append_to_existing_workbook_maps_columns_without_overwriting(tmp_path):
