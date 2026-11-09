@@ -326,6 +326,93 @@ class Datasets:
                              {"types": before_types}, {"types": after_types})
             return {"updated": len(positions), "scope": scope, "kind": kind}
 
+    def conversion_preview(self, identifier, scope, column, kind, row=None,
+                           last_row=None, last_column=None):
+        """Read-only, bounded sample and full mismatch counts; no mutation."""
+        from . import conversion
+        with self.connect() as db:
+            db.execute("BEGIN")
+            dataset = self.get(db, identifier)
+            report = conversion.plan(db, dataset, scope, column, kind,
+                                     row, last_row, last_column)
+            return {key: value for key, value in report.items() if key != "changes"}
+
+    def conversion_commit(self, identifier, scope, column, kind, token, row=None,
+                          last_row=None, last_column=None, *, on_invalid="abort", confirm=False):
+        """Explicit user-confirmed, stale-data-checked conversion + type in one transaction."""
+        if confirm is not True or on_invalid not in {"abort", "keep"} or not (
+                isinstance(token, str) and len(token) == 64):
+            raise ValueError("A conversão exige prévia e confirmação explícita.")
+        from . import conversion, history
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            dataset = self.get(db, identifier)
+            report = conversion.plan(db, dataset, scope, column, kind,
+                                     row, last_row, last_column)
+            if report["token"] != token:
+                raise ValueError("Os dados mudaram desde a prévia. Refaça a análise.")
+            if report["invalid"] and on_invalid == "abort":
+                raise ValueError(
+                    f"Há {report['invalid']} valores incompatíveis. Corrija-os ou escolha preservá-los."
+                )
+            changes = report["changes"]
+            before_values = [[r, c, old] for r, c, old, new in changes]
+            after_values = [[r, c, new] for r, c, old, new in changes]
+            for r, c, old, new in changes:
+                record = db.execute(
+                    "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number=?",
+                    (identifier, r),
+                ).fetchone()
+                if record is None:
+                    raise ValueError("A origem mudou durante a conversão.")
+                values = json.loads(record[0])
+                if values[c] != old:
+                    raise ValueError("Valor da origem modificado. Refaça a prévia.")
+                values[c] = new
+                db.execute(
+                    "UPDATE dataset_rows SET values_json=? WHERE dataset_id=? AND number=?",
+                    (json.dumps(values, ensure_ascii=False, separators=(",", ":")), identifier, r),
+                )
+            r0, r1, c0, c1 = report["region"]
+            if scope == "column":
+                positions = [("column", 0, column)]
+            else:
+                positions = [
+                    ("cell", r, c) for r in range(r0, r1+1)
+                    for c in range(c0, c1+1)
+                ]
+            types_before, types_after = [], []
+            # Retain all explicit cell exceptions in column scope.
+            for target_scope, r, c in positions:
+                existing = db.execute(
+                    "SELECT kind FROM dataset_field_types WHERE dataset_id=? "
+                    "AND scope=? AND row_number=? AND column_number=?",
+                    (identifier, target_scope, r, c),
+                ).fetchone()
+                old_kind = existing[0] if existing else None
+                new_kind = None if kind == "auto" and target_scope == "column" else kind
+                types_before.append([target_scope, r, c, old_kind])
+                types_after.append([target_scope, r, c, new_kind])
+                if new_kind is None:
+                    db.execute(
+                        "DELETE FROM dataset_field_types WHERE dataset_id=? AND scope=? "
+                        "AND row_number=? AND column_number=?",
+                        (identifier, target_scope, r, c),
+                    )
+                else:
+                    db.execute(
+                        "INSERT OR REPLACE INTO dataset_field_types "
+                        "(dataset_id,scope,row_number,column_number,kind) VALUES(?,?,?,?,?)",
+                        (identifier, target_scope, r, c, new_kind),
+                    )
+            history.remember(
+                db, identifier, "conversion",
+                {"values": before_values, "types": types_before},
+                {"values": after_values, "types": types_after},
+            )
+            return {"converted": len(changes), "invalid": report["invalid"],
+                    "exceptions": report["exceptions"], "kind": kind}
+
     def undo(self, identifier, redo=False):
         if type(redo) is not bool:
             raise ValueError("Operação de histórico inválida.")
