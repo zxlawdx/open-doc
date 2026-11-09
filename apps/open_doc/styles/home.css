@@ -158,3 +158,14 @@
 .open-doc .book-cell.bold{font-weight:700}
 .open-doc [data-book-tabs]{display:flex;gap:.3rem;overflow:auto}
 .open-doc [data-book-status]{padding:.3rem .65rem;margin:0;color:var(--color-text-secondary)}
+
+.open-doc[data-dataset-view=true] .header-actions,
+.open-doc[data-dataset-view=true] .statusbar{display:none}
+.open-doc .dataset table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+.open-doc .dataset td,.open-doc .dataset th{
+  padding:.3rem .5rem;border-bottom:1px solid var(--color-border);
+  border-right:1px solid var(--color-border);max-width:18rem;overflow-wrap:anywhere;text-align:left
+}
+.open-doc .dataset th{background:var(--color-workspace)}
+.open-doc .dataset thead th{position:sticky;top:0}
+.open-doc [data-dataset-status]{margin:0;padding:.4rem .65rem}

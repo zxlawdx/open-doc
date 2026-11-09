@@ -109,6 +109,28 @@ class OpenDocBridge(BaseBridge):
                 "error": "Não foi possível abrir/importar este documento. O arquivo original foi preservado."
             }
 
+    def import_dataset(self, identifier, encoding, delimiter):
+        import sqlite3
+        import webview
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        paths = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=True,
+            file_types=("Dados tabulares (*.csv;*.tsv)",),
+        )
+        if not paths:
+            return {"cancelled": True}
+        try:
+            return get_context().datasets.import_files(
+                paths, identifier, encoding=encoding, delimiter=delimiter
+            )
+        except (ValueError, OSError) as error:
+            return {"error": str(error)}
+        except sqlite3.Error:
+            LOGGER.exception("Falha ao gravar dataset")
+            return {"error": "Não foi possível gravar os dados. Verifique o espaço e tente novamente."}
+
     def import_workbook(self):
         import csv
         import webview
@@ -130,6 +152,24 @@ class OpenDocBridge(BaseBridge):
         except Exception:
             LOGGER.exception("Falha de importação de planilha")
             return {"error": "Não foi possível ler a planilha."}
+
+    def append_workbook_csv(self, sheets, index):
+        import csv
+        import webview
+        from apps.open_doc.spreadsheets.files import append_delimited
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        paths = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=False,
+            file_types=("Dados tabulares (*.csv;*.tsv)",),
+        )
+        if not paths:
+            return {"cancelled": True}
+        try:
+            return append_delimited(sheets, index, Path(paths[0]))
+        except (ValueError, OSError, csv.Error) as error:
+            return {"error": str(error)}
 
     def export_workbook(self, identifier, revision, fmt, sheet_index):
         import webview

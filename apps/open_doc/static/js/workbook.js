@@ -9,7 +9,7 @@
     const title=$("[data-book-title]"), formula=$("[data-book-formula]");
     const coord=$("[data-book-address]"), tabs=$("[data-book-tabs]"), status=$("[data-book-status]");
     const undo=[], redo=[];
-    let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending;
+    let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
     const sheet=()=>book.sheets[index];
     const raw=()=>sheet().cells[key(row,col)] || "";
     const native=()=>window.pywebview.api;
@@ -102,7 +102,7 @@
       select(0,0);update();viewport.focus();
     }
     function change(back, forward) {
-      if(pending)return;
+      if(pending || importing)return;
       forward();
       undo.push({back,forward});
       if(undo.length>40)undo.shift();
@@ -136,6 +136,7 @@
       renderTabs();choose(0);report("Salvo neste dispositivo");
     }
     async function save() {
+      if(importing)throw Error("Aguarde a importação terminar.");
       if(pending)return pending;
       if(!book)return;
       commit();
@@ -155,7 +156,7 @@
       }
     }
     async function command(name) {
-      if(!book||pending)return;
+      if(!book||pending||importing)return;
       if(name==="save") return save();
       if(name==="undo"||name==="redo"){
         const stack=name==="undo"?undo:redo, other=name==="undo"?redo:undo;
@@ -187,6 +188,19 @@
         const rename=value=>{target.name=value;renderTabs();};
         change(()=>rename(old),()=>rename(next));
       }
+      if(name==="append"){
+        commit();
+        importing=true;
+        let result;
+        try {
+          report("Importando CSV/TSV na aba atual…");
+          result=await native().append_workbook_csv(book.sheets,index);
+        } finally {importing=false;}
+        if(result.error)throw Error(result.error);
+        if(result.cancelled)return report(dirty ? "Alterações pendentes" : "Salvo neste dispositivo");
+        applyCells(Object.entries(result.entries));
+        report(result.added.toLocaleString("pt-BR")+" linhas lidas. Salve para manter as alterações.");
+      }
       if(name==="export"){
         await save();
         const result=await native().export_workbook(book.id,book.revision,$("[data-book-format]").value.toLowerCase(),index);
@@ -207,6 +221,7 @@
     }
     const run=name=>command(name).catch(error=>report(error.message));
     host.addEventListener("click",event=>{
+      if(importing)return;
       const command=event.target.closest("[data-book-command]");
       const tab=event.target.closest("[data-index]");
       const cell=event.target.closest("[data-cell]");
@@ -241,7 +256,7 @@
       select(...target,false,true);viewport.focus();
     },{signal});
     viewport.addEventListener("keydown",event=>{
-      if(event.isComposing||pending)return;
+      if(event.isComposing||pending||importing)return;
       const move={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1],
         Enter:[event.shiftKey?-1:1,0],Tab:[0,event.shiftKey?-1:1]}[event.key];
       if(event.ctrlKey||event.metaKey){
@@ -257,7 +272,7 @@
       else if(!event.altKey&&event.key.length===1){event.preventDefault();formula.focus();formula.value=event.key;mark();}
     },{signal});
     for(const type of ["copy","cut","paste"]) viewport.addEventListener(type,event=>{
-      if(!event.clipboardData||pending)return;
+      if(!event.clipboardData||pending||importing)return;
       event.preventDefault();
       try {
         if(type==="paste"){
