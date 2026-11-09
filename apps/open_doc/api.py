@@ -287,6 +287,24 @@ def dataset(context=None):
                 data["id"], data["scope"], data["column"], data["kind"],
                 data.get("row"), data.get("last_row"), data.get("last_column"),
             )
+        if data["operation"] == "history":
+            return store.history(data["id"])
+        if data["operation"] == "undo":
+            return store.undo(data["id"])
+        if data["operation"] == "redo":
+            return store.undo(data["id"], redo=True)
+        if data["operation"] == "conversion-preview":
+            return store.conversion_preview(
+                data["id"], data["scope"], data["column"], data["kind"],
+                data.get("row"), data.get("last_row"), data.get("last_column"),
+            )
+        if data["operation"] == "conversion-commit":
+            return store.conversion_commit(
+                data["id"], data["scope"], data["column"], data["kind"],
+                data["token"], data.get("row"), data.get("last_row"),
+                data.get("last_column"), on_invalid=data.get("on_invalid", "abort"),
+                confirm=data.get("confirm", False),
+            )
         if data["operation"] == "query":
             return store.query(data["id"], data["sql"])
         raise ValueError("Operação de dataset inválida.")
