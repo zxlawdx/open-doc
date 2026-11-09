@@ -173,6 +173,22 @@ class Datasets:
                 ).fetchone()[0],
             }
 
+    def cell(self, identifier, row, column):
+        """Fetch the untruncated raw cell for in-grid editing."""
+        if type(row) is not int or type(column) is not int or row < 1 or column < 0:
+            raise ValueError("Endereço inválido.")
+        with self.connect() as db:
+            dataset = self.get(db, identifier)
+            if row > dataset["row_count"] or column >= len(json.loads(dataset["columns_json"])):
+                raise ValueError("Célula fora do dataset.")
+            result = db.execute(
+                "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number=?",
+                (identifier, row),
+            ).fetchone()
+            if result is None:
+                raise ValueError("Linha não encontrada.")
+            return {"row": row, "column": column, "value": json.loads(result["values_json"])[column]}
+
     def edit_cell(self, identifier, row, column, value):
         """Atomically edit one stored data cell without rewriting a large CSV."""
         if (type(row) is not int or type(column) is not int or
