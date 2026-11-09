@@ -81,6 +81,41 @@ def main():
                 })()""")
                 wait(window, "Array.from(document.querySelectorAll('.cm-tooltip-autocomplete li')).some(item=>item.textContent.includes('nome'))")
                 capture(output, "autocomplete-sql")
+                window.evaluate_js("document.querySelector('[data-dataset-command=reset]').click()")
+                wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "!!document.querySelector('.dataset-inline-editor')")
+                window.evaluate_js("""(() => {
+                  const editor=document.querySelector('.dataset-inline-editor');
+                  editor.value='009';
+                  editor.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
+                window.evaluate_js("""(() => {
+                  const header=document.querySelector('thead [data-dataset-col="0"]');
+                  header.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:150}));
+                })()""")
+                wait(window, "!!document.querySelector('.book-context-menu')")
+                window.evaluate_js("""Array.from(document.querySelectorAll('.book-context-menu button'))
+                  .find(button=>button.textContent==='Texto').click()""")
+                wait(window, "document.querySelector('thead [data-dataset-col=\"0\"]')?.classList.contains('dataset-typed')")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.focus();
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='001'")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.focus();
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'y',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
+                capture(output, "inline-and-types")
+                print("QT_DATASET_INLINE_TYPES_UNDO_REDO_OK", flush=True)
                 print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_COMPLETION_OK", flush=True)
             except Exception as error:
                 errors.append(error)
