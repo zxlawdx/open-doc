@@ -91,7 +91,21 @@ def main():
             wait(window, "document.querySelector('[data-cell=\"1,1\"]')?.textContent==='520'")
             click("[data-book-command=undo]")
             wait(window, "document.querySelectorAll('[data-book-tabs] button').length===2")
-            print("QT_WORKBOOK_INLINE_PIVOT_UNDO_SAVE_REOPEN_OK", flush=True)
+            click('[data-cell="1,1"]')
+            type_formula("2050")
+            click("[data-ribbon-tab=analysis]")
+            wait(window, "!!document.querySelector('#book-sql + .dataset-code-editor .cm-editor')")
+            click("[data-book-command=run-sql]")
+            wait(window, "document.querySelector('[data-book-query-results] tbody tr')?.cells[1]?.textContent==='2050'")
+            confirm=window.create_confirmation_dialog
+            window.create_confirmation_dialog=lambda *args: True
+            try:
+                click("[data-book-command=run-python]")
+                wait(window, "document.querySelector('[data-book-python-output]').textContent.includes('Total de registros: 2')")
+            finally:
+                window.create_confirmation_dialog=confirm
+            capture(output, "analysis")
+            print("QT_WORKBOOK_INLINE_PIVOT_SQL_PYTHON_OK", flush=True)
         except Exception as error:
             errors.append(error)
         finally:

@@ -268,12 +268,15 @@
     showView(true);
     design?.navigateLibrary(route, section);
   }
+  async function loadCodeEditors() {
+    if (!window.OpenDocCodeVendor) await loadScript('vendor/code-editor.bundle.js');
+    if (!window.OpenDocCodeEditor) await loadScript('code_editor.js');
+  }
   async function openDatasets() {
     await editor.flush();
     const host = root.querySelector('[data-dataset]');
     if (!datasets) {
-      if (!window.OpenDocCodeVendor) await loadScript('vendor/code-editor.bundle.js');
-      if (!window.OpenDocCodeEditor) await loadScript('code_editor.js');
+      await loadCodeEditors();
       if (!window.OpenDocDatasets) await loadScript('datasets.js');
       datasets = window.OpenDocDatasets.create({host,request,signal});
     }
@@ -289,7 +292,7 @@
     if (!workbook) {
       if (!window.OpenDocWorkbookFormula) await loadScript('workbook_formula.js');
       if (!window.OpenDocWorkbook) await loadScript('workbook.js');
-      workbook = window.OpenDocWorkbook.create({host,request,dialog,signal});
+      workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors});
     }
     const value = existing || (data ? await request('workbook',data) : await window.pywebview.api.import_workbook());
     if (value.error) throw Error(value.error);

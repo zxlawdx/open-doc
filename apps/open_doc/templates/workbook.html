@@ -1,33 +1,43 @@
 <section class="workbook" data-workbook hidden aria-label="Editor de planilhas">
+  <nav class="workbook-ribbon-tabs" aria-label="Abas da faixa de opções">
+    <button type="button" data-ribbon-tab="file" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder"></use></svg>Arquivo</button>
+    <button type="button" data-ribbon-tab="home" aria-pressed="true"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#home"></use></svg>Início</button>
+    <button type="button" data-ribbon-tab="data" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#table"></use></svg>Dados</button>
+    <button type="button" data-ribbon-tab="analysis" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg>Análise</button>
+  </nav>
   <div class="workbook-toolbar workbook-ribbon" aria-label="Ferramentas da planilha">
-    <div class="workbook-tools" role="group" aria-label="Arquivo">
+    <div class="workbook-tools" data-ribbon-group="file" role="group" aria-label="Arquivo">
       <input data-book-title aria-label="Nome da planilha" maxlength="180">
-      <button type="button" data-book-command="save">Salvar</button>
-      <button type="button" data-action="template-save" title="Salvar como template">Salvar modelo</button>
-      <button type="button" data-book-command="versions">Histórico</button>
+      <button type="button" data-book-command="save"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#document"></use></svg>Salvar</button>
+      <button type="button" data-action="template-save" title="Salvar como template"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#copy"></use></svg>Salvar modelo</button>
+      <button type="button" data-book-command="versions"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#clock"></use></svg>Histórico</button>
       <small>Arquivo</small>
     </div>
-    <div class="workbook-tools" role="group" aria-label="Edição">
-      <button type="button" data-book-command="undo">Desfazer</button>
-      <button type="button" data-book-command="redo">Refazer</button>
-      <button type="button" data-book-command="bold" aria-pressed="false"><strong>Negrito</strong></button>
-      <button type="button" data-book-command="edit">Editar célula</button>
-      <button type="button" data-book-command="clear" title="Limpar seleção">Limpar</button>
-      <button type="button" data-book-command="select-used">Selecionar dados</button>
+    <div class="workbook-tools" data-ribbon-group="home" role="group" aria-label="Edição">
+      <button type="button" data-book-command="undo"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#undo"></use></svg>Desfazer</button>
+      <button type="button" data-book-command="redo"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#redo"></use></svg>Refazer</button>
+      <button type="button" data-book-command="bold" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#bold"></use></svg><strong>Negrito</strong></button>
+      <button type="button" data-book-command="edit"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#edit"></use></svg>Editar célula</button>
+      <button type="button" data-book-command="clear" title="Limpar seleção"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#eraser"></use></svg>Limpar</button>
+      <button type="button" data-book-command="select-used"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#fit"></use></svg>Selecionar dados</button>
       <small>Edição</small>
     </div>
-    <div class="workbook-tools" role="group" aria-label="Dados e análise">
-      <button type="button" data-book-command="append" title="Acrescentar CSV/TSV à aba">Anexar CSV/TSV</button>
+    <div class="workbook-tools" data-ribbon-group="data" role="group" aria-label="Dados">
+      <button type="button" data-book-command="append" title="Acrescentar CSV/TSV à aba"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg>Anexar CSV/TSV</button>
       <select data-book-format aria-label="Formato de exportação"><option>XLSX</option><option>CSV</option><option>TSV</option></select>
-      <button type="button" data-book-command="export">Exportar</button>
-      <small>Dados e análise</small>
+      <button type="button" data-book-command="export"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#download"></use></svg>Exportar</button>
+      <small>Dados</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="analysis" role="group" aria-label="Análise">
+      <button type="button" data-book-command="analysis" aria-controls="book-analysis" aria-expanded="false"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg>SQL e Python</button>
+      <small>Análise</small>
     </div>
   </div>
   <div class="workbook-formula">
     <input data-book-address aria-label="Endereço da célula">
     <label for="workbook-formula">ƒx</label>
     <input id="workbook-formula" data-book-formula aria-label="Valor ou fórmula da célula" autocomplete="off" maxlength="8192">
-      <button type="button" data-book-command="pivot" aria-controls="book-sidebar" aria-expanded="false">Tabela dinâmica</button>
+      <button type="button" data-book-command="pivot" aria-controls="book-sidebar" aria-expanded="false"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#table"></use></svg>Tabela dinâmica</button>
   </div>
   <div class="workbook-body">
   <div class="workbook-scroll" data-book-scroll tabindex="0" role="grid" aria-label="Células da planilha" aria-rowcount="10000" aria-colcount="100">
@@ -35,10 +45,10 @@
     <input class="book-inline-editor" data-book-inline hidden aria-label="Editar célula na grade" maxlength="8192" autocomplete="off">
   </div>
   <aside class="workbook-sidebar" id="book-sidebar" data-book-sidebar hidden aria-label="Tabela dinâmica">
-    <div class="workbook-sidebar-title"><strong>Tabela dinâmica</strong><button type="button" data-book-command="close-pivot" aria-label="Recolher painel">×</button></div>
+    <div class="workbook-sidebar-title"><strong>Tabela dinâmica</strong><button type="button" data-book-command="close-pivot" aria-label="Recolher painel"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chevron-right"></use></svg></button></div>
     <p>Use a primeira linha do intervalo como cabeçalho.</p>
     <label>Intervalo <input data-pivot-range placeholder="A1:D10"></label>
-    <button type="button" data-book-command="pivot-fields">Carregar campos</button>
+    <button type="button" data-book-command="pivot-fields"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#list-check"></use></svg>Carregar campos</button>
     <label>Linhas <select data-pivot-row></select></label>
     <label>Colunas <select data-pivot-column></select></label>
     <label>Valores <select data-pivot-value></select></label>
@@ -46,49 +56,74 @@
       <option value="sum">Soma</option><option value="count">Contagem</option>
       <option value="average">Média</option><option value="min">Mínimo</option><option value="max">Máximo</option>
     </select></label>
-    <button type="button" data-book-command="pivot-create">Criar em nova aba</button>
+    <button type="button" data-book-command="pivot-create"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg>Criar em nova aba</button>
+  </aside>
+  <aside class="workbook-sidebar workbook-analysis" id="book-analysis" data-book-analysis hidden aria-label="Análise da aba ativa">
+    <div class="workbook-sidebar-title"><strong>Análise da aba ativa</strong><button type="button" data-book-command="close-analysis" aria-label="Recolher análise"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chevron-right"></use></svg></button></div>
+    <p>A primeira linha preenchida fornece os cabeçalhos. SQL consulta <code>dados</code>. Python recebe <code>DATASET_CSV</code>.</p>
+    <label for="book-sql">SQL</label>
+    <textarea id="book-sql" aria-label="Editor SQL da planilha" maxlength="12000">SELECT * FROM dados LIMIT 20</textarea>
+    <button type="button" data-book-command="run-sql"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar SQL</button>
+    <div class="book-query-results" data-book-query-results></div>
+    <label for="book-python">Python local</label>
+    <textarea id="book-python" aria-label="Editor Python da planilha" maxlength="24000">import csv
+
+with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
+    linhas = csv.DictReader(arquivo)
+    print("Colunas:", linhas.fieldnames)
+    print("Total de registros:", sum(1 for _ in linhas))</textarea>
+    <output data-book-signature aria-live="polite"></output>
+    <button type="button" data-book-command="run-python"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar Python</button>
+    <pre data-book-python-output aria-label="Saída Python" tabindex="0"></pre>
   </aside>
   </div>
   <div class="workbook-tabs">
     <div data-book-tabs role="group" aria-label="Abas da planilha"></div>
-    <button type="button" data-book-command="add" aria-label="Adicionar aba">+ Aba</button>
-    <button type="button" data-book-command="rename">Renomear aba</button>
+    <button type="button" data-book-command="add" aria-label="Adicionar aba"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg>+ Aba</button>
+    <button type="button" data-book-command="rename"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#edit"></use></svg>Renomear aba</button>
   </div>
   <p data-book-status role="status" aria-live="polite"></p>
 </section>
 
 <section class="workbook dataset" data-dataset hidden aria-label="Área de dados">
-  <div class="workbook-toolbar">
+  <div class="workbook-ribbon-tabs"><strong>Dados</strong></div>
+  <div class="workbook-toolbar workbook-ribbon">
+    <div class="workbook-tools" role="group" aria-label="Fonte">
     <strong>Datasets locais</strong>
     <select data-dataset-list aria-label="Dataset"></select>
     <label>Codificação <select data-dataset-encoding><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
     <label>Separador <select data-dataset-delimiter><option value="auto">Automático</option><option value=",">Vírgula</option><option value=";">Ponto e vírgula</option><option value="&#9;">Tabulação</option><option value="|">Barra vertical</option></select></label>
-    <button type="button" data-dataset-command="new">Novo dataset de CSV/TSV</button>
-    <button type="button" data-dataset-command="append">Acrescentar arquivos ao dataset</button>
-    <button type="button" data-dataset-command="export">Exportar dataset CSV</button>
-    <button type="button" data-dataset-command="tools" aria-controls="dataset-tools" aria-expanded="true">SQL e Python</button>
+    <small>Fonte</small>
+    </div>
+    <div class="workbook-tools" role="group" aria-label="Importação">
+    <button type="button" data-dataset-command="new"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg>Novo dataset de CSV/TSV</button>
+    <button type="button" data-dataset-command="append"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg>Acrescentar arquivos ao dataset</button>
+    <button type="button" data-dataset-command="export"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#download"></use></svg>Exportar dataset CSV</button>
+    <button type="button" data-dataset-command="tools" aria-controls="dataset-tools" aria-expanded="true"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#code"></use></svg>SQL e Python</button>
+    <small>Importação e análise</small>
+    </div>
   </div>
   <div class="workbook-toolbar" data-dataset-pagination>
-    <button type="button" data-dataset-command="previous">Linhas anteriores</button>
-    <button type="button" data-dataset-command="next">Próximas linhas</button>
+    <button type="button" data-dataset-command="previous"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chevron-left"></use></svg>Linhas anteriores</button>
+    <button type="button" data-dataset-command="next"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chevron-right"></use></svg>Próximas linhas</button>
     <label>Linha <input data-dataset-row inputmode="numeric" size="8" value="1"></label>
     <label>Coluna <input data-dataset-column inputmode="numeric" size="5" value="1"></label>
-    <button type="button" data-dataset-command="go">Ir para posição</button>
+    <button type="button" data-dataset-command="go"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#search"></use></svg>Ir para posição</button>
   </div>
   <div class="workbook-body dataset-body">
   <div class="workbook-scroll" tabindex="0" aria-label="Prévia do dataset">
     <div class="dataset-empty" data-dataset-empty hidden>
       <strong>Importe seus dados</strong>
       <p>Abra um CSV ou TSV com cabeçalhos para visualizar, consultar e analisar os registros.</p>
-      <button type="button" data-dataset-command="new">Importar CSV ou TSV</button>
+      <button type="button" data-dataset-command="new"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg>Importar CSV ou TSV</button>
     </div>
     <table data-dataset-table></table>
   </div>
   <aside class="workbook-sidebar" id="dataset-tools" data-dataset-tools aria-label="SQL e Python">
   <div class="workbook-toolbar" data-dataset-query hidden>
     <label>SQL <textarea data-dataset-sql aria-label="Editor SQL" rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
-    <button type="button" data-dataset-command="query">Executar SQL</button>
-    <button type="button" data-dataset-command="reset">Voltar à prévia</button>
+    <button type="button" data-dataset-command="query"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar SQL</button>
+    <button type="button" data-dataset-command="reset"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#table"></use></svg>Voltar à prévia</button>
   </div>
   <details class="dataset-python" data-dataset-python hidden>
     <summary>Python local</summary>
@@ -100,7 +135,7 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
     print("Colunas:", linhas.fieldnames)
     print("Total de registros:", sum(1 for _ in linhas))</textarea>
     <output data-dataset-signature aria-live="polite"></output>
-    <button type="button" data-dataset-command="python">Executar Python</button>
+    <button type="button" data-dataset-command="python"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#play"></use></svg>Executar Python</button>
     <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
   </details>
   </aside>

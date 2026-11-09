@@ -2,13 +2,15 @@
 (() => {
   const ROWS=10000, COLS=100, WIDTH=112, HEIGHT=28, GUTTER=52;
   const key=(r,c)=>r+","+c;
-  function create({host,request,dialog,signal}) {
+  function create({host,request,dialog,signal,loadCodeEditors}) {
     const {address,column,evaluate}=window.OpenDocWorkbookFormula;
     const $=selector=>host.querySelector(selector);
     const viewport=$("[data-book-scroll]"), space=$("[data-book-space]");
     const title=$("[data-book-title]"), formula=$("[data-book-formula]");
     const coord=$("[data-book-address]"), tabs=$("[data-book-tabs]"), status=$("[data-book-status]");
     const inline=$("[data-book-inline]"), sidebar=$("[data-book-sidebar]");
+    const analysis=$("[data-book-analysis]"), analysisButton=$("[data-book-command=analysis]");
+    let sqlEditor, pythonEditor, analysisLoading, analysisBusy=false, lastSchema;
     const undo=[], redo=[];
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
     const sheet=()=>book.sheets[index];
@@ -72,7 +74,7 @@
     }
     function schedule() {if(frame===undefined)frame=requestAnimationFrame(draw);}
     function update(recalculate=true) {
-      if(recalculate)calc=evaluate(book.sheets);
+      if(recalculate){calc=evaluate(book.sheets);updateSchema();}
       controls();schedule();
     }
     function select(r,c,extend=false,reveal=false) {
@@ -100,7 +102,9 @@
     function choose(next) {
       index=next;
       viewport.scrollTop=0;viewport.scrollLeft=0;
-      select(0,0);update();viewport.focus();
+      select(0,0);update();
+      $("[data-book-query-results]").replaceChildren();
+      $("[data-book-python-output]").textContent="";viewport.focus();
     }
     function change(back, forward) {
       if(pending || importing)return;
@@ -176,11 +180,95 @@
       }
       return top===ROWS ? null : [top,left,bottom,right];
     }
+    function worksheetSnapshot(includeRows=true) {
+      const used=usedBounds();
+      if(!used)throw Error("A aba está vazia.");
+      const [top,left,bottom,right]=used;
+      if((bottom-top+1)*(right-left+1)>50000)
+        throw Error("A análise da planilha aceita até 50 mil células.");
+      const evaluateCell=evaluate(book.sheets);
+      const columns=[], seen=new Set(), rows=[];
+      for(let c=left;c<=right;c++){
+        const label=String(evaluateCell(index,top,c)).trim() || column(c);
+        let name=label, suffix=2;
+        while(seen.has(name.toLowerCase()))name=label+"_"+suffix++;
+        seen.add(name.toLowerCase());columns.push(name);
+      }
+      for(let r=top+1;includeRows&&r<=bottom;r++){
+        const values=[];
+        for(let c=left;c<=right;c++)values.push(String(evaluateCell(index,r,c)));
+        rows.push(values);
+      }
+      return {columns,rows};
+    }
+    function updateSchema(){
+      if(sqlEditor && !analysis.hidden){
+        let columns;
+        try{columns=worksheetSnapshot(false).columns;}
+        catch{columns=[];}
+        const signature=JSON.stringify(columns);
+        if(signature!==lastSchema){sqlEditor.columns(columns);lastSchema=signature;}
+      }
+    }
+    async function toggleAnalysis(open) {
+      analysis.hidden=!open;
+      analysisButton.setAttribute("aria-expanded",String(open));
+      schedule();
+      if(!open)return;
+      togglePivot(false);
+      if(!analysisLoading)analysisLoading=(async()=>{
+        await loadCodeEditors();
+        const createEditor=window.OpenDocCodeEditor.create;
+        sqlEditor=createEditor({field:$("#book-sql"),language:"sql",request,signal,run:()=>run("run-sql")});
+        pythonEditor=createEditor({field:$("#book-python"),language:"python",request,signal,
+          signature:$("[data-book-signature]"),run:()=>run("run-python")});
+      })().catch(error=>{analysisLoading=null;throw error;});
+      await analysisLoading;
+      updateSchema();
+    }
+    async function analyzeWorkbook(language){
+      if(analysisBusy)return;
+      await analysisLoading;
+      if(analysisBusy||!sqlEditor||!pythonEditor)return;
+      finishInline();commit();
+      const snapshot=worksheetSnapshot();
+      const source=sheet();
+      analysisBusy=true;
+      try{
+        report("Executando "+language+" na aba "+source.name+"…");
+        if(language==="Python"){
+          const result=await native().run_workbook_python(snapshot.columns,snapshot.rows,pythonEditor.value());
+          if(result.error)throw Error(result.error);
+          if(result.cancelled)return report("Execução cancelada.");
+          if(sheet()!==source)return;
+          $("[data-book-python-output]").textContent=result.output;
+          report(result.stopped==="timeout" ? "Execução encerrada após 15 segundos." :
+            result.stopped==="output" ? "Saída limitada a 64 KiB." :
+            result.returncode===0 ? "Python concluído." : "Python terminou com código "+result.returncode+".");
+        }else{
+          const result=await request("workbook",{operation:"query",...snapshot,sql:sqlEditor.value()});
+          if(sheet()!==source)return;
+          const table=document.createElement("table");
+          const headers=table.createTHead().insertRow();
+          for(const name of result.columns){
+            const th=document.createElement("th");th.textContent=name;headers.append(th);
+          }
+          const body=table.createTBody();
+          for(const values of result.rows){
+            const line=body.insertRow();
+            for(const value of values)line.insertCell().textContent=value ?? "NULL";
+          }
+          $("[data-book-query-results]").replaceChildren(table);
+          report(result.rows.length+" linhas de resultado"+(result.limited?" · prévia limitada":""));
+        }
+      }finally{analysisBusy=false;}
+    }
     function togglePivot(open) {
       sidebar.hidden=!open;
       $("[data-book-command=pivot]").setAttribute("aria-expanded",String(open));
       schedule();
       if(!open)return;
+      toggleAnalysis(false);
       const selected=bounds();
       const [top,left,bottom,right]=(selected[0]===selected[2]&&selected[1]===selected[3]
         ? usedBounds() : selected) || [0,0,0,0];
@@ -291,6 +379,10 @@
         return;
       }
       if(name==="pivot")return togglePivot(sidebar.hidden);
+      if(name==="analysis")return toggleAnalysis(analysis.hidden);
+      if(name==="close-analysis")return toggleAnalysis(false);
+      if(name==="run-sql")return analyzeWorkbook("SQL");
+      if(name==="run-python")return analyzeWorkbook("Python");
       if(name==="close-pivot")return togglePivot(false);
       if(name==="pivot-fields")return pivotFields();
       if(name==="pivot-create")return createPivot();
@@ -361,6 +453,13 @@
       const command=event.target.closest("[data-book-command]");
       const tab=event.target.closest("[data-index]");
       const cell=event.target.closest("[data-cell]");
+      const ribbon=event.target.closest("[data-ribbon-tab]");
+      if(ribbon){
+        const active=ribbon.dataset.ribbonTab;
+        for(const tab of host.querySelectorAll("[data-ribbon-tab]"))tab.setAttribute("aria-pressed",String(tab===ribbon));
+        for(const group of host.querySelectorAll("[data-ribbon-group]"))group.hidden=active!=="home"&&active!==group.dataset.ribbonGroup;
+        if(active==="analysis"&&analysis.hidden)run("analysis");
+      }
       if(command)run(command.dataset.bookCommand);
       if(tab){finishInline();choose(Number(tab.dataset.index));}
       if(cell){
