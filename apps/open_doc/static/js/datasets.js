@@ -12,12 +12,21 @@
       signature:$("[data-dataset-signature]"),run:()=>run(executePython)});
     const sqlEditor=window.OpenDocCodeEditor.create({field:sqlField,language:"sql",request,signal,
       run:()=>run(executeQuery)});
+    const tools=$("[data-dataset-tools]"), toolsButton=$("[data-dataset-command=tools]");
+    let toolsOpen=!window.matchMedia("(max-width: 760px)").matches;
+    function showTools() {
+      tools.hidden=!current || !toolsOpen;
+      toolsButton.disabled=busy || !current;
+      toolsButton.setAttribute("aria-expanded",String(!tools.hidden));
+    }
     function controls() {
       for (const control of host.querySelectorAll("input,select,button,textarea")) control.disabled=busy;
       $("[data-dataset-command=append]").disabled=busy || !list.value;
       $("[data-dataset-command=export]").disabled=busy || !current;
       $("[data-dataset-python]").hidden=!current;
       pythonEditor.lock(busy);sqlEditor.lock(busy);
+      showTools();
+      $("[data-dataset-empty]").hidden=Boolean(current);
       pagination.hidden=!current || querying;
       $("[data-dataset-query]").hidden=!current;
       $("[data-dataset-command=reset]").disabled=busy || !querying;
@@ -103,6 +112,7 @@
     host.addEventListener("click",event=>{
       const command=event.target.closest("[data-dataset-command]")?.dataset.datasetCommand;
       if(command==="new" || command==="append")run(()=>ingest(command==="append"));
+      if(command==="tools"){toolsOpen=!toolsOpen;showTools();}
       if(command==="python")run(executePython);
       if(command==="export")run(async()=>{
         const result=await window.pywebview.api.export_dataset(list.value,current.title);

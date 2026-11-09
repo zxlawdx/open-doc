@@ -1,23 +1,53 @@
 <section class="workbook" data-workbook hidden aria-label="Editor de planilhas">
-  <div class="workbook-toolbar">
-    <input data-book-title aria-label="Nome da planilha" maxlength="180">
-    <button type="button" data-book-command="save">Salvar</button>
-    <button type="button" data-action="template-save">Salvar como template</button>
-    <button type="button" data-book-command="undo">Desfazer</button>
-    <button type="button" data-book-command="redo">Refazer</button>
-    <button type="button" data-book-command="bold" aria-pressed="false"><strong>Negrito</strong></button>
-    <button type="button" data-book-command="append">Acrescentar CSV/TSV à aba</button>
-    <button type="button" data-book-command="versions">Histórico</button>
-    <label>Exportar <select data-book-format aria-label="Formato de exportação"><option>XLSX</option><option>CSV</option><option>TSV</option></select></label>
-    <button type="button" data-book-command="export">Exportar arquivo</button>
+  <div class="workbook-toolbar workbook-ribbon" aria-label="Ferramentas da planilha">
+    <div class="workbook-tools" role="group" aria-label="Arquivo">
+      <input data-book-title aria-label="Nome da planilha" maxlength="180">
+      <button type="button" data-book-command="save">Salvar</button>
+      <button type="button" data-action="template-save" title="Salvar como template">Salvar modelo</button>
+      <button type="button" data-book-command="versions">Histórico</button>
+      <small>Arquivo</small>
+    </div>
+    <div class="workbook-tools" role="group" aria-label="Edição">
+      <button type="button" data-book-command="undo">Desfazer</button>
+      <button type="button" data-book-command="redo">Refazer</button>
+      <button type="button" data-book-command="bold" aria-pressed="false"><strong>Negrito</strong></button>
+      <button type="button" data-book-command="edit">Editar célula</button>
+      <button type="button" data-book-command="clear" title="Limpar seleção">Limpar</button>
+      <button type="button" data-book-command="select-used">Selecionar dados</button>
+      <small>Edição</small>
+    </div>
+    <div class="workbook-tools" role="group" aria-label="Dados e análise">
+      <button type="button" data-book-command="append" title="Acrescentar CSV/TSV à aba">Anexar CSV/TSV</button>
+      <select data-book-format aria-label="Formato de exportação"><option>XLSX</option><option>CSV</option><option>TSV</option></select>
+      <button type="button" data-book-command="export">Exportar</button>
+      <small>Dados e análise</small>
+    </div>
   </div>
   <div class="workbook-formula">
     <input data-book-address aria-label="Endereço da célula">
     <label for="workbook-formula">ƒx</label>
     <input id="workbook-formula" data-book-formula aria-label="Valor ou fórmula da célula" autocomplete="off" maxlength="8192">
+      <button type="button" data-book-command="pivot" aria-controls="book-sidebar" aria-expanded="false">Tabela dinâmica</button>
   </div>
+  <div class="workbook-body">
   <div class="workbook-scroll" data-book-scroll tabindex="0" role="grid" aria-label="Células da planilha" aria-rowcount="10000" aria-colcount="100">
     <div class="workbook-space" data-book-space></div>
+    <input class="book-inline-editor" data-book-inline hidden aria-label="Editar célula na grade" maxlength="8192" autocomplete="off">
+  </div>
+  <aside class="workbook-sidebar" id="book-sidebar" data-book-sidebar hidden aria-label="Tabela dinâmica">
+    <div class="workbook-sidebar-title"><strong>Tabela dinâmica</strong><button type="button" data-book-command="close-pivot" aria-label="Recolher painel">×</button></div>
+    <p>Use a primeira linha do intervalo como cabeçalho.</p>
+    <label>Intervalo <input data-pivot-range placeholder="A1:D10"></label>
+    <button type="button" data-book-command="pivot-fields">Carregar campos</button>
+    <label>Linhas <select data-pivot-row></select></label>
+    <label>Colunas <select data-pivot-column></select></label>
+    <label>Valores <select data-pivot-value></select></label>
+    <label>Agregação <select data-pivot-operation>
+      <option value="sum">Soma</option><option value="count">Contagem</option>
+      <option value="average">Média</option><option value="min">Mínimo</option><option value="max">Máximo</option>
+    </select></label>
+    <button type="button" data-book-command="pivot-create">Criar em nova aba</button>
+  </aside>
   </div>
   <div class="workbook-tabs">
     <div data-book-tabs role="group" aria-label="Abas da planilha"></div>
@@ -36,6 +66,7 @@
     <button type="button" data-dataset-command="new">Novo dataset de CSV/TSV</button>
     <button type="button" data-dataset-command="append">Acrescentar arquivos ao dataset</button>
     <button type="button" data-dataset-command="export">Exportar dataset CSV</button>
+    <button type="button" data-dataset-command="tools" aria-controls="dataset-tools" aria-expanded="true">SQL e Python</button>
   </div>
   <div class="workbook-toolbar" data-dataset-pagination>
     <button type="button" data-dataset-command="previous">Linhas anteriores</button>
@@ -44,6 +75,16 @@
     <label>Coluna <input data-dataset-column inputmode="numeric" size="5" value="1"></label>
     <button type="button" data-dataset-command="go">Ir para posição</button>
   </div>
+  <div class="workbook-body dataset-body">
+  <div class="workbook-scroll" tabindex="0" aria-label="Prévia do dataset">
+    <div class="dataset-empty" data-dataset-empty hidden>
+      <strong>Importe seus dados</strong>
+      <p>Abra um CSV ou TSV com cabeçalhos para visualizar, consultar e analisar os registros.</p>
+      <button type="button" data-dataset-command="new">Importar CSV ou TSV</button>
+    </div>
+    <table data-dataset-table></table>
+  </div>
+  <aside class="workbook-sidebar" id="dataset-tools" data-dataset-tools aria-label="SQL e Python">
   <div class="workbook-toolbar" data-dataset-query hidden>
     <label>SQL <textarea data-dataset-sql aria-label="Editor SQL" rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
     <button type="button" data-dataset-command="query">Executar SQL</button>
@@ -62,8 +103,7 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
     <button type="button" data-dataset-command="python">Executar Python</button>
     <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
   </details>
-  <div class="workbook-scroll" tabindex="0" aria-label="Prévia do dataset">
-    <table data-dataset-table></table>
+  </aside>
   </div>
   <p data-dataset-status role="status" aria-live="polite"></p>
 </section>
