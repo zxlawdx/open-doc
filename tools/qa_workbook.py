@@ -88,6 +88,8 @@ def main():
             assert js("""Array.from(document.querySelectorAll('[data-pivot-preview] td'))
               .some(cell=>cell.textContent==='2000')""")
             capture(output, "pivot")
+            for width in (1920, 1500, 1000, 800, 390):
+                capture(output, f"pivot-{width}", width=width)
             capture(output, "pivot-narrow", width=640)
             assert js("""(() => {
                 const panel=document.querySelector('[data-book-sidebar]');
