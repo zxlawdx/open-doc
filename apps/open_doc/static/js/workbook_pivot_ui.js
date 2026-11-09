@@ -189,9 +189,9 @@
       fragment.append(table);$("[data-pivot-preview]").replaceChildren(fragment);
       onReport("Detalhamento: "+records.length+" registros de origem.");
     }
-    function open({sheets,index,calc,address,rangeText}) {
+    function open({sheets,index,calc,address,column,rangeText}) {
       const previous=sheets[index].pivot;
-      context={sheets,index,calc,address,source:previous?.source??index,target:previous?index:null};
+      context={sheets,index,calc,address,colName:column,source:previous?.source??index,target:previous?index:null};
       settings=previous?clone(previous.config):empty();
       $("[data-pivot-range]").value=previous?
         addressString(previous.range):rangeText||"";
