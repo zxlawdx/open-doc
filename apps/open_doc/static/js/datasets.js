@@ -96,6 +96,7 @@
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
       if(current?.id!==result.id){
+        undo.length=0;redo.length=0;selected=null;anchor=null;
         output.textContent="";
         const schema=await request("dataset",{operation:"columns",id:result.id});
         sqlEditor.columns(schema.columns);
@@ -148,6 +149,139 @@
       draw(result,false);
       status.textContent=result.rows.length+" linhas de resultado"+(result.limited?" · prévia limitada a 100 linhas":"");
     }
+    function selectCell(r,c,extend=false) {
+      if(!extend||!anchor)anchor=[r,c];
+      selected=[r,c];paintSelection();
+    }
+    async function persistCell(datasetId,r,c,value,record=true){
+      const result=await request("dataset",{operation:"edit",id:datasetId,row:r,column:c,value});
+      if(record&&result.previous!==value){
+        undo.push({id:datasetId,row:r,column:c,before:result.previous,after:value});
+        if(undo.length>50)undo.shift();redo.length=0;
+      }
+      if(list.value===datasetId&&!querying)await showPage(row,column);
+      status.textContent="Célula atualizada: linha "+r+", coluna "+(c+1)+".";
+    }
+    async function undoEdit(reverse=false){
+      const from=reverse?redo:undo,to=reverse?undo:redo,item=from.pop();
+      if(!item)return status.textContent="Nenhuma edição para "+(reverse?"refazer.":"desfazer.");
+      if(item.id!==list.value){from.push(item);throw Error("A operação pertence a outro dataset.");}
+      try{await persistCell(item.id,item.row,item.column,reverse?item.after:item.before,false);
+        to.push(item);}catch(error){from.push(item);throw error;}
+    }
+    function editCell(target) {
+      if(busy||querying||!current||editing)return;
+      const r=Number(target.dataset.datasetRow),c=Number(target.dataset.datasetCol);
+      selectCell(r,c);
+      editing={r,c,closed:false};
+      const item=editing,datasetId=list.value;
+      (async()=>{
+        try {
+          const result=await request("dataset",{operation:"cell",id:datasetId,row:r,column:c});
+          if(editing!==item||list.value!==datasetId)return;
+          const input=document.createElement("input");input.type="text";
+          input.className="dataset-inline-editor";input.value=result.value;
+          input.setAttribute("aria-label","Editar linha "+r+", coluna "+(c+1));
+          target.replaceChildren(input);input.focus();input.select();
+          function done(accept){
+            if(item.closed)return;
+            item.closed=true;editing=null;
+            input.remove();
+            if(!accept||input.value===result.value){draw(current);return;}
+            run(()=>persistCell(datasetId,r,c,input.value));
+          }
+          input.addEventListener("keydown",event=>{
+            if(!["Enter","Escape","Tab"].includes(event.key))return;
+            event.preventDefault();event.stopPropagation();
+            done(event.key!=="Escape");
+          });
+          input.addEventListener("blur",()=>done(true),{once:true});
+        }catch(error){editing=null;status.textContent=error.message;draw(current);}
+      })();
+    }
+    function closeMenu(){menu?.remove();menu=null;}
+    function showTypeMenu(event,{r,c,header=false}) {
+      if(busy||querying||!current)return;
+      event.preventDefault();closeMenu();
+      if(!header){
+        const range=bounds();
+        if(!range||r<range[0]||r>range[2]||c<range[1]||c>range[3])selectCell(r,c);
+      }
+      const origin=bounds()||[r,c,r,c];
+      const container=document.createElement("div");container.className="book-context-menu";
+      container.setAttribute("role","menu");container.setAttribute("aria-label","Tipo de dado");
+      const title=document.createElement("strong");
+      title.textContent=header?"Alterar tipo da coluna":"Alterar tipo da célula ou seleção";
+      container.append(title);
+      const scopes=document.createElement("div");scopes.style.display="flex";scopes.style.gap="3px";
+      scopes.style.flexWrap="wrap";
+      let scope=header?"column":"cell";
+      for(const [id,label] of [["cell","Célula"],["selection","Seleção"],["column","Coluna"]]){
+        if(header&&id!=="column")continue;
+        const button=document.createElement("button");button.type="button";
+        button.textContent=label;button.style.width="auto";button.style.fontWeight=id===scope?"bold":"normal";
+        button.addEventListener("click",()=>{
+          scope=id;
+          for(const b of scopes.querySelectorAll("button"))b.style.fontWeight=b===button?"bold":"normal";
+        });
+        scopes.append(button);
+      }
+      container.append(scopes);
+      for(const [kind,label] of typeNames){
+        const button=document.createElement("button");button.type="button";button.textContent=label;
+        button.addEventListener("click",()=>{
+          const data={operation:"type",id:list.value,scope,kind,column:scope==="selection"?origin[1]:c};
+          if(scope==="cell")data.row=r;
+          if(scope==="selection"){data.row=origin[0];data.last_row=origin[2];data.last_column=origin[3];}
+          closeMenu();
+          run(async()=>{
+            const result=await request("dataset",data);
+            await showPage(row,column);
+            status.textContent=result.updated+" célula(s) ou coluna(s) com tipo "+label+". Valores originais preservados.";
+          });
+        });
+        container.append(button);
+      }
+      const hint=document.createElement("small");
+      hint.textContent="Tipo sem conversão destrutiva · dados inválidos recebem indicação.";
+      container.append(hint);host.append(container);menu=container;
+      container.style.left=Math.max(7,Math.min(event.clientX||250,window.innerWidth-container.offsetWidth-8))+"px";
+      container.style.top=Math.max(7,Math.min(event.clientY||150,window.innerHeight-container.offsetHeight-8))+"px";
+      container.querySelector("button")?.focus();
+    }
+    table.addEventListener("click",event=>{
+      const cell=event.target.closest("[data-dataset-cell]");
+      if(cell&&!editing)selectCell(Number(cell.dataset.datasetRow),Number(cell.dataset.datasetCol),event.shiftKey);
+    },{signal});
+    table.addEventListener("dblclick",event=>{
+      const cell=event.target.closest("[data-dataset-cell]");
+      if(cell)editCell(cell);
+    },{signal});
+    table.addEventListener("contextmenu",event=>{
+      const header=event.target.closest("thead [data-dataset-col]"),
+        cell=event.target.closest("[data-dataset-cell]");
+      if(header)showTypeMenu(event,{r:row+1,c:Number(header.dataset.datasetCol),header:true});
+      else if(cell)showTypeMenu(event,{r:Number(cell.dataset.datasetRow),c:Number(cell.dataset.datasetCol)});
+    },{signal});
+    table.addEventListener("keydown",event=>{
+      const cell=event.target.closest("[data-dataset-cell]"),header=event.target.closest("thead [data-dataset-col]");
+      if(!cell&&!header)return;
+      const r=cell?Number(cell.dataset.datasetRow):row+1;
+      const c=Number((cell||header).dataset.datasetCol);
+      if(event.key==="F2"&&cell){event.preventDefault();editCell(cell);}
+      if(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")){
+        event.preventDefault();showTypeMenu(event,{r,c,header:!!header});
+      }
+      if((event.ctrlKey||event.metaKey)&&["z","y"].includes(event.key.toLowerCase())){
+        event.preventDefault();run(()=>undoEdit(event.key.toLowerCase()==="y"));
+      }
+    },{signal});
+    document.addEventListener("pointerdown",event=>{
+      if(menu&&!menu.contains(event.target))closeMenu();
+    },{signal});
+    host.addEventListener("keydown",event=>{
+      if(menu&&event.key==="Escape"){event.preventDefault();closeMenu();}
+    },{signal});
     host.addEventListener("click",event=>{
       const command=event.target.closest("[data-dataset-command]")?.dataset.datasetCommand;
       if(command==="new" || command==="append")run(()=>ingest(command==="append"));
