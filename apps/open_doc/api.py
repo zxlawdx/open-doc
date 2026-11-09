@@ -250,6 +250,22 @@ def workbook(context=None):
             from apps.open_doc.datasets.worksheet import WorksheetSnapshot
 
             return WorksheetSnapshot(data["columns"], data["rows"]).query(data["sql"])
+        if command == "from-query":
+            from apps.open_doc.datasets.worksheet import WorksheetSnapshot
+            from apps.open_doc.spreadsheets.store import empty_sheet
+
+            data_sheet = WorksheetSnapshot(data["columns"], data["rows"])
+            new_sheet = empty_sheet("Resultados SQL")
+            for col, name in enumerate(data_sheet.columns):
+                new_sheet["cells"][f"0,{col}"] = name
+                new_sheet["bold"].append(f"0,{col}")
+            for row, values in enumerate(data_sheet.rows, start=1):
+                for col, value in enumerate(values):
+                    if value:
+                        new_sheet["cells"][f"{row},{col}"] = (
+                            "'" + value if value.startswith(("=", "'")) else value
+                        )
+            return store.create("Resultado SQL", [new_sheet])
         if command == "new":
             return store.create()
         if command == "template":
