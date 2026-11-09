@@ -13,6 +13,7 @@
     let sqlEditor, pythonEditor, analysisLoading, analysisBusy=false, lastSchema;
     const undo=[], redo=[];
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
+    const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>book?.id,signal});
     const sheet=()=>book.sheets[index];
     const raw=()=>sheet().cells[key(row,col)] || "";
     const native=()=>window.pywebview.api;
