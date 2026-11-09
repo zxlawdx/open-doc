@@ -230,7 +230,11 @@
       }
       for(let r=top+1;includeRows&&r<=bottom;r++){
         const values=[];
-        for(let c=left;c<=right;c++)values.push(String(evaluateCell(index,r,c)));
+        for(let c=left;c<=right;c++){
+          const rawValue=evaluateCell(index,r,c);
+          const kind=typesUI.typeFor(sheet(),r,c);
+          values.push(typesUI.analysisValue(rawValue,kind));
+        }
         rows.push(values);
       }
       return {columns,rows};
