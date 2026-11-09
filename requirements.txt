@@ -20,3 +20,11 @@ Pillow>=10,<13
 fonttools>=4.55,<5
 
 python-pptx>=1.0,<2
+
+# XLSX interoperability (MIT).
+openpyxl>=3.1.5,<4
+# Harden XML parsing of imported spreadsheets (PSF-2.0).
+defusedxml==0.7.1
+
+# Python static completions for the integrated editor (MIT).
+jedi==0.19.2

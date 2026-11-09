@@ -1,0 +1,69 @@
+<section class="workbook" data-workbook hidden aria-label="Editor de planilhas">
+  <div class="workbook-toolbar">
+    <input data-book-title aria-label="Nome da planilha" maxlength="180">
+    <button type="button" data-book-command="save">Salvar</button>
+    <button type="button" data-action="template-save">Salvar como template</button>
+    <button type="button" data-book-command="undo">Desfazer</button>
+    <button type="button" data-book-command="redo">Refazer</button>
+    <button type="button" data-book-command="bold" aria-pressed="false"><strong>Negrito</strong></button>
+    <button type="button" data-book-command="append">Acrescentar CSV/TSV à aba</button>
+    <button type="button" data-book-command="versions">Histórico</button>
+    <label>Exportar <select data-book-format aria-label="Formato de exportação"><option>XLSX</option><option>CSV</option><option>TSV</option></select></label>
+    <button type="button" data-book-command="export">Exportar arquivo</button>
+  </div>
+  <div class="workbook-formula">
+    <input data-book-address aria-label="Endereço da célula">
+    <label for="workbook-formula">ƒx</label>
+    <input id="workbook-formula" data-book-formula aria-label="Valor ou fórmula da célula" autocomplete="off" maxlength="8192">
+  </div>
+  <div class="workbook-scroll" data-book-scroll tabindex="0" role="grid" aria-label="Células da planilha" aria-rowcount="10000" aria-colcount="100">
+    <div class="workbook-space" data-book-space></div>
+  </div>
+  <div class="workbook-tabs">
+    <div data-book-tabs role="group" aria-label="Abas da planilha"></div>
+    <button type="button" data-book-command="add" aria-label="Adicionar aba">+ Aba</button>
+    <button type="button" data-book-command="rename">Renomear aba</button>
+  </div>
+  <p data-book-status role="status" aria-live="polite"></p>
+</section>
+
+<section class="workbook dataset" data-dataset hidden aria-label="Área de dados">
+  <div class="workbook-toolbar">
+    <strong>Datasets locais</strong>
+    <select data-dataset-list aria-label="Dataset"></select>
+    <label>Codificação <select data-dataset-encoding><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
+    <label>Separador <select data-dataset-delimiter><option value="auto">Automático</option><option value=",">Vírgula</option><option value=";">Ponto e vírgula</option><option value="&#9;">Tabulação</option><option value="|">Barra vertical</option></select></label>
+    <button type="button" data-dataset-command="new">Novo dataset de CSV/TSV</button>
+    <button type="button" data-dataset-command="append">Acrescentar arquivos ao dataset</button>
+    <button type="button" data-dataset-command="export">Exportar dataset CSV</button>
+  </div>
+  <div class="workbook-toolbar" data-dataset-pagination>
+    <button type="button" data-dataset-command="previous">Linhas anteriores</button>
+    <button type="button" data-dataset-command="next">Próximas linhas</button>
+    <label>Linha <input data-dataset-row inputmode="numeric" size="8" value="1"></label>
+    <label>Coluna <input data-dataset-column inputmode="numeric" size="5" value="1"></label>
+    <button type="button" data-dataset-command="go">Ir para posição</button>
+  </div>
+  <div class="workbook-toolbar" data-dataset-query hidden>
+    <label>SQL <textarea data-dataset-sql aria-label="Editor SQL" rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
+    <button type="button" data-dataset-command="query">Executar SQL</button>
+    <button type="button" data-dataset-command="reset">Voltar à prévia</button>
+  </div>
+  <details class="dataset-python" data-dataset-python hidden>
+    <summary>Python local</summary>
+    <label for="dataset-python-code">Script Python · Ctrl+Enter para executar</label>
+    <textarea id="dataset-python-code" data-dataset-code aria-label="Editor Python" rows="7" maxlength="24000" spellcheck="false">import csv
+
+with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
+    linhas = csv.DictReader(arquivo)
+    print("Colunas:", linhas.fieldnames)
+    print("Total de registros:", sum(1 for _ in linhas))</textarea>
+    <output data-dataset-signature aria-live="polite"></output>
+    <button type="button" data-dataset-command="python">Executar Python</button>
+    <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
+  </details>
+  <div class="workbook-scroll" tabindex="0" aria-label="Prévia do dataset">
+    <table data-dataset-table></table>
+  </div>
+  <p data-dataset-status role="status" aria-live="polite"></p>
+</section>

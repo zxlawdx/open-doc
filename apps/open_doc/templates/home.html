@@ -27,6 +27,14 @@
       <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#pdf"></use></svg>
       <span>PDFs</span>
     </button>
+    <button type="button" data-library-route="xlsx">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#file-text"></use></svg>
+      <span>Planilhas</span>
+    </button>
+    <button type="button" data-action="datasets">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#file-text"></use></svg>
+      <span>Dados</span>
+    </button>
     <button type="button" data-library-route="templates">
       <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#folder-open"></use></svg>
       <span>Templates</span>
@@ -66,6 +74,8 @@
       <button type="button" data-library-route="docx">Documentos</button>
       <button type="button" data-library-route="pptx">Apresentações</button>
       <button type="button" data-library-route="pdf">PDFs</button>
+      <button type="button" data-library-route="xlsx">Planilhas</button>
+      <button type="button" data-action="datasets">Dados</button>
       <button type="button" data-library-route="templates">Templates</button>
     </nav>
     <section class="home-status-banner" data-library-privacy aria-label="Privacidade dos arquivos">
@@ -86,6 +96,7 @@
       <button type="button" data-library-filter="docx" aria-pressed="false"><span class="format-dot"></span>DOCX / ODT</button>
       <button type="button" data-library-filter="pdf" aria-pressed="false"><span class="format-dot"></span>PDF</button>
       <button type="button" data-library-filter="pptx" aria-pressed="false"><span class="format-dot"></span>PPTX / ODP</button>
+      <button type="button" data-library-filter="xlsx" aria-pressed="false"><span class="format-dot"></span>Planilhas</button>
       <button type="button" data-library-filter="md" aria-pressed="false"><span class="format-dot"></span>TXT / MD</button>
     </div>
 
@@ -93,7 +104,7 @@
       <button type="button" data-library-section="templates">Templates</button>
       <button type="button" data-library-section="recent">Recentes</button>
       <button type="button" data-library-section="imports">Importados</button>
-      <button type="button" data-import>Abrir ou importar</button>
+      <button type="button" data-import data-module-import>Abrir ou importar</button>
     </nav>
     <section data-template-section hidden aria-labelledby="template-title">
       <div class="recent-heading"><h2 id="template-title">Templates locais</h2><span>Crie uma cópia para editar</span></div>

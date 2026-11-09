@@ -54,6 +54,12 @@ jobs:
       - name: Actual Vela PyQt QtWebEngine
         shell: pwsh
         run: |
+          python -u tools/qa_workbook.py docs/images/workbook-mvp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_datasets.py docs/images/datasets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_template_previews.py docs/images/template-previews
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_version_history.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_math_visual.py
@@ -82,6 +88,9 @@ jobs:
         with:
           name: windows-qt-screenshots
           path: |
+            docs/images/workbook-mvp/
+            docs/images/datasets/
+            docs/images/template-previews/
             docs/images/stabilization/
             docs/images/ink/
             docs/images/math/
@@ -127,6 +136,9 @@ jobs:
           npm test
       - name: Actual Vela PyQt QtWebEngine
         run: |
+          python -u tools/qa_workbook.py docs/images/workbook-mvp
+          python -u tools/qa_datasets.py docs/images/datasets
+          python -u tools/qa_template_previews.py docs/images/template-previews
           python -u tools/qa_version_history.py
           python -u tools/qa_math_visual.py
           python -u tools/qa_pdf_native.py
@@ -143,6 +155,9 @@ jobs:
         with:
           name: linux-qt-screenshots
           path: |
+            docs/images/workbook-mvp/
+            docs/images/datasets/
+            docs/images/template-previews/
             docs/images/stabilization/
             docs/images/ink/
             docs/images/math/

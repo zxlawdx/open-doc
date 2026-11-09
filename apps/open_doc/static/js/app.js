@@ -10,6 +10,7 @@
   window.OpenDocApp?.destroy();
   const scriptUrl = document.currentScript.src;
   const controller = new AbortController(), signal = controller.signal;
+  let workbook, datasets;
   let editor, theme, layout, navigation, menus, design, token = '', destroyed = false, busy = false;
   let settings = {}, preferenceChain = Promise.resolve();
   let dialogResolver = null, dialogFocus = null, noticeTimer;
@@ -109,7 +110,11 @@
     catch (error) { collapsed(previous); status(error.message); }
   }
   function showView(home = false) {
-    const wasHome = root.dataset.homeView === 'true';
+    const wasHome = root.dataset.homeView === 'true' && root.dataset.workbookView !== 'true';
+    root.dataset.workbookView = 'false';
+    root.dataset.datasetView = 'false';
+    root.querySelector('[data-dataset]').hidden = true;
+    root.querySelector('[data-workbook]').hidden = true;
     root.dataset.homeView = String(home);
     root.querySelector('[data-library]').hidden = !home;
     root.querySelector('[data-document-body]').hidden = home || root.dataset.documentKind==='fixed';
@@ -147,6 +152,7 @@
         const name = document.createElement(editable ? 'button' : 'span'); name.className='library-file-title'; name.textContent = notes ? file.title : file.name; name.title=name.textContent;
         if (editable) name.addEventListener('click', () => operate(async () => {
           await editor.flush();
+          if (file.source_kind === 'xlsx' || file.workbook) return openWorkbook({operation:'open', id:file.id});
           editor.load(await request('document/open', notes ? {id: file.id} : {path: file.path}));
           showView(false);
         }), {signal});
@@ -155,7 +161,7 @@
         info.append(name, date);
         const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? (file.source_kind==='pptx'?'Apresentação local':file.source_kind==='pdf'?'PDF local':'Documento local') : file.type.toUpperCase();
         row.append(icon, info, kind);
-        if(notes){const details=document.createElement('details'),summary=document.createElement('summary');details.className='library-file-actions';summary.textContent='⋯';summary.setAttribute('aria-haspopup','menu');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);const menu=document.createElement('div');menu.className='document-action-menu';menu.setAttribute('role','menu');details.appendChild(menu);
+        if(notes && file.source_kind !== 'xlsx'){const details=document.createElement('details'),summary=document.createElement('summary');details.className='library-file-actions';summary.textContent='⋯';summary.setAttribute('aria-haspopup','menu');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);const menu=document.createElement('div');menu.className='document-action-menu';menu.setAttribute('role','menu');details.appendChild(menu);
           for(const [operation,label] of [['rename','Renomear'],['duplicate','Duplicar'],['delete','Excluir']]){const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');if(operation==='delete'){button.className='danger-action';menu.appendChild(document.createElement('hr'));}button.addEventListener('click',()=>operate(async()=>{
             await editor.flush();let payload={id:file.id,revision:file.id===editor.snapshot().id?editor.snapshot().revision:file.revision};
             if(operation==='rename'){const value=await dialog('Renomear documento','Informe o novo título.',true);if(!value)return;payload.title=value;}
@@ -170,8 +176,42 @@
     renderTemplates(data.templates || []);
     design?.refreshLibrary();
   }
+  let previewObserver, previewDisposers = [], previewScript, previewRequests = new Map();
+  async function paintTemplate(target, template, width) {
+    try {
+      if (!previewScript) previewScript = (async()=>{
+        if (!window.OpenDocTemplatePreview) await loadScript('template_preview.js');
+        if (!window.OpenDocWorkbookFormula) await loadScript('workbook_formula.js');
+      })().catch(error=>{previewScript=null;throw error;});
+      await previewScript;
+      if (!previewRequests.has(template.id)) {
+        previewRequests.set(template.id, request('template/preview',{id:template.id})
+          .finally(()=>previewRequests.delete(template.id)));
+      }
+      const value = await previewRequests.get(template.id);
+      if (!target.isConnected || destroyed) return;
+      const dispose = await window.OpenDocTemplatePreview.render(target,value,{
+        width,request,asset:name=>new URL(name,scriptUrl).href
+      });
+      if (dispose) {
+        if (target.isConnected && !destroyed) previewDisposers.push(dispose);
+        else dispose();
+      }
+    } catch (error) {
+      target.textContent = 'Prévia indisponível. '+error.message;
+    }
+  }
   function renderTemplates(templates) {
     const grid = root.querySelector('[data-templates]');
+    previewObserver?.disconnect();
+    for (const dispose of previewDisposers.splice(0)) dispose();
+    previewObserver = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries=>{
+      for (const entry of entries) if (entry.isIntersecting) {
+        previewObserver.unobserve(entry.target);
+        const card=entry.target.closest('[data-template-id]');
+        paintTemplate(entry.target,{id:card.dataset.templateId}, Number(entry.target.dataset.previewWidth));
+      }
+    }) : null;
     grid.replaceChildren();
     const categories = root.querySelector('[data-template-category]');
     const previous = categories.value;
@@ -191,14 +231,8 @@
       const preview = document.createElement('span');
       preview.className = 'template-preview';
       preview.setAttribute('aria-hidden', 'true');
-      const heading = document.createElement('strong');
-      heading.textContent = template.title;
-      preview.append(heading);
-      for (const [section] of template.sections.slice(0, 3)) {
-        const line = document.createElement('span');
-        line.textContent = section;
-        preview.append(line);
-      }
+      preview.textContent = 'Prévia visual';
+      preview.dataset.previewWidth = ['docx','pdf'].includes(template.format) ? '100' : '220';
       const title = document.createElement('strong');
       title.textContent = template.title;
       const meta = document.createElement('small');
@@ -208,30 +242,81 @@
         const confirm = root.querySelector('[data-dialog-confirm]');
         const label = confirm.textContent;
         const decision = dialog(template.title, meta.textContent);
-        const list = document.createElement('ul');
-        for (const [section, text] of template.sections) {
-          const item = document.createElement('li');
-          const title = document.createElement('strong');
-          title.textContent = section + ' · ';
-          item.append(title, text);
-          list.append(item);
-        }
-        root.querySelector('[data-dialog-body]').append(list);
+        const visual = document.createElement('div');
+        visual.className = 'template-preview template-preview-expanded';
+        visual.textContent = 'Renderizando prévia…';
+        root.querySelector('[data-dialog-body]').append(visual);
+        if (typeof IntersectionObserver === 'function') paintTemplate(visual,template,360);
+        else visual.textContent = template.sections.map(([,text])=>text).join(' · ');
         confirm.textContent = 'Usar template';
         const accepted = await decision;
         confirm.textContent = label;
         if (!accepted) return;
         await editor.flush();
-        editor.load(await request('document/template', {id: template.id}));
+        if (template.format === 'xlsx' && template.id.startsWith('sheet-')) return openWorkbook({operation:'template', template:template.id});
+        const copy = await request('document/template', {id: template.id});
+        if (template.format === 'xlsx') return openWorkbook(null,copy);
+        editor.load(copy);
         showView(false);
         status('Cópia criada a partir do template.');
       }), {signal});
       grid.append(card);
+      previewObserver?.observe(preview);
     }
   }
   function libraryRoute(route = 'home', section) {
     showView(true);
     design?.navigateLibrary(route, section);
+  }
+  async function openDatasets() {
+    await editor.flush();
+    const host = root.querySelector('[data-dataset]');
+    if (!datasets) {
+      if (!window.OpenDocCodeVendor) await loadScript('vendor/code-editor.bundle.js');
+      if (!window.OpenDocCodeEditor) await loadScript('code_editor.js');
+      if (!window.OpenDocDatasets) await loadScript('datasets.js');
+      datasets = window.OpenDocDatasets.create({host,request,signal});
+    }
+    showView(true);
+    root.dataset.datasetView = 'true';
+    root.querySelector('[data-library]').hidden = true;
+    host.hidden = false;
+    await datasets.load();
+  }
+  async function openWorkbook(data, existing) {
+    await editor.flush();
+    const host = root.querySelector('[data-workbook]');
+    if (!workbook) {
+      if (!window.OpenDocWorkbookFormula) await loadScript('workbook_formula.js');
+      if (!window.OpenDocWorkbook) await loadScript('workbook.js');
+      workbook = window.OpenDocWorkbook.create({host,request,dialog,signal});
+    }
+    const value = existing || (data ? await request('workbook',data) : await window.pywebview.api.import_workbook());
+    if (value.error) throw Error(value.error);
+    if (value.cancelled) return;
+    showView(true);
+    root.dataset.workbookView = 'true';
+    root.querySelector('[data-library]').hidden = true;
+    host.hidden = false;
+    workbook.load(value);
+  }
+  async function saveTemplate(fromWorkbook=false) {
+    if (fromWorkbook) await workbook.save();
+    else await editor.flush();
+    const title=await dialog('Salvar como template','Informe o nome do modelo pessoal.',true);
+    if (!title) return;
+    await request('template/save',{id:fromWorkbook ? workbook.id() : editor.snapshot().id,
+      title,workbook:fromWorkbook});
+    if (fromWorkbook) workbook.report('Template salvo em Meus templates.');
+    else status('Template salvo em Meus templates.');
+  }
+  async function leaveWorkbook() {
+    try {
+      await workbook.save();
+      libraryRoute('xlsx','recent');
+    } catch (error) {
+      workbook.report(error.message);
+    }
   }
   async function newDocument() {
     await editor.flush(); editor.load(await request('document/new', {title: 'Documento sem título'}));
@@ -323,6 +408,16 @@
   }
   async function action(name) {
     if (!editor) return;
+    if (root.dataset.datasetView === 'true') {
+      if (name === 'home') return libraryRoute();
+      return;
+    }
+    if (root.dataset.workbookView === 'true') {
+      if (name === 'home') return leaveWorkbook();
+      if (name === 'template-save') return operate(()=>saveTemplate(true));
+      if (name === 'save') return workbook.save().catch(error=>workbook.report(error.message));
+      return;
+    }
     const operations = {
       'page-break':()=>editor.insertPage('break'), 'blank-page':()=>editor.insertPage('below'),
       'page-setup':pageSetupDialog,
@@ -343,6 +438,10 @@
 
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
       home: () => libraryRoute(),
+      datasets: () => operate(openDatasets),
+      'template-save': () => operate(()=>saveTemplate()),
+      'workbook-new': () => operate(()=>openWorkbook({operation:'new'})),
+      'workbook-import': () => operate(()=>openWorkbook()),
       'resume-editor': () => showView(false),
       'library-recent':()=>libraryRoute('home','recent'),
       'library-files':()=>libraryRoute('home','imports'),
@@ -439,10 +538,12 @@
   }
   const page = {
     destroy() {
+      previewObserver?.disconnect();
+      for (const dispose of previewDisposers.splice(0)) dispose();
       editor?.destroy(); design?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
       if (dialogResolver) closeDialog();
     },
-    action, showHome: () => libraryRoute(), editor: () => editor,
+    action, showHome: () => action('home'), editor: () => editor,
     failures, theme: () => theme, layout: () => layout, refresh, status
   };
   window.OpenDocApp = page;
@@ -546,7 +647,7 @@
       if(!event.repeat)action('save');
     },{capture:true,signal});
     window.addEventListener('keydown', event => {
-      if (!(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
+      if (root.dataset.datasetView === 'true' || root.dataset.workbookView === 'true' || !(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
       const name = ({n: 'new', o: 'import', f: 'find'})[event.key.toLowerCase()];
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='h') {event.preventDefault();action('replace');return;}
       if (name) { event.preventDefault(); action(name); }

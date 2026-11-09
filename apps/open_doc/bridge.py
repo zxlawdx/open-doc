@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from subprocess import SubprocessError
+from threading import Lock
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ class OpenDocBridge(BaseBridge):
     def __init__(self, router: Any = None, config: dict[str, Any] | None = None) -> None:
         super().__init__(router=router, config=config)
         self._window: Any = None
+        self._dataset_python_lock = Lock()
 
     @property
     def _documents(self):
@@ -108,6 +110,131 @@ class OpenDocBridge(BaseBridge):
             return {
                 "error": "Não foi possível abrir/importar este documento. O arquivo original foi preservado."
             }
+
+    def import_dataset(self, identifier, encoding, delimiter):
+        import sqlite3
+        import webview
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        paths = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=True,
+            file_types=("Dados tabulares (*.csv;*.tsv)",),
+        )
+        if not paths:
+            return {"cancelled": True}
+        try:
+            return get_context().datasets.import_files(
+                paths, identifier, encoding=encoding, delimiter=delimiter
+            )
+        except (ValueError, OSError) as error:
+            return {"error": str(error)}
+        except sqlite3.Error:
+            LOGGER.exception("Falha ao gravar dataset")
+            return {"error": "Não foi possível gravar os dados. Verifique o espaço e tente novamente."}
+
+    def export_dataset(self, identifier, title):
+        import sqlite3
+        import webview
+        from apps.open_doc.datasets.python_runner import export_csv
+        from apps.open_doc.services.export_service import safe_stem
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        try:
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE, save_filename=f"{safe_stem(title)}.csv",
+                file_types=("Dados CSV (*.csv)",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            return export_csv(get_context().datasets, identifier, paths if isinstance(paths, str) else paths[0])
+        except (ValueError, OSError, sqlite3.Error) as error:
+            return {"error": str(error)}
+
+    def run_dataset_python(self, identifier, code):
+        import sqlite3
+        from apps.open_doc.datasets.python_runner import run_python
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        if getattr(sys, "frozen", False):
+            return {"error": "Abra o Open Doc pelo Python para executar scripts nesta versão."}
+        if not self._dataset_python_lock.acquire(blocking=False):
+            return {"error": "Uma execução Python já está em andamento."}
+        try:
+            if not self._window.create_confirmation_dialog(
+                "Executar Python local",
+                "Execute apenas código em que você confia. O script terá acesso aos arquivos "
+                "e à rede com as permissões da sua conta. Executar agora?",
+            ):
+                return {"cancelled": True}
+            return run_python(get_context().datasets, identifier, code)
+        except (ValueError, OSError, sqlite3.Error) as error:
+            return {"error": str(error)}
+        finally:
+            self._dataset_python_lock.release()
+
+    def import_workbook(self):
+        import csv
+        import webview
+        from apps.open_doc.spreadsheets.files import read
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        paths = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=False,
+            file_types=("Planilhas (*.xlsx;*.csv;*.tsv)",),
+        )
+        if not paths:
+            return {"cancelled": True}
+        try:
+            source = Path(paths[0])
+            return get_context().workbooks.create(source.stem, read(source), imported=True)
+        except (ValueError, OSError, csv.Error) as error:
+            return {"error": str(error)}
+        except Exception:
+            LOGGER.exception("Falha de importação de planilha")
+            return {"error": "Não foi possível ler a planilha."}
+
+    def append_workbook_csv(self, sheets, index):
+        import csv
+        import webview
+        from apps.open_doc.spreadsheets.files import append_delimited
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        paths = self._window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=False,
+            file_types=("Dados tabulares (*.csv;*.tsv)",),
+        )
+        if not paths:
+            return {"cancelled": True}
+        try:
+            return append_delimited(sheets, index, Path(paths[0]))
+        except (ValueError, OSError, csv.Error) as error:
+            return {"error": str(error)}
+
+    def export_workbook(self, identifier, revision, fmt, sheet_index):
+        import webview
+        from apps.open_doc.spreadsheets.files import FORMATS, export
+        from apps.open_doc.services.export_service import safe_stem
+
+        if self._window is None or fmt not in FORMATS:
+            return {"error": "Janela ou formato indisponível."}
+        try:
+            book = get_context().workbooks.get(identifier)
+            if book["revision"] != revision:
+                raise ValueError("A planilha foi alterada em outra janela.")
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE, save_filename=f"{safe_stem(book['title'])}.{fmt}",
+                file_types=(f"Planilha (*.{fmt})",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            return export(book["sheets"], paths if isinstance(paths, str) else paths[0], fmt, sheet_index)
+        except (ValueError, OSError) as error:
+            return {"error": str(error)}
 
     def get_font_catalog(self):
         return self._documents.font_catalog()

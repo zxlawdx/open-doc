@@ -27,7 +27,8 @@ def test_template_library_creates_independent_native_copies(tmp_path, monkeypatc
     endpoint = "/api/open_doc/document/template"
 
     assert context.documents.bootstrap()["start_in_library"] is True
-    catalog = client.get("/api/open_doc/files").json["templates"]
+    all_templates = client.get("/api/open_doc/files").json["templates"]
+    catalog = [template for template in all_templates if template["format"] != "xlsx"]
     assert {template["format"] for template in catalog} == {"docx", "pptx", "pdf"}
     client.post_json(endpoint, {"id": "field-report"}, status=403)
     client.post_json(endpoint, {"id": "../../file"}, headers=headers, status=400)
@@ -62,6 +63,6 @@ def test_template_library_creates_independent_native_copies(tmp_path, monkeypatc
             assert template["title"] in PdfReader(destination.with_suffix(".pdf")).pages[0].extract_text()
 
     library = client.get("/api/open_doc/files").json
-    assert library["templates"] == catalog
+    assert library["templates"] == all_templates
     assert not library["files"]
     assert created <= {document["id"] for document in library["documents"]}

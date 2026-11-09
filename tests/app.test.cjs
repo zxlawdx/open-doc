@@ -7,7 +7,7 @@ const {JSDOM} = require('jsdom');
 const base = path.resolve(__dirname, '..');
 async function mount(t, brokenNavigation = false, startInLibrary = false) {
   const template = fs.readFileSync(path.join(base, 'apps/open_doc/templates/base.html'), 'utf8')
-    .replace(/{{ (menus|toolbar|sidebar|editor|home) }}/g, (_, name) => fs.readFileSync(path.join(base, 'apps/open_doc/templates/' + name + '.html'), 'utf8'));
+    .replace(/{{ (menus|toolbar|sidebar|editor|home|workbook) }}/g, (_, name) => fs.readFileSync(path.join(base, 'apps/open_doc/templates/' + name + '.html'), 'utf8'));
   const dom = new JSDOM(template, {url: 'http://localhost', runScripts: 'outside-only'});
   const w = dom.window, root = w.document.querySelector('[data-app]');
   delete w.Element.prototype.replaceChildren;

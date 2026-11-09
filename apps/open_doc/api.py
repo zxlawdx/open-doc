@@ -237,3 +237,70 @@ def artifact_content(request: Request) -> Response:
         )
     except (OSError, ValueError, KeyError):
         return Response("Documento indisponível.", status=404, content_type="text/plain")
+
+@api.post("/open_doc/workbook")
+def workbook(context=None):
+    def operation():
+        from apps.open_doc.spreadsheets import templates
+
+        data = _data(context)
+        store = get_context().workbooks
+        command = data["operation"]
+        if command == "new":
+            return store.create()
+        if command == "template":
+            return templates.create(store, data["template"])
+        if command == "open":
+            return store.get(data["id"])
+        if command == "versions":
+            return {"versions": store.versions(data["id"])}
+        if command == "restore":
+            return store.save(data["id"], data["revision"], None, None, restore=data["version"])
+        if command == "save":
+            return store.save(data["id"], data["revision"], data["title"], data["sheets"])
+        raise ValueError("Operação de planilha inválida.")
+
+    return _handle(operation)
+
+
+@api.post("/open_doc/dataset")
+def dataset(context=None):
+    def operation():
+        data = _data(context)
+        store = get_context().datasets
+        if data["operation"] == "list":
+            return {"datasets": store.list()}
+        if data["operation"] == "page":
+            return store.page(data["id"], data["row"], data["column"])
+        if data["operation"] == "columns":
+            return {"columns": store.columns(data["id"])}
+        if data["operation"] == "query":
+            return store.query(data["id"], data["sql"])
+        raise ValueError("Operação de dataset inválida.")
+
+    return _handle(operation)
+
+
+@api.post("/open_doc/template/preview")
+def template_preview(context=None):
+    return _handle(lambda: get_context().templates.preview(_data(context)["id"]))
+
+
+@api.post("/open_doc/template/save")
+def template_save(context=None):
+    def operation():
+        data = _data(context)
+        return get_context().templates.save(data["id"], data["title"], data.get("workbook") is True)
+
+    return _handle(operation)
+
+
+@api.post("/open_doc/dataset/python-analysis")
+def dataset_python_analysis(context=None):
+    from apps.open_doc.datasets.python_analysis import analyze
+
+    def operation():
+        data = _data(context)
+        return analyze(data["code"], data["line"], data["column"], data["operation"])
+
+    return _handle(operation)

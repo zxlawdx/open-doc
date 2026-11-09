@@ -28,7 +28,7 @@ def main():
             js(f"document.querySelector({json.dumps(selector)}).click()")
 
         try:
-            wait(window, "document.querySelectorAll('[data-template-id]').length === 5")
+            wait(window, "document.querySelectorAll('[data-template-id]').length === 10")
             assert js("document.querySelector('[data-app]').dataset.homeView === 'true'")
             capture(output, "central")
             for route, template, kind in (
