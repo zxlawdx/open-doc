@@ -443,12 +443,26 @@
         const now=Date.now(), double=lastClick?.id===id && now-lastClick.time<350;
         lastClick=double ? null : {id,time:now};
         select(...id.split(",").map(Number),event.shiftKey);viewport.focus();
-        if(double)editInline();
+        if(double){
+          if(sheet().pivot&&Number(id.split(",")[0])>0&&Number(id.split(",")[1])>0) {
+            togglePivot(true);pivotUI.drillAt(id);
+          }else editInline();
+        }
       }
     },{signal});
     viewport.addEventListener("dblclick",event=>{
       const cell=event.target.closest("[data-cell]");
-      if(cell&&inline.hidden){select(...cell.dataset.cell.split(",").map(Number));editInline();}
+      if(cell&&inline.hidden){
+        select(...cell.dataset.cell.split(",").map(Number));
+        if(sheet().pivot){
+          const [r,c]=cell.dataset.cell.split(",").map(Number);
+          if(r>0&&c>0) {
+            if(!pivotUI.isOpen())togglePivot(true);
+            pivotUI.drillAt(cell.dataset.cell);return;
+          }
+        }
+        editInline();
+      }
     },{signal});
     inline.addEventListener("blur",()=>finishInline(),{signal});
     inline.addEventListener("input",()=>native().set_dirty?.(true),{signal});
@@ -486,7 +500,11 @@
       if(!cell&&!heading)return;
       event.preventDefault();finishInline();commit();
       let r=row,c=col;
-      if(cell){[r,c]=cell.dataset.cell.split(",").map(Number);select(r,c);}
+      if(cell){
+        [r,c]=cell.dataset.cell.split(",").map(Number);
+        const extent=bounds();
+        if(r<extent[0]||r>extent[2]||c<extent[1]||c>extent[3])select(r,c);
+      }
       if(heading)c=Number(heading.dataset.bookCol);
       typesUI.open({event,row:r,col:c,header:!!heading});
     },{signal});
