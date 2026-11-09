@@ -91,11 +91,12 @@ def test_startup_opens_associated_document_preserving_original(tmp_path, extensi
         presentation.save(original)
     before = original.read_bytes()
 
-    create_app(Config(tmp_path / "workspace"), startup_path=original)
+    create_app(Config(tmp_path / "workspace"), startup_path=original, start_in_library=True)
     bootstrap = get_context().documents.bootstrap()
     assert bootstrap["document"]["source_kind"] == extension[1:]
     assert bootstrap["document"]["title"] == original.stem
     assert bootstrap["startup_error"] is None
+    assert bootstrap["start_in_library"] is False
     assert original.read_bytes() == before
 
 

@@ -26,6 +26,7 @@ class ApplicationContext:
     handwriting: Any
     documents: Any = None
     assets: Any = None
+    start_in_library: bool = False
     startup_error: str | None = None
 
 

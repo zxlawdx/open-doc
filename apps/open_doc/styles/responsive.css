@@ -306,6 +306,7 @@
 @media(max-width:720px){
   .open-doc .home{display:block}
   .open-doc .home-side-nav{display:none}
+  .open-doc .home-mobile-modules{display:flex}
   .open-doc .home-inner{width:calc(100% - 28px)}
 }
 

@@ -149,8 +149,8 @@ class FixedDocumentService:
         self.activate(note["source_kind"], identifier)
         return note
 
-    def create_presentation(self, title="Nova apresentação"):
-        """Create a real, valid blank PPTX and a separately editable slide model.
+    def create_presentation(self, title="Nova apresentação", *, deck=None):
+        """Create a native PPTX and a separately editable slide model.
 
         The source file remains immutable. All subsequent slide edits are
         stored in the validated fixed-document JSON and exported to PPTX.
@@ -165,10 +165,12 @@ class FixedDocumentService:
         os.close(fd)
         temporary = Path(name)
         try:
-            deck = Presentation()
-            deck.slide_width = Inches(13.333)
-            deck.slide_height = Inches(7.5)
-            deck.slides.add_slide(deck.slide_layouts[6])
+            blank = deck is None
+            if blank:
+                deck = Presentation()
+                deck.slide_width = Inches(13.333)
+                deck.slide_height = Inches(7.5)
+                deck.slides.add_slide(deck.slide_layouts[6])
             deck.save(temporary)
             note = self.import_pptx(temporary)
             model = json.loads(json.dumps(note["content"]))
@@ -179,11 +181,12 @@ class FixedDocumentService:
             for surface in model["surfaces"]:
                 surface.pop("source_slide_index", None)
                 surface.pop("source_background", None)
-                surface["elements"] = []
-                surface["background"] = "#FFFFFF"
+                if blank:
+                    surface["elements"] = []
+                    surface["background"] = "#FFFFFF"
                 surface["notes"] = ""
             # Only this trusted server-side creation path can mark the source
-            # as an editable blank deck; regular imports remain immutable.
+            # as an editable new deck; regular imports remain immutable.
             with self.documents._lock, self.documents._connect() as connection:
                 connection.execute(
                     "UPDATE fixed_documents SET title=?,content_json=? WHERE id=?",

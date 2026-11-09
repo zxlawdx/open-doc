@@ -17,11 +17,16 @@
     return icon;
   }
 
+  const ROUTE_TITLES = {docx:"Documentos", pptx:"Apresentações", pdf:"PDFs", templates:"Templates"};
+  const fileSections = {recent:"[data-library-recent]", imports:"[data-library-imports]"};
+
   class LibraryView {
     constructor(root,signal) {
-      this.root=root;this.signal=signal;this.filter="all";
+      this.root=root;this.signal=signal;this.filter="all";this.route="home";this.section="all";
       this.search=root.querySelector("[data-library-search]");
       this.empty=root.querySelector("[data-filter-empty]");
+      this.category=root.querySelector("[data-template-category]");
+      this.category.addEventListener("change",()=>this.refresh(),{signal});
       this.search?.addEventListener("input",()=>this.refresh(),{signal});
       root.querySelector("[data-search-clear]")?.addEventListener("click",()=>{
         this.search.value="";this.search.focus();this.refresh();
@@ -33,27 +38,59 @@
           this.refresh();
         },{signal});
       });
-      root.querySelectorAll("[data-library-nav]").forEach(button=>{
+      root.querySelectorAll("[data-library-route],[data-library-section],[data-library-nav]").forEach(button=>{
         button.addEventListener("click",()=>{
-          const target=button.dataset.libraryNav;
-          const section=target==="recent"?root.querySelector("[data-library-recent]"):
-            target==="files"?root.querySelector("[data-library-imports]"):root.querySelector("[data-library]");
-          section?.scrollIntoView?.({block:"start",behavior:"smooth"});
-          root.querySelectorAll("[data-library-nav]").forEach(item=>{
-            if(item===button)item.setAttribute("aria-current","page");
-            else item.removeAttribute("aria-current");
-          });
+          const {libraryRoute, librarySection, libraryNav} = button.dataset;
+          if (libraryRoute) this.navigate(libraryRoute);
+          else if (librarySection) this.navigate(this.route, librarySection);
+          else this.navigate("home", {recent:"recent",files:"imports"}[libraryNav]);
         },{signal});
       });
     }
+    navigate(route, section = route === "home" ? "all" : "templates"){
+      this.route=route;
+      this.section=section;
+      this.filter="all";
+      this.category.value="";
+      const scoped=route in ICON_BY_FORMAT;
+      const root=this.root;
+      root.querySelector("[data-library]").dataset.route=route;
+      const heading=root.querySelector("[data-library-heading]");
+      heading.textContent=ROUTE_TITLES[route] || "Seus documentos, seu espaço.";
+      const primary=root.querySelector("[data-library-primary]");
+      primary.hidden=route==="templates";
+      primary.dataset.action={pdf:"import",pptx:"presentation-new"}[route] || "new";
+      primary.lastChild.textContent={pdf:" Abrir ou importar PDF",pptx:" Nova apresentação"}[route] || " Novo documento";
+      root.querySelector("[data-module-nav]").hidden=!scoped;
+      root.querySelector(".home-filters").hidden=scoped;
+      const overview=route==="home" && section==="all";
+      root.querySelector("[data-library-quick]").hidden=!overview;
+      root.querySelector("[data-library-privacy]").hidden=!overview;
+      for(const button of root.querySelectorAll("[data-library-route],[data-library-section],[data-library-nav],.home-side-nav [data-action]")){
+        const {libraryRoute,librarySection,libraryNav,action}=button.dataset;
+        const homeSection=libraryNav || {"library-recent":"recent","library-files":"files",home:"home"}[action];
+        const current=libraryRoute===route || librarySection===section ||
+          (route==="home" && homeSection==={recent:"recent",imports:"files",all:"home"}[section]);
+        if(current) button.setAttribute("aria-current","page");
+        else button.removeAttribute("aria-current");
+      }
+      for(const button of root.querySelectorAll("[data-library-filter]")){
+        button.setAttribute("aria-pressed",String(button.dataset.libraryFilter==="all"));
+        button.hidden=route==="templates" && button.dataset.libraryFilter==="md";
+      }
+      root.querySelector("[data-library]").scrollTop=0;
+      this.refresh();
+    }
     refresh(){
-      const entries=Array.from(this.root.querySelectorAll("[data-documents] > .library-row,[data-files] > .library-row"));
+      const filter=this.route in ICON_BY_FORMAT ? this.route : this.filter;
       const query=(this.search?.value||"").trim().toLocaleLowerCase("pt-BR");
+      const matches=(format,text)=>(filter==="all" || format===filter) &&
+        (!query || text.toLocaleLowerCase("pt-BR").includes(query));
+      const entries=Array.from(this.root.querySelectorAll("[data-documents] > .library-row,[data-files] > .library-row"));
       for(const row of entries){
         const format=normalizedFormat(row.dataset.fileFormat);
         const title=row.querySelector(".library-file-title")?.textContent||"";
-        const show=(this.filter==="all" || format===this.filter) && (!query||title.toLocaleLowerCase("pt-BR").includes(query));
-        row.hidden=!show;
+        row.hidden=!matches(format,title+" "+row.dataset.fileFormat+" "+format);
         const icon=row.querySelector(".library-file-icon");
         if(icon&&!icon.dataset.enhanced){
           const mark=icon.textContent.trim();
@@ -66,16 +103,30 @@
           actions.textContent="";actions.append(localIcon(this.root,"more"));actions.dataset.enhanced="true";
         }
       }
+      const cards=Array.from(this.root.querySelectorAll("[data-template-id]"));
+      for(const card of cards){
+        card.hidden=!matches(card.dataset.fileFormat,card.dataset.search) ||
+          (this.category.value!=="" && this.category.value!==card.dataset.category);
+      }
+      const gallery=this.root.querySelector("[data-template-section]");
+      gallery.hidden=this.section!=="templates";
+      this.search.placeholder=gallery.hidden ? "Buscar arquivos por nome ou formato…" : "Buscar templates por nome, formato ou categoria…";
       const count=this.root.querySelector("[data-library-count]");
-      if(count) count.textContent=String(entries.length);
-      if(this.empty)this.empty.hidden=!(entries.length>0 && !entries.some(row=>!row.hidden));
-      for(const section of [this.root.querySelector("[data-library-recent]"),this.root.querySelector("[data-library-imports]")]){
+      if(count) count.textContent=String(gallery.hidden ? entries.length : cards.length);
+      let visible=gallery.hidden ? 0 : cards.filter(card=>!card.hidden).length;
+      let total=gallery.hidden ? 0 : cards.length;
+      for(const [name,selector] of Object.entries(fileSections)){
+        const section=this.root.querySelector(selector);
         if(!section)continue;
-        const list=section.querySelector(".document-list");
-        const hasEntries=list?.querySelector(".library-row");
-        const visible=Array.from(list?.querySelectorAll(".library-row")||[]).some(row=>!row.hidden);
-        // Keep the real empty state visible when the library has no records.
-        section.hidden=Boolean(hasEntries && !visible);
+        const active=this.section==="all" || this.section===name;
+        const rows=Array.from(section.querySelectorAll(".library-row"));
+        const found=rows.filter(row=>!row.hidden).length;
+        section.hidden=!active || (rows.length>0 && found===0);
+        if(active){visible+=found;total+=rows.length;}
+      }
+      if(this.empty){
+        this.empty.textContent=gallery.hidden ? "Nenhum arquivo corresponde à pesquisa." : "Nenhum template corresponde à pesquisa.";
+        this.empty.hidden=!(total>0 && visible===0);
       }
     }
     focusSearch(){this.search?.focus();}
@@ -169,6 +220,7 @@
       this.quickCreate=new QuickCreateMenu(root,signal);
       this.chrome=new DocumentChrome(root,action,signal);
     }
+    navigateLibrary(route,section){this.library.navigate(route,section);}
     refreshLibrary(){this.library.refresh();}
     sync(){this.chrome.sync();}
     destroy(){this.chrome.destroy();}

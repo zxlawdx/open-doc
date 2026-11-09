@@ -80,6 +80,11 @@ def new_document(context=None):
     return _handle(lambda: _documents().create(_data(context)))
 
 
+@api.post("/open_doc/document/template")
+def template_document(context=None):
+    return _handle(lambda: _documents().create_from_template(_data(context)["id"]))
+
+
 @api.post("/open_doc/document/open")
 def open_document(context=None):
     return _handle(lambda: _documents().open(_data(context)))
