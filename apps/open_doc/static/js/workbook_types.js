@@ -148,7 +148,7 @@
       if(menu&&!menu.contains(event.target))close();
     },{signal});
     host.addEventListener("keydown",event=>{if(event.key==="Escape"&&menu){event.stopPropagation();close();}},{signal});
-    return {open,close,typeFor,show,symbols};
+    return {open,close,typeFor,show,analysisValue,symbols};
   }
   const api={create,typeFor,show,analysisValue,symbols};
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
