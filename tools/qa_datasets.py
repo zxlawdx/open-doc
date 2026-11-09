@@ -107,6 +107,12 @@ def main():
                   cell.focus();
                   cell.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}));
                 })()""")
+                wait(window, "document.querySelector('thead [data-dataset-col=\"0\"]')?.classList.contains('dataset-typed')===false")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.focus();
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'z',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
                 wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='001'")
                 window.evaluate_js("""(() => {
                   const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
@@ -114,6 +120,12 @@ def main():
                   cell.dispatchEvent(new KeyboardEvent('keydown',{key:'y',ctrlKey:true,bubbles:true,cancelable:true}));
                 })()""")
                 wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
+                  cell.focus();
+                  cell.dispatchEvent(new KeyboardEvent('keydown',{key:'y',ctrlKey:true,bubbles:true,cancelable:true}));
+                })()""")
+                wait(window, "document.querySelector('thead [data-dataset-col=\"0\"]')?.classList.contains('dataset-typed')")
                 capture(output, "inline-and-types")
                 window.evaluate_js("""(() => {
                   const cell=document.querySelector('[data-dataset-cell][data-dataset-row="1"][data-dataset-col="0"]');
