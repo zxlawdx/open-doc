@@ -277,6 +277,8 @@
     const host = root.querySelector('[data-dataset]');
     if (!datasets) {
       await loadCodeEditors();
+      if (!window.OpenDocWorkbookPivot) await loadScript('workbook_pivot.js');
+      if (!window.OpenDocWorkbookTypes) await loadScript('workbook_types.js');
       if (!window.OpenDocDatasets) await loadScript('datasets.js');
       datasets = window.OpenDocDatasets.create({host,request,signal});
     }
