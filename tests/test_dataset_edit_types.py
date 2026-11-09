@@ -91,3 +91,30 @@ def test_dataset_sql_reads_explicit_ptbr_types_without_modifying_source(store):
                           "SELECT kind FROM dataset_field_types LIMIT 1"):
         with pytest.raises(ValueError):
             service.query(identifier, attempted_sql)
+
+
+def test_xlsx_export_preserves_semantic_types_without_mutating_workbook(tmp_path):
+    from datetime import datetime
+    from openpyxl import load_workbook
+    from apps.open_doc.spreadsheets import files
+
+    sheet = {
+        "name": "Tipos", "bold": [],
+        "cells": {"0,0": "Valor", "0,1": "Data", "0,2": "Código",
+                  "0,3": "Percentual", "0,4": "Ativo",
+                  "1,0": "R$ 1.234,56", "1,1": "18/08/2026",
+                  "1,2": "00123", "1,3": "12,5%", "1,4": "sim"},
+        "types": {"cells": {"1,0": "currency", "1,1": "date", "1,2": "text",
+                            "1,3": "percent", "1,4": "boolean"}}
+    }
+    original = json.dumps(sheet, sort_keys=True)
+    path = tmp_path / "tipos.xlsx"
+    files.export([sheet], path, "xlsx")
+    checked = load_workbook(path, data_only=True).active
+    assert checked["A2"].value == 1234.56
+    assert isinstance(checked["B2"].value, datetime)
+    assert checked["B2"].value.date().isoformat() == "2026-08-18"
+    assert checked["C2"].value == "00123"
+    assert checked["D2"].value == 0.125
+    assert checked["E2"].value is True
+    assert json.dumps(sheet, sort_keys=True) == original
