@@ -118,3 +118,20 @@ def test_xlsx_export_preserves_semantic_types_without_mutating_workbook(tmp_path
     assert checked["D2"].value == 0.125
     assert checked["E2"].value is True
     assert json.dumps(sheet, sort_keys=True) == original
+
+
+def test_python_analysis_snapshot_is_typed_but_csv_export_remains_original(store):
+    import csv
+    from io import StringIO
+
+    service, identifier = store
+    service.set_type(identifier, "column", 1, "decimal")
+    service.set_type(identifier, "column", 2, "date")
+    typed = StringIO()
+    assert service.write_analysis_csv(identifier, typed) == 2
+    rows = list(csv.reader(StringIO(typed.getvalue())))
+    assert rows[1] == ["Porto Velho", "1234.56", "2026-08-18"]
+    raw = StringIO()
+    assert service.write_csv(identifier, raw) == 2
+    rows = list(csv.reader(StringIO(raw.getvalue())))
+    assert rows[1] == ["Porto Velho", "1.234,56", "18/08/2026"]
