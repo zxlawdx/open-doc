@@ -29,6 +29,8 @@
       showTools();
       $("[data-dataset-empty]").hidden=Boolean(current);
       pagination.hidden=!current || querying;
+      $("[data-dataset-command=confirm-conversion]").disabled=busy ||
+        (!!conversion?.result.invalid&&!$("[data-conversion-keep-invalid]").checked);
       $("[data-dataset-query]").hidden=!current;
       $("[data-dataset-command=reset]").disabled=busy || !querying;
       $("[data-dataset-command=previous]").disabled=busy || row===0;
@@ -291,6 +293,30 @@
         });
         container.append(button);
       }
+      const convertLabel=document.createElement("label");
+      convertLabel.textContent="Conversão explícita · tipo de destino";
+      convertLabel.style.display="block";convertLabel.style.marginTop="8px";
+      const convertChoice=document.createElement("select");
+      convertChoice.style.width="100%";convertChoice.setAttribute("aria-label","Tipo para converter");
+      for(const [kind,label] of typeNames){
+        const option=document.createElement("option");option.value=kind;option.textContent=label;
+        convertChoice.append(option);
+      }
+      convertChoice.value=kindFor(r,c)==="auto"?"decimal":kindFor(r,c);
+      convertLabel.append(convertChoice);container.append(convertLabel);
+      const preview=document.createElement("button");
+      preview.type="button";preview.textContent="Prévia e conversão…";
+      preview.title="Analisar todos os valores antes de alterar. Não faz mudanças até confirmar.";
+      preview.addEventListener("click",()=>{
+        const kind=convertChoice.value,datasetId=list.value;
+        const data={operation:"conversion-preview",id:datasetId,scope,kind,
+          column:scope==="selection"?origin[1]:c};
+        if(scope==="cell")data.row=r;
+        if(scope==="selection"){data.row=origin[0];data.last_row=origin[2];data.last_column=origin[3];}
+        closeMenu();
+        run(async()=>showConversionPreview(await request("dataset",data),data));
+      });
+      container.append(preview);
       const hint=document.createElement("small");
       hint.textContent="Tipo sem conversão destrutiva · dados inválidos recebem indicação.";
       container.append(hint);host.append(container);menu=container;
@@ -345,11 +371,21 @@
       if(command==="previous")run(()=>showPage(Math.max(0,row-50),column));
       if(command==="next")run(()=>showPage(row+50,column));
       if(command==="query")run(executeQuery);
+      if(command==="undo")run(()=>undoEdit(false));
+      if(command==="redo")run(()=>undoEdit(true));
+      if(command==="history")run(openHistory);
+      if(command==="close-history")$("[data-dataset-history]").hidden=true;
+      if(command==="cancel-conversion"){$("[data-dataset-conversion]").hidden=true;conversion=null;}
+      if(command==="confirm-conversion")run(confirmConversion);
       if(command==="reset")run(()=>showPage(row,column));
       if(command==="go")run(()=>{
         if(!/^[1-9]\d*$/.test(rowInput.value) || !/^[1-9]\d*$/.test(columnInput.value))throw Error("Informe linha e coluna a partir de 1.");
         return showPage(Number(rowInput.value)-1,Number(columnInput.value)-1);
       });
+    },{signal});
+    $("[data-conversion-keep-invalid]").addEventListener("change",event=>{
+      $("[data-dataset-command=confirm-conversion]").disabled=
+        !!conversion?.result.invalid&&!event.target.checked;
     },{signal});
     list.addEventListener("change",()=>run(async()=>{
       current=null;table.replaceChildren();await showPage();
