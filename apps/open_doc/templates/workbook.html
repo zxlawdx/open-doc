@@ -141,6 +141,12 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
   <div class="workbook-toolbar workbook-ribbon">
     <div class="workbook-tools" role="group" aria-label="Fonte">
     <strong>Datasets locais</strong>
+    <button type="button" data-dataset-command="undo" title="Desfazer alteração de dados ou tipo (Ctrl+Z)">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#undo"></use></svg>Desfazer</button>
+    <button type="button" data-dataset-command="redo" title="Refazer (Ctrl+Y)">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#redo"></use></svg>Refazer</button>
+    <button type="button" data-dataset-command="history" title="Consultar histórico persistente de alterações">
+      <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#clock"></use></svg>Histórico</button>
     <select data-dataset-list aria-label="Dataset"></select>
     <label>Codificação <select data-dataset-encoding><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
     <label>Separador <select data-dataset-delimiter><option value="auto">Automático</option><option value=",">Vírgula</option><option value=";">Ponto e vírgula</option><option value="&#9;">Tabulação</option><option value="|">Barra vertical</option></select></label>
@@ -192,4 +198,27 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
   </aside>
   </div>
   <p data-dataset-status role="status" aria-live="polite"></p>
+  <div data-dataset-conversion class="dataset-conversion-dialog" hidden role="dialog"
+       aria-modal="true" aria-labelledby="dataset-conversion-title">
+    <section class="dataset-conversion-content">
+      <header><strong id="dataset-conversion-title">Prévia da conversão</strong>
+        <button type="button" data-dataset-command="cancel-conversion" aria-label="Cancelar conversão">×</button></header>
+      <p data-conversion-summary>Verificando valores...</p>
+      <div data-conversion-samples class="dataset-conversion-samples"></div>
+      <label class="dataset-conversion-keep">
+        <input type="checkbox" data-conversion-keep-invalid>
+        Preservar valores incompatíveis sem alteração (eles continuarão sinalizados)
+      </label>
+      <footer>
+        <button type="button" data-dataset-command="cancel-conversion">Cancelar</button>
+        <button type="button" data-dataset-command="confirm-conversion">Confirmar conversão</button>
+      </footer>
+    </section>
+  </div>
+  <aside data-dataset-history class="dataset-history" hidden aria-label="Histórico persistente">
+    <div class="workbook-sidebar-title"><strong>Histórico de dados</strong>
+      <button type="button" data-dataset-command="close-history">Fechar</button></div>
+    <p>Alterações de valores, tipos e conversões; as versões persistem após reiniciar.</p>
+    <ol data-dataset-history-list></ol>
+  </aside>
 </section>
