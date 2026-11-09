@@ -121,3 +121,40 @@
 .open-doc .template-preview span{font-size:.75rem}
 
 .open-doc .home-mobile-modules{display:none}
+
+.open-doc .workbook[hidden]{display:none}
+.open-doc[data-workbook-view=true] .header-actions,
+.open-doc[data-workbook-view=true] .statusbar{display:none}
+.open-doc .workbook{
+  display:flex;flex:1;min-height:0;flex-direction:column;
+  background:var(--color-panel);color:var(--color-text-primary)
+}
+.open-doc .workbook-toolbar,.open-doc .workbook-formula,.open-doc .workbook-tabs{
+  display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;
+  flex-wrap:wrap;border-bottom:1px solid var(--color-border)
+}
+.open-doc .workbook button,.open-doc .workbook input,.open-doc .workbook select{
+  border:1px solid var(--color-border);background:var(--color-panel);
+  color:var(--color-text-primary);padding:.3rem .5rem
+}
+.open-doc .workbook button[aria-pressed=true]{background:var(--color-primary-soft);color:var(--color-primary)}
+.open-doc .workbook button:disabled{opacity:.5}
+.open-doc [data-book-address]{width:5.5rem}
+.open-doc [data-book-formula]{flex:1;min-width:7rem}
+.open-doc .workbook-scroll{flex:1;min-height:0;overflow:auto;position:relative}
+.open-doc .workbook-space{position:relative;width:11252px;height:280028px}
+.open-doc .book-cell,.open-doc .book-heading{
+  position:absolute;height:28px;box-sizing:border-box;overflow:hidden;
+  white-space:nowrap;text-overflow:ellipsis;padding:.22rem .35rem;
+  border-right:1px solid var(--color-border);border-bottom:1px solid var(--color-border)
+}
+.open-doc .book-heading{
+  z-index:1;text-align:center;background:var(--color-workspace);
+  color:var(--color-text-secondary);font-weight:600
+}
+.open-doc .book-corner{z-index:2}
+.open-doc .book-cell.selected{background:var(--color-primary-soft)}
+.open-doc .book-cell.active{outline:2px solid var(--color-primary);outline-offset:-2px}
+.open-doc .book-cell.bold{font-weight:700}
+.open-doc [data-book-tabs]{display:flex;gap:.3rem;overflow:auto}
+.open-doc [data-book-status]{padding:.3rem .65rem;margin:0;color:var(--color-text-secondary)}

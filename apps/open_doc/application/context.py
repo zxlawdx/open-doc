@@ -24,6 +24,7 @@ class ApplicationContext:
     fonts: FontService
     fixed_documents: Any
     handwriting: Any
+    workbooks: Any = None
     documents: Any = None
     assets: Any = None
     start_in_library: bool = False
@@ -66,6 +67,9 @@ def configure(config: Config | None = None) -> ApplicationContext:
         )
         from apps.open_doc.application.document_application import DocumentApplication
 
+        from apps.open_doc.spreadsheets.store import Workbooks
+
+        _context.workbooks = Workbooks(editor)
         _context.documents = DocumentApplication(_context)
         return _context
 

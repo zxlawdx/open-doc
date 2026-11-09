@@ -237,3 +237,27 @@ def artifact_content(request: Request) -> Response:
         )
     except (OSError, ValueError, KeyError):
         return Response("Documento indisponível.", status=404, content_type="text/plain")
+
+@api.post("/open_doc/workbook")
+def workbook(context=None):
+    def operation():
+        from apps.open_doc.spreadsheets import templates
+
+        data = _data(context)
+        store = get_context().workbooks
+        command = data["operation"]
+        if command == "new":
+            return store.create()
+        if command == "template":
+            return templates.create(store, data["template"])
+        if command == "open":
+            return store.get(data["id"])
+        if command == "versions":
+            return {"versions": store.versions(data["id"])}
+        if command == "restore":
+            return store.save(data["id"], data["revision"], None, None, restore=data["version"])
+        if command == "save":
+            return store.save(data["id"], data["revision"], data["title"], data["sheets"])
+        raise ValueError("Operação de planilha inválida.")
+
+    return _handle(operation)

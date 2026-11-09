@@ -37,3 +37,6 @@ originais. O fluxo PPTX ativo não executa LibreOffice. O módulo legado
 
 Renderer PPTX: [mdurbar/pptx-viewer](https://github.com/mdurbar/pptx-viewer).
 ZIP: [fflate](https://github.com/101arrowz/fflate).
+
+- openpyxl (MIT), used for XLSX import and export. https://openpyxl.readthedocs.io/
+- defusedxml (PSF-2.0), used to protect XLSX XML parsing. https://pypi.org/project/defusedxml/

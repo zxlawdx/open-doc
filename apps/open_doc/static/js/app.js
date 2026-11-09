@@ -10,6 +10,7 @@
   window.OpenDocApp?.destroy();
   const scriptUrl = document.currentScript.src;
   const controller = new AbortController(), signal = controller.signal;
+  let workbook;
   let editor, theme, layout, navigation, menus, design, token = '', destroyed = false, busy = false;
   let settings = {}, preferenceChain = Promise.resolve();
   let dialogResolver = null, dialogFocus = null, noticeTimer;
@@ -109,7 +110,9 @@
     catch (error) { collapsed(previous); status(error.message); }
   }
   function showView(home = false) {
-    const wasHome = root.dataset.homeView === 'true';
+    const wasHome = root.dataset.homeView === 'true' && root.dataset.workbookView !== 'true';
+    root.dataset.workbookView = 'false';
+    root.querySelector('[data-workbook]').hidden = true;
     root.dataset.homeView = String(home);
     root.querySelector('[data-library]').hidden = !home;
     root.querySelector('[data-document-body]').hidden = home || root.dataset.documentKind==='fixed';
@@ -147,6 +150,7 @@
         const name = document.createElement(editable ? 'button' : 'span'); name.className='library-file-title'; name.textContent = notes ? file.title : file.name; name.title=name.textContent;
         if (editable) name.addEventListener('click', () => operate(async () => {
           await editor.flush();
+          if (file.source_kind === 'xlsx' || file.workbook) return openWorkbook({operation:'open', id:file.id});
           editor.load(await request('document/open', notes ? {id: file.id} : {path: file.path}));
           showView(false);
         }), {signal});
@@ -155,7 +159,7 @@
         info.append(name, date);
         const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? (file.source_kind==='pptx'?'Apresentação local':file.source_kind==='pdf'?'PDF local':'Documento local') : file.type.toUpperCase();
         row.append(icon, info, kind);
-        if(notes){const details=document.createElement('details'),summary=document.createElement('summary');details.className='library-file-actions';summary.textContent='⋯';summary.setAttribute('aria-haspopup','menu');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);const menu=document.createElement('div');menu.className='document-action-menu';menu.setAttribute('role','menu');details.appendChild(menu);
+        if(notes && file.source_kind !== 'xlsx'){const details=document.createElement('details'),summary=document.createElement('summary');details.className='library-file-actions';summary.textContent='⋯';summary.setAttribute('aria-haspopup','menu');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);const menu=document.createElement('div');menu.className='document-action-menu';menu.setAttribute('role','menu');details.appendChild(menu);
           for(const [operation,label] of [['rename','Renomear'],['duplicate','Duplicar'],['delete','Excluir']]){const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');if(operation==='delete'){button.className='danger-action';menu.appendChild(document.createElement('hr'));}button.addEventListener('click',()=>operate(async()=>{
             await editor.flush();let payload={id:file.id,revision:file.id===editor.snapshot().id?editor.snapshot().revision:file.revision};
             if(operation==='rename'){const value=await dialog('Renomear documento','Informe o novo título.',true);if(!value)return;payload.title=value;}
@@ -222,6 +226,7 @@
         confirm.textContent = label;
         if (!accepted) return;
         await editor.flush();
+        if (template.format === 'xlsx') return openWorkbook({operation:'template', template:template.id});
         editor.load(await request('document/template', {id: template.id}));
         showView(false);
         status('Cópia criada a partir do template.');
@@ -232,6 +237,31 @@
   function libraryRoute(route = 'home', section) {
     showView(true);
     design?.navigateLibrary(route, section);
+  }
+  async function openWorkbook(data) {
+    await editor.flush();
+    const host = root.querySelector('[data-workbook]');
+    if (!workbook) {
+      if (!window.OpenDocWorkbookFormula) await loadScript('workbook_formula.js');
+      if (!window.OpenDocWorkbook) await loadScript('workbook.js');
+      workbook = window.OpenDocWorkbook.create({host,request,dialog,signal});
+    }
+    const value = data ? await request('workbook',data) : await window.pywebview.api.import_workbook();
+    if (value.error) throw Error(value.error);
+    if (value.cancelled) return;
+    showView(true);
+    root.dataset.workbookView = 'true';
+    root.querySelector('[data-library]').hidden = true;
+    host.hidden = false;
+    workbook.load(value);
+  }
+  async function leaveWorkbook() {
+    try {
+      await workbook.save();
+      libraryRoute('xlsx','recent');
+    } catch (error) {
+      workbook.report(error.message);
+    }
   }
   async function newDocument() {
     await editor.flush(); editor.load(await request('document/new', {title: 'Documento sem título'}));
@@ -323,6 +353,11 @@
   }
   async function action(name) {
     if (!editor) return;
+    if (root.dataset.workbookView === 'true') {
+      if (name === 'home') return leaveWorkbook();
+      if (name === 'save') return workbook.save().catch(error=>workbook.report(error.message));
+      return;
+    }
     const operations = {
       'page-break':()=>editor.insertPage('break'), 'blank-page':()=>editor.insertPage('below'),
       'page-setup':pageSetupDialog,
@@ -343,6 +378,8 @@
 
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
       home: () => libraryRoute(),
+      'workbook-new': () => operate(()=>openWorkbook({operation:'new'})),
+      'workbook-import': () => operate(()=>openWorkbook()),
       'resume-editor': () => showView(false),
       'library-recent':()=>libraryRoute('home','recent'),
       'library-files':()=>libraryRoute('home','imports'),
@@ -442,7 +479,7 @@
       editor?.destroy(); design?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
       if (dialogResolver) closeDialog();
     },
-    action, showHome: () => libraryRoute(), editor: () => editor,
+    action, showHome: () => action('home'), editor: () => editor,
     failures, theme: () => theme, layout: () => layout, refresh, status
   };
   window.OpenDocApp = page;
@@ -546,7 +583,7 @@
       if(!event.repeat)action('save');
     },{capture:true,signal});
     window.addEventListener('keydown', event => {
-      if (!(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
+      if (root.dataset.workbookView === 'true' || !(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
       const name = ({n: 'new', o: 'import', f: 'find'})[event.key.toLowerCase()];
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='h') {event.preventDefault();action('replace');return;}
       if (name) { event.preventDefault(); action(name); }

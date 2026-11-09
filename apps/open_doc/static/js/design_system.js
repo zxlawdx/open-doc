@@ -1,8 +1,8 @@
 /* Ofício design presentation controllers. No application data or Vela runtime duplicated. */
 "use strict";
 (() => {
-  const ICON_BY_FORMAT={docx:"file-text",pdf:"pdf",pptx:"slides",md:"file-text",txt:"file-text",odt:"file-text",odp:"slides"};
-  const GROUP={odt:"docx",odp:"pptx",txt:"md"};
+  const ICON_BY_FORMAT={xlsx:"file-text",docx:"file-text",pdf:"pdf",pptx:"slides",md:"file-text",txt:"file-text",odt:"file-text",odp:"slides"};
+  const GROUP={csv:"xlsx",tsv:"xlsx",odt:"docx",odp:"pptx",txt:"md"};
   function normalizedFormat(value){
     const format=String(value||"").toLowerCase().replace(/^\./,"");
     return GROUP[format]||format||"docx";
@@ -17,7 +17,7 @@
     return icon;
   }
 
-  const ROUTE_TITLES = {docx:"Documentos", pptx:"Apresentações", pdf:"PDFs", templates:"Templates"};
+  const ROUTE_TITLES = {docx:"Documentos", pptx:"Apresentações", pdf:"PDFs", templates:"Templates",xlsx:"Planilhas"};
   const fileSections = {recent:"[data-library-recent]", imports:"[data-library-imports]"};
 
   class LibraryView {
@@ -59,8 +59,9 @@
       heading.textContent=ROUTE_TITLES[route] || "Seus documentos, seu espaço.";
       const primary=root.querySelector("[data-library-primary]");
       primary.hidden=route==="templates";
-      primary.dataset.action={pdf:"import",pptx:"presentation-new"}[route] || "new";
-      primary.lastChild.textContent={pdf:" Abrir ou importar PDF",pptx:" Nova apresentação"}[route] || " Novo documento";
+      primary.dataset.action={pdf:"import",pptx:"presentation-new",xlsx:"workbook-new"}[route] || "new";
+      primary.lastChild.textContent={pdf:" Abrir ou importar PDF",pptx:" Nova apresentação",xlsx:" Nova planilha"}[route] || " Novo documento";
+      root.querySelector("[data-module-import]").dataset.action=route==="xlsx"?"workbook-import":"import";
       root.querySelector("[data-module-nav]").hidden=!scoped;
       root.querySelector(".home-filters").hidden=scoped;
       const overview=route==="home" && section==="all";

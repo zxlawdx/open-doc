@@ -1,0 +1,26 @@
+<section class="workbook" data-workbook hidden aria-label="Editor de planilhas">
+  <div class="workbook-toolbar">
+    <input data-book-title aria-label="Nome da planilha" maxlength="180">
+    <button type="button" data-book-command="save">Salvar</button>
+    <button type="button" data-book-command="undo">Desfazer</button>
+    <button type="button" data-book-command="redo">Refazer</button>
+    <button type="button" data-book-command="bold" aria-pressed="false"><strong>Negrito</strong></button>
+    <button type="button" data-book-command="versions">Histórico</button>
+    <label>Exportar <select data-book-format aria-label="Formato de exportação"><option>XLSX</option><option>CSV</option><option>TSV</option></select></label>
+    <button type="button" data-book-command="export">Exportar arquivo</button>
+  </div>
+  <div class="workbook-formula">
+    <input data-book-address aria-label="Endereço da célula">
+    <label for="workbook-formula">ƒx</label>
+    <input id="workbook-formula" data-book-formula aria-label="Valor ou fórmula da célula" autocomplete="off" maxlength="8192">
+  </div>
+  <div class="workbook-scroll" data-book-scroll tabindex="0" role="grid" aria-label="Células da planilha" aria-rowcount="10000" aria-colcount="100">
+    <div class="workbook-space" data-book-space></div>
+  </div>
+  <div class="workbook-tabs">
+    <div data-book-tabs role="group" aria-label="Abas da planilha"></div>
+    <button type="button" data-book-command="add" aria-label="Adicionar aba">+ Aba</button>
+    <button type="button" data-book-command="rename">Renomear aba</button>
+  </div>
+  <p data-book-status role="status" aria-live="polite"></p>
+</section>
