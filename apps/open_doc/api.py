@@ -293,6 +293,16 @@ def dataset(context=None):
             return store.undo(data["id"])
         if data["operation"] == "redo":
             return store.undo(data["id"], redo=True)
+        if data["operation"] in {"python-env-status", "python-env-install"}:
+            from apps.open_doc.datasets.python_envs import PythonEnvironments
+            manager = PythonEnvironments(get_context().config.root)
+            if data["operation"] == "python-env-status":
+                return manager.status(data["id"])
+            result = manager.install(data["id"], data["packages"],
+                                     confirm=data.get("confirm") is True)
+            from apps.open_doc.datasets.python_analysis import environment
+            environment.cache_clear()
+            return result
         if data["operation"] == "conversion-preview":
             return store.conversion_preview(
                 data["id"], data["scope"], data["column"], data["kind"],
@@ -332,6 +342,7 @@ def dataset_python_analysis(context=None):
 
     def operation():
         data = _data(context)
-        return analyze(data["code"], data["line"], data["column"], data["operation"])
+        return analyze(data["code"], data["line"], data["column"], data["operation"],
+                       data.get("project"))
 
     return _handle(operation)
