@@ -181,13 +181,20 @@ class Datasets:
             fields = ", ".join(
                 f"json_extract(values_json, '$[{index}]') AS {quote(name)}" for index, name in enumerate(names)
             )
-            db.execute(f"CREATE TEMP VIEW dados AS SELECT {fields} FROM main.dataset_rows WHERE dataset_id='{identifier}'")
+            private_view = "_dataset_" + uuid4().hex
+            db.execute(
+                f"CREATE TEMP VIEW {private_view} AS SELECT {fields} "
+                f"FROM main.dataset_rows WHERE dataset_id='{identifier}'"
+            )
+            db.execute(f"CREATE TEMP VIEW dados AS SELECT * FROM {private_view}")
             db.execute("PRAGMA query_only=ON")
             def authorize(action, arg1, arg2, database, view):
                 if action == sqlite3.SQLITE_READ:
-                    allowed = (arg1 == "dados" and database == "temp") or (
-                        arg1 == "dataset_rows" and database == "main" and view == "dados"
-                    )
+                    # A user CTE may share the public view name. Only the
+                    # unguessable, per-connection view can read base rows.
+                    allowed = (
+                        database == "temp" and (arg1 == "dados" or (arg1 == private_view and view == "dados"))
+                    ) or (arg1 == "dataset_rows" and database == "main" and view == private_view)
                 elif action == sqlite3.SQLITE_FUNCTION:
                     allowed = arg2.lower() not in {"load_extension", "readfile", "writefile"}
                 else:

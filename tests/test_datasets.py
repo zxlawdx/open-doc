@@ -80,6 +80,7 @@ def test_sql_queries_only_selected_dataset_and_caps_results(tmp_path, store):
     assert result["limited"] and len(result["rows"]) == 100
     assert result["rows"][0] == ["001"]
     for sql in ("DELETE FROM dados", "SELECT * FROM dataset_rows", "ATTACH DATABASE ':memory:' AS x",
-                "PRAGMA table_info(dados)", "SELECT randomblob(100000000)"):
+                "PRAGMA table_info(dados)", "SELECT randomblob(100000000)",
+                "WITH dados AS (SELECT * FROM dataset_rows) SELECT * FROM dados"):
         with pytest.raises(ValueError):
             store.query(identifier, sql)
