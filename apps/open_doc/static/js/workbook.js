@@ -22,6 +22,24 @@
       report("Alterações pendentes");
     }
     function report(message) {status.textContent=message;}
+    const pivotUI=window.OpenDocWorkbookPivotUI.create({host,signal,onReport:report,
+      onApply:(output,target,sourceName)=>{
+        if(target!==null){
+          const before=book.sheets[target],after={...before,cells:output.cells,bold:output.bold,pivot:output.pivot};
+          change(()=>{book.sheets[target]=before;renderTabs();choose(target);},
+            ()=>{book.sheets[target]=after;renderTabs();choose(target);});
+          togglePivot(false);report("Tabela dinâmica atualizada da aba "+sourceName+".");
+        }else{
+          if(book.sheets.length>=20)throw Error("Limite de 20 abas.");
+          let name="Tabela dinâmica",suffix=2;
+          while(book.sheets.some(sh=>sh.name.toLowerCase()===name.toLowerCase()))name="Tabela dinâmica "+suffix++;
+          const previous=index,result={name,cells:output.cells,bold:output.bold,pivot:output.pivot};
+          change(()=>{book.sheets.pop();renderTabs();choose(previous);},
+            ()=>{book.sheets.push(result);renderTabs();choose(book.sheets.length-1);});
+          togglePivot(false);report("Tabela dinâmica criada: "+name+" (fonte: "+sourceName+").");
+        }
+      }});
+
     function controls() {
       coord.value=column(col)+(row+1);
       if(document.activeElement!==formula) formula.value=raw();
@@ -264,82 +282,23 @@
       }finally{analysisBusy=false;}
     }
     function togglePivot(open) {
-      sidebar.hidden=!open;
-      $("[data-book-command=pivot]").setAttribute("aria-expanded",String(open));
-      schedule();
-      if(!open)return;
+      if(!open){pivotUI.close();$("[data-book-command=pivot]").setAttribute("aria-expanded","false");schedule();return;}
       toggleAnalysis(false);
       const selected=bounds();
-      const [top,left,bottom,right]=(selected[0]===selected[2]&&selected[1]===selected[3]
-        ? usedBounds() : selected) || [0,0,0,0];
-      const range=$("[data-pivot-range]");
-      range.value=top<bottom ? column(left)+(top+1)+":"+column(right)+(bottom+1) : "";
-      if(range.value)pivotFields();
-      range.focus();
+      const target=sheet().pivot;
+      const range=target?.range||((selected[0]===selected[2]&&selected[1]===selected[3])?usedBounds():selected);
+      const rangeText=range&&range[0]<range[2]?
+        column(range[1])+(range[0]+1)+":"+column(range[3])+(range[2]+1):"";
+      pivotUI.open({sheets:book.sheets,index,calc,address,column,rangeText});
+      $("[data-book-command=pivot]").setAttribute("aria-expanded","true");
+      schedule();
     }
-    function createPivot() {
-      if(book.sheets.length>=20)throw Error("Limite de 20 abas.");
-      pivotFields();
-      const [top,left,bottom,right]=pivotBounds();
-      const rowField=Number($("[data-pivot-row]").value);
-      const columnValue=$("[data-pivot-column]").value;
-      const colField=columnValue==="" ? null : Number(columnValue);
-      const valueField=Number($("[data-pivot-value]").value);
-      const operation=$("[data-pivot-operation]").value;
-      const groups=new Map(), columns=new Set();
-      const heading=String(calc(index,top,valueField) || column(valueField));
-      for(let r=top+1;r<=bottom;r++){
-        if(!Array.from({length:right-left+1},(_,i)=>key(r,left+i)).some(id=>sheet().cells[id]))continue;
-        const label=String(calc(index,r,rowField)), category=colField===null ? heading : String(calc(index,r,colField));
-        columns.add(category);
-        if(!groups.has(label))groups.set(label,new Map());
-        const group=groups.get(label);
-        if(!group.has(category))group.set(category,{count:0,numbers:0,sum:0,min:Infinity,max:-Infinity});
-        const stats=group.get(category), value=calc(index,r,valueField);
-        if(value!=="")stats.count++;
-        if(typeof value==="number"&&Number.isFinite(value)){
-          stats.numbers++;stats.sum+=value;
-          stats.min=Math.min(stats.min,value);stats.max=Math.max(stats.max,value);
-        }
-      }
-      if(!groups.size)throw Error("O intervalo não tem dados.");
-      if(columns.size>=COLS||(groups.size+1)*(columns.size+1)+columns.size+1>50000)
-        throw Error("O resumo ultrapassa os limites da grade. Reduza o intervalo ou os agrupamentos.");
-      const cells={}, bold=[];
-      function write(r,c,value){
-        if(value==="")return;
-        const text=String(value);
-        cells[key(r,c)]=typeof value==="string"&&text.startsWith("=") ? "'"+text : text;
-      }
-      write(0,0,calc(index,top,rowField));
-      bold.push(key(0,0));
-      [...columns].forEach((label,i)=>{write(0,i+1,label||"(vazio)");bold.push(key(0,i+1));});
-      let targetRow=1;
-      for(const [label,group] of groups){
-        write(targetRow,0,label||"(vazio)");
-        [...columns].forEach((category,i)=>{
-          const stats=group.get(category);
-          if(!stats)return;
-          const result=operation==="count" ? stats.count : !stats.numbers ? "" :
-            {sum:stats.sum,average:stats.sum/stats.numbers,min:stats.min,max:stats.max}[operation];
-          write(targetRow,i+1,result);
-        });
-        targetRow++;
-      }
-      let name="Tabela dinâmica", suffix=2;
-      while(book.sheets.some(item=>item.name.toLowerCase()===name.toLowerCase()))name="Tabela dinâmica "+suffix++;
-      const previous=index, result={name,cells,bold};
-      change(()=>{book.sheets.pop();renderTabs();choose(previous);},()=>{
-        book.sheets.push(result);renderTabs();choose(book.sheets.length-1);
-      });
-      togglePivot(false);
-      report("Tabela dinâmica criada em "+name+".");
-    }
+    function createPivot() {pivotUI.apply();}
     function clearSelection() {
       applyCells(rectangle().flat().map(id=>[id,""]));
     }
     function load(value) {
-      inline.hidden=true;sidebar.hidden=true;
+      inline.hidden=true;pivotUI.close();sidebar.hidden=true;
       $("[data-book-command=pivot]").setAttribute("aria-expanded","false");
       book=value;title.value=value.title;
       undo.length=0;redo.length=0;dirty=false;
@@ -384,8 +343,8 @@
       if(name==="run-sql")return analyzeWorkbook("SQL");
       if(name==="run-python")return analyzeWorkbook("Python");
       if(name==="close-pivot")return togglePivot(false);
-      if(name==="pivot-fields")return pivotFields();
-      if(name==="pivot-create")return createPivot();
+      if(name==="pivot-fields")return pivotUI.reload();
+      if(name==="pivot-create"||name==="pivot-refresh")return createPivot();
       if(name==="undo"||name==="redo"){
         const stack=name==="undo"?undo:redo, other=name==="undo"?redo:undo;
         const item=stack.pop();
