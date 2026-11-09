@@ -8,6 +8,7 @@
     const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
     let row=0, column=0, current, busy=false, querying=false, selected=null, anchor=null, editing=null, menu=null;
     let conversion=null;
+    const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>list.value,signal});
     const sqlField=$("[data-dataset-sql]");
     const pythonEditor=window.OpenDocCodeEditor.create({field:code,language:"python",request,signal,
       signature:$("[data-dataset-signature]"),run:()=>run(executePython),project:()=>list.value});
