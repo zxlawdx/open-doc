@@ -281,7 +281,8 @@
       if (!window.OpenDocWorkbookTypes) await loadScript('workbook_types.js');
       if (!window.OpenDocPythonPackages) await loadScript('python_packages.js');
       if (!window.OpenDocDatasets) await loadScript('datasets.js');
-      datasets = window.OpenDocDatasets.create({host,request,signal});
+      datasets = window.OpenDocDatasets.create({host,request,signal,
+        onOpenWorkbook:value=>openWorkbook(null,value)});
     }
     showView(true);
     root.dataset.datasetView = 'true';
