@@ -76,3 +76,18 @@ def test_types_and_pivot_configuration_validate_without_changing_raw_values():
     source["types"]["columns"]["0"] = "bad-type"
     with pytest.raises(ValueError, match="Tipo"):
         validate([source, result])
+
+
+def test_dataset_sql_reads_explicit_ptbr_types_without_modifying_source(store):
+    service, identifier = store
+    service.set_type(identifier, "column", 1, "decimal")
+    rows = service.query(identifier, 'SELECT quantidade FROM dados ORDER BY quantidade DESC')["rows"]
+    assert rows == [["1234.56"], ["25.5"]]
+    assert service.query(identifier, 'SELECT ROUND(SUM(quantidade),2) FROM dados')["rows"] == [["1260.06"]]
+    assert service.cell(identifier, 1, 1)["value"] == "1.234,56"
+    service.set_type(identifier, "column", 2, "date")
+    assert service.query(identifier, "SELECT data FROM dados LIMIT 1")["rows"] == [["2026-08-18"]]
+    for attempted_sql in ("SELECT * FROM dataset_field_types",
+                          "SELECT kind FROM dataset_field_types LIMIT 1"):
+        with pytest.raises(ValueError):
+            service.query(identifier, attempted_sql)
