@@ -65,7 +65,7 @@
 .open-doc .pivot-v2-header strong {display:block;font-size:19px;letter-spacing:-.3px}
 .open-doc .pivot-v2-header p {margin:3px 0 0;font-size:12px;color:var(--color-text-secondary)}
 .open-doc .pivot-v2-header button {width:34px;height:34px;border-radius:7px;font-size:21px}
-.open-doc .pivot-v2-content {display:flex;flex:1;flex-direction:column;min-height:0;overflow:auto;background:var(--color-workspace)}
+.open-doc .pivot-v2-content {display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:auto;background:var(--color-workspace)}
 .open-doc .pivot-v2-columns {display:grid;grid-template-columns:minmax(190px,25%) minmax(0,1fr);gap:12px;padding:14px;flex:none;min-width:0}
 .open-doc .pivot-v2-field-panel,.open-doc .pivot-v2-zone,.open-doc .pivot-v2-preview {
   box-sizing:border-box;border:1px solid var(--color-border);border-radius:9px;
