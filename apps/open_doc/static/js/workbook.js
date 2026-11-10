@@ -783,7 +783,7 @@
       let text;
       try {text=await navigator.clipboard?.readText();} catch { /* Use the local clipboard if denied. */ }
       if(source!==sheet()||position!==key(row,col)||host.hidden)return;
-      text??=copiedRange?.text;
+      text=text??copiedRange?.text;
       if(text===undefined)return report("Use Ctrl+V para colar da área de transferência do sistema.");
       const valuesOnly=name==="paste-values";
       pasteText(valuesOnly&&copiedRange?.text===text?copiedRange.values:text,valuesOnly);
