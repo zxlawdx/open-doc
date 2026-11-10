@@ -4,6 +4,12 @@
   const MAX_ENTRIES = 50;
   const MAX_BYTES = 8 * 1024 * 1024;
   const GROUP_MS = 500;
+  function sameSnapshot(left,right){
+    if(left?.title!==right?.title)return false;
+    return left?.content||right?.content
+      ?window.OpenDocModel.sameContent(left?.content,right?.content)
+      :left?.markdown===right?.markdown;
+  }
   function create() {
     let entries = [], index = -1, lastTime = 0, lastKind = "";
     const bytesOf=item=>2*(item.content?window.OpenDocModel.snapshotSize(item.content):(item.markdown || '').length);
@@ -37,7 +43,7 @@
     function record(snapshot, kind = "typing", affected={}) {
       const previous=entries[index];
       const inkOnly=affected.inkOnly&&previous?.content&&snapshot.content;
-      if (inkOnly ? previous.content===snapshot.content : window.OpenDocModel.sameSnapshot(previous,snapshot)) return;
+      if (inkOnly ? previous.content===snapshot.content : sameSnapshot(previous,snapshot)) return;
       const now = Date.now();
       entries.splice(index + 1);
       if (kind === "typing" && lastKind === kind && index > 0 && now - lastTime < GROUP_MS) {
@@ -61,5 +67,5 @@
     function checkpoint(snapshot) { if (entries[index]) entries[index].selection = snapshot.selection; }
     return {reset, record, checkpoint, undo: () => move(-1), redo: () => move(1), canUndo: () => index > 0, canRedo: () => index < entries.length - 1};
   }
-  window.OpenDocHistory = {create};
+  window.OpenDocHistory = {create,sameSnapshot};
 })();

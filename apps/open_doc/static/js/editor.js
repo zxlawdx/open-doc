@@ -105,7 +105,7 @@
 
     function isClean() {
       if(suspended)return true;
-      return !documentState || window.OpenDocModel.sameSnapshot(
+      return !documentState || window.OpenDocHistory.sameSnapshot(
         {title:currentTitle(),content:model,markdown:source.value},saved);
     }
 
@@ -248,12 +248,12 @@
       renderRich();source.readOnly=Boolean(model);
       recovered = note.recovery || null;
       const cached = window.OpenDocRecovery.read(documentState.id);
-      if (cached && !window.OpenDocModel.sameSnapshot(cached,saved)) recovered = cached;
+      if (cached && !window.OpenDocHistory.sameSnapshot(cached,saved)) recovered = cached;
       history.reset(buffer());
       root.querySelector("[data-recovery]").hidden =
-        !recovered || window.OpenDocModel.sameSnapshot(recovered,saved);
+        !recovered || window.OpenDocHistory.sameSnapshot(recovered,saved);
       render();
-      status(recovered && !window.OpenDocModel.sameSnapshot(recovered,saved) ? "Recuperação disponível" : "Salvo no dispositivo");
+      status(recovered && !window.OpenDocHistory.sameSnapshot(recovered,saved) ? "Recuperação disponível" : "Salvo no dispositivo");
     }
 
     function flush() {
