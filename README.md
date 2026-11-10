@@ -40,6 +40,9 @@ O workflow **Open Doc Windows and Linux packages** gera os seguintes downloads:
   atalho no menu Iniciar, opção de atalho na área de trabalho e desinstalador.
 - **Portable.zip** contém o executável e as dependências do aplicativo. Extraia
   o ZIP inteiro e abra `Open-Doc/Open-Doc.exe`.
+- **Linux-amd64.deb** instala o Open Doc no Ubuntu, Linux Mint e outras
+  distribuicoes Debian x86-64: use `sudo apt install ./Open-Doc-<versao>-Linux-amd64.deb`.
+  O aplicativo fica disponivel no menu e pelo comando `open-doc`.
 - **Linux-x64.tar.gz** contém o executável `Open-Doc/Open-Doc` e o script
   `Open-Doc/Instalar.sh` para criar um atalho no menu do usuário. O build usa
   Ubuntu 22.04 x64 como base de compatibilidade (Linux Mint 21 ou mais recente).
@@ -55,8 +58,8 @@ O job compila o código dessa tag e acrescenta os arquivos Linux após os testes
 ```bash
 git switch main
 git pull --ff-only
-git tag -a v0.3.0 -m "Open Doc 0.3.0"
-git push origin v0.3.0
+git tag -a v1.0.1 -m "Open Doc 1.0.1 - Windows e Linux"
+git push origin v1.0.1
 ```
 
 O Vela empacota Python, Qt e os arquivos da interface usados pelo aplicativo.
