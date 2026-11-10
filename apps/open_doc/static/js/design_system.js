@@ -1,7 +1,7 @@
 /* Ofício design presentation controllers. No application data or Vela runtime duplicated. */
 "use strict";
 (() => {
-  const ICON_BY_FORMAT={xlsx:"file-text",docx:"file-text",pdf:"pdf",pptx:"slides",md:"file-text",txt:"file-text",odt:"file-text",odp:"slides"};
+  const ICON_BY_FORMAT={xlsx:"table",docx:"file-text",pdf:"pdf",pptx:"slides",md:"file-text",txt:"file-text",odt:"file-text",odp:"slides"};
   const GROUP={csv:"xlsx",tsv:"xlsx",odt:"docx",odp:"pptx",txt:"md"};
   function normalizedFormat(value){
     const format=String(value||"").toLowerCase().replace(/^\./,"");

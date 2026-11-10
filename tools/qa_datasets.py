@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from qa_docx_list import capture, wait
+from qa_workbook import capture_viewports
 
 import webview
 
@@ -47,7 +48,10 @@ def main():
                 window.evaluate_js("document.querySelector('[data-dataset-command=previous]').click()")
                 wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
                 assert "2 arquivos" in window.evaluate_js("document.querySelector('[data-dataset-status]').textContent")
-                capture(output, "append")
+                capture_viewports(window, output, "dataset")
+                window.evaluate_js("document.querySelector('[data-dataset-command=show-sql]').click()")
+                wait(window, "!document.querySelector('[data-dataset-tools]').hidden")
+                capture_viewports(window, output, "dataset-sql")
                 window.evaluate_js("""const editor=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-query] .cm-editor'));
                   editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:'SELECT COUNT(*) FROM dados'}});
                   document.querySelector('[data-dataset-command=query]').click();""")

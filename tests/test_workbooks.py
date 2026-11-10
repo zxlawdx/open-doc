@@ -84,3 +84,20 @@ def test_xlsx_entity_is_rejected(tmp_path):
             modified.writestr(entry, content)
     with pytest.raises(ValueError, match="XLSX inválido"):
         files.read(poisoned)
+
+
+def test_workbook_styles_survive_local_reopen_and_xlsx(tmp_path):
+    context = configure(Config(tmp_path / "workspace"))
+    book = templates.create(context.workbooks, "sheet-budget")
+    styles = {"1,1": {"family": "Arial", "size": 14, "italic": True, "underline": True,
+                      "strike": True, "align": "right", "wrap": True, "border": True,
+                      "color": "#103060", "fill": "#f0f3fa"}}
+    book["sheets"][0]["styles"] = styles
+    updated = context.workbooks.save(book["id"], book["revision"], book["title"], book["sheets"])
+    assert context.workbooks.get(book["id"])["sheets"][0]["styles"] == styles
+    xlsx = tmp_path / "formatado.xlsx"
+    files.export(updated["sheets"], xlsx, "xlsx")
+    assert files.read(xlsx)[0]["styles"] == styles
+    styles["1,1"]["color"] = "url(https://example.invalid)"
+    with pytest.raises(ValueError, match="Cor de célula inválida"):
+        context.workbooks.save(book["id"], updated["revision"], book["title"], book["sheets"])

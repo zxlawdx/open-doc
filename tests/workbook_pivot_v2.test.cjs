@@ -128,3 +128,40 @@ test('value ordering uses the chosen metric, not a hard-coded sum',()=>{
   assert.equal(product.rows[0][0],'A'); // product 10*20=200 outranks B=50
   assert.equal(sum.rows[0][0],'B'); // sum A=30 < B=50
 });
+
+test('subtotals aggregate raw records and retain accurate drill coordinates',()=>{
+  const src=source();
+  src.cells['4,0']='A';src.cells['4,1']='Y';src.cells['4,2']='40';
+  const result=pivot.build({source:src,range:[0,0,4,3],
+    config:config([metric(2,'average'),metric(2,'count')],{rows:[0,1],columns:[],subtotals:true})});
+  assert.deepEqual(result.rows,[
+    ['A / X','10','1'],['A / Y','30','2'],['A · Subtotal','23.3333333333','3'],
+    ['B / X','30','1'],['B · Subtotal','30','1'],['Total geral','25','4'],
+  ]);
+  assert.deepEqual(result.summaryRows,[2,4,5]);
+  assert.deepEqual(result.drillCells['4,1'],[3]);
+  assert.equal(result.pivot.config.subtotals,true);
+});
+
+for(const size of [5,100,9999])test('pivot agrees with array reductions across '+size+' records',()=>{
+  const records=Array.from({length:size},(_,i)=>({group:'G'+i%4,value:i%13===0?null:i%29-12}));
+  const cells={'0,0':'Grupo','0,1':'Valor'};
+  for(const [i,{group,value}] of records.entries()){
+    cells[(i+1)+',0']=group;
+    if(value!==null)cells[(i+1)+',1']=String(value);
+  }
+  const result=pivot.build({source:{cells},range:[0,0,size,1],config:{
+    rows:[0],columns:[],values:['sum','count','average','min','max'].map(op=>metric(1,op)),totals:true,
+  }});
+  assert.equal(result.sourceRows,size);
+  for(const [group,sum,count,mean,min,max] of result.rows){
+    const values=records.filter(item=>group==='Total geral'||item.group===group).map(item=>item.value).filter(v=>v!==null);
+    const total=values.reduce((a,b)=>a+b,0);
+    assert.equal(Number(count),values.length);
+    if(!values.length){assert.deepEqual([sum,mean,min,max],['','','','']);continue;}
+    assert.equal(Number(sum),total);
+    assert.ok(Math.abs(Number(mean)-total/values.length)<1e-9);
+    assert.equal(Number(min),Math.min(...values));
+    assert.equal(Number(max),Math.max(...values));
+  }
+});

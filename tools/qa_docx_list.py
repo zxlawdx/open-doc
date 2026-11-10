@@ -18,7 +18,7 @@ from qa_runtime import Keyboard, report
 from docx import Document
 
 
-def capture(output, name, width=1366):
+def capture(output, name, width=1366, height=768, scale=1):
     subprocess.run(
         [
             "node",
@@ -26,14 +26,14 @@ def capture(output, name, width=1366):
             "-e",
             """
             import {writeFileSync} from 'node:fs';
-            const [port, target, width] = process.argv.slice(1);
+            const [port, target, width, height, scale] = process.argv.slice(1);
             const tabs = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json();
             const ws = new WebSocket(tabs.find(tab => tab.type === 'page').webSocketDebuggerUrl);
             await new Promise((resolve, reject) => {
               ws.onerror = reject;
               ws.onopen = () => ws.send(JSON.stringify({
                 id: 1, method: 'Emulation.setDeviceMetricsOverride',
-                params: {width: Number(width), height: 768, deviceScaleFactor: 1, mobile: false}
+                params: {width: Number(width), height: Number(height), deviceScaleFactor: Number(scale), mobile: false}
               }));
               ws.onmessage = ({data}) => {
                 const response = JSON.parse(data);
@@ -51,6 +51,8 @@ def capture(output, name, width=1366):
             os.environ["QTWEBENGINE_REMOTE_DEBUGGING"],
             str(output / f"{name}.png"),
             str(width),
+            str(height),
+            str(scale),
         ],
         check=True,
         timeout=20,

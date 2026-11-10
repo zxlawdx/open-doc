@@ -81,13 +81,34 @@
     const view=new EditorView({doc:field.value,parent:host,extensions});
     field.hidden=true;
     signal.addEventListener("abort",()=>{clearTimeout(pendingSignature);view.destroy();host.remove();},{once:true});
+    const history=document.createElement("select");
+    history.className="code-history";history.setAttribute("aria-label","Histórico da sessão · "+language.toUpperCase());
+    const entries=new Map();
+    const projectId=()=>project?.()||"";
+    const renderHistory=()=>history.replaceChildren(new Option("Histórico da sessão",""),
+      ...(entries.get(projectId())||[]).map((text,i)=>new Option(text.trim().split("\n")[0].slice(0,64),String(i+1))));
+    host.after(history);renderHistory();
+    const replace=text=>view.dispatch({changes:{from:0,to:view.state.doc.length,insert:text}});
+    history.addEventListener("focus",renderHistory,{signal});
+    history.addEventListener("change",()=>{
+      const text=entries.get(projectId())?.[Number(history.value)-1];
+      if(text!==undefined){replace(text);view.focus();}
+    },{signal});
+    signal.addEventListener("abort",()=>history.remove(),{once:true});
     let locked=false;
     return {
       value:()=>view.state.doc.toString(),
+      focus:()=>view.focus(),
+      replace,
+      remember(){
+        const text=view.state.doc.toString(),id=projectId();
+        entries.set(id,[text,...(entries.get(id)||[]).filter(previous=>previous!==text)].slice(0,12));
+        renderHistory();
+      },
       columns:names=>view.dispatch({effects:dialect.reconfigure(sqlLanguage(names))}),
       lock(value){
         if(locked===value)return;
-        locked=value;
+        locked=value;history.disabled=value;
         view.dispatch({effects:access.reconfigure([EditorState.readOnly.of(value),EditorView.editable.of(!value)])});
       },
     };
