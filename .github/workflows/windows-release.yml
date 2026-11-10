@@ -1,9 +1,14 @@
-name: Open Doc Windows packages
+name: Open Doc Windows and Linux packages
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      linux_release_tag:
+        description: "Tag de uma release existente para adicionar somente o pacote Linux"
+        required: false
+        type: string
   pull_request:
     paths:
       - ".github/workflows/windows-release.yml"
@@ -20,6 +25,7 @@ permissions:
 
 jobs:
   windows-x64:
+    if: github.event_name != 'workflow_dispatch' || inputs.linux_release_tag == ''
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -101,9 +107,84 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
+  linux-x64:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_QUICK_BACKEND: software
+      QTWEBENGINE_DISABLE_SANDBOX: "1"
+      QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --disable-gpu
+    steps:
+      - uses: actions/checkout@v4
+      - name: Determine Linux source and version
+        env:
+          BACKFILL_TAG: ${{ inputs.linux_release_tag }}
+        run: |
+          tag="${BACKFILL_TAG:-}"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then tag="$GITHUB_REF_NAME"; fi
+          if [[ -n "$tag" ]]; then
+            [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+              echo "Use uma tag vMAJOR.MINOR.PATCH." >&2
+              exit 1
+            }
+            version="${tag#v}"
+            if [[ -n "$BACKFILL_TAG" ]]; then
+              git fetch --no-tags origin "refs/tags/$tag:refs/tags/$tag"
+              git checkout --detach "refs/tags/$tag"
+            fi
+          else
+            version=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+          fi
+          echo "OPEN_DOC_BUILD_VERSION=$version" >> "$GITHUB_ENV"
+          echo "OPEN_DOC_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Linux runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0
+      - name: Build and archive Linux package
+        run: |
+          python -m pip install -r requirements.txt 'vela-framework[build]' 'PyQt5-Qt5==5.15.2' 'PyQtWebEngine-Qt5==5.15.2'
+          python manage.py collectstatic --yes
+          python tools/build_release_icon.py
+          python -c 'from PIL import Image; Image.open("build/open-doc.ico").save("build/open-doc.png")'
+          python manage.py buildapp --gui qt5 --icon build/open-doc.png --installer
+          cp LICENSE THIRD_PARTY_NOTICES.md dist/Open-Doc/
+          GITHUB_SHA="$OPEN_DOC_SOURCE_SHA" python tools/stage_release_notices.py dist/Open-Doc
+          mkdir -p dist/release
+          name="Open-Doc-$OPEN_DOC_BUILD_VERSION-Linux-x64.tar.gz"
+          # Preserve executable bits and the Qt runtime's symbolic links.
+          tar -czf "dist/release/$name" -C dist Open-Doc
+          (cd dist/release && sha256sum "$name" > "$name.sha256")
+      - name: Verify Linux portable and per-user installation
+        run: |
+          mkdir -p "$RUNNER_TEMP/opendoc-linux"
+          tar -xzf dist/release/*.tar.gz -C "$RUNNER_TEMP/opendoc-linux"
+          bundle="$RUNNER_TEMP/opendoc-linux/Open-Doc"
+          export HOME="$RUNNER_TEMP/opendoc-linux-home"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          mkdir -p "$HOME"
+          node tools/smoke_release.mjs "$bundle/Open-Doc"
+          "$bundle/Instalar.sh"
+          test -f "$XDG_DATA_HOME/applications/Open-Doc.desktop"
+          node tools/smoke_release.mjs "$XDG_DATA_HOME/vela-apps/Open-Doc/Open-Doc"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-doc-linux-x64
+          path: dist/release/*
+          if-no-files-found: error
+          compression-level: 0
+
   publish:
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: windows-x64
+    needs: [windows-x64, linux-x64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -112,6 +193,10 @@ jobs:
         with:
           name: open-doc-windows-x64
           path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: open-doc-linux-x64
+          path: packages
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -119,3 +204,24 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" packages/* --verify-tag \
             --title "Open Doc $GITHUB_REF_NAME" --generate-notes
+
+
+  publish-linux-backfill:
+    if: github.event_name == 'workflow_dispatch' && inputs.linux_release_tag != '' && github.ref_name == github.event.repository.default_branch
+    needs: linux-x64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: open-doc-linux-x64
+          path: packages
+      - name: Attach Linux files to the existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.linux_release_tag }}
+        run: |
+          gh release view "$RELEASE_TAG" --json tagName
+          gh release upload "$RELEASE_TAG" packages/*
