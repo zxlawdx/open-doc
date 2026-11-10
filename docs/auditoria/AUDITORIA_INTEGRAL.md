@@ -116,3 +116,27 @@ O estresse Qt no Linux exercitou Enter e Backspace repetidos no DOCX, seguido de
 5. Na planilha, digite uma fórmula e amplie antes de confirmar. Confira o texto digitado. Abra Código e alterne entre tela dividida e inteira para verificar o alvo de zoom.
 6. Feche e reabra o aplicativo. Confira tema, zoom da Central e o zoom da grade ao reabrir uma planilha.
 7. Repita no Windows com teclado ABNT2, teclado internacional e teclado numérico, em escala nativa de 100%, 125%, 150% e 200% quando disponível. A matriz automatizada emula DPR e dimensões, enquanto a verificação manual cobre o comportamento do sistema e do teclado físicos.
+
+## Digitação após usar a caneta no DOCX
+
+A digitação comparava o estado salvo e calculava o tamanho do histórico
+serializando o documento rico a cada edição. A serialização incluía a tinta,
+mesmo quando apenas um trecho de texto mudava. A comparação agora ignora
+subárvores compartilhadas, e o histórico reaproveita a contagem de tamanho das
+partes imutáveis. Desfazer e refazer texto também reaproveitam os traços intactos.
+
+O roteiro `python tools/qa_docx_ink_typing.py` desenha 112 traços com pressão e
+inclinação em um DOCX de 14 páginas e depois digita pelo teclado do Qt. Valida
+desfazer, refazer, salvar e reabrir. A CI roda o roteiro em Windows e Linux. Para
+a reprodução local, `OPEN_DOC_INK_QA_PDF` aponta para um PDF cuja extração de
+texto serve de base para a estrutura do DOCX de teste.
+
+| Tempo síncrono por tecla no Qt/Linux | Antes | Após a correção |
+| --- | ---: | ---: |
+| Mediana | 277,1 ms | 10,0 ms |
+| Percentil 95 | 509,1 ms | 16,4 ms |
+| Maior valor | 596,0 ms | 25,6 ms |
+| Serializações de toda a tinta durante a digitação | 28 | 0 |
+
+Medição com 27 teclas e cerca de 3,24 MB de tinta. Os eventos de caneta são
+simulados no WebView. O roteiro não mede a latência do driver físico da mesa.

@@ -48,7 +48,7 @@
     let documentState = null, model = null;
     let pagination=null;
     const mediaCache=new Map();
-    let saved = "", savedContent=null, savedTitle="";
+    let saved = null;
     let mode = "rich", typingStyle=null, deletionStyle=null;
     let chain = Promise.resolve();
     let destroyed = false, suspended = false;
@@ -103,13 +103,10 @@
       };
     }
 
-    function signature(snapshot) {
-      return JSON.stringify(snapshot.title)+"\n"+(snapshot.content?window.OpenDocModel.fingerprint(snapshot.content):snapshot.markdown);
-    }
-
     function isClean() {
       if(suspended)return true;
-      return !documentState || signature({title:currentTitle(),content:model,markdown:source.value}) === saved;
+      return !documentState || window.OpenDocModel.sameSnapshot(
+        {title:currentTitle(),content:model,markdown:source.value},saved);
     }
 
     function cache() {
@@ -239,7 +236,7 @@
 
       source.value = note.markdown;
       title.value = note.title;
-      saved = signature(note);savedContent=model;savedTitle=note.title;
+      saved = {title:note.title,content:model,markdown:note.markdown};
       source.disabled = false;
       title.disabled = false;
       rich.contentEditable = "true";
@@ -251,12 +248,12 @@
       renderRich();source.readOnly=Boolean(model);
       recovered = note.recovery || null;
       const cached = window.OpenDocRecovery.read(documentState.id);
-      if (cached && signature(cached) !== saved) recovered = cached;
+      if (cached && !window.OpenDocModel.sameSnapshot(cached,saved)) recovered = cached;
       history.reset(buffer());
       root.querySelector("[data-recovery]").hidden =
-        !recovered || signature(recovered) === saved;
+        !recovered || window.OpenDocModel.sameSnapshot(recovered,saved);
       render();
-      status(recovered && signature(recovered) !== saved ? "Recuperação disponível" : "Salvo no dispositivo");
+      status(recovered && !window.OpenDocModel.sameSnapshot(recovered,saved) ? "Recuperação disponível" : "Salvo no dispositivo");
     }
 
     function flush() {
@@ -273,7 +270,7 @@
         try {
           result = await request("document/save", snapshot);
           documentState.revision = result.revision;
-          saved = signature(snapshot);savedContent=snapshot.content;savedTitle=snapshot.title;
+          saved = snapshot;
           cache();
           render();
           if (!isClean()) scheduleRecovery();
@@ -339,7 +336,7 @@
       if(snapshot.historyChange?.affected?.inkOnly&&snapshot.content&&model?.blocks===snapshot.content.blocks){
         model=snapshot.content;
         cache();scheduleRecovery();updateHistoryControls();
-        const dirty=model!==savedContent||snapshot.title!==savedTitle;
+        const dirty=!isClean();
         root.dataset.dirty=String(dirty);
         window.pywebview?.api?.set_dirty?.(dirty)?.catch?.(()=>{});
         root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
@@ -348,7 +345,7 @@
       }
       title.value = snapshot.title;
       source.value = snapshot.markdown;
-      const before=model,after=snapshot.content?window.OpenDocModel.clone(snapshot.content):null,canvas=root.querySelector('[data-canvas]'),top=canvas?.scrollTop || 0,left=canvas?.scrollLeft || 0;
+      const before=model,after=snapshot.content || null,canvas=root.querySelector('[data-canvas]'),top=canvas?.scrollTop || 0,left=canvas?.scrollLeft || 0;
       if(!window.OpenDocModel){model=after;renderRich();cache();scheduleRecovery();render();commands.restoreBookmark(snapshot.selection);return;}
       let target=after;
       if(!target){const temp=document.createElement('div');temp.innerHTML=cleanHtml(snapshot.markdown) || '<p><br></p>';target=window.OpenDocRichSerializer.serialize(temp,window.OpenDocModel.empty());}
