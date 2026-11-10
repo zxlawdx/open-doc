@@ -19,6 +19,54 @@ from apps.open_doc.services.document_service import RevisionConflict
 LOGGER = logging.getLogger(__name__)
 
 
+def default_import_directory(home: Path | None = None, platform_name: str | None = None) -> str:
+    """Start Open/Import in OS Documents, not Open Doc private data.
+
+    Windows 'Personal' shell folder follows OneDrive and custom redirections.
+    Linux XDG documents location respects user-dirs.dirs.
+    """
+    home = home if home is not None else Path.home()
+    platform_name = platform_name or sys.platform
+    candidates: list[Path] = []
+
+    if platform_name == "win32":
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
+            ) as key:
+                raw = winreg.QueryValueEx(key, "Personal")[0]
+            if isinstance(raw, str) and raw:
+                candidates.append(Path(os.path.expandvars(raw)).expanduser())
+        except (OSError, ImportError, ValueError):
+            pass
+    elif platform_name.startswith("linux"):
+        try:
+            xdg_config = home / ".config" / "user-dirs.dirs"
+            for line in xdg_config.read_text(encoding="utf-8").splitlines():
+                key, separator, value = line.strip().partition("=")
+                if not separator or key != "XDG_DOCUMENTS_DIR":
+                    continue
+                value = value.strip().strip('"')
+                if value.startswith("$HOME/"):
+                    candidates.append(home / value[len("$HOME/"):])
+                elif value == "$HOME":
+                    candidates.append(home)
+                elif value.startswith("/"):
+                    candidates.append(Path(value))
+                break
+        except (OSError, UnicodeError):
+            pass
+
+    candidates.extend((home / "Documents", home / "Documentos", home))
+    for directory in candidates:
+        if directory.is_dir():
+            return str(directory)
+    return str(home)
+
+
 class OpenDocBridge(BaseBridge):
     def __init__(self, router: Any = None, config: dict[str, Any] | None = None) -> None:
         super().__init__(router=router, config=config)
@@ -100,6 +148,7 @@ class OpenDocBridge(BaseBridge):
         paths = self._window.create_file_dialog(
             webview.FileDialog.OPEN,
             allow_multiple=False,
+            directory=default_import_directory(),
             file_types=("Documentos (*.pdf;*.docx;*.pptx;*.md;*.txt)",),
         )
         if not paths:
@@ -119,6 +168,7 @@ class OpenDocBridge(BaseBridge):
             return {"error": "Janela indisponível."}
         paths = self._window.create_file_dialog(
             webview.FileDialog.OPEN, allow_multiple=True,
+            directory=default_import_directory(),
             file_types=("Dados tabulares (*.csv;*.tsv)",),
         )
         if not paths:
@@ -228,6 +278,7 @@ class OpenDocBridge(BaseBridge):
             return {"error": "Janela indisponível."}
         paths = self._window.create_file_dialog(
             webview.FileDialog.OPEN, allow_multiple=False,
+            directory=default_import_directory(),
             file_types=("Planilhas (*.xlsx;*.csv;*.tsv)",),
         )
         if not paths:
@@ -250,6 +301,7 @@ class OpenDocBridge(BaseBridge):
             return {"error": "Janela indisponível."}
         paths = self._window.create_file_dialog(
             webview.FileDialog.OPEN, allow_multiple=False,
+            directory=default_import_directory(),
             file_types=("Dados tabulares (*.csv;*.tsv)",),
         )
         if not paths:
@@ -473,6 +525,7 @@ class OpenDocBridge(BaseBridge):
             paths = self._window.create_file_dialog(
                 webview.FileDialog.OPEN,
                 allow_multiple=True,
+                directory=default_import_directory(),
                 file_types=("Fontes (*.ttf;*.otf;*.ttc)",),
             )
             return (
