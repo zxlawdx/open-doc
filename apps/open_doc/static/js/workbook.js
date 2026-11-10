@@ -14,7 +14,7 @@
     const workspace=window.OpenDocGridWorkspace;
     workspace.ribbon(host,signal,tab=>{if(tab==="code"&&analysis.hidden)run("analysis");});
     const syncSplitter=workspace.splitter(analysis,signal,schedule);
-    let sqlEditor, pythonEditor, analysisLoading, analysisBusy=false, lastSchema,lastSqlQuery=null,analysisGeneration=0;
+    let sqlEditor, pythonEditor, notebook, analysisLoading, analysisBusy=false, lastSchema,lastSqlQuery=null,analysisGeneration=0;
     const undo=[], redo=[];
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
     const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>book?.id,signal});
@@ -286,10 +286,13 @@
         catch{columns=[];}
         const signature=JSON.stringify(columns);
         if(signature!==lastSchema){sqlEditor.columns(columns);lastSchema=signature;}
+        notebook?.activate(columns);
       }
     }
     async function toggleAnalysis(open) {
-      analysis.hidden=!open;syncSplitter();
+      analysis.hidden=!open;
+      if(!open)notebook?.collapse();
+      syncSplitter();
       analysisButton.setAttribute("aria-expanded",String(open));
       schedule();
       if(!open)return;
@@ -300,6 +303,20 @@
         sqlEditor=createEditor({field:$("#book-sql"),language:"sql",request,signal,project:()=>book?.id,run:()=>run("run-sql")});
         pythonEditor=createEditor({field:$("#book-python"),language:"python",request,signal,
           signature:$("[data-book-signature]"),run:()=>run("run-python"),project:()=>book?.id});
+        notebook=window.OpenDocCodeNotebook.create({panel:analysis,signal,request,
+          project:()=>book?.id,onLayout:syncSplitter,execute:async(language,code)=>{
+            if(analysisBusy)throw Error("Já existe uma execução em andamento.");
+            finishInline();commit();
+            const snapshot=worksheetSnapshot(),generation=analysisGeneration;
+            analysisBusy=true;
+            try{
+              const result=language==="python"
+                ?await native().run_workbook_python(snapshot.columns,snapshot.rows,code,book.id)
+                :await request("workbook",{operation:"query",...snapshot,sql:code});
+              if(generation!==analysisGeneration)throw Error("A origem mudou durante a execução.");
+              return result;
+            }finally{analysisBusy=false;}
+          }});
       })().catch(error=>{analysisLoading=null;throw error;});
       await analysisLoading;
       updateSchema();

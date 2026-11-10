@@ -219,6 +219,53 @@ def main():
             wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
             wait(window, "document.querySelector('[data-cell=\"1,1\"]')?.textContent==='2050'")
             capture(output, "sql-to-sheet")
+            js("""(() => {
+              const notebook=document.querySelector('[data-book-analysis] .code-notebook');
+              notebook.querySelector('button[title="SQL"]').click();
+              notebook.querySelector('button[title="Texto"]').click();
+              notebook.querySelector('button[title="Python"]').click();
+              notebook.querySelector('button[title="Tela inteira"]').click();
+            })()""")
+            wait(window, "document.querySelector('[data-workbook] .code-notebook-full') && document.querySelectorAll('[data-workbook] [data-code-cell]').length===3")
+            js("""(() => {
+              const cell=document.querySelector('[data-workbook] [data-code-cell=sql]');
+              const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+              editor.dispatch({changes:{from:0,insert:'SELECT 42 AS resposta'}});
+              cell.querySelector('button[title="Executar"]').click();
+            })()""")
+            wait(window, "document.querySelector('[data-workbook] [data-code-cell=sql] td')?.textContent==='42'")
+            window.create_confirmation_dialog=lambda *args: True
+            try:
+                js("""(() => {
+                  const cell=document.querySelector('[data-workbook] [data-code-cell=python]');
+                  const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+                  editor.dispatch({changes:{from:0,insert:'print("caderno-python")'}});
+                  document.querySelector('[data-book-analysis] button[title="Executar todas"]').click();
+                })()""")
+                wait(window, "document.querySelector('[data-workbook] [data-code-cell=python] pre')?.textContent.includes('caderno-python')")
+            finally:
+                window.create_confirmation_dialog=confirm
+            target=output/"qa-caderno.ipynb"
+            original_dialog=window.create_file_dialog
+            window.create_file_dialog=lambda *args, **kwargs: (str(target),)
+            try:
+                click('[data-book-analysis] button[title="Exportar .ipynb"]')
+                wait(window, "document.querySelector('[data-book-analysis] .code-notebook-status').textContent.includes('Caderno exportado')")
+                notebook=json.loads(target.read_text(encoding="utf-8"))
+                assert notebook["nbformat"]==4
+                assert [cell["cell_type"] for cell in notebook["cells"]]==["raw","markdown","code"]
+            finally:
+                window.create_file_dialog=original_dialog
+                target.unlink(missing_ok=True)
+            capture(output, "code-notebook-full", width=640, height=720)
+            assert js("""(() => {
+              const bounds=document.querySelector('[data-book-analysis]').getBoundingClientRect();
+              return bounds.left===0 && bounds.top===0 && bounds.right===innerWidth && bounds.bottom===innerHeight;
+            })()""")
+            js("document.querySelector('[data-book-analysis] button[title=\"Tela dividida\"]').click()")
+            wait(window, "!document.querySelector('[data-workbook] .code-notebook-full')")
+            capture(output, "code-notebook-split")
+            print("QT_WORKBOOK_CODE_NOTEBOOK_OK", flush=True)
             print("QT_WORKBOOK_INLINE_PIVOT_SQL_PYTHON_OK", flush=True)
         except Exception as error:
             errors.append(error)

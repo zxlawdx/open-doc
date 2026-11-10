@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  function create({field,language,request,run,signature,signal,project}) {
+  function create({field,language,request,run,runNext,signature,signal,project}) {
     const {basicSetup,EditorView,keymap,hoverTooltip,EditorState,Compartment,
       python,sql,SQLite,autocompletion,acceptCompletion,linter}=window.OpenDocCodeVendor;
     const dialect=new Compartment(), access=new Compartment();
@@ -21,6 +21,7 @@
         transaction.newDoc.length>field.maxLength && transaction.docChanged ? [] : transaction),
       keymap.of([
         {key:"Ctrl-Enter",run:()=>{run();return true;}},
+        ...(runNext?[{key:"Shift-Enter",run:()=>{runNext();return true;}}]:[]),
         {key:"Tab",run:acceptCompletion},
       ]),
       access.of([]),
