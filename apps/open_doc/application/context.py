@@ -57,7 +57,7 @@ def configure(config: Config | None = None) -> ApplicationContext:
             [WindowsInkBackend(), PaddleOcrBackend(workspace)]
         )
         fixed_documents.handwriting = handwriting
-        _context = ApplicationContext(
+        context = ApplicationContext(
             config=workspace,
             editor=editor,
             organizer=organizer,
@@ -73,14 +73,15 @@ def configure(config: Config | None = None) -> ApplicationContext:
 
         from apps.open_doc.datasets.store import Datasets
 
-        _context.workbooks = Workbooks(editor)
-        _context.datasets = Datasets(workspace.root)
-        _context.datasets.initialize()
+        context.workbooks = Workbooks(editor)
+        context.datasets = Datasets(workspace.root)
+        context.datasets.initialize()
         from apps.open_doc.application.personal_templates import Templates
 
-        _context.documents = DocumentApplication(_context)
-        _context.templates = Templates(_context)
-        return _context
+        context.documents = DocumentApplication(context)
+        context.templates = Templates(context)
+        _context = context
+        return context
 
 
 def get_context() -> ApplicationContext:

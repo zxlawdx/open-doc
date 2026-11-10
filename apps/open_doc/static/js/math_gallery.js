@@ -3,6 +3,16 @@
  */
 "use strict";
 (() => {
+ const EDITABLE_FIELDS={
+   text:[["value","Expressão"]],bold:[["value","Texto em negrito"]],
+   fraction:[["numerator","Numerador"],["denominator","Denominador"]],
+   nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
+   superscript:[["base","Base"],["power","Expoente"]],
+   subscript:[["base","Base"],["sub","Índice"]],
+   sqrt:[["radicand","Radicando"]],
+   root:[["index","Índice da raiz"],["radicand","Radicando"]],
+   limit:[["base","Operador"],["lower","Limite"]]
+ };
  const DEFINITIONS=[
   {id:"fraction",label:"Derivada de fração",tex:"\\frac{d}{dx}\\frac{x^2+1}{x+1}=\\frac{x^2+2x-1}{(x+1)^2}",op:"d/dx",upper:"x² + 1",lower:"x + 1",resultUpper:"x² + 2x − 1",resultLower:"(x + 1)²",note:"Regra do quociente; x ≠ −1"},
   {id:"integral",label:"Integral simples",tex:"\\int x^2\\,dx=\\frac{x^3}{3}+C",op:"∫",operand:"x² dx =",resultUpper:"x³",resultLower:"3",tail:"+ C",note:"Regra da potência"},
@@ -193,5 +203,5 @@
   host.append(panel);
   return {panel,toggle:()=>{panel.hidden=!panel.hidden;},close:()=>{panel.hidden=true;}};
  }
- window.OpenDocMathGallery={DEFINITIONS,BLOCKS,svg,toPng,install,renderBlocks};
+ window.OpenDocMathGallery={EDITABLE_FIELDS,DEFINITIONS,BLOCKS,svg,toPng,install,renderBlocks};
 })();

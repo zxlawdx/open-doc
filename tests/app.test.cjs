@@ -5,15 +5,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {JSDOM} = require('jsdom');
 const base = path.resolve(__dirname, '..');
-async function mount(t, brokenNavigation = false, startInLibrary = false) {
+async function mount(t, brokenNavigation = false, startInLibrary = false, systemTheme = false) {
   const template = fs.readFileSync(path.join(base, 'apps/open_doc/templates/base.html'), 'utf8')
     .replace(/{{ (menus|toolbar|sidebar|editor|home|workbook) }}/g, (_, name) => fs.readFileSync(path.join(base, 'apps/open_doc/templates/' + name + '.html'), 'utf8'));
   const dom = new JSDOM(template, {url: 'http://localhost', runScripts: 'outside-only'});
   const w = dom.window, root = w.document.querySelector('[data-app]');
+  const media = new w.EventTarget();
+  media.matches = false;
+  w.matchMedia = () => media;
   delete w.Element.prototype.replaceChildren;
   w.OpenDocPdf={};w.OpenDocPptxVendor={};w.OpenDocFreehand={};w.requestAnimationFrame=fn=>setTimeout(fn,0);
   const note = {id: 'note', title: 'Documento', markdown: '# Título\n\nTexto selecionado', revision: 1};
-  w.pywebview = {api: {get_bootstrap: async () => ({token: 'test', start_in_library: startInLibrary, settings: {theme: 'light', zoom: 100}, document: note, autosave_seconds: 30}), set_dirty: async () => {}}};
+  w.pywebview = {api: {get_bootstrap: async () => ({token: 'test', start_in_library: startInLibrary, settings: {theme: systemTheme ? 'system' : 'light', zoom: 100}, document: note, autosave_seconds: 30}), set_dirty: async () => {}}};
   const requests = [];
   w.fetch = async (url, options) => {
     requests.push({url: String(url), body: options?.body});
@@ -28,7 +31,7 @@ async function mount(t, brokenNavigation = false, startInLibrary = false) {
       options?.body ? {...JSON.parse(options.body), revision:2} : library;
     return {ok:true,json:async()=>data};
   };
-  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','fixed_document.js','document_kinds.js','ink.js', 'design_system.js', 'menus.js', 'theme.js', 'paper_layout.js', 'navigation.js']) {
+  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','fixed_document.js','document_kinds.js','ink.js', 'design_system.js', 'menus.js', 'theme.js', 'paper_layout.js', 'zoom.js', 'navigation.js']) {
     w.eval(fs.readFileSync(path.join(base, 'apps/open_doc/static/js', file), 'utf8'));
   }
   if (brokenNavigation) {
@@ -63,7 +66,7 @@ async function mount(t, brokenNavigation = false, startInLibrary = false) {
     range.selectNodeContents(rich.querySelector('p')); rich.focus();
     w.getSelection().removeAllRanges(); w.getSelection().addRange(range);
   };
-  return {w, root, click, select, requests};
+  return {w, root, click, select, requests, media};
 }
 test('app.js boots without replaceChildren and binds toolbar, select, menus and navigation', async t => {
   const {w, root, click, select} = await mount(t);
@@ -195,4 +198,73 @@ test('the startup library scopes formats and previews a template before creating
   assert.equal(w.OpenDocApp.editor().snapshot().id, 'copy');
   assert.deepEqual(JSON.parse(requests.find(item=>item.url.endsWith('/document/template')).body), {id:'field'});
   assert.equal(requests.filter(item=>item.url.endsWith('/files')).length, 1);
+});
+
+test('global zoom separates Central and document, and handles keyboard variants once', async t => {
+  const {w, root, click, requests} = await mount(t, false, true);
+  const output = () => root.querySelector('[data-zoom-value]').textContent;
+  const key = (key, code, modifiers = {}) => {
+    const event = new w.KeyboardEvent('keydown', {
+      key, code, ctrlKey: true, bubbles: true, cancelable: true, ...modifiers
+    });
+    root.querySelector('[data-library-search]').dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+  assert.equal(output(), '100%');
+  for (const [value, code, modifiers, expected] of [
+    ['+', 'Equal', {shiftKey: true}, '110%'],
+    ['+', 'Slash', {}, '120%'],
+    ['=', 'Equal', {}, '130%'],
+    ['Add', 'NumpadAdd', {}, '140%'],
+    ['Subtract', 'NumpadSubtract', {}, '130%'],
+    ['-', 'Minus', {}, '120%'],
+    ['0', 'Numpad0', {}, '100%'],
+  ]) {
+    assert.equal(key(value, code, modifiers), true);
+    assert.equal(output(), expected);
+  }
+  assert.equal(key('+', 'Equal', {altKey: true}), false);
+  assert.equal(key('-', 'Minus', {ctrlKey: false}), false);
+  key('z', 'KeyZ');
+  assert.equal(output(), '100%');
+  const wheel = new w.WheelEvent('wheel', {ctrlKey: true, deltaY: -80, bubbles: true, cancelable: true});
+  root.querySelector('[data-library-search]').dispatchEvent(wheel);
+  assert.equal(wheel.defaultPrevented, true);
+  assert.equal(output(), '110%');
+  click('[data-action=resume-editor]');
+  assert.equal(output(), '100%');
+  click('[data-zoom-step="-10"]');
+  assert.equal(output(), '90%');
+  click('.product');
+  assert.equal(output(), '110%');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const persisted = requests.filter(item => item.url.endsWith('/settings')).map(item => JSON.parse(item.body).settings);
+  assert.deepEqual(persisted.slice(-2), [{interface_zoom: 110}, {zoom: 90}]);
+});
+
+test('appearance can be changed in Central and responds to the system preference', async t => {
+  const {w, root, click, requests, media} = await mount(t, false, true, true);
+  click('.header-actions [data-action=theme]');
+  assert.equal(root.querySelector('[data-dialog]').hidden, false);
+  root.querySelector('[data-dialog-select]').value = 'dark';
+  click('[data-dialog-confirm]');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(root.dataset.theme, 'dark');
+  click('[data-action=resume-editor]');
+  assert.equal(root.dataset.theme, 'dark');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.ok(requests.some(item => item.body && JSON.parse(item.body).settings?.theme === 'dark'));
+  click('.header-actions [data-action=theme]');
+  root.querySelector('[data-dialog-select]').value = 'system';
+  click('[data-dialog-confirm]');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(root.dataset.theme, 'light');
+  media.matches = true;
+  media.dispatchEvent(new w.Event('change'));
+  assert.equal(root.dataset.theme, 'dark');
+  click('.header-actions [data-action=theme]');
+  root.querySelector('[data-dialog-select]').value = 'light';
+  click('[data-dialog-confirm]');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(root.dataset.theme, 'light');
 });

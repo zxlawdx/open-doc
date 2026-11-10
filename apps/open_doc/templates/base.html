@@ -21,6 +21,9 @@
       <button class="icon-button header-new" data-action="new" aria-label="Novo documento" title="Novo documento (Ctrl+N)">
         <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg>
       </button>
+      <button type="button" class="icon-button" data-action="theme" aria-label="Configurações de aparência" title="Configurações · Aparência">
+        <svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#settings"></use></svg>
+      </button>
     </div>
   </header>
   {{ menus }}
@@ -70,10 +73,10 @@
     <span class="status-spacer"></span>
     <div class="status-right"><span class="status-mode" data-mode-label>Editor visual</span>
     <button data-zoom-step="-10" aria-label="Reduzir zoom" title="Reduzir zoom">−</button>
-    <label class="sr-only" for="zoom">Zoom do documento</label>
-    <input type="range" id="zoom" data-zoom min="50" max="150" value="100" step="10">
+    <label class="sr-only" for="zoom" data-zoom-label>Zoom do documento</label>
+    <input type="range" id="zoom" data-zoom min="50" max="150" value="100" step="1">
     <button data-zoom-step="10" aria-label="Aumentar zoom" title="Aumentar zoom">+</button>
-    <output data-zoom-value for="zoom">100%</output>
+    <button type="button" data-zoom-step="0" title="Restaurar zoom (Ctrl+0)" aria-label="Restaurar zoom a 100%"><output data-zoom-value for="zoom">100%</output></button>
     </div>
   </footer>
   <div class="modal-backdrop" data-dialog hidden>

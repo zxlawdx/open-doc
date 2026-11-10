@@ -34,13 +34,17 @@ def _header(headers: Mapping[str, Any], name: str) -> str:
     return ""
 
 
+def _has_session(headers: Mapping[str, Any]) -> bool:
+    supplied = _header(headers, "X-Open-Doc-Token")
+    return supplied.isascii() and secrets.compare_digest(supplied, get_context().token)
+
+
 def _data(context: dict[str, Any] | None) -> dict[str, Any]:
     context = context or {}
     data = context.get("json")
     if not isinstance(data, dict):
         raise ValueError("Esperado objeto JSON.")
-    supplied = _header(context.get("headers", {}), "X-Open-Doc-Token")
-    if not secrets.compare_digest(supplied, get_context().token):
+    if not _has_session(context.get("headers", {})):
         raise PermissionError("Sessão inválida.")
     return data
 
@@ -66,8 +70,14 @@ def _handle(operation: Callable[[], dict[str, Any]]) -> dict[str, Any] | Respons
 
 
 @api.get("/open_doc/files")
-def files() -> dict[str, Any] | Response:
-    return _handle(_documents().list_library)
+def files(request: Request) -> Response:
+    if not _has_session(request.headers):
+        return Response({"error": "Sessão inválida."}, status=FORBIDDEN)
+    return _handle(
+        lambda: Response(
+            _documents().list_library(), headers={"Cache-Control": "no-store"}
+        )
+    )
 
 
 @api.post("/open_doc/settings")
@@ -192,10 +202,7 @@ def _read_artifact(path: Path, byte_range: tuple[int, int] | None) -> bytes:
 
 @api.get("/open_doc/artifact/content")
 def artifact_content(request: Request) -> Response:
-    if not secrets.compare_digest(
-        _header(request.headers, "X-Open-Doc-Token"),
-        get_context().token,
-    ):
+    if not _has_session(request.headers):
         return Response("Sessão inválida.", status=FORBIDDEN, content_type="text/plain")
     try:
         path = _documents().artifact_source(

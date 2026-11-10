@@ -333,7 +333,7 @@ test('read-only imported PPTX with three slides never stacks sheets under active
 
  sidebar.querySelector('[data-thumbnail-index="1"]').click();assertSingle(1);
  sidebar.querySelector('[data-thumbnail-index="2"]').click();assertSingle(2);
- root.dispatchEvent(new w.CustomEvent('open-doc:fixed-zoom',{detail:150}));
+ editor.setZoom(150);
  assertSingle(2);
  assert.ok(parseFloat(scroll.querySelector('.fixed-surface').style.width)>960);
  await editor.load(note);

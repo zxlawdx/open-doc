@@ -13,8 +13,10 @@ body {
     min-height: 0;
 }
 .open-doc {
-    width: 100%;
-    height: 100vh;
+    position: relative;
+    zoom: var(--interface-zoom, 1);
+    width: var(--interface-width, 100%);
+    height: var(--interface-height, 100vh);
     display: flex;
     flex-direction: column;
     overflow: hidden;

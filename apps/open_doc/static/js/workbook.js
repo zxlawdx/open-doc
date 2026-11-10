@@ -2,7 +2,7 @@
 (() => {
   const ROWS=10000, COLS=100;
   const key=(r,c)=>r+","+c;
-  function create({host,request,dialog,signal,loadCodeEditors}) {
+  function create({host,request,dialog,signal,loadCodeEditors,settings,persist}) {
     const {address,column,evaluate}=window.OpenDocWorkbookFormula;
     const $=selector=>host.querySelector(selector);
     const viewport=$("[data-book-scroll]"), space=$("[data-book-space]");
@@ -10,7 +10,7 @@
     const coord=$("[data-book-address]"), tabs=$("[data-book-tabs]"), status=$("[data-book-status]");
     const inline=$("[data-book-inline]");
     const analysis=$("[data-book-analysis]"), analysisButton=$("[data-book-command=analysis]");
-    let WIDTH=112, HEIGHT=28, GUTTER=52;
+    let WIDTH=112, HEIGHT=28, GUTTER=52, zoom=settings.workbook_zoom ?? 100;
     const workspace=window.OpenDocGridWorkspace;
     workspace.ribbon(host,signal,tab=>{if(tab==="code"&&analysis.hidden)run("analysis");});
     const syncSplitter=workspace.splitter(analysis,signal,schedule);
@@ -112,8 +112,11 @@
             cell.style.fontSize=style.size ? style.size*(HEIGHT/28)+"pt" : "";
             cell.style.fontStyle=style.italic?"italic":"";
             cell.style.textDecoration=[style.underline?"underline":"",style.strike?"line-through":""].join(" ");
-            cell.style.color=style.color||"";
-            if(r<selection[0]||r>selection[2]||c<selection[1]||c>selection[3])cell.style.backgroundColor=style.fill||"";
+            if(style.color || style.fill){
+              cell.classList.add("book-authored-color");
+              cell.style.color=style.color||"var(--color-paper-ink)";
+              cell.style.backgroundColor=style.fill||"var(--color-paper)";
+            }
             cell.style.textAlign=style.align||"";
             if(style.border)cell.classList.add("book-bordered");
             if(style.wrap)cell.classList.add("book-wrapped");
@@ -217,12 +220,28 @@
       if(accept)applyCells([[key(row,col),value]]);
       native().set_dirty?.(dirty);
     }
-    function editInline(initial=raw()) {
-      if(!inline.hidden||pending||importing)return;
-      select(row,col,false,true);
+    function positionInline() {
       inline.style.left=GUTTER+col*WIDTH+"px";
       inline.style.top=(row+1)*HEIGHT+"px";
       inline.style.width=WIDTH+"px";
+    }
+    function resizeGrid(value) {
+      const scale=value/100;
+      const left=viewport.scrollLeft/WIDTH, top=viewport.scrollTop/HEIGHT;
+      WIDTH=Math.round(112*scale);HEIGHT=Math.round(28*scale);GUTTER=Math.round(52*scale);
+      viewport.style.setProperty("--book-cell-height",HEIGHT+"px");
+      viewport.style.setProperty("--book-grid-font",Math.round(13*scale)+"px");
+      space.style.width=GUTTER+COLS*WIDTH+"px";
+      space.style.height=(ROWS+1)*HEIGHT+"px";
+      viewport.scrollLeft=left*WIDTH;
+      viewport.scrollTop=top*HEIGHT;
+      if(!inline.hidden)positionInline();
+      schedule();
+    }
+    function editInline(initial=raw()) {
+      if(!inline.hidden||pending||importing)return;
+      select(row,col,false,true);
+      positionInline();
       inline.value=initial;inline.hidden=false;
       inline.focus();inline.setSelectionRange(initial.length,initial.length);
     }
@@ -399,7 +418,7 @@
       $("[data-book-command=pivot]").setAttribute("aria-expanded","false");
       book=value;title.value=value.title;
       undo.length=0;redo.length=0;dirty=false;
-      renderTabs();choose(0);report("Salvo neste dispositivo");
+      resizeGrid(zoom);renderTabs();choose(0);report("Salvo neste dispositivo");
     }
     async function save() {
       if(importing)throw Error("Aguarde a importação terminar.");
@@ -853,19 +872,14 @@
         if(field.dataset.bookStyle){
           styleSelection(field.dataset.bookStyle,field.dataset.bookStyle==="size"?Number(field.value):field.value);
         }
-        if(field.matches("[data-book-zoom]")){
-          const scale=Number(field.value)/100;
-          WIDTH=Math.round(112*scale);HEIGHT=Math.round(28*scale);GUTTER=Math.round(52*scale);
-          viewport.style.setProperty("--book-cell-height",HEIGHT+"px");
-          viewport.style.setProperty("--book-grid-font",Math.round(13*scale)+"px");
-          space.style.width=GUTTER+COLS*WIDTH+"px";
-          space.style.height=(ROWS+1)*HEIGHT+"px";
-          select(row,col,true,true);
-        }
       }catch(error){report(error.message);}
     },{signal});
     signal.addEventListener("abort",()=>cancelAnimationFrame(frame),{once:true});
-    return {load,save,report,id:()=>book.id};
+    return {load,save,report,id:()=>book.id,value:()=>zoom,set(value){
+      zoom=value;
+      resizeGrid(value);
+      persist({workbook_zoom:value}).catch(error=>report(error.message));
+    }};
   }
   window.OpenDocWorkbook={create};
 })();

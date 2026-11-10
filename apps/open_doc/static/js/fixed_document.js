@@ -78,8 +78,24 @@
     pageField.value=count?String(index+1):'1';
     pageField.max=count||1;
   }
-  button('Ajustar largura',()=>fit(false));button('Página inteira',()=>fit(true));button('−',()=>scale(zoom/1.2));button('+',()=>scale(zoom*1.2));
-  const search=document.createElement('input');search.type='search';search.placeholder='Localizar no PDF';search.setAttribute('aria-label','Localizar no PDF');controls.append(search);button('Buscar',find);const extractButton=button('Extrair páginas',()=>extractPages().catch(error=>status(error.message)));
+  button('Ajustar largura',()=>fit(false));button('Página inteira',()=>fit(true));
+  const searchBox=document.createElement('div');searchBox.className='fixed-search';searchBox.setAttribute('role','search');
+  const search=document.createElement('input');search.type='search';search.placeholder='Localizar no PDF';search.setAttribute('aria-label','Localizar no PDF');
+  const searchButton=button('Buscar',find);
+  searchBox.append(search,searchButton);controls.append(searchBox);
+  let searchPreviousFocus;
+  function focusSearch(){
+    if(!searchBox.contains(document.activeElement))searchPreviousFocus=document.activeElement;
+    host.dataset.searchOpen='true';
+    search.focus();search.select();
+  }
+  searchBox.addEventListener('keydown',event=>{
+    if(event.key!=='Escape'||host.dataset.slideEditor!=='true')return;
+    event.preventDefault();event.stopPropagation();
+    delete host.dataset.searchOpen;
+    searchPreviousFocus?.focus();
+  },{signal});
+  const extractButton=button('Extrair páginas',()=>extractPages().catch(error=>status(error.message)));
   const nativeEditButton=button('Editar PDF',()=>{
     if(note?.source_kind!=='pdf')return;
     nativeEditMode=!nativeEditMode;
@@ -356,8 +372,6 @@
     const view=pdfView();
     zoom=Math.max(.25,Math.min(3,value));
     if(model?.editable_deck&&!keepFit)slideFitMode=null;
-    root.querySelector('[data-zoom]').value=Math.round(zoom*100);
-    root.querySelector('[data-zoom-value]').textContent=Math.round(zoom*100)+'%';
     if(note?.source_kind==='pptx' && pptx && !model?.editable_deck){
       showImportedSlide(pptxPreviewIndex);
       root.dispatchEvent(new CustomEvent('open-doc:layout'));
@@ -570,7 +584,7 @@
     root.dispatchEvent(new CustomEvent('open-doc:layout'));
   }
 
-  async function load(value,inheritedView=null){rememberPdfView();viewReady=false;slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';host.hidden=false;nativeTextButton.hidden=note.source_kind!=='pdf';nativeTextPanel.hidden=true;nativeEditMode=false;nativeEditButton.textContent='Editar PDF';nativeEditButton.setAttribute('aria-pressed','false');nativeEditButton.hidden=note.source_kind!=='pdf';pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];syncPageNavigation(0);
+  async function load(value,inheritedView=null){rememberPdfView();viewReady=false;slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';delete host.dataset.searchOpen;searchPreviousFocus=null;host.hidden=false;nativeTextButton.hidden=note.source_kind!=='pdf';nativeTextPanel.hidden=true;nativeEditMode=false;nativeEditButton.textContent='Editar PDF';nativeEditButton.setAttribute('aria-pressed','false');nativeEditButton.hidden=note.source_kind!=='pdf';pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';search.setAttribute('aria-label',search.placeholder);recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;zoom=1;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];syncPageNavigation(0);
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
    if(note.source_kind==='pptx' && model.editable_deck){
      root.dataset.readerState='ready';
@@ -679,7 +693,6 @@
     status('Salvo em: '+result.path);
     return result;
   }
-  root.addEventListener('open-doc:fixed-zoom',event=>{if(active)scale(event.detail/100);},{signal});
   root.addEventListener('open-doc:view-ready',()=>{
     if(active && (pptx || (model?.editable_deck && host.dataset.slideEditor==='true')) &&
        scroller.clientWidth>80 && scroller.clientHeight>80)fit(true);
@@ -692,14 +705,17 @@
     }
   },{signal});
   function format(command){if(locked)return;if(command==='undo' || command==='redo'){const value=history[command]();if(value){model=clone(value.content);title.value=value.title;clearTimeout(timer);timer=setTimeout(()=>flush().catch(e=>status(e.message)),800);texts();semantic?.refresh();slidesEditor?.render();root.dispatchEvent(new CustomEvent('open-doc:content'));}}}
-  window.addEventListener('keydown',e=>{if(!active || !(e.ctrlKey || e.metaKey) || e.target.closest?.('.slide-table-cell-editor'))return;
+  window.addEventListener('keydown',e=>{
+    if(!active || root.dataset.homeView==='true' || root.querySelector('[data-dialog]:not([hidden])') ||
+       e.defaultPrevented || !(e.ctrlKey || e.metaKey) ||
+       e.target.closest?.('.slide-inline-editor,.slide-table-cell-editor'))return;
     if(e.key.toLowerCase()==='f' && (note?.source_kind==='pdf'||note?.source_kind==='pptx')){
-      e.preventDefault();search.focus();search.select();return;
+      e.preventDefault();focusSearch();return;
     }
-    if(['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
+    if(!e.target.closest?.('input,textarea,select,[contenteditable=true]') && ['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
   window.addEventListener('beforeunload',e=>{rememberPdfView();if(active && signature()!==saved){request('document/recovery',snapshot()).catch(()=>{});e.preventDefault();e.returnValue='';}},{signal});
   signal.addEventListener('abort',()=>{rememberPdfView();viewReady=false;clearTimeout(timer);clearTimeout(recoveryTimer);epoch++;thumbObserver?.disconnect();pdf?.destroy();pptx?.destroy();host.remove();},{once:true});
-  return {insertTable:()=>slidesEditor?.insertTable(),load,flush,snapshot,inkLayers,setInkLayers,insertRecognized,format,export:exportDocument,isClean:()=>!note || signature()===saved,setLocked:v=>{locked=v;title.disabled=v;},setMode:()=>{},capture:()=>{},refresh:lazy,style:()=>{},textState:()=>({}),commandState:()=>false,pagination:()=>null,pageView:()=>{},copy:async()=>{await flush();const duplicate=await request('document/duplicate',{id:note.id});load(duplicate);return duplicate;},deactivate:()=>{rememberPdfView();viewReady=false;slidesEditor?.deactivate();active=false;epoch++;searchEpoch++;searchingPages.clear();clearTimeout(timer);clearTimeout(recoveryTimer);clearTimeout(searchTimer);thumbObserver?.disconnect();for(const task of renderTasks.values())task.cancel();renderTasks.clear();renderedPages.clear();rendering.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;pageNodes=[];scroller.replaceChildren();host.hidden=true;},find:()=>search.focus()};
+  return {zoomValue:()=>Math.round(zoom*100),setZoom:value=>{if(active && !slidesEditor?.inlineEditing)scale(value/100);},insertTable:()=>slidesEditor?.insertTable(),load,flush,snapshot,inkLayers,setInkLayers,insertRecognized,format,export:exportDocument,isClean:()=>!note || signature()===saved,setLocked:v=>{locked=v;title.disabled=v;},setMode:()=>{},capture:()=>{},refresh:lazy,style:()=>{},textState:()=>({}),commandState:()=>false,pagination:()=>null,pageView:()=>{},copy:async()=>{await flush();const duplicate=await request('document/duplicate',{id:note.id});load(duplicate);return duplicate;},deactivate:()=>{rememberPdfView();viewReady=false;slidesEditor?.deactivate();active=false;epoch++;searchEpoch++;searchingPages.clear();clearTimeout(timer);clearTimeout(recoveryTimer);clearTimeout(searchTimer);thumbObserver?.disconnect();for(const task of renderTasks.values())task.cancel();renderTasks.clear();renderedPages.clear();rendering.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;pageNodes=[];scroller.replaceChildren();host.hidden=true;},find:focusSearch};
  }
  window.OpenDocFixedDocument={create};
 })();

@@ -127,7 +127,8 @@ def main():
             wait(window, "document.querySelector('[data-library-recent] .library-file-title')?.textContent==='Orçamento doméstico'")
             assert get_context().workbooks.list()[0]["revision"] == 2
             wait(window, "document.querySelector('.library-file-icon[data-format=xlsx]').textContent==='XLSX'")
-            assert js("getComputedStyle(document.querySelector('.statusbar')).display==='none'")
+            assert js("getComputedStyle(document.querySelector('.statusbar')).display!=='none'")
+            assert js("document.querySelector('[data-zoom-label]').textContent==='Zoom da interface'")
             capture_viewports(window, output, "central")
             click("[data-library-recent] .library-file-title")
             wait(window, "document.querySelector('[data-cell=\"1,3\"]')?.textContent==='520'")

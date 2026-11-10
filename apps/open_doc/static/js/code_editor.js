@@ -2,7 +2,7 @@
 (() => {
   function create({field,language,request,run,runNext,signature,signal,project}) {
     const {basicSetup,EditorView,keymap,hoverTooltip,EditorState,Compartment,
-      python,sql,SQLite,autocompletion,acceptCompletion,linter}=window.OpenDocCodeVendor;
+      python,sql,SQLite,autocompletion,acceptCompletion,linter,HighlightStyle,syntaxHighlighting,tags}=window.OpenDocCodeVendor;
     const dialect=new Compartment(), access=new Compartment();
     const host=document.createElement("div");
     host.className="dataset-code-editor";
@@ -16,6 +16,13 @@
     const sqlLanguage=columns=>sql({dialect:SQLite,schema:{dados:columns},defaultTable:"dados"});
     const extensions=[
       basicSetup,
+      syntaxHighlighting(HighlightStyle.define([
+        {tag: [tags.keyword, tags.operatorKeyword, tags.typeName], color: "var(--color-primary)"},
+        {tag: [tags.string, tags.regexp], color: "var(--color-success)"},
+        {tag: [tags.number, tags.bool, tags.null], color: "var(--color-warning)"},
+        {tag: [tags.comment, tags.meta], color: "var(--color-text-secondary)", fontStyle: "italic"},
+        {tag: tags.invalid, color: "var(--color-danger)"},
+      ])),
       EditorView.contentAttributes.of({"aria-label":field.getAttribute("aria-label") || language,spellcheck:"false"}),
       EditorState.transactionFilter.of(transaction=>
         transaction.newDoc.length>field.maxLength && transaction.docChanged ? [] : transaction),

@@ -90,18 +90,28 @@ def test_preferences_migrate_and_persist_theme_zoom(tmp_path: Path) -> None:
     config = Config(tmp_path)
     config.settings_path.write_text('{"sidebar_collapsed": true}', encoding="utf-8")
     assert config.load_settings()["theme"] == "system"
-    config.save_settings({"theme": "dark", "zoom": 120})
+    assert config.load_settings()["interface_zoom"] == 100
+    assert config.load_settings()["workbook_zoom"] == 100
+    config.save_settings(
+        {"theme": "dark", "zoom": 120, "interface_zoom": 130, "workbook_zoom": 140}
+    )
     restored = Config(tmp_path).load_settings()
     assert restored == {
         "sidebar_collapsed": True,
         "theme": "dark",
         "zoom": 120,
+        "interface_zoom": 130,
+        "workbook_zoom": 140,
         "view_mode": "pages",
     }
     with pytest.raises(ValueError):
         config.save_settings({"theme": "purple"})
     with pytest.raises(ValueError):
         config.save_settings({"zoom": 999})
+    with pytest.raises(ValueError):
+        config.save_settings({"interface_zoom": 201})
+    with pytest.raises(ValueError):
+        config.save_settings({"workbook_zoom": 49})
 
 
 def test_open_doc_branding_and_namespace() -> None:

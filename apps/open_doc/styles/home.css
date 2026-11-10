@@ -64,11 +64,11 @@
 }
 
 /* Desktop library follows familiar navigation/content separation. */
-.open-doc .home{display:grid;grid-template-columns:220px minmax(0,1fr);align-items:start}
+.open-doc .home{display:grid;grid-template-columns:var(--library-nav-width) minmax(0,1fr);align-items:start}
 .open-doc .home-side-nav{
   grid-column:1;grid-row:1;position:sticky;top:0;align-self:start;
-  display:flex;flex-direction:column;gap:4px;
-  height:100%;max-height:calc(100vh - 110px);overflow-y:auto;box-sizing:border-box;
+  display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:var(--space-1);
+  height:100%;max-height:calc(var(--interface-height, 100vh) - 110px);overflow-y:auto;box-sizing:border-box;
   padding:26px 14px;background:var(--color-panel);
   border-right:1px solid var(--color-border-soft);
 }
@@ -77,12 +77,14 @@
   letter-spacing:.09em;color:var(--color-text-secondary)
 }
 .open-doc .home-side-nav button{
-  display:flex;align-items:center;gap:10px;min-height:38px;
+  display:grid;grid-template-columns:var(--library-nav-icon) minmax(0,1fr);
+  align-items:center;column-gap:var(--library-nav-gap);min-height:var(--library-nav-row);
   text-align:left;color:var(--color-text-primary);
   border:1px solid transparent;border-radius:11px;background:transparent;
-  padding:7px 10px;font-size:13px;line-height:1.35;
+  padding:7px var(--space-3);font-size:var(--font-size-md);line-height:1.35;
   cursor:pointer
 }
+.open-doc .home-side-nav button span{min-width:0;overflow-wrap:break-word}
 .open-doc .home-side-nav button:hover,
 .open-doc .home-side-nav button:focus-visible{
   border-color:var(--color-border);background:var(--of-surface-low)
@@ -90,7 +92,7 @@
 .open-doc .home-side-nav button[aria-current=page]{
   background:var(--color-primary-soft);color:var(--color-primary);font-weight:650
 }
-.open-doc .home-side-nav svg{display:block;flex:0 0 19px;width:19px;height:19px;stroke:currentColor;fill:none}
+.open-doc .home-side-nav svg{display:block;width:var(--library-nav-icon);height:var(--library-nav-icon);stroke:currentColor;fill:none}
 .open-doc .home-side-divider{border-top:1px solid var(--color-border-soft);margin:5px 7px}
 .open-doc .home-inner{grid-column:2;grid-row:1;max-width:min(calc(100% - 48px),var(--home-max-width))}
 
@@ -116,8 +118,6 @@
 .open-doc .home-mobile-modules{display:none}
 
 .open-doc .workbook[hidden]{display:none}
-.open-doc[data-workbook-view=true] .header-actions,
-.open-doc[data-workbook-view=true] .statusbar{display:none}
 .open-doc .workbook{
   display:flex;flex:1;min-height:0;flex-direction:column;
   background:var(--color-panel);color:var(--color-text-primary)
@@ -147,13 +147,12 @@
 }
 .open-doc .book-corner{z-index:2}
 .open-doc .book-cell.selected{background:var(--color-primary-soft)}
+.open-doc .book-authored-color.selected{box-shadow:inset 0 0 0 1px var(--color-primary)}
 .open-doc .book-cell.active{outline:2px solid var(--color-primary);outline-offset:-2px}
 .open-doc .book-cell.bold{font-weight:700}
 .open-doc [data-book-tabs]{display:flex;gap:.3rem;overflow:auto}
 .open-doc [data-book-status]{padding:.3rem .65rem;margin:0;color:var(--color-text-secondary)}
 
-.open-doc[data-dataset-view=true] .header-actions,
-.open-doc[data-dataset-view=true] .statusbar{display:none}
 .open-doc .dataset table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
 .open-doc .dataset td,.open-doc .dataset th{
   padding:.3rem .5rem;border-bottom:1px solid var(--color-border);
@@ -295,3 +294,26 @@
   border:1px solid var(--color-border);padding:.25rem .4rem;text-align:left
 }
 .open-doc .book-query-results th{background:var(--color-workspace);position:sticky;top:0}
+
+/* CodeMirror chrome and its syntax tokens follow the shared semantic palette. */
+.open-doc .dataset-code-editor .cm-editor,
+.open-doc .dataset-code-editor .cm-tooltip,
+.open-doc .dataset-code-editor .cm-panels {
+  background: var(--color-panel);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+.open-doc .dataset-code-editor .cm-gutters {
+  background: var(--color-workspace);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+.open-doc .dataset-code-editor .cm-activeLine,
+.open-doc .dataset-code-editor .cm-activeLineGutter { background: var(--color-hover); }
+.open-doc .dataset-code-editor .cm-content { caret-color: var(--color-text-primary); }
+.open-doc .dataset-code-editor .cm-cursor { border-left-color: var(--color-text-primary); }
+.open-doc .dataset-code-editor .cm-editor .cm-selectionBackground,
+.open-doc .dataset-code-editor .cm-tooltip-autocomplete ul li[aria-selected] {
+  background: var(--color-primary-soft);
+  color: var(--color-text-primary);
+}

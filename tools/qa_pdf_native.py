@@ -29,8 +29,9 @@ def main():
             wait(window, "document.querySelector('.fixed-surface .textLayer span')")
             window.evaluate_js("""
                 document.querySelector('.fixed-sidebar [data-thumbnail-index="1"]').click();
-                document.querySelector('[data-app]').dispatchEvent(
-                    new CustomEvent('open-doc:fixed-zoom', {detail: 125}));
+                const zoom = document.querySelector('[data-zoom]');
+                zoom.value = '125';
+                zoom.dispatchEvent(new Event('input', {bubbles:true}));
             """)
             wait(
                 window,

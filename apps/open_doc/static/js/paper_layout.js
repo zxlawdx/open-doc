@@ -6,9 +6,8 @@
     const paper = root.querySelector('[data-surface]');
     const layout = root.querySelector('[data-paper-layout]');
     const ruler = root.querySelector('[data-ruler]');
-    const slider = root.querySelector('[data-zoom]');
     const canvas = root.querySelector('[data-canvas]');
-    let zoom = settings.zoom || 100, timer;
+    let zoom = settings.zoom || 100;
     for (let cm = 0; cm <= 21; cm++) {
       const marker = document.createElement('span');
       marker.textContent = cm; marker.style.left = (cm * WIDTH / 21) + 'px';
@@ -30,24 +29,19 @@
       ruler.style.transform = 'scale(' + scale + ')';
       const band = root.querySelector('[data-ruler-band]');
       if (band) band.style.paddingRight = 24 + Math.max(0, canvas.offsetWidth - canvas.clientWidth) + 'px';
-      slider.value = zoom;
-      root.querySelector('[data-zoom-value]').textContent = zoom + '%';
     }
     function set(value) {
-      if(root.dataset.documentKind==='fixed'){root.dispatchEvent(new CustomEvent('open-doc:fixed-zoom',{detail:Number(value)}));return;}
-      zoom = Math.max(50, Math.min(150, Math.round(Number(value) / 10) * 10));
+      zoom = Math.max(50, Math.min(150, Math.round(value)));
       measure();
-      clearTimeout(timer); timer = setTimeout(() => persist({zoom}).catch(() => {}), 250);
+      persist({zoom}).catch(() => {});
     }
-    slider.addEventListener('input', event => set(event.target.value), {signal});
-    root.querySelectorAll('[data-zoom-step]').forEach(button => button.addEventListener('click', () => set((root.dataset.documentKind==='fixed'?Number(slider.value):zoom) + Number(button.dataset.zoomStep)), {signal}));
     root.addEventListener('open-doc:content', measure, {signal});
     root.addEventListener('open-doc:layout', measure, {signal});
     window.addEventListener('resize', measure, {signal});
     canvas.addEventListener('scroll', () => { ruler.style.left = -canvas.scrollLeft + 'px'; }, {signal});
     const observer = window.ResizeObserver ? new ResizeObserver(measure) : null;
     observer?.observe(paper);
-    signal.addEventListener('abort', () => { observer?.disconnect(); clearTimeout(timer); }, {once: true});
+    signal.addEventListener('abort', () => { observer?.disconnect(); }, {once: true});
     measure(); return {set, measure, value: () => zoom};
   }
   window.OpenDocPaperLayout = {create};

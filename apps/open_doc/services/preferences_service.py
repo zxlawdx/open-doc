@@ -28,6 +28,8 @@ DEFAULT_SETTINGS = {
     "sidebar_collapsed": False,
     "theme": "system",
     "zoom": 100,
+    "interface_zoom": 100,
+    "workbook_zoom": 100,
     "view_mode": "pages",
 }
 DATA_DIRECTORIES = (
@@ -97,3 +99,6 @@ class Config:
             raise ValueError("Tema inválido.")
         if type(settings["zoom"]) is not int or not 50 <= settings["zoom"] <= 150:
             raise ValueError("Zoom deve ser inteiro entre 50 e 150.")
+        for key in ("interface_zoom", "workbook_zoom"):
+            if type(settings[key]) is not int or not 50 <= settings[key] <= 200:
+                raise ValueError(f"{key} deve ser inteiro entre 50 e 200.")

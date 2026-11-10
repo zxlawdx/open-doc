@@ -122,16 +122,6 @@
       const partsPanel=document.createElement("div");
       partsPanel.className="equation-native-components";
       let activeBlocks=selected?JSON.parse(JSON.stringify(selected.math_blocks)):[];
-      const displayFields={
-        text:[["value","Expressão"]],bold:[["value","Texto em negrito"]],
-        fraction:[["numerator","Numerador"],["denominator","Denominador"]],
-        nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
-        superscript:[["base","Base"],["power","Expoente"]],
-        subscript:[["base","Base"],["sub","Índice"]],
-        sqrt:[["radicand","Radicando"]],
-        root:[["index","Índice da raiz"],["radicand","Radicando"]],
-        limit:[["base","Operador"],["lower","Limite"]]
-      };
       const updatePreview=()=>{
         if(models?.renderBlocks)preview.replaceChildren(models.renderBlocks(activeBlocks));
       };
@@ -170,7 +160,7 @@
             }else leaf(section,owner,key,label);
           }
           if(component.kind==="matrix")valueField(component,"rows","Matriz");
-          else for(const [key,label] of displayFields[component.kind]||[])valueField(component,key,label);
+          else for(const [key,label] of models?.EDITABLE_FIELDS?.[component.kind]||[])valueField(component,key,label);
           parent.append(section);
         }
       }

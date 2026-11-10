@@ -87,3 +87,23 @@ def test_document_value_objects_are_framework_free():
 def test_app_definition_is_explicit():
     assert OPEN_DOC_APP.module == "apps.open_doc"
     assert OPEN_DOC_APP.api_module.endswith(".api")
+
+
+def test_workspace_context_is_published_only_after_services_initialize(
+    tmp_path, monkeypatch
+):
+    import pytest
+
+    from apps.open_doc.application.context import configure, get_context
+    from apps.open_doc.datasets.store import Datasets
+    from apps.open_doc.services.preferences_service import Config
+
+    active = configure(Config(tmp_path / "active"))
+
+    def fail(_):
+        raise OSError("Dataset initialization failed")
+
+    monkeypatch.setattr(Datasets, "initialize", fail)
+    with pytest.raises(OSError, match="Dataset initialization failed"):
+        configure(Config(tmp_path / "failed"))
+    assert get_context() is active
