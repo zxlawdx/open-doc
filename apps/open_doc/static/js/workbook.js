@@ -27,26 +27,27 @@
       report("Alterações pendentes");
     }
     function report(message) {status.textContent=message;}
-    const pivotUI=window.OpenDocWorkbookPivotUI.create({host,signal,onReport:report,onCancel:()=>togglePivot(false),
-      onApply:(output,target,sourceName)=>{
-        if(target!==null){
-          const before=book.sheets[target],after={...before,cells:output.cells,bold:output.bold,pivot:output.pivot};
-          change(()=>{book.sheets[target]=before;renderTabs();choose(target);},
-            ()=>{book.sheets[target]=after;renderTabs();choose(target);});
-          togglePivot(false);report("Tabela dinâmica atualizada da aba "+sourceName+".");
-        }else{
-          if(book.sheets.length>=20)throw Error("Limite de 20 abas.");
-          let name="Tabela dinâmica",suffix=2;
-          while(book.sheets.some(sh=>sh.name.toLowerCase()===name.toLowerCase()))name="Tabela dinâmica "+suffix++;
-          const previous=index,result={name,cells:output.cells,bold:output.bold,pivot:output.pivot};
-          change(()=>{book.sheets.pop();renderTabs();choose(previous);},
-            ()=>{book.sheets.push(result);renderTabs();choose(book.sheets.length-1);});
-          togglePivot(false);report("Tabela dinâmica criada: "+name+" (fonte: "+sourceName+").");
-        }
-      }});
+    function applyPivot(output,target,sourceName){
+      if(target!==null){
+        const before=book.sheets[target],after={...before,cells:output.cells,bold:output.bold,pivot:output.pivot};
+        change(()=>{book.sheets[target]=before;renderTabs();choose(target);},
+          ()=>{book.sheets[target]=after;renderTabs();choose(target);});
+        togglePivot(false);report("Tabela dinâmica atualizada da aba "+sourceName+".");
+      }else{
+        if(book.sheets.length>=20)throw Error("Limite de 20 abas.");
+        let name="Tabela dinâmica",suffix=2;
+        while(book.sheets.some(sh=>sh.name.toLowerCase()===name.toLowerCase()))name="Tabela dinâmica "+suffix++;
+        const previous=index,result={name,cells:output.cells,bold:output.bold,pivot:output.pivot};
+        change(()=>{book.sheets.pop();renderTabs();choose(previous);},
+          ()=>{book.sheets.push(result);renderTabs();choose(book.sheets.length-1);});
+        togglePivot(false);report("Tabela dinâmica criada: "+name+" (fonte: "+sourceName+").");
+      }
+    }
+    const pivotUI=window.OpenDocWorkbookPivotUI.create({host,signal,onReport:report,
+      onCancel:()=>togglePivot(false),onApply:applyPivot});
 
     const typesUI=window.OpenDocWorkbookTypes.create({host,signal,
-      getState:()=>({sheet:sheet(),bounds:bounds(),report}),
+      getState:()=>({sheet:sheet(),bounds:bounds(),rangeLabel:rangeAddress(bounds()),report}),
       change:(target,before,after)=>change(()=>{target.types=before;},()=>{target.types=after;}),
       onCommand:(name,position)=>{
         if(name.endsWith("row"))select(position.row,col);
@@ -356,13 +357,23 @@
       const selected=bounds();
       const target=sheet().pivot;
       const range=target?.range||((selected[0]===selected[2]&&selected[1]===selected[3])?usedBounds():selected);
-      const rangeText=range&&range[0]<range[2]?
-        column(range[1])+(range[0]+1)+":"+column(range[3])+(range[2]+1):"";
+      const rangeText=range&&range[0]<range[2]?rangeAddress(range):"";
       pivotUI.open({sheets:book.sheets,index,calc,address,column,rangeText});
       $("[data-book-command=pivot]").setAttribute("aria-expanded","true");
       schedule();
     }
+    function rangeAddress([top,left,bottom,right]) {
+      return column(left)+(top+1)+":"+column(right)+(bottom+1);
+    }
     function createPivot() {pivotUI.apply();}
+    function quickPivot() {
+      finishInline();commit();
+      const source=sheet(),sourceIndex=index,range=bounds();
+      const output=window.OpenDocWorkbookPivot.quickBuild({source,sourceIndex,range,
+        read:(r,c)=>calc(sourceIndex,r,c)});
+      applyPivot(output,null,source.name);
+      report("Tabela dinâmica criada de "+rangeAddress(range)+" em nova aba. Use Tabela dinâmica para ajustar os campos.");
+    }
     function clearSelection() {
       applyCells(rectangle().flat().map(id=>[id,""]));
     }
@@ -448,6 +459,7 @@
         viewport.focus();
         return;
       }
+      if(name==="pivot-quick")return quickPivot();
       if(name==="pivot")return togglePivot(!pivotUI.isOpen());
       if(name==="analysis")return toggleAnalysis(analysis.hidden);
       if(name==="close-analysis")return toggleAnalysis(false);

@@ -105,19 +105,24 @@
       selection={sheet:context.sheet,row,col,bounds:context.bounds};
       mode=header?"column":rowHeader?"selection":"cell";
       const box=document.createElement("div");box.className="book-context-menu";box.setAttribute("role","menu");
-      box.setAttribute("aria-label","Alterar tipo de dado");
+      box.setAttribute("aria-label","Ações da planilha");
       const title=document.createElement("strong");title.textContent=header?"Tipo da coluna":"Tipo da célula ou seleção";
-      box.append(title);
       const icon=name=>window.OpenDocGridWorkspace.icon(host,name);
       const commands=header?[["insert-column","Inserir coluna","column-add"],["delete-column","Excluir coluna","column-remove"]]:
         rowHeader?[["insert-row","Inserir linha","row-add"],["delete-row","Excluir linha","row-remove"]]:
-        [["cut","Recortar","scissors"],["copy","Copiar","copy"],["paste","Colar","clipboard"]];
+        [
+          ...(context.bounds[0]<context.bounds[2]?[["pivot-quick","Criar tabela dinâmica ("+context.rangeLabel+")","pivot"]]:[]),
+          ["pivot-builder","Configurar tabela dinâmica","pivot"],
+          ["cut","Recortar","scissors"],["copy","Copiar","copy"],["paste","Colar","clipboard"]
+        ];
       for(const [name,label,glyph] of commands){
         const button=document.createElement("button");button.type="button";
+        button.dataset.bookContextCommand=name;
         button.append(icon(glyph),document.createTextNode(label));
         button.addEventListener("click",()=>{close();onCommand(name,{row,col});});
         box.append(button);
       }
+      box.append(title);
       const scope=document.createElement("div");
       scope.style.display="flex";scope.style.gap="4px";scope.style.flexWrap="wrap";
       for(const [id,label] of [["cell","Célula"],["selection","Seleção"],["column","Coluna"]]){
