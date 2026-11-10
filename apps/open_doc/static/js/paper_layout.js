@@ -33,6 +33,7 @@
     function set(value) {
       zoom = Math.max(50, Math.min(150, Math.round(value)));
       measure();
+      root.dispatchEvent(new CustomEvent('open-doc:paper-zoom'));
       persist({zoom}).catch(() => {});
     }
     root.addEventListener('open-doc:content', measure, {signal});

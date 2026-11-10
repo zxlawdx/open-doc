@@ -149,3 +149,23 @@ caíram de 27 para 1, a mediana síncrona de 9,8 para 3,3 ms e o p95 de 13,3 par
 9,1 ms. O callback do próximo frame também é registrado para diagnosticar
 atrasos fora do evento de entrada. Em Qt offscreen, esse valor depende do
 agendamento do renderizador e não mede a apresentação física em tela.
+
+### Cache de apresentação da tinta
+
+No modo Cursor, as páginas visíveis do DOCX com tinta passam a compor os traços
+já concluídos em um Canvas transparente. O SVG volta a exibir os vetores no modo
+Caneta e quando uma página fica fora do cache. O limite é de 6 milhões de pixels
+por editor e 2,5 milhões por página. A escala do Canvas acompanha o zoom e a
+densidade de tela até 2×. A representação de pontos, a edição e a exportação
+continuam vetoriais.
+
+O mesmo roteiro alternou três execuções SVG e três Canvas no Qt/Linux com o
+caderno de 14 páginas, 112 traços e 27 teclas. Os valores de p95 até o próximo
+callback de frame foram 131,5, 103,7 e 97,6 ms em SVG e 35,3, 74,7 e 54,5 ms
+com Canvas. São medições offscreen do agendamento do renderizador. O teste
+também verifica pixels do cache, reaproveitamento durante a digitação, retorno
+ao SVG ao selecionar a caneta, mudança de zoom e persistência dos traços.
+
+Referências técnicas [otimização de Canvas](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas),
+[Intersection Observer](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API)
+e [Path2D](https://developer.mozilla.org/en-US/docs/Web/API/Path2D).

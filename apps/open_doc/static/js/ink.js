@@ -177,9 +177,79 @@
    while(cursor){const next=cursor.nextSibling;cursor.remove();cursor=next;}
    rendered.set(svg,{strokes,nodes});
   }
+  // Keep vector editing in SVG. While typing, composite the committed ink
+  // from bounded bitmaps for visible DOCX pages.
+  const rasterPages=new Map();
+  const rasterObserver=window.IntersectionObserver&&window.Path2D
+   ?new IntersectionObserver(entries=>{
+    for(const entry of entries){
+     const page=rasterPages.get(entry.target);
+     if(page)page.visible=entry.isIntersecting;
+    }
+    queue();
+   },{root:root.querySelector('[data-canvas]')})
+   :null;
+  function discardRaster(page){
+   if(!page.canvas)return;
+   page.canvas.width=page.canvas.height=0;
+   page.canvas.remove();
+   page.canvas=null;
+   page.svg.style.visibility='';
+  }
+  function updateRaster(surface,svg,strokes,budget){
+   let page=rasterPages.get(surface);
+   if(!rasterObserver||mode!=='cursor'||root.dataset.homeView==='true'||!surface.classList.contains('document-page')||!strokes.length){
+    if(page){discardRaster(page);rasterObserver.unobserve(surface);rasterPages.delete(surface);}
+    return 0;
+   }
+   if(!page){
+    page={svg,visible:false,canvas:null,strokes:null};
+    rasterPages.set(surface,page);
+    rasterObserver.observe(surface);
+   }
+   if(!page.visible||!budget){discardRaster(page);return 0;}
+   const rect=svg.getBoundingClientRect(),ratio=Math.min(window.devicePixelRatio||1,2);
+   const width=Math.ceil(rect.width*ratio),height=Math.ceil(rect.height*ratio),pixels=width*height;
+   if(!pixels||pixels>Math.min(budget,2500000)){discardRaster(page);return 0;}
+   if(!page.canvas){
+    page.canvas=document.createElement('canvas');
+    page.canvas.className='ink-raster';
+    page.canvas.setAttribute('contenteditable','false');
+    page.canvas.setAttribute('aria-hidden','true');
+    svg.after(page.canvas);
+    page.strokes=null;
+   }
+   const canvas=page.canvas;
+   if(page.strokes!==strokes||canvas.width!==width||canvas.height!==height){
+    const ctx=canvas.getContext('2d');
+    if(!ctx){discardRaster(page);return 0;}
+    canvas.width=width;canvas.height=height;
+    ctx.setTransform(width,0,0,height,0,0);
+    for(const stroke of strokes){
+     ctx.fillStyle=stroke.color;
+     ctx.globalAlpha=stroke.opacity;
+     ctx.fill(new Path2D(path(stroke)));
+    }
+    page.strokes=strokes;
+   }
+   for(const key of ['left','top','width','height'])canvas.style[key]=svg.style[key];
+   svg.style.visibility='hidden';
+   return pixels;
+  }
+  signal.addEventListener('abort',()=>{
+   rasterObserver?.disconnect();
+   for(const page of rasterPages.values())discardRaster(page);
+   rasterPages.clear();
+  },{once:true});
   const emptyStrokes=[];
 
-  function refresh(){scheduled=false;if(signal.aborted)return;const values=new Map(layers().map(layer=>[layer.surface_index,layer]));for(const surface of root.querySelectorAll('.document-page, .fixed-surface')){
+  function refresh(){scheduled=false;if(signal.aborted)return;
+   for(const [surface,page] of rasterPages){
+    if(!surface.isConnected||!surface.contains(page.svg)||root.dataset.documentKind==='fixed'||root.dataset.homeView==='true'){discardRaster(page);rasterObserver.unobserve(surface);rasterPages.delete(surface);}
+    else if(!page.visible)discardRaster(page);
+   }
+   let rasterBudget=6000000;
+   const values=new Map(layers().map(layer=>[layer.surface_index,layer]));for(const surface of root.querySelectorAll('.document-page, .fixed-surface')){
    if(!surface.querySelector('[data-page-content]') && !surface.classList.contains('fixed-surface'))continue;
    if(root.dataset.documentKind==='fixed' && !surface.classList.contains('fixed-surface'))continue;
    const index=Number(surface.dataset.pageIndex),layer=values.get(index);let svg=surface.querySelector(':scope > .ink-overlay');
@@ -198,7 +268,9 @@
    svg.style.height=(surface.offsetHeight||surface.clientHeight)+'px';
    svg.style.pointerEvents=mode==='cursor'?'none':'auto';
    if(active?.svg===svg)continue;
-   paintStrokes(svg,layer?.strokes || emptyStrokes);
+   const strokes=layer?.strokes || emptyStrokes;
+   paintStrokes(svg,strokes);
+   rasterBudget-=updateRaster(surface,svg,strokes,rasterBudget);
   }}
   function queue(){if(!scheduled){scheduled=true;requestAnimationFrame(refresh);}}
   function sample(event,rect){return {x:clamp((event.clientX-rect.left)/rect.width),y:clamp((event.clientY-rect.top)/rect.height),pressure:event.pointerType==='mouse' && !(event.pressure>0)?.5:Number.isFinite(event.pressure)?clamp(event.pressure):.5,tilt_x:event.tiltX || 0,tilt_y:event.tiltY || 0,timestamp_ms:Math.max(0,event.timeStamp)};}
@@ -286,6 +358,8 @@
   root.addEventListener('open-doc:ink-mode',event=>setMode(event.detail),{signal});
   root.addEventListener('open-doc:cancel-ink',()=>cancel(),{signal});
   root.addEventListener('open-doc:ink-changed',queue,{signal});
+  root.addEventListener('open-doc:paper-zoom',queue,{signal});
+  window.addEventListener('resize',queue,{signal});
   root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
  window.OpenDocInk={create,simplify,path,shouldErase,eraseStrokes,erasePartialStroke};

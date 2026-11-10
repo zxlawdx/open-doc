@@ -99,6 +99,25 @@ def exercise(window):
       return {pages:rich.querySelectorAll('.document-page').length,
         inkBytes:size,points:layers.flatMap(l=>l.strokes).reduce((n,s)=>n+s.points.length,0)};
     })()""")
+    raster_enabled = not os.environ.get("OPEN_DOC_INK_QA_SVG_BASELINE")
+    raster_on_edited_page = """document.querySelector('[data-node-id="'+__inkTypingBlock+'"]')
+        .closest('.document-page').querySelector('.ink-raster')"""
+    if raster_enabled:
+        wait(window, f"Boolean({raster_on_edited_page})")
+        assert js(f"""(() => {{
+          const canvas={raster_on_edited_page};
+          const ctx=canvas.getContext('2d');
+          const alpha=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+          return alpha.some((value,index)=>index%4===3&&value>0);
+        }})()""")
+        js("document.querySelector('[data-ink-mode=pen]').click()")
+        assert js(f"!({raster_on_edited_page})")
+        assert js(
+            "!document.querySelector('.document-page > .ink-overlay[style*=hidden]')"
+        )
+        js("document.querySelector('[data-ink-mode=cursor]').click()")
+        wait(window, f"Boolean({raster_on_edited_page})")
+        js(f"window.__inkTypingRaster={raster_on_edited_page}")
     sleep(0.25)  # Allow the scroll to the edited page to settle.
     typed = " digitando depois da caneta"
     for character in typed:
@@ -135,6 +154,17 @@ def exercise(window):
     if not os.environ.get("OPEN_DOC_INK_QA_BASELINE"):
         assert results["serialized"] == 0, "Typing serialized unchanged ink"
     assert js("OpenDocApp.editor().inkLayers()===__inkTypingLayers")
+    if raster_enabled:
+        assert js(f"({raster_on_edited_page})===__inkTypingRaster")
+        js("""(() => {
+          const zoom=document.querySelector('[data-zoom]');
+          window.__inkTypingRasterWidth=__inkTypingRaster.width;
+          zoom.value=80;
+          zoom.dispatchEvent(new Event('input',{bubbles:true}));
+        })()""")
+        wait(window, f"({raster_on_edited_page})?.width<__inkTypingRasterWidth")
+        js("document.querySelector('[data-zoom-step=\"0\"]').click()")
+
     response = """document.querySelector('[data-node-id="'+__inkTypingBlock+'"]').textContent"""
     keyboard.press("Z")
     wait(window, f"{response} !== {json.dumps('Resposta' + typed)}")
