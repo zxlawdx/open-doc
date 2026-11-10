@@ -425,7 +425,7 @@
       const cell=selected||[row+1,column];
       const heading=table.querySelector('thead [data-dataset-col="'+cell[1]+'"]');
       if(!heading)throw Error("Selecione uma coluna visível.");
-      const field='"'+heading.textContent.replaceAll('"','""')+'"';
+      const field='"'+heading.textContent.replace(/"/g,'""')+'"';
       const sql={
         "nulls":`SELECT * FROM dados WHERE ${field} IS NULL OR TRIM(${field}) = '' LIMIT 100`,
         "distinct":`SELECT DISTINCT ${field} FROM dados LIMIT 100`,
