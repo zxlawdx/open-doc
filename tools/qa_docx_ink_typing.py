@@ -110,11 +110,33 @@ def exercise(window):
           const alpha=ctx.getImageData(0,0,canvas.width,canvas.height).data;
           return alpha.some((value,index)=>index%4===3&&value>0);
         }})()""")
-        js("document.querySelector('[data-ink-mode=pen]').click()")
+        assert js(f"""(() => {{
+          const canvas={raster_on_edited_page};
+          const svg=canvas.parentElement.querySelector('.ink-overlay');
+          const ctx=canvas.getContext('2d'),fill=ctx.fill;
+          let fills=0;
+          ctx.fill=function(...args){{fills++;return fill.apply(this,args);}};
+          try {{
+            document.querySelector('[data-ink-mode=highlighter]').click();
+            if(({raster_on_edited_page})!==canvas)return false;
+            const rect=svg.getBoundingClientRect();
+            for(const [type,x] of [['pointerdown',.2],['pointermove',.4],['pointerup',.6]]) {{
+              svg.dispatchEvent(new PointerEvent(type,{{pointerType:'pen',pointerId:78,
+                button:0,buttons:type==='pointerup'?0:1,pressure:.5,bubbles:true,cancelable:true,
+                clientX:rect.left+rect.width*x,clientY:rect.top+rect.height*.82}}));
+              if(type==='pointerdown'&&getComputedStyle(svg.querySelector('.ink-preview')).visibility!=='visible')
+                return false;
+            }}
+            const strokes=OpenDocApp.editor().inkLayers().flatMap(layer=>layer.strokes);
+            return fills===1&&strokes.length===113&&strokes[112].tool==='highlighter'&&
+              !svg.querySelector('.ink-preview')&&({raster_on_edited_page})===canvas;
+          }} finally {{ctx.fill=fill;}}
+        }})()""")
+        js("OpenDocApp.editor().format('undo')")
+        wait(window, "OpenDocApp.editor().inkLayers()===__inkTypingLayers")
+        js("document.querySelector('[data-ink-mode=eraser]').click()")
         assert js(f"!({raster_on_edited_page})")
-        assert js(
-            "!document.querySelector('.document-page > .ink-overlay[style*=hidden]')"
-        )
+        assert js("!document.querySelector('.document-page > .ink-raster-active')")
         js("document.querySelector('[data-ink-mode=cursor]').click()")
         wait(window, f"Boolean({raster_on_edited_page})")
         js(f"window.__inkTypingRaster={raster_on_edited_page}")

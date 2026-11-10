@@ -177,8 +177,7 @@
    while(cursor){const next=cursor.nextSibling;cursor.remove();cursor=next;}
    rendered.set(svg,{strokes,nodes});
   }
-  // Keep vector editing in SVG. While typing, composite the committed ink
-  // from bounded bitmaps for visible DOCX pages.
+  // Composite finished ink separately from the live SVG pen preview.
   const rasterPages=new Map();
   const rasterObserver=window.IntersectionObserver&&window.Path2D
    ?new IntersectionObserver(entries=>{
@@ -194,11 +193,25 @@
    page.canvas.width=page.canvas.height=0;
    page.canvas.remove();
    page.canvas=null;
-   page.svg.style.visibility='';
+   page.svg.classList.remove('ink-raster-active');
+  }
+  function fillRasterStroke(ctx,stroke){
+   if(!stroke.outline?.length)return;
+   ctx.fillStyle=stroke.color;
+   ctx.globalAlpha=stroke.opacity;
+   ctx.fill(new Path2D(path(stroke)));
+  }
+  function appendRasterStroke(svg,previous,strokes){
+   const page=rasterPages.get(svg.parentElement);
+   if(!page?.canvas)return;
+   const ctx=page.strokes===previous&&page.canvas.getContext('2d');
+   if(!ctx||ctx.isContextLost?.()){discardRaster(page);return;}
+   fillRasterStroke(ctx,strokes[strokes.length-1]);
+   page.strokes=strokes;
   }
   function updateRaster(surface,svg,strokes,budget){
    let page=rasterPages.get(surface);
-   if(!rasterObserver||mode!=='cursor'||root.dataset.homeView==='true'||!surface.classList.contains('document-page')||!strokes.length){
+   if(!rasterObserver||shouldErase(mode)||root.dataset.homeView==='true'||!surface.classList.contains('document-page')||!strokes.length){
     if(page){discardRaster(page);rasterObserver.unobserve(surface);rasterPages.delete(surface);}
     return 0;
    }
@@ -216,7 +229,7 @@
     page.canvas.className='ink-raster';
     page.canvas.setAttribute('contenteditable','false');
     page.canvas.setAttribute('aria-hidden','true');
-    svg.after(page.canvas);
+    svg.before(page.canvas);
     page.strokes=null;
    }
    const canvas=page.canvas;
@@ -225,15 +238,11 @@
     if(!ctx){discardRaster(page);return 0;}
     canvas.width=width;canvas.height=height;
     ctx.setTransform(width,0,0,height,0,0);
-    for(const stroke of strokes){
-     ctx.fillStyle=stroke.color;
-     ctx.globalAlpha=stroke.opacity;
-     ctx.fill(new Path2D(path(stroke)));
-    }
+    for(const stroke of strokes)fillRasterStroke(ctx,stroke);
     page.strokes=strokes;
    }
    for(const key of ['left','top','width','height'])canvas.style[key]=svg.style[key];
-   svg.style.visibility='hidden';
+   svg.classList.add('ink-raster-active');
    return pixels;
   }
   signal.addEventListener('abort',()=>{
@@ -281,7 +290,7 @@
    if(rect.width<=0 || rect.height<=0)return;
    const focused=document.activeElement;
    if(root.contains(focused)&&focused?.matches('input,textarea,select'))focused.blur();
-   phase='drawing';active={svg,rect,layer,id:e.pointerId,erase:shouldErase(mode),eraseWhole:mode==='eraser',eraseProcessed:0,eraseChanged:false,points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};try{svg.setPointerCapture(e.pointerId);}catch{};active.preview=document.createElementNS(NS,'path');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
+   phase='drawing';active={svg,rect,layer,id:e.pointerId,erase:shouldErase(mode),eraseWhole:mode==='eraser',eraseProcessed:0,eraseChanged:false,points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};try{svg.setPointerCapture(e.pointerId);}catch{};active.preview=document.createElementNS(NS,'path');active.preview.classList.add('ink-preview');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
   function draw(final=false){
    if(!active)return;
    const a=active;
@@ -337,7 +346,10 @@
     a.stroke.points=simplify(a.points);
     const previous=rendered.get(a.svg);
     const canAppend=previous?.strokes===a.layer.strokes&&a.preview.parentNode===a.svg;
-    a.layer.strokes=[...a.layer.strokes,a.stroke];
+    const previousStrokes=a.layer.strokes;
+    a.layer.strokes=[...previousStrokes,a.stroke];
+    appendRasterStroke(a.svg,previousStrokes,a.layer.strokes);
+    a.preview.classList.remove('ink-preview');
     if(canAppend){
      previous.nodes.set(a.stroke.id,{node:a.preview,stroke:a.stroke});
      previous.strokes=a.layer.strokes;

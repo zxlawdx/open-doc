@@ -152,9 +152,10 @@ agendamento do renderizador e não mede a apresentação física em tela.
 
 ### Cache de apresentação da tinta
 
-No modo Cursor, as páginas visíveis do DOCX com tinta passam a compor os traços
-já concluídos em um Canvas transparente. O SVG volta a exibir os vetores no modo
-Caneta e quando uma página fica fora do cache. O limite é de 6 milhões de pixels
+A primeira versão do cache compunha os traços concluídos em Canvas nas páginas
+visíveis do DOCX no modo Cursor. A revisão mantém essa camada também durante
+a escrita. O SVG exibe o traço ativo e volta a exibir a tinta completa durante
+o uso da borracha ou quando a página fica fora do cache. O limite é de 6 milhões de pixels
 por editor e 2,5 milhões por página. A escala do Canvas acompanha o zoom e a
 densidade de tela até 2×. A representação de pontos, a edição e a exportação
 continuam vetoriais.
@@ -163,9 +164,38 @@ O mesmo roteiro alternou três execuções SVG e três Canvas no Qt/Linux com o
 caderno de 14 páginas, 112 traços e 27 teclas. Os valores de p95 até o próximo
 callback de frame foram 131,5, 103,7 e 97,6 ms em SVG e 35,3, 74,7 e 54,5 ms
 com Canvas. São medições offscreen do agendamento do renderizador. O teste
-também verifica pixels do cache, reaproveitamento durante a digitação, retorno
-ao SVG ao selecionar a caneta, mudança de zoom e persistência dos traços.
+também verifica pixels do cache, reaproveitamento durante a digitação, prévia
+SVG ao selecionar a caneta, mudança de zoom e persistência dos traços.
 
 Referências técnicas [otimização de Canvas](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas),
 [Intersection Observer](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API)
 e [Path2D](https://developer.mozilla.org/en-US/docs/Web/API/Path2D).
+
+#### Tinta ativa e atualização incremental
+
+O código do Xournal++ mostra dois níveis de atualização. O
+`StrokeToolView` usa uma máscara para pintar os segmentos novos do traço
+em andamento. O `RenderJob` pode recompor apenas um retângulo do buffer da
+página. A separação entre tinta ativa e finalizada também aparece no Android
+Ink. A discussão do Stack Overflow sobre linhas semitransparentes explica
+por que uma prévia separada evita acumular opacidade sobre o mesmo traço.
+
+No Open Doc, o cache Canvas fica sob o SVG. Durante o gesto, o SVG exibe
+a prévia. Ao soltar a caneta, a composição adiciona apenas o contorno
+finalizado ao Canvas se a versão da página ainda corresponde ao cache.
+Exclusões, desfazer e zoom invalidam a imagem quando necessário. O teste
+Qt verifica que adicionar um marca-texto a uma página aquecida faz uma
+chamada de preenchimento, reaproveita o mesmo Canvas, mantém a prévia
+visível e permite desfazer o traço.
+
+O algoritmo do traço ativo ainda usa o contorno atual. A máscara incremental
+do Xournal++ e a redução de trabalho por ponto do tldraw são referências para
+um teste específico da latência durante o gesto. Os resultados divulgados
+por esses projetos medem seus próprios renderizadores.
+
+Fontes [Xournal++ StrokeToolView](https://github.com/xournalpp/xournalpp/blob/d762a94/src/core/view/overlays/StrokeToolView.cpp),
+[Xournal++ RenderJob](https://github.com/xournalpp/xournalpp/blob/d762a94/src/core/control/jobs/RenderJob.cpp),
+[benchmark do Xournal++](https://github.com/xournalpp/xournalpp/issues/4662),
+[Stack Overflow](https://stackoverflow.com/questions/6629386/clear-line-on-html5-canvas),
+[Android Ink](https://developer.android.com/develop/ui/views/touch-and-input/stylus-input/ink-api-modules)
+e [tldraw](https://tldraw.dev/blog/tldraw-sdk-5.2).

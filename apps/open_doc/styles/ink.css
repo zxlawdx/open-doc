@@ -24,3 +24,4 @@
 }
 
 .open-doc .ink-raster{position:absolute;z-index:8;pointer-events:none}
+.open-doc .ink-raster-active > path:not(.ink-preview){visibility:hidden}
