@@ -58,7 +58,7 @@
     let lockedState = false;
     let renderTimer = null, cacheTimer=null, markdownStale=false;
     let nextKind = "typing",beforeInputBlockId=null,beforeInputCrossPage=false;
-    let beforeParagraphSplit=null;
+    let beforeParagraphSplit=null, pendingTextInsertion=null;
     function syncMarkdown(){
       if(model&&markdownStale){source.value=window.OpenDocModel.markdown(model);markdownStale=false;}
     }
@@ -162,11 +162,48 @@
       }, RECOVERY_DELAY);
     }
 
+    function planTextInsertion(event, selection, paragraph) {
+      if(event.inputType!=='insertText'||event.isComposing||!event.data||!selection?.isCollapsed||
+         !paragraph?.matches('p[data-node-id]:not([data-fragment-of]):not([data-list-info])'))return null;
+      const node=selection.anchorNode, span=node?.parentElement;
+      if(node?.nodeType!==3||!span?.matches('span[data-node-type=text][data-node-id]:not([data-style-patch])')||
+         span.parentElement!==paragraph||span.childNodes.length!==1)return null;
+      const blockIndex=model?.blocks.findIndex(block=>block.id===paragraph.dataset.nodeId);
+      const block=model?.blocks[blockIndex];
+      if(block?.type!=='paragraph')return null;
+      const runIndex=block.children.findIndex(run=>run.id===span.dataset.nodeId);
+      const run=block.children[runIndex];
+      if(run?.type!=='text'||run.text!==node.data)return null;
+      const offset=selection.anchorOffset;
+      const text=node.data.slice(0,offset)+event.data+node.data.slice(offset);
+      return {model,paragraph,span,node,blockIndex,runIndex,text,offset:offset+event.data.length};
+    }
+    function applyTextInsertion(event) {
+      const edit=pendingTextInsertion;
+      pendingTextInsertion=null;
+      if(!edit||event?.inputType!=='insertText'||model!==edit.model)return null;
+      const selection=getSelection();
+      if(!selection?.isCollapsed||selection.anchorNode!==edit.node||selection.anchorOffset!==edit.offset||
+         edit.node.parentElement!==edit.span||edit.span.childNodes.length!==1||
+         edit.span.parentElement!==edit.paragraph||!rich.contains(edit.paragraph))return null;
+      const text=edit.node.data;
+      // Native contenteditable may swap spaces and NBSPs to preserve wrapping.
+      if(text!==edit.text&&text.replace(/\u00a0/g,' ')!==edit.text.replace(/\u00a0/g,' '))return null;
+      const blocks=model.blocks.slice(),block=blocks[edit.blockIndex],children=block.children.slice();
+      children[edit.runIndex]={...children[edit.runIndex],text};
+      blocks[edit.blockIndex]={...block,children};
+      model={...model,blocks};
+      markdownStale=true;
+      commands.capture();
+      return edit.paragraph;
+    }
+
     function changed(kind = nextKind, origin = rich, inputEvent=null) {
       if(inputEvent?.isComposing)return;
-      let dirty=null,structural=false;
+      let dirty=mode==='rich'&&origin===rich&&kind==='typing'?applyTextInsertion(inputEvent):null;
+      let structural=false;
       const beforeDom=window.OpenDocDebug.input?rich.textContent:null;
-      if (mode === 'rich' && origin === rich){
+      if (mode === 'rich' && origin === rich && !dirty){
         commands.capture();const bookmark=commands.bookmark();
         let normalized=false;for(const box of rich.querySelectorAll('[data-page-content]'))normalized=window.OpenDocPagination.normalize(box) || normalized;
         if(normalized && bookmark)commands.restoreBookmark(bookmark);
@@ -923,7 +960,7 @@
     }
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
-      beforeParagraphSplit=null;
+      beforeParagraphSplit=null;pendingTextInsertion=null;
       if(pendingLogicalCaret?.listEnter||pendingLogicalCaret?.rangeDeletion)finishLogicalTransaction();
       if(event.inputType==='insertParagraph'&&enterList(event))return;
       deletionStyle=event.inputType?.startsWith('delete')?activeTypingStyle():null;
@@ -976,6 +1013,7 @@
       let n=anchorNode;n=n?.nodeType===3?n.parentElement:n;
       while(n && n!==rich && n.tagName!=='LI' && !n.parentElement?.matches('[data-page-content],[data-rich]'))n=n.parentElement;
       beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;
+      pendingTextInsertion=planTextInsertion(event,selection,n);
       if(event.inputType==='insertParagraph' && selection?.isCollapsed &&
         n?.parentElement?.matches('[data-page-content]')){
         beforeParagraphSplit={block:n,container:n.parentElement,count:n.parentElement.childElementCount};

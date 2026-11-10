@@ -870,3 +870,34 @@ test('typing and undo reuse existing ink and preserve the saved baseline', async
  assert.match(q.editor.snapshot().content.blocks[0].children[0].text,/digitação/);
  assert.equal(encodes,0,'the synchronous edit and undo paths never serialize unchanged ink');
 });
+
+test('native insertion inside a text run updates only that run and falls back on a DOM mismatch', async t => {
+ const q=await setup(t);
+ const span=q.rich.querySelector('[data-node-id=r1]');
+ const node=span.firstChild,selection=q.w.getSelection();
+ const original=q.editor.snapshot().content;
+ const serializer=q.w.OpenDocRichSerializer,serialize=serializer.serialize;
+ let serializations=0;
+ serializer.serialize=(...args)=>{serializations++;return serialize(...args);};
+ function type(data, nativeText){
+   q.rich.focus();
+   const offset=node.length;
+   selection.collapse(node,offset);
+   q.rich.dispatchEvent(new q.w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertText',data}));
+   node.appendData(nativeText);
+   selection.collapse(node,node.length);
+   q.rich.dispatchEvent(new q.w.InputEvent('input',{bubbles:true,inputType:'insertText',data}));
+ }
+ type(' á',' á');
+ const updated=q.editor.snapshot().content;
+ assert.equal(serializations,0);
+ assert.equal(updated.blocks[1],original.blocks[1]);
+ assert.equal(updated.blocks[0].children[0].style,original.blocks[0].children[0].style);
+ assert.equal(updated.blocks[0].children[0].text,'Texto selecionado á');
+ type(' ','\u00a0');
+ assert.equal(serializations,0);
+ assert.equal(q.editor.snapshot().content.blocks[0].children[0].text,'Texto selecionado á\u00a0');
+ type('X','Y');
+ assert.equal(serializations,1);
+ assert.equal(q.editor.snapshot().content.blocks[0].children[0].text,'Texto selecionado á\u00a0Y');
+});

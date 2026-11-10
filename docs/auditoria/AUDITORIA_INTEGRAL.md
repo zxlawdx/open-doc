@@ -140,3 +140,12 @@ texto serve de base para a estrutura do DOCX de teste.
 
 Medição com 27 teclas e cerca de 3,24 MB de tinta. Os eventos de caneta são
 simulados no WebView. O roteiro não mede a latência do driver físico da mesa.
+
+A segunda otimização atualiza diretamente o trecho do modelo quando o navegador
+insere texto em um trecho simples e a alteração do DOM corresponde ao evento.
+Edições estruturais, seleções e alterações inesperadas seguem o serializador
+completo. No mesmo roteiro com 27 teclas, as chamadas ao serializador de bloco
+caíram de 27 para 1, a mediana síncrona de 9,8 para 3,3 ms e o p95 de 13,3 para
+9,1 ms. O callback do próximo frame também é registrado para diagnosticar
+atrasos fora do evento de entrada. Em Qt offscreen, esse valor depende do
+agendamento do renderizador e não mede a apresentação física em tela.

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from statistics import median
 from tempfile import TemporaryDirectory
+from time import sleep
 
 from qa_stabilization import Config, create_app, services, wait, webview
 from qa_runtime import Keyboard, report
@@ -67,12 +68,18 @@ def exercise(window):
       const range=document.createRange();
       range.selectNodeContents(response);range.collapse(false);
       rich.focus();
+      response.scrollIntoView({block:'center'});
       const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
       const editor=OpenDocApp.editor(),content=editor.snapshot().content;
       const layers=content.ink_layers;window.__inkTypingLayers=layers;
       const size=JSON.stringify(layers).length;
-      const metrics={times:[],serialized:0};window.__inkTypingMetrics=metrics;
+      const metrics={times:[],frames:[],serialized:0,blockSerializations:0};window.__inkTypingMetrics=metrics;
       let started=null;
+      const serializer=OpenDocRichSerializer,serialize=serializer.serialize;
+      serializer.serialize=(...args)=>{
+        if(started!==null)metrics.blockSerializations++;
+        return serialize(...args);
+      };
       const stringify=JSON.stringify;
       JSON.stringify=function(value,...args){
         if(started!==null && (value?.ink_layers || value?.content?.ink_layers || value===layers))
@@ -84,12 +91,15 @@ def exercise(window):
       },true);
       window.addEventListener('input',()=>{
         if(started===null)return;
-        metrics.times.push(performance.now()-started);started=null;
+        const inputStart=started;
+        metrics.times.push(performance.now()-inputStart);started=null;
+        requestAnimationFrame(()=>metrics.frames.push(performance.now()-inputStart));
       });
       window.__inkTypingBlock=response.dataset.nodeId;
       return {pages:rich.querySelectorAll('.document-page').length,
         inkBytes:size,points:layers.flatMap(l=>l.strokes).reduce((n,s)=>n+s.points.length,0)};
     })()""")
+    sleep(0.25)  # Allow the scroll to the edited page to settle.
     typed = " digitando depois da caneta"
     for character in typed:
         keyboard.type(character, delay=12)
@@ -98,8 +108,10 @@ def exercise(window):
         f"""document.querySelector('[data-node-id="'+__inkTypingBlock+'"]')
         .textContent === {json.dumps("Resposta" + typed)}""",
     )
+    sleep(0.25)  # Offscreen Qt can throttle or skip animation frames.
     results = js("__inkTypingMetrics")
     times = sorted(results["times"])
+    frames = sorted(results["frames"])
     assert len(times) == len(typed), results
     print(
         "QT_DOCX_INK_TYPING",
@@ -110,7 +122,12 @@ def exercise(window):
                 "medianMs": round(median(times), 1),
                 "p95Ms": round(times[int(len(times) * 0.95)], 1),
                 "maxMs": round(max(times), 1),
+                "frameSamples": len(frames),
+                "frameP95Ms": (
+                    round(frames[int(len(frames) * 0.95)], 1) if frames else None
+                ),
                 "wholeInkEncodesDuringInput": results["serialized"],
+                "blockSerializations": results["blockSerializations"],
             }
         ),
         flush=True,
