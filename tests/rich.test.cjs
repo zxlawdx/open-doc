@@ -335,11 +335,11 @@ test('Ctrl+Z and redo retain recent ink history when the existing page is large'
  q.editor.load({...q.note,content:{...q.note.content,ink_layers:[existing]}});
  q.root.dataset.inkMode='pen';
  const baseline=q.editor.inkLayers()[0];
- const fingerprint=q.w.OpenDocModel.fingerprint;
+ const stringify=q.w.JSON.stringify;
  let fullModels=0;
- q.w.OpenDocModel.fingerprint=model=>{
-   if(model.ink_layers)fullModels++;
-   return fingerprint(model);
+ q.w.JSON.stringify=(value,...args)=>{
+   if(value?.ink_layers)fullModels++;
+   return stringify(value,...args);
  };
  for(let i=0;i<18;i++){
    const layer=q.editor.inkLayers()[0];
@@ -837,4 +837,67 @@ test('Backspace on an empty paragraph after a list returns to the end of the ite
  assert.equal(selection.anchorOffset,'Texto selecionado'.length);
  q.editor.format('undo');
  assert.equal(q.editor.snapshot().content.blocks[1].id,'after-list');
+});
+
+test('typing and undo reuse existing ink and preserve the saved baseline', async t => {
+ const q=await setup(t);
+ const stroke={id:'ink',tool:'pen',color:'#223344',size:2,opacity:1,
+   points:[{x:.1,y:.2,pressure:.6}],outline:[[.1,.2],[.11,.2],[.11,.21]]};
+ const layer={surface_index:0,width_pt:595,height_pt:842,strokes:[stroke],text_overlays:[]};
+ q.editor.setInkLayers([layer]);
+ await q.editor.flush();
+ const saved=q.editor.snapshot(),ink=saved.content.ink_layers;
+ assert.equal(q.w.OpenDocModel.snapshotSize(saved.content),JSON.stringify(saved.content).length);
+ const stringify=q.w.JSON.stringify;
+ let encodes=0;
+ q.w.JSON.stringify=(value,...args)=>{
+   if(value?.ink_layers || value===ink || value===stroke)encodes++;
+   return stringify(value,...args);
+ };
+ const run=q.rich.querySelector('[data-node-id=r1]');
+ q.rich.focus();
+ q.w.getSelection().collapse(run.firstChild,run.textContent.length);
+ run.firstChild.appendData(' e digitação');
+ q.w.getSelection().collapse(run.firstChild,run.textContent.length);
+ q.rich.dispatchEvent(new q.w.InputEvent('input',{bubbles:true,inputType:'insertText',data:' e digitação'}));
+ assert.equal(q.editor.isClean(),false);
+ assert.equal(q.editor.inkLayers(),ink);
+ q.editor.format('undo');
+ assert.equal(q.editor.isClean(),true);
+ assert.equal(q.editor.inkLayers(),ink);
+ q.editor.format('redo');
+ assert.equal(q.editor.inkLayers(),ink);
+ assert.match(q.editor.snapshot().content.blocks[0].children[0].text,/digitação/);
+ assert.equal(encodes,0,'the synchronous edit and undo paths never serialize unchanged ink');
+});
+
+test('native insertion inside a text run updates only that run and falls back on a DOM mismatch', async t => {
+ const q=await setup(t);
+ const span=q.rich.querySelector('[data-node-id=r1]');
+ const node=span.firstChild,selection=q.w.getSelection();
+ const original=q.editor.snapshot().content;
+ const serializer=q.w.OpenDocRichSerializer,serialize=serializer.serialize;
+ let serializations=0;
+ serializer.serialize=(...args)=>{serializations++;return serialize(...args);};
+ function type(data, nativeText){
+   q.rich.focus();
+   const offset=node.length;
+   selection.collapse(node,offset);
+   q.rich.dispatchEvent(new q.w.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertText',data}));
+   node.appendData(nativeText);
+   selection.collapse(node,node.length);
+   q.rich.dispatchEvent(new q.w.InputEvent('input',{bubbles:true,inputType:'insertText',data}));
+ }
+ type(' á',' á');
+ const updated=q.editor.snapshot().content;
+ assert.equal(serializations,0);
+ assert.equal(updated.blocks[1],original.blocks[1]);
+ assert.equal(updated.blocks[0].children[0].style,original.blocks[0].children[0].style);
+ assert.equal(updated.blocks[0].children[0].text,'Texto selecionado á');
+ type(' ','\u00a0');
+ assert.equal(serializations,0);
+ assert.equal(q.editor.snapshot().content.blocks[0].children[0].text,'Texto selecionado á\u00a0');
+ type('X','Y');
+ assert.equal(serializations,1);
+ assert.equal(q.editor.snapshot().content.blocks[0].children[0].text,'Texto selecionado á\u00a0Y');
 });

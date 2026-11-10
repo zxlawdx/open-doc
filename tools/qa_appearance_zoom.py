@@ -68,7 +68,7 @@ def exercise(window, output, reopen):
     keyboard = Keyboard(window)
     js("document.querySelector('[data-library-search]').focus()")
     keyboard.press("F")
-    assert js("document.activeElement.matches('[data-library-search]')")
+    wait(window, "document.activeElement.matches('[data-library-search]')")
     keyboard.press("Plus")
     zoom(110)
     keyboard.press("Minus")
@@ -150,8 +150,18 @@ def exercise(window, output, reopen):
     click("[data-zoom-step='10']")
     zoom(110)
     assert js("JSON.stringify(OpenDocApp.editor().snapshot().content)") == before
+    # A scripted click leaves focus wherever the previous editor left it.
+    # Start from a visible control and wait for Qt to deliver the native key.
+    zoom_button = "[data-zoom-step='10']"
+    js(f"document.querySelector({zoom_button!r}).focus()")
+    wait(window, f"document.activeElement.matches({zoom_button!r})")
     keyboard.press("F")
-    assert js("document.activeElement.matches('.fixed-controls input[type=search]')")
+    wait(
+        window,
+        "document.activeElement.matches("
+        "'.fixed-document[data-slide-editor=true][data-search-open=true] "
+        ".fixed-controls input[type=search]')",
+    )
     zoom(110)
     capture_module("pptx")
 

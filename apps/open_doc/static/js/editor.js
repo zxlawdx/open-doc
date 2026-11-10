@@ -48,7 +48,7 @@
     let documentState = null, model = null;
     let pagination=null;
     const mediaCache=new Map();
-    let saved = "", savedContent=null, savedTitle="";
+    let saved = null;
     let mode = "rich", typingStyle=null, deletionStyle=null;
     let chain = Promise.resolve();
     let destroyed = false, suspended = false;
@@ -58,7 +58,7 @@
     let lockedState = false;
     let renderTimer = null, cacheTimer=null, markdownStale=false;
     let nextKind = "typing",beforeInputBlockId=null,beforeInputCrossPage=false;
-    let beforeParagraphSplit=null;
+    let beforeParagraphSplit=null, pendingTextInsertion=null;
     function syncMarkdown(){
       if(model&&markdownStale){source.value=window.OpenDocModel.markdown(model);markdownStale=false;}
     }
@@ -103,13 +103,10 @@
       };
     }
 
-    function signature(snapshot) {
-      return JSON.stringify(snapshot.title)+"\n"+(snapshot.content?window.OpenDocModel.fingerprint(snapshot.content):snapshot.markdown);
-    }
-
     function isClean() {
       if(suspended)return true;
-      return !documentState || signature({title:currentTitle(),content:model,markdown:source.value}) === saved;
+      return !documentState || window.OpenDocHistory.sameSnapshot(
+        {title:currentTitle(),content:model,markdown:source.value},saved);
     }
 
     function cache() {
@@ -165,11 +162,48 @@
       }, RECOVERY_DELAY);
     }
 
+    function planTextInsertion(event, selection, paragraph) {
+      if(event.inputType!=='insertText'||event.isComposing||!event.data||!selection?.isCollapsed||
+         !paragraph?.matches('p[data-node-id]:not([data-fragment-of]):not([data-list-info])'))return null;
+      const node=selection.anchorNode, span=node?.parentElement;
+      if(node?.nodeType!==3||!span?.matches('span[data-node-type=text][data-node-id]:not([data-style-patch])')||
+         span.parentElement!==paragraph||span.childNodes.length!==1)return null;
+      const blockIndex=model?.blocks.findIndex(block=>block.id===paragraph.dataset.nodeId);
+      const block=model?.blocks[blockIndex];
+      if(block?.type!=='paragraph')return null;
+      const runIndex=block.children.findIndex(run=>run.id===span.dataset.nodeId);
+      const run=block.children[runIndex];
+      if(run?.type!=='text'||run.text!==node.data)return null;
+      const offset=selection.anchorOffset;
+      const text=node.data.slice(0,offset)+event.data+node.data.slice(offset);
+      return {model,paragraph,span,node,blockIndex,runIndex,text,offset:offset+event.data.length};
+    }
+    function applyTextInsertion(event) {
+      const edit=pendingTextInsertion;
+      pendingTextInsertion=null;
+      if(!edit||event?.inputType!=='insertText'||model!==edit.model)return null;
+      const selection=getSelection();
+      if(!selection?.isCollapsed||selection.anchorNode!==edit.node||selection.anchorOffset!==edit.offset||
+         edit.node.parentElement!==edit.span||edit.span.childNodes.length!==1||
+         edit.span.parentElement!==edit.paragraph||!rich.contains(edit.paragraph))return null;
+      const text=edit.node.data;
+      // Native contenteditable may swap spaces and NBSPs to preserve wrapping.
+      if(text!==edit.text&&text.replace(/\u00a0/g,' ')!==edit.text.replace(/\u00a0/g,' '))return null;
+      const blocks=model.blocks.slice(),block=blocks[edit.blockIndex],children=block.children.slice();
+      children[edit.runIndex]={...children[edit.runIndex],text};
+      blocks[edit.blockIndex]={...block,children};
+      model={...model,blocks};
+      markdownStale=true;
+      commands.capture();
+      return edit.paragraph;
+    }
+
     function changed(kind = nextKind, origin = rich, inputEvent=null) {
       if(inputEvent?.isComposing)return;
-      let dirty=null,structural=false;
+      let dirty=mode==='rich'&&origin===rich&&kind==='typing'?applyTextInsertion(inputEvent):null;
+      let structural=false;
       const beforeDom=window.OpenDocDebug.input?rich.textContent:null;
-      if (mode === 'rich' && origin === rich){
+      if (mode === 'rich' && origin === rich && !dirty){
         commands.capture();const bookmark=commands.bookmark();
         let normalized=false;for(const box of rich.querySelectorAll('[data-page-content]'))normalized=window.OpenDocPagination.normalize(box) || normalized;
         if(normalized && bookmark)commands.restoreBookmark(bookmark);
@@ -239,7 +273,7 @@
 
       source.value = note.markdown;
       title.value = note.title;
-      saved = signature(note);savedContent=model;savedTitle=note.title;
+      saved = {title:note.title,content:model,markdown:note.markdown};
       source.disabled = false;
       title.disabled = false;
       rich.contentEditable = "true";
@@ -251,12 +285,12 @@
       renderRich();source.readOnly=Boolean(model);
       recovered = note.recovery || null;
       const cached = window.OpenDocRecovery.read(documentState.id);
-      if (cached && signature(cached) !== saved) recovered = cached;
+      if (cached && !window.OpenDocHistory.sameSnapshot(cached,saved)) recovered = cached;
       history.reset(buffer());
       root.querySelector("[data-recovery]").hidden =
-        !recovered || signature(recovered) === saved;
+        !recovered || window.OpenDocHistory.sameSnapshot(recovered,saved);
       render();
-      status(recovered && signature(recovered) !== saved ? "Recuperação disponível" : "Salvo no dispositivo");
+      status(recovered && !window.OpenDocHistory.sameSnapshot(recovered,saved) ? "Recuperação disponível" : "Salvo no dispositivo");
     }
 
     function flush() {
@@ -273,7 +307,7 @@
         try {
           result = await request("document/save", snapshot);
           documentState.revision = result.revision;
-          saved = signature(snapshot);savedContent=snapshot.content;savedTitle=snapshot.title;
+          saved = snapshot;
           cache();
           render();
           if (!isClean()) scheduleRecovery();
@@ -339,7 +373,7 @@
       if(snapshot.historyChange?.affected?.inkOnly&&snapshot.content&&model?.blocks===snapshot.content.blocks){
         model=snapshot.content;
         cache();scheduleRecovery();updateHistoryControls();
-        const dirty=model!==savedContent||snapshot.title!==savedTitle;
+        const dirty=!isClean();
         root.dataset.dirty=String(dirty);
         window.pywebview?.api?.set_dirty?.(dirty)?.catch?.(()=>{});
         root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
@@ -348,7 +382,7 @@
       }
       title.value = snapshot.title;
       source.value = snapshot.markdown;
-      const before=model,after=snapshot.content?window.OpenDocModel.clone(snapshot.content):null,canvas=root.querySelector('[data-canvas]'),top=canvas?.scrollTop || 0,left=canvas?.scrollLeft || 0;
+      const before=model,after=snapshot.content || null,canvas=root.querySelector('[data-canvas]'),top=canvas?.scrollTop || 0,left=canvas?.scrollLeft || 0;
       if(!window.OpenDocModel){model=after;renderRich();cache();scheduleRecovery();render();commands.restoreBookmark(snapshot.selection);return;}
       let target=after;
       if(!target){const temp=document.createElement('div');temp.innerHTML=cleanHtml(snapshot.markdown) || '<p><br></p>';target=window.OpenDocRichSerializer.serialize(temp,window.OpenDocModel.empty());}
@@ -926,7 +960,7 @@
     }
     source.addEventListener("beforeinput", () => history.checkpoint(buffer()), listeners);
     rich.addEventListener("beforeinput", event => {
-      beforeParagraphSplit=null;
+      beforeParagraphSplit=null;pendingTextInsertion=null;
       if(pendingLogicalCaret?.listEnter||pendingLogicalCaret?.rangeDeletion)finishLogicalTransaction();
       if(event.inputType==='insertParagraph'&&enterList(event))return;
       deletionStyle=event.inputType?.startsWith('delete')?activeTypingStyle():null;
@@ -979,6 +1013,7 @@
       let n=anchorNode;n=n?.nodeType===3?n.parentElement:n;
       while(n && n!==rich && n.tagName!=='LI' && !n.parentElement?.matches('[data-page-content],[data-rich]'))n=n.parentElement;
       beforeInputBlockId=n?.dataset.fragmentOf || n?.dataset.nodeId || null;
+      pendingTextInsertion=planTextInsertion(event,selection,n);
       if(event.inputType==='insertParagraph' && selection?.isCollapsed &&
         n?.parentElement?.matches('[data-page-content]')){
         beforeParagraphSplit={block:n,container:n.parentElement,count:n.parentElement.childElementCount};

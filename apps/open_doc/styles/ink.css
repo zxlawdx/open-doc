@@ -22,3 +22,6 @@
 .open-doc .fixed-search {
   display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-1);
 }
+
+.open-doc .ink-raster{position:absolute;z-index:8;pointer-events:none}
+.open-doc .ink-raster-active > path:not(.ink-preview){visibility:hidden}

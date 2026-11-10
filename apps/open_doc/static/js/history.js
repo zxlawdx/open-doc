@@ -4,12 +4,15 @@
   const MAX_ENTRIES = 50;
   const MAX_BYTES = 8 * 1024 * 1024;
   const GROUP_MS = 500;
+  function sameSnapshot(left,right){
+    if(left?.title!==right?.title)return false;
+    return left?.content||right?.content
+      ?window.OpenDocModel.sameContent(left?.content,right?.content)
+      :left?.markdown===right?.markdown;
+  }
   function create() {
     let entries = [], index = -1, lastTime = 0, lastKind = "";
-    // Rich snapshots are immutable, as required by the model fingerprint cache.
-    // Budget each content object once instead of encoding every old snapshot per key.
-    const sizes=new WeakMap();
-    function bytesOf(item){if(!item.content)return (item.markdown || '').length*2;if(!sizes.has(item.content))sizes.set(item.content,window.OpenDocModel.fingerprint(item.content).length*2);return sizes.get(item.content);}
+    const bytesOf=item=>2*(item.content?window.OpenDocModel.snapshotSize(item.content):(item.markdown || '').length);
     // Pen snapshots share immutable text and previously drawn strokes. Charge
     // the history budget for retained changes and array references, not a
     // full copy of the illustrated document for every stroke.
@@ -23,12 +26,12 @@
         const oldStrokes=oldLayer?.strokes||[],newStrokes=newLayer?.strokes||[];
         bytes+=128+8*(oldStrokes.length+newStrokes.length);
         if(newStrokes.length===oldStrokes.length+1&&oldStrokes.every((stroke,i)=>newStrokes[i]===stroke)){
-          bytes+=bytesOf({content:newStrokes[newStrokes.length-1]});
+          bytes+=2*window.OpenDocModel.jsonLength(newStrokes[newStrokes.length-1]);
           continue;
         }
         const oldSet=new Set(oldStrokes),newSet=new Set(newStrokes);
-        for(const stroke of oldStrokes)if(!newSet.has(stroke))bytes+=bytesOf({content:stroke});
-        for(const stroke of newStrokes)if(!oldSet.has(stroke))bytes+=bytesOf({content:stroke});
+        for(const stroke of oldStrokes)if(!newSet.has(stroke))bytes+=2*window.OpenDocModel.jsonLength(stroke);
+        for(const stroke of newStrokes)if(!oldSet.has(stroke))bytes+=2*window.OpenDocModel.jsonLength(stroke);
       }
       return bytes;
     }
@@ -36,12 +39,11 @@
       if(at===0&&(item.affected?.inkOnly||entries[1]?.affected?.inkOnly))return 0;
       return item.affected?.inkOnly?item.inkBytes:bytesOf(item);
     }
-    const equal = (a, b) => a?.title === b?.title && (a?.content?window.OpenDocModel.fingerprint(a.content):a?.markdown) === (b?.content?window.OpenDocModel.fingerprint(b.content):b?.markdown);
     function reset(snapshot) { entries = [{...snapshot}]; index = 0; lastKind = ""; }
     function record(snapshot, kind = "typing", affected={}) {
       const previous=entries[index];
       const inkOnly=affected.inkOnly&&previous?.content&&snapshot.content;
-      if (inkOnly ? previous.content===snapshot.content : equal(previous,snapshot)) return;
+      if (inkOnly ? previous.content===snapshot.content : sameSnapshot(previous,snapshot)) return;
       const now = Date.now();
       entries.splice(index + 1);
       if (kind === "typing" && lastKind === kind && index > 0 && now - lastTime < GROUP_MS) {
@@ -65,5 +67,5 @@
     function checkpoint(snapshot) { if (entries[index]) entries[index].selection = snapshot.selection; }
     return {reset, record, checkpoint, undo: () => move(-1), redo: () => move(1), canUndo: () => index > 0, canRedo: () => index < entries.length - 1};
   }
-  window.OpenDocHistory = {create};
+  window.OpenDocHistory = {create,sameSnapshot};
 })();

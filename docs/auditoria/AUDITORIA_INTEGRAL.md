@@ -116,3 +116,86 @@ O estresse Qt no Linux exercitou Enter e Backspace repetidos no DOCX, seguido de
 5. Na planilha, digite uma fórmula e amplie antes de confirmar. Confira o texto digitado. Abra Código e alterne entre tela dividida e inteira para verificar o alvo de zoom.
 6. Feche e reabra o aplicativo. Confira tema, zoom da Central e o zoom da grade ao reabrir uma planilha.
 7. Repita no Windows com teclado ABNT2, teclado internacional e teclado numérico, em escala nativa de 100%, 125%, 150% e 200% quando disponível. A matriz automatizada emula DPR e dimensões, enquanto a verificação manual cobre o comportamento do sistema e do teclado físicos.
+
+## Digitação após usar a caneta no DOCX
+
+A digitação comparava o estado salvo e calculava o tamanho do histórico
+serializando o documento rico a cada edição. A serialização incluía a tinta,
+mesmo quando apenas um trecho de texto mudava. A comparação agora ignora
+subárvores compartilhadas, e o histórico reaproveita a contagem de tamanho das
+partes imutáveis. Desfazer e refazer texto também reaproveitam os traços intactos.
+
+O roteiro `python tools/qa_docx_ink_typing.py` desenha 112 traços com pressão e
+inclinação em um DOCX de 14 páginas e depois digita pelo teclado do Qt. Valida
+desfazer, refazer, salvar e reabrir. A CI roda o roteiro em Windows e Linux. Para
+a reprodução local, `OPEN_DOC_INK_QA_PDF` aponta para um PDF cuja extração de
+texto serve de base para a estrutura do DOCX de teste.
+
+| Tempo síncrono por tecla no Qt/Linux | Antes | Após a correção |
+| --- | ---: | ---: |
+| Mediana | 277,1 ms | 10,0 ms |
+| Percentil 95 | 509,1 ms | 16,4 ms |
+| Maior valor | 596,0 ms | 25,6 ms |
+| Serializações de toda a tinta durante a digitação | 28 | 0 |
+
+Medição com 27 teclas e cerca de 3,24 MB de tinta. Os eventos de caneta são
+simulados no WebView. O roteiro não mede a latência do driver físico da mesa.
+
+A segunda otimização atualiza diretamente o trecho do modelo quando o navegador
+insere texto em um trecho simples e a alteração do DOM corresponde ao evento.
+Edições estruturais, seleções e alterações inesperadas seguem o serializador
+completo. No mesmo roteiro com 27 teclas, as chamadas ao serializador de bloco
+caíram de 27 para 1, a mediana síncrona de 9,8 para 3,3 ms e o p95 de 13,3 para
+9,1 ms. O callback do próximo frame também é registrado para diagnosticar
+atrasos fora do evento de entrada. Em Qt offscreen, esse valor depende do
+agendamento do renderizador e não mede a apresentação física em tela.
+
+### Cache de apresentação da tinta
+
+A primeira versão do cache compunha os traços concluídos em Canvas nas páginas
+visíveis do DOCX no modo Cursor. A revisão mantém essa camada também durante
+a escrita. O SVG exibe o traço ativo e volta a exibir a tinta completa durante
+o uso da borracha ou quando a página fica fora do cache. O limite é de 6 milhões de pixels
+por editor e 2,5 milhões por página. A escala do Canvas acompanha o zoom e a
+densidade de tela até 2×. A representação de pontos, a edição e a exportação
+continuam vetoriais.
+
+O mesmo roteiro alternou três execuções SVG e três Canvas no Qt/Linux com o
+caderno de 14 páginas, 112 traços e 27 teclas. Os valores de p95 até o próximo
+callback de frame foram 131,5, 103,7 e 97,6 ms em SVG e 35,3, 74,7 e 54,5 ms
+com Canvas. São medições offscreen do agendamento do renderizador. O teste
+também verifica pixels do cache, reaproveitamento durante a digitação, prévia
+SVG ao selecionar a caneta, mudança de zoom e persistência dos traços.
+
+Referências técnicas [otimização de Canvas](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas),
+[Intersection Observer](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API)
+e [Path2D](https://developer.mozilla.org/en-US/docs/Web/API/Path2D).
+
+#### Tinta ativa e atualização incremental
+
+O código do Xournal++ mostra dois níveis de atualização. O
+`StrokeToolView` usa uma máscara para pintar os segmentos novos do traço
+em andamento. O `RenderJob` pode recompor apenas um retângulo do buffer da
+página. A separação entre tinta ativa e finalizada também aparece no Android
+Ink. A discussão do Stack Overflow sobre linhas semitransparentes explica
+por que uma prévia separada evita acumular opacidade sobre o mesmo traço.
+
+No Open Doc, o cache Canvas fica sob o SVG. Durante o gesto, o SVG exibe
+a prévia. Ao soltar a caneta, a composição adiciona apenas o contorno
+finalizado ao Canvas se a versão da página ainda corresponde ao cache.
+Exclusões, desfazer e zoom invalidam a imagem quando necessário. O teste
+Qt verifica que adicionar um marca-texto a uma página aquecida faz uma
+chamada de preenchimento, reaproveita o mesmo Canvas, mantém a prévia
+visível e permite desfazer o traço.
+
+O algoritmo do traço ativo ainda usa o contorno atual. A máscara incremental
+do Xournal++ e a redução de trabalho por ponto do tldraw são referências para
+um teste específico da latência durante o gesto. Os resultados divulgados
+por esses projetos medem seus próprios renderizadores.
+
+Fontes [Xournal++ StrokeToolView](https://github.com/xournalpp/xournalpp/blob/d762a94/src/core/view/overlays/StrokeToolView.cpp),
+[Xournal++ RenderJob](https://github.com/xournalpp/xournalpp/blob/d762a94/src/core/control/jobs/RenderJob.cpp),
+[benchmark do Xournal++](https://github.com/xournalpp/xournalpp/issues/4662),
+[Stack Overflow](https://stackoverflow.com/questions/6629386/clear-line-on-html5-canvas),
+[Android Ink](https://developer.android.com/develop/ui/views/touch-and-input/stylus-input/ink-api-modules)
+e [tldraw](https://tldraw.dev/blog/tldraw-sdk-5.2).

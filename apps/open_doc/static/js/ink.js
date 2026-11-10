@@ -177,9 +177,88 @@
    while(cursor){const next=cursor.nextSibling;cursor.remove();cursor=next;}
    rendered.set(svg,{strokes,nodes});
   }
+  // Composite finished ink separately from the live SVG pen preview.
+  const rasterPages=new Map();
+  const rasterObserver=window.IntersectionObserver&&window.Path2D
+   ?new IntersectionObserver(entries=>{
+    for(const entry of entries){
+     const page=rasterPages.get(entry.target);
+     if(page)page.visible=entry.isIntersecting;
+    }
+    queue();
+   },{root:root.querySelector('[data-canvas]')})
+   :null;
+  function discardRaster(page){
+   if(!page.canvas)return;
+   page.canvas.width=page.canvas.height=0;
+   page.canvas.remove();
+   page.canvas=null;
+   page.svg.classList.remove('ink-raster-active');
+  }
+  function fillRasterStroke(ctx,stroke){
+   if(!stroke.outline?.length)return;
+   ctx.fillStyle=stroke.color;
+   ctx.globalAlpha=stroke.opacity;
+   ctx.fill(new Path2D(path(stroke)));
+  }
+  function appendRasterStroke(svg,previous,strokes){
+   const page=rasterPages.get(svg.parentElement);
+   if(!page?.canvas)return;
+   const ctx=page.strokes===previous&&page.canvas.getContext('2d');
+   if(!ctx||ctx.isContextLost?.()){discardRaster(page);return;}
+   fillRasterStroke(ctx,strokes[strokes.length-1]);
+   page.strokes=strokes;
+  }
+  function updateRaster(surface,svg,strokes,budget){
+   let page=rasterPages.get(surface);
+   if(!rasterObserver||shouldErase(mode)||root.dataset.homeView==='true'||!surface.classList.contains('document-page')||!strokes.length){
+    if(page){discardRaster(page);rasterObserver.unobserve(surface);rasterPages.delete(surface);}
+    return 0;
+   }
+   if(!page){
+    page={svg,visible:false,canvas:null,strokes:null};
+    rasterPages.set(surface,page);
+    rasterObserver.observe(surface);
+   }
+   if(!page.visible||!budget){discardRaster(page);return 0;}
+   const rect=svg.getBoundingClientRect(),ratio=Math.min(window.devicePixelRatio||1,2);
+   const width=Math.ceil(rect.width*ratio),height=Math.ceil(rect.height*ratio),pixels=width*height;
+   if(!pixels||pixels>Math.min(budget,2500000)){discardRaster(page);return 0;}
+   if(!page.canvas){
+    page.canvas=document.createElement('canvas');
+    page.canvas.className='ink-raster';
+    page.canvas.setAttribute('contenteditable','false');
+    page.canvas.setAttribute('aria-hidden','true');
+    svg.before(page.canvas);
+    page.strokes=null;
+   }
+   const canvas=page.canvas;
+   if(page.strokes!==strokes||canvas.width!==width||canvas.height!==height){
+    const ctx=canvas.getContext('2d');
+    if(!ctx){discardRaster(page);return 0;}
+    canvas.width=width;canvas.height=height;
+    ctx.setTransform(width,0,0,height,0,0);
+    for(const stroke of strokes)fillRasterStroke(ctx,stroke);
+    page.strokes=strokes;
+   }
+   for(const key of ['left','top','width','height'])canvas.style[key]=svg.style[key];
+   svg.classList.add('ink-raster-active');
+   return pixels;
+  }
+  signal.addEventListener('abort',()=>{
+   rasterObserver?.disconnect();
+   for(const page of rasterPages.values())discardRaster(page);
+   rasterPages.clear();
+  },{once:true});
   const emptyStrokes=[];
 
-  function refresh(){scheduled=false;if(signal.aborted)return;const values=new Map(layers().map(layer=>[layer.surface_index,layer]));for(const surface of root.querySelectorAll('.document-page, .fixed-surface')){
+  function refresh(){scheduled=false;if(signal.aborted)return;
+   for(const [surface,page] of rasterPages){
+    if(!surface.isConnected||!surface.contains(page.svg)||root.dataset.documentKind==='fixed'||root.dataset.homeView==='true'){discardRaster(page);rasterObserver.unobserve(surface);rasterPages.delete(surface);}
+    else if(!page.visible)discardRaster(page);
+   }
+   let rasterBudget=6000000;
+   const values=new Map(layers().map(layer=>[layer.surface_index,layer]));for(const surface of root.querySelectorAll('.document-page, .fixed-surface')){
    if(!surface.querySelector('[data-page-content]') && !surface.classList.contains('fixed-surface'))continue;
    if(root.dataset.documentKind==='fixed' && !surface.classList.contains('fixed-surface'))continue;
    const index=Number(surface.dataset.pageIndex),layer=values.get(index);let svg=surface.querySelector(':scope > .ink-overlay');
@@ -198,7 +277,9 @@
    svg.style.height=(surface.offsetHeight||surface.clientHeight)+'px';
    svg.style.pointerEvents=mode==='cursor'?'none':'auto';
    if(active?.svg===svg)continue;
-   paintStrokes(svg,layer?.strokes || emptyStrokes);
+   const strokes=layer?.strokes || emptyStrokes;
+   paintStrokes(svg,strokes);
+   rasterBudget-=updateRaster(surface,svg,strokes,rasterBudget);
   }}
   function queue(){if(!scheduled){scheduled=true;requestAnimationFrame(refresh);}}
   function sample(event,rect){return {x:clamp((event.clientX-rect.left)/rect.width),y:clamp((event.clientY-rect.top)/rect.height),pressure:event.pointerType==='mouse' && !(event.pressure>0)?.5:Number.isFinite(event.pressure)?clamp(event.pressure):.5,tilt_x:event.tiltX || 0,tilt_y:event.tiltY || 0,timestamp_ms:Math.max(0,event.timeStamp)};}
@@ -209,7 +290,7 @@
    if(rect.width<=0 || rect.height<=0)return;
    const focused=document.activeElement;
    if(root.contains(focused)&&focused?.matches('input,textarea,select'))focused.blur();
-   phase='drawing';active={svg,rect,layer,id:e.pointerId,erase:shouldErase(mode),eraseWhole:mode==='eraser',eraseProcessed:0,eraseChanged:false,points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};try{svg.setPointerCapture(e.pointerId);}catch{};active.preview=document.createElementNS(NS,'path');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
+   phase='drawing';active={svg,rect,layer,id:e.pointerId,erase:shouldErase(mode),eraseWhole:mode==='eraser',eraseProcessed:0,eraseChanged:false,points:[sample(e,rect)],stroke:{id:window.OpenDocModel.id(),tool:mode==='highlighter'?'highlighter':'pen',color,size,opacity:mode==='highlighter'?.32:1,handwriting:mode==='handwriting'}};try{svg.setPointerCapture(e.pointerId);}catch{};active.preview=document.createElementNS(NS,'path');active.preview.classList.add('ink-preview');active.preview.setAttribute('fill',color);active.preview.setAttribute('opacity',active.stroke.opacity);svg.append(active.preview);draw();}
   function draw(final=false){
    if(!active)return;
    const a=active;
@@ -265,7 +346,10 @@
     a.stroke.points=simplify(a.points);
     const previous=rendered.get(a.svg);
     const canAppend=previous?.strokes===a.layer.strokes&&a.preview.parentNode===a.svg;
-    a.layer.strokes=[...a.layer.strokes,a.stroke];
+    const previousStrokes=a.layer.strokes;
+    a.layer.strokes=[...previousStrokes,a.stroke];
+    appendRasterStroke(a.svg,previousStrokes,a.layer.strokes);
+    a.preview.classList.remove('ink-preview');
     if(canAppend){
      previous.nodes.set(a.stroke.id,{node:a.preview,stroke:a.stroke});
      previous.strokes=a.layer.strokes;
@@ -286,7 +370,9 @@
   root.addEventListener('open-doc:ink-mode',event=>setMode(event.detail),{signal});
   root.addEventListener('open-doc:cancel-ink',()=>cancel(),{signal});
   root.addEventListener('open-doc:ink-changed',queue,{signal});
-  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});root.addEventListener('open-doc:changed',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
+  root.addEventListener('open-doc:paper-zoom',queue,{signal});
+  window.addEventListener('resize',queue,{signal});
+  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
  window.OpenDocInk={create,simplify,path,shouldErase,eraseStrokes,erasePartialStroke};
 })();
