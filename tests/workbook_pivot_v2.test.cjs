@@ -165,3 +165,22 @@ for(const size of [5,100,9999])test('pivot agrees with array reductions across '
     assert.equal(Number(max),Math.max(...values));
   }
 });
+
+test('quick pivot uses only the selected offset range and sums numeric columns',()=>{
+  const source={cells:{"1,1":"Categoria","1,2":"Previsto","1,3":"Real",
+    "2,1":"Moradia","2,2":100,"2,3":80,"3,1":"Moradia","3,2":50,"4,1":"Fora","4,2":500}};
+  const range=[1,1,3,3];
+  const result=pivot.quickBuild({source,sourceIndex:2,range,read:(r,c)=>source.cells[r+","+c]});
+  assert.deepEqual(result.pivot.range,range);
+  assert.equal(result.pivot.source,2);
+  assert.deepEqual(result.pivot.config.rows,[1]);
+  assert.deepEqual(result.rows[0],["Moradia","150","80"]);
+});
+
+test('quick pivot counts text without treating explicitly typed identifiers as sums',()=>{
+  const source={cells:{"0,0":"Código","1,0":123,"2,0":123},
+    types:{columns:{"0":"text"}}};
+  const result=pivot.quickBuild({source,sourceIndex:0,range:[0,0,2,0],read:(r,c)=>source.cells[r+","+c]});
+  assert.deepEqual(result.rows[0],["123","2"]);
+  assert.throws(()=>pivot.quickBuild({source,sourceIndex:0,range:[0,0,0,0],read:()=>""}),/Shift/);
+});

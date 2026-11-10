@@ -51,6 +51,32 @@
       if(!known.has(Number(field)))throw Error("Um campo da tabela dinâmica não pertence à fonte.");
     if(config.values.length>12)throw Error("Use até 12 métricas por tabela.");
   }
+  function quickBuild({source,sourceIndex,range,read}) {
+    const [top,left,bottom,right]=range;
+    if(top>=bottom||(bottom-top+1)*(right-left+1)>MAX_CELLS)
+      throw Error("Selecione o cabeçalho e pelo menos uma linha de dados com Shift + setas (até 50 mil células).");
+    const fields=getFields(source,range,read);
+    const numeric=[],categories=[];
+    for(const {index,type} of fields){
+      let hasData=false,allNumeric=true;
+      for(let row=top+1;row<=bottom;row++){
+        const value=read(row,index);
+        if(blank(value))continue;
+        hasData=true;
+        if(!Number.isFinite(number(value)))allNumeric=false;
+      }
+      if(!hasData)continue;
+      if(allNumeric&&!["text","date","time","datetime","boolean"].includes(type))numeric.push(index);
+      else categories.push(index);
+    }
+    if(!numeric.length&&!categories.length)throw Error("A seleção só tem cabeçalhos ou células vazias.");
+    if(numeric.length>12)throw Error("A seleção tem mais de 12 colunas numéricas. Reduza o intervalo ou use Configurar tabela dinâmica.");
+    const config={
+      rows:categories.slice(0,1),columns:[],filters:[],totals:categories.length>0,
+      values:numeric.length?numeric.map(field=>({field,operation:"sum"})):[{field:categories[0],operation:"count"}],
+    };
+    return build({source,sourceIndex,range,read,config});
+  }
   const allowed=new Set(["sum","average","count","distinct","min","max","median","stdev","product"]);
   function accumulator(){return {count:0,numeric:0,sum:0,product:1,min:Infinity,max:-Infinity,values:[],distinct:new Set()};}
   function add(a,value,operation,field) {
@@ -238,7 +264,7 @@
     return {cells,bold,headers:columnLabels,rows:dataRows,drillCells,summaryRows,sourceRows:accepted,
       pivot:{source:sourceIndex,range:range.slice(),config:JSON.parse(JSON.stringify(config))}};
   }
-  const api={build,getFields,number,dateGroup};
+  const api={build,quickBuild,getFields,number,dateGroup};
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   if(typeof window!=="undefined")window.OpenDocWorkbookPivot=api;
 })();

@@ -133,6 +133,23 @@ def main():
             wait(window, "document.querySelector('[data-cell=\"1,3\"]')?.textContent==='520'")
             assert js("document.querySelector('[data-cell=\"1,3\"]').style.fontStyle==='italic'")
             assert js("document.querySelectorAll('[data-cell]').length<1500")
+            click('[data-cell="0,0"]')
+            js("""(() => {
+              const grid=document.querySelector('[data-book-scroll]');
+              for(const key of ['ArrowRight','ArrowRight','ArrowRight','ArrowDown'])
+                grid.dispatchEvent(new KeyboardEvent('keydown',{key,shiftKey:true,bubbles:true,cancelable:true}));
+            })()""")
+            wait(window, "document.querySelectorAll('[data-cell][aria-selected=true]').length===8")
+            js("""document.querySelector('[data-cell="0,0"]').dispatchEvent(
+              new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:120,clientY:220}));""")
+            wait(window, "document.querySelector('[data-book-context-command=pivot-quick]')?.textContent.includes('A1:D2')")
+            click('[data-book-context-command=pivot-quick]')
+            wait(window, "document.querySelectorAll('[data-book-tabs] button').length===3")
+            wait(window, "document.querySelector('[data-cell=\"1,3\"]')?.textContent==='520'")
+            assert js("!document.querySelector('[data-book-sidebar]').open")
+            click("[data-book-command=undo]")
+            wait(window, "document.querySelectorAll('[data-book-tabs] button').length===2")
+            print("QT_WORKBOOK_SHIFT_CONTEXT_PIVOT_OK", flush=True)
             js("document.querySelector('.workbook-body').style.transform='translateZ(0)'")
             js("document.querySelector('[data-book-command=pivot]').focus()")
             click("[data-book-command=pivot]")
