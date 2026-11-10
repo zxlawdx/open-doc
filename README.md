@@ -32,18 +32,25 @@ Consulte a página de [Releases](https://github.com/zxlawdx/open-doc/releases)
 para ver os executáveis publicados. Também é possível rodar a versão do
 repositório seguindo os passos abaixo.
 
-### Gerar uma release Windows x64
+### Gerar uma release Windows e Linux x64
 
-O workflow **Open Doc Windows packages** gera dois downloads:
+O workflow **Open Doc Windows and Linux packages** gera os seguintes downloads:
 
 - **Setup.exe** instala para o usuário atual, com assistente em português,
   atalho no menu Iniciar, opção de atalho na área de trabalho e desinstalador.
 - **Portable.zip** contém o executável e as dependências do aplicativo. Extraia
   o ZIP inteiro e abra `Open-Doc/Open-Doc.exe`.
+- **Linux-x64.tar.gz** contém o executável `Open-Doc/Open-Doc` e o script
+  `Open-Doc/Instalar.sh` para criar um atalho no menu do usuário. O build usa
+  Ubuntu 22.04 x64 como base de compatibilidade (Linux Mint 21 ou mais recente).
 
 Em **Actions**, execute o workflow manualmente para gerar artefatos de teste.
 Após integrar a versão desejada à `main`, envie uma tag `vMAJOR.MINOR.PATCH`
-para criar uma release com os dois downloads e seus checksums SHA-256.
+para criar uma release com os pacotes dos dois sistemas e seus checksums SHA-256.
+
+Para complementar uma release existente que só tenha Windows, execute o
+workflow pela `main` e preencha **linux_release_tag** com a tag da release.
+O job compila o código dessa tag e acrescenta os arquivos Linux após os testes.
 
 ```bash
 git switch main
