@@ -29,6 +29,12 @@ Escala emulada pelo protocolo de depuração do QtWebEngine em [125%](depois-piv
 - `tests/workbook_pivot_v2.test.cjs` compara cinco agregações com reduções independentes de arrays em 5, 100 e 9.999 registros, mais o cabeçalho para a maior faixa. Os testes Python incluem ingestão paginada de 1,1 milhão de registros no modo Dados e ida e volta de estilos em XLSX.
 - `tools/qa_workbook.py` e `tools/qa_datasets.py` executam o Open Doc real, verificam ações e produzem as capturas. Os testes do diálogo verificam centralização, hit testing das ações, acesso às zonas por rolagem, foco, cancelamento e criação de resultado.
 
+## Resultado local
+
+- `npm test` passou com 234 testes. `pytest -q` passou com 324 testes e 2 pulados.
+- `qa_workbook.py` e `qa_datasets.py` passaram no QtWebEngine. Os testes desktop de edição DOCX e de edição, exportação e reabertura de PDF também passaram.
+- `qa_pptx.py` esperava a prévia SVG e recebeu o modo de visualização via LibreOffice. A mesma falha foi reproduzida na revisão base `6ef1e3c`, no mesmo ambiente.
+
 ## Roteiro no Windows e no Linux Mint
 
 1. Na branch do PR, execute `python manage.py collectstatic --yes` e `python main.py` com o ambiente do projeto ativo.

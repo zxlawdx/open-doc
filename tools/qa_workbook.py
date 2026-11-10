@@ -145,7 +145,9 @@ def main():
               const last=dialog.querySelector('footer [data-book-command="close-pivot"]');
               first.focus();
               first.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true}));
-              return document.activeElement===last;
+              const wrapped=document.activeElement===last;
+              dialog.querySelector("[data-pivot-search]").focus();
+              return wrapped;
             })()""")
             js("document.querySelector('[data-pivot-range]').value='A1:D2'")
             click("[data-book-command=pivot-fields]")

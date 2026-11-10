@@ -395,3 +395,6 @@
 .open-doc .dataset-python summary svg {
   display:inline-block;width:16px;height:16px;margin:0 6px;vertical-align:middle;color:var(--color-primary)
 }
+
+.open-doc .workbook [data-book-command=pivot-create]>svg,
+.open-doc .workbook [data-python-env-command=install]>svg {color:inherit}
