@@ -11,6 +11,7 @@ on:
       - "assets/branding/**"
       - "tools/build_release_icon.py"
       - "tools/smoke_release.mjs"
+      - "tools/stage_release_notices.py"
       - "requirements.txt"
       - "config/**"
 
@@ -50,6 +51,7 @@ jobs:
           python manage.py buildapp --gui qt5 --icon build/open-doc.ico
           if (-not (Test-Path 'dist/Open-Doc/Open-Doc.exe')) { throw 'Executável ausente.' }
           Copy-Item LICENSE,THIRD_PARTY_NOTICES.md -Destination 'dist/Open-Doc/'
+          python tools/stage_release_notices.py dist/Open-Doc
           New-Item -ItemType Directory -Force dist/release | Out-Null
           $name = "Open-Doc-$env:OPEN_DOC_BUILD_VERSION-Windows-x64-Portable.zip"
           # tar includes .vela-app.json, .vela and the Qt runtime directory.
