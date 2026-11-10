@@ -57,7 +57,7 @@
       onResize?.();
     }
     function sync() {
-      handle.hidden=panel.hidden;
+      handle.hidden=panel.hidden||shell.classList.contains("code-notebook-full");
       if(!panel.hidden&&handle.offsetWidth)update(panel.offsetWidth);
     }
     handle.addEventListener("pointerdown",event=>{

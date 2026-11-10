@@ -152,6 +152,39 @@ class OpenDocBridge(BaseBridge):
         except (ValueError, OSError, sqlite3.Error) as error:
             return {"error": str(error)}
 
+    def export_code_notebook(self, notebook):
+        """Export a bounded notebook through the native Save dialog."""
+        import json
+        import tempfile
+        import webview
+
+        if self._window is None:
+            return {"error": "Janela indisponível."}
+        try:
+            data = json.dumps(notebook, ensure_ascii=False, indent=2).encode("utf-8")
+            if len(data) > 2_000_000:
+                raise ValueError("O caderno excede o limite de 2 MB.")
+            paths = self._window.create_file_dialog(
+                webview.FileDialog.SAVE, save_filename="caderno.ipynb",
+                file_types=("Jupyter Notebook (*.ipynb)",),
+            )
+            if not paths:
+                return {"cancelled": True}
+            path = Path(paths if isinstance(paths, str) else paths[0])
+            if path.suffix.lower() != ".ipynb":
+                path = path.with_name(path.name + ".ipynb")
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+                temporary = Path(stream.name)
+                try:
+                    stream.write(data)
+                    stream.close()
+                    temporary.replace(path)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            return {"name": path.name}
+        except (ValueError, OSError, TypeError) as error:
+            return {"error": str(error)}
+
     def run_dataset_python(self, identifier, code):
         return self._run_analysis_python(lambda: get_context().datasets, identifier, code,
                                          project=identifier)

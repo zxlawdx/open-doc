@@ -169,6 +169,17 @@ def main():
                 })()""")
                 wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
                 capture(output, "conversion-undo")
+                js = window.evaluate_js
+                js("""(() => {
+                  const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
+                  notebook.querySelector('button[title="SQL"]').click();
+                  const cell=notebook.querySelector('[data-code-cell=sql]');
+                  const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+                  editor.dispatch({changes:{from:0,insert:'SELECT COUNT(*) FROM dados'}});
+                  cell.querySelector('button[title="Executar"]').click();
+                })()""")
+                wait(window, "Boolean(document.querySelector('[data-dataset] [data-code-cell=sql] td'))")
+                print("QT_DATASET_CODE_NOTEBOOK_OK", flush=True)
                 print("QT_DATASET_CONVERSION_PREVIEW_CONFIRM_UNDO_OK", flush=True)
                 window.evaluate_js("""(() => {
                   const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-query] .cm-editor'));

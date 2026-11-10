@@ -271,6 +271,7 @@
   async function loadCodeEditors() {
     if (!window.OpenDocCodeVendor) await loadScript('vendor/code-editor.bundle.js');
     if (!window.OpenDocCodeEditor) await loadScript('code_editor.js');
+    if (!window.OpenDocCodeNotebook) await loadScript('code_notebook.js');
   }
   async function openDatasets() {
     await editor.flush();

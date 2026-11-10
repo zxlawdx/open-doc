@@ -398,3 +398,46 @@
 
 .open-doc .workbook [data-book-command=pivot-create]>svg,
 .open-doc .workbook [data-python-env-command=install]>svg {color:inherit}
+
+/* Code notebook, shared by the sheet and dataset panels. */
+.open-doc .code-notebook {margin:12px 0 20px;min-width:0}
+.open-doc .code-notebook-tools,.open-doc .code-notebook-cell-tools {
+  display:flex;flex-wrap:wrap;align-items:center;margin:-2px
+}
+.open-doc .code-notebook-tools button,.open-doc .code-notebook-cell-tools button {
+  margin:2px;min-height:34px;border-radius:6px
+}
+.open-doc .code-notebook button[hidden],.open-doc .code-notebook-output[hidden] {display:none}
+.open-doc .code-notebook-status {font-size:12px;color:var(--color-text-secondary);margin:8px 0}
+.open-doc .code-notebook-cell {
+  border:1px solid var(--color-border);border-radius:9px;margin:10px 0;padding:8px;min-width:0;
+  background:var(--color-panel)
+}
+.open-doc .code-notebook-cell:focus-within {border-color:var(--color-primary)}
+.open-doc .code-notebook-cell-tools strong {flex:1 1 100%;margin:3px 2px}
+.open-doc .code-notebook-cell textarea:not([hidden]) {width:100%;min-height:5rem;resize:vertical}
+.open-doc .code-notebook-cell .dataset-code-editor {margin-top:7px}
+.open-doc .code-notebook-output {
+  max-height:18rem;overflow:auto;padding:6px;border-top:1px solid var(--color-border);
+  background:var(--color-workspace)
+}
+.open-doc .code-notebook-output pre {white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.open-doc .code-notebook-output table {border-collapse:collapse;font-size:12px}
+.open-doc .code-notebook-output th,.open-doc .code-notebook-output td {
+  border:1px solid var(--color-border);padding:4px 7px
+}
+.open-doc [data-code-split].code-notebook-full>.workbook-sidebar:not([hidden]) {
+  position:fixed;top:0;right:0;bottom:0;left:0;width:auto;max-width:none;z-index:105;
+  background:var(--color-panel);padding:12px max(12px,calc((100vw - 88rem)/2))
+}
+.open-doc .code-notebook-full>.workbook-scroll,.open-doc .code-notebook-full>.code-splitter {visibility:hidden}
+@media(max-width:760px){
+  .open-doc [data-code-split]:not(.code-notebook-full) {flex-direction:column}
+  .open-doc [data-code-split]:not(.code-notebook-full)>.workbook-sidebar:not([hidden]) {
+    flex:0 0 55%;width:100%;border-top:1px solid var(--color-border)
+  }
+}
+.open-doc .code-notebook-tools {
+  position:sticky;top:0;z-index:2;padding:4px 2px;
+  background:var(--color-panel);border-bottom:1px solid var(--color-border)
+}

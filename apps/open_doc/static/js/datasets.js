@@ -20,6 +20,17 @@
       run:()=>run(executeQuery)});
     const tools=$("[data-dataset-tools]"), toolsButton=$("[data-dataset-command=tools]");
     const syncSplitter=workspace.splitter(tools,signal);
+    const notebook=window.OpenDocCodeNotebook.create({panel:tools,signal,request,
+      project:()=>current?.id,onLayout:syncSplitter,execute:async(language,code)=>{
+        if(busy)throw Error("Aguarde a operação de Dados em andamento.");
+        busy=true;
+        controls();
+        try{
+          return await (language==="python"
+            ?window.pywebview.api.run_dataset_python(list.value,code)
+            :request("dataset",{operation:"query",id:list.value,sql:code}));
+        }finally{busy=false;controls();}
+      }});
     let toolsOpen=false;
     function showCode(language){
       if(!current)return;
@@ -29,6 +40,7 @@
     }
     function showTools() {
       tools.hidden=!current || !toolsOpen;
+      if(tools.hidden)notebook.collapse();
       toolsButton.disabled=busy || !current;
       toolsButton.setAttribute("aria-expanded",String(!tools.hidden));
       for(const button of host.querySelectorAll("[data-dataset-command^=show-]"))
@@ -36,7 +48,7 @@
       syncSplitter();
     }
     function controls() {
-      for (const control of host.querySelectorAll("input,select,button,textarea")) control.disabled=busy;
+      for (const control of host.querySelectorAll("input,select,button,textarea")) if(!control.closest(".code-notebook"))control.disabled=busy;
       $("[data-dataset-command=append]").disabled=busy || !list.value;
       $("[data-dataset-command=export]").disabled=busy || !current;
       $("[data-dataset-python]").hidden=!current;
@@ -145,7 +157,7 @@
     }
     async function showPage(nextRow=0,nextColumn=0) {
       if(!list.value){
-        current=null;table.replaceChildren();status.textContent="Importe um ou mais CSVs com cabeçalho para começar.";
+        current=null;notebook.activate([]);table.replaceChildren();status.textContent="Importe um ou mais CSVs com cabeçalho para começar.";
         return;
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
@@ -154,6 +166,8 @@
         output.textContent="";
         const schema=await request("dataset",{operation:"columns",id:result.id});
         sqlEditor.columns(schema.columns);
+        current=result;
+        notebook.activate(schema.columns);
       }
       current=result;row=nextRow;column=nextColumn;querying=false;lastQuery=null;
       rowInput.value=row+1;columnInput.value=column+1;
