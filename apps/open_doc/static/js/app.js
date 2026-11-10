@@ -11,7 +11,7 @@
   const scriptUrl = document.currentScript.src;
   const controller = new AbortController(), signal = controller.signal;
   let workbook, datasets;
-  let editor, theme, layout, navigation, menus, design, token = '', destroyed = false, busy = false;
+  let editor, theme, layout, zoom, navigation, menus, design, token = '', destroyed = false, busy = false;
   let settings = {}, preferenceChain = Promise.resolve();
   let dialogResolver = null, dialogFocus = null, noticeTimer;
   let lastStatus = '';
@@ -43,10 +43,17 @@
       timer=setTimeout(()=>{
         if(signal.aborted||!current?.isConnected)return;
         tip.textContent=value;tip.hidden=false;
-        const rect=element.getBoundingClientRect(),width=tip.offsetWidth||220,height=tip.offsetHeight||28;
-        const left=Math.max(8,Math.min(window.innerWidth-width-8,rect.left+rect.width/2-width/2));
-        const top=rect.bottom+height+10>window.innerHeight
-          ?Math.max(8,rect.top-height-8):rect.bottom+8;
+        const scale=Number(root.style.getPropertyValue('--interface-zoom'))||1;
+        const rect=element.getBoundingClientRect();
+        const bounds=root.getBoundingClientRect();
+        // Legacy Qt reports CSS zoom rectangles in layout pixels. Compare
+        // relative positions within the app in either coordinate system.
+        const ratio=root.clientWidth/(bounds.width || root.clientWidth || 1);
+        const width=tip.offsetWidth,height=tip.offsetHeight;
+        const left=Math.max(8,Math.min(window.innerWidth/scale-width-8,(rect.left-bounds.left+rect.width/2)*ratio-width/2));
+        const bottom=(rect.bottom-bounds.top)*ratio;
+        const top=bottom+height+10>window.innerHeight/scale
+          ?Math.max(8,(rect.top-bounds.top)*ratio-height-8):bottom+8;
         tip.style.left=left+'px';tip.style.top=top+'px';
       },500);
     }
@@ -76,10 +83,12 @@
     } catch (error) { report(name, error); }
   }
   async function request(path, data) {
-    const options = data === undefined ? {} : {
-      method: 'POST', headers: {'Content-Type': 'application/json', 'X-Open-Doc-Token': token},
-      body: JSON.stringify(data)
-    };
+    const options = {headers: {'X-Open-Doc-Token': token}};
+    if (data !== undefined) {
+      options.method = 'POST';
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(data);
+    }
     const response = await fetch('/api/open_doc/' + path, options);
     let result;
     try { result = await response.json(); } catch { console.error('Open Doc: resposta inválida',path,response.status); throw Error('Falha no servidor (HTTP '+response.status+'). Seu texto foi mantido.'); }
@@ -119,6 +128,7 @@
     root.querySelector('[data-library]').hidden = !home;
     root.querySelector('[data-document-body]').hidden = home || root.dataset.documentKind==='fixed';
     design?.sync();
+    zoom?.sync();
     if (home && !wasHome) refresh().catch(error => status(error.message));
     else if (!home) {
       layout?.measure(); editor?.refresh();
@@ -290,6 +300,7 @@
     root.dataset.datasetView = 'true';
     root.querySelector('[data-library]').hidden = true;
     host.hidden = false;
+    zoom?.sync();
     await datasets.load();
   }
   async function openWorkbook(data, existing) {
@@ -303,7 +314,7 @@
       if (!window.OpenDocWorkbookTypes) await loadScript('workbook_types.js');
       if (!window.OpenDocPythonPackages) await loadScript('python_packages.js');
       if (!window.OpenDocWorkbook) await loadScript('workbook.js');
-      workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors});
+      workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors,settings,persist});
     }
     const value = existing || (data ? await request('workbook',data) : await window.pywebview.api.import_workbook());
     if (value.error) throw Error(value.error);
@@ -313,6 +324,7 @@
     root.querySelector('[data-library]').hidden = true;
     host.hidden = false;
     workbook.load(value);
+    zoom?.sync();
   }
   async function saveTemplate(fromWorkbook=false) {
     if (fromWorkbook) await workbook.save();
@@ -373,7 +385,7 @@
     if (selection) {
       const label = document.createElement('label'); label.textContent = 'Tema da interface';
       const select = document.createElement('select'); select.dataset.dialogSelect = '';
-      for (const [value, text] of [['light', 'Claro'], ['dark', 'Escuro'], ['system', 'Usar tema do sistema']]) {
+      for (const [value, text] of [['light', 'Claro'], ['dark', 'Escuro'], ['system', 'Automático (tema do sistema)']]) {
         const option = document.createElement('option'); option.value = value; option.textContent = text; select.append(option);
       }
       select.value = selection; label.append(select); body.append(label);
@@ -422,6 +434,11 @@
   }
   async function action(name) {
     if (!editor) return;
+    if (name === 'theme') {
+      const value = await dialog('Configurações · Aparência', 'Escolha o tema da interface do Open Doc.', false, theme?.preference() || 'system');
+      if (value) await theme?.set(value).catch(error => status(error.message));
+      return;
+    }
     if (root.dataset.datasetView === 'true') {
       if (name === 'home') return libraryRoute();
       return;
@@ -508,8 +525,16 @@
       }),
       copy: () => operate(() => editor.copy()),
       navigator: () => toggleNavigator(),
-      'zoom-reset': () => layout?.set(100),
-      find: async () => { showView(false); if(editor.find?.())return;await toggleNavigator(true); navigation?.focus(); },
+      'zoom-reset': () => zoom?.reset(),
+      find: async () => {
+        if (root.dataset.homeView === 'true') {
+          root.querySelector('[data-library-search]')?.focus();
+          return;
+        }
+        if (editor.find?.()) return;
+        await toggleNavigator(true);
+        navigation?.focus();
+      },
       link: async () => {
         editor.capture();const selection=editor.snapshot().selection;
         const value = await dialog('Inserir link', 'Selecione o texto e informe um endereço. São aceitos HTTPS, HTTP e e-mail.', true);
@@ -517,17 +542,13 @@
         if (!/^(https?:\/\/|mailto:)/i.test(value)) { status('Endereço inválido. Use https://, http:// ou mailto:.'); return; }
         editor.restoreSelection(selection);editor.format('link', value);
       },
-      theme: async () => {
-        const value = await dialog('Aparência', 'O papel permanece branco nos temas claro e escuro.', false, theme?.preference() || 'system');
-        if (value) await theme?.set(value);
-      },
       'help-center':async()=>{
         if(!window.OpenDocHelpCenter)await loadScript('help_center.js');
         return window.OpenDocHelpCenter.HelpCenter.open({
           dialog,root,kind:root.dataset.sourceKind
         });
       },
-      shortcuts: () => dialog('Atalhos de teclado', 'Ctrl+N: novo · Ctrl+O: importar · Ctrl+S: salvar · Ctrl+B: negrito · Ctrl+I: itálico · Ctrl+Z: desfazer · Ctrl+Y ou Ctrl+Shift+Z: refazer · Ctrl+F: localizar. Copiar, recortar e colar usam os atalhos do sistema.'),
+      shortcuts: () => dialog('Atalhos de teclado', 'Ctrl+N: novo · Ctrl+O: importar · Ctrl+S: salvar · Ctrl+B: negrito · Ctrl+I: itálico · Ctrl+Z: desfazer · Ctrl+Y ou Ctrl+Shift+Z: refazer · Ctrl+F: localizar · Ctrl++: aumentar zoom · Ctrl+-: reduzir zoom · Ctrl+0: restaurar zoom. Copiar, recortar e colar usam os atalhos do sistema.'),
       about: () => dialog('Open Doc', 'Editor desktop local construído com o Vela Framework. Edição rica, páginas e exportação nativa. O layout pode diferir do Microsoft Word.')
     };
     try { await operations[name]?.(); } catch (error) { status(error.message); }
@@ -667,7 +688,7 @@
       if(!event.repeat)action('save');
     },{capture:true,signal});
     window.addEventListener('keydown', event => {
-      if (root.dataset.datasetView === 'true' || root.dataset.workbookView === 'true' || !(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
+      if (event.defaultPrevented || root.dataset.datasetView === 'true' || root.dataset.workbookView === 'true' || !(event.ctrlKey || event.metaKey) || !root.querySelector('[data-dialog]').hidden) return;
       const name = ({n: 'new', o: 'import', f: 'find'})[event.key.toLowerCase()];
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='h') {event.preventDefault();action('replace');return;}
       if (name) { event.preventDefault(); action(name); }
@@ -679,6 +700,8 @@
     menus = await auxiliary('menus', 'OpenDocMenus', 'menus.js', module => module.create(root, editor.capture, signal));
     theme = await auxiliary('aparência', 'OpenDocTheme', 'theme.js', module => module.create(root, settings, persist, signal));
     layout = await auxiliary('zoom', 'OpenDocPaperLayout', 'paper_layout.js', module => module.create(root, settings, persist, signal));
+    if (layout) zoom = await auxiliary('controles de zoom', 'OpenDocZoom', 'zoom.js',
+      module => module.create({root, settings, persist, status, paper: layout, editor, workbook: () => workbook, signal}));
     navigation = await auxiliary('navegação', 'OpenDocNavigation', 'navigation.js', module => module.create(root, editor, signal));
     design = await auxiliary('interface de documentos', 'OpenDocDesign', 'design_system.js', module => module.create({root,action,signal}));
     if (bootstrap.start_in_library) libraryRoute();

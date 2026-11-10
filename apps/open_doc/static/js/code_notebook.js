@@ -48,6 +48,7 @@
       split.setAttribute("aria-pressed",String(!expanded));
       full.setAttribute("aria-pressed",String(expanded));
       onLayout();
+      shell.dispatchEvent(new CustomEvent("open-doc:layout",{bubbles:true}));
     }
     panel.addEventListener("keydown",event=>{
       if(event.key==="Escape"&&shell.classList.contains("code-notebook-full")){

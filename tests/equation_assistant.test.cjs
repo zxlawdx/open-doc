@@ -9,11 +9,13 @@ function setup(t,kind='rich'){
  const dom=new JSDOM('<div id="app" data-document-kind="'+kind+'"><div data-dialog hidden><section class="dialog"><div data-dialog-body></div></section></div></div>',{
    url:'http://localhost',runScripts:'outside-only'
  });
- const w=dom.window;t.after(()=>w.close());w.OpenDocMathGallery={
+ const w=dom.window;t.after(()=>w.close());
+ w.eval(fs.readFileSync(path.join(__dirname,'../apps/open_doc/static/js/math_gallery.js'),'utf8'));
+ Object.assign(w.OpenDocMathGallery,{
    DEFINITIONS:[{id:'fraction',label:'Fração'}],
    BLOCKS:{fraction:[{kind:'fraction',numerator:'a',denominator:'b'}]},
    renderBlocks:blocks=>{const span=w.document.createElement('span');span.textContent=JSON.stringify(blocks);return span;}
- };
+ });
  w.eval(script);
  const root=w.document.querySelector('#app'),inserts=[],statuses=[];
  let resolve;

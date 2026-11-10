@@ -53,3 +53,20 @@
 .open-doc .danger-action {
     color: var(--color-danger);
 }
+
+.open-doc input::placeholder,
+.open-doc textarea::placeholder {
+    color: var(--color-text-secondary);
+    opacity: 1;
+}
+.open-doc ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+.open-doc ::-webkit-scrollbar-track,
+.open-doc ::-webkit-scrollbar-corner { background: var(--color-workspace); }
+.open-doc ::-webkit-scrollbar-thumb {
+    background: var(--color-text-muted);
+    border: 2px solid var(--color-workspace);
+    border-radius: 8px;
+}

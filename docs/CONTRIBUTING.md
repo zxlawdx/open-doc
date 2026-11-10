@@ -1,6 +1,6 @@
 # Contribuindo com Open Doc
 
-Use Python 3.10+; dependências em requirements-dev.txt. Node serve apenas ao
+Use Python 3.11+; dependências em requirements-dev.txt. Node serve apenas ao
 build e aos testes. Rode pytest, os testes Node, Black (88 colunas) e o QA Qt
 antes de alterar o engine. Veja comandos completos no README.
 

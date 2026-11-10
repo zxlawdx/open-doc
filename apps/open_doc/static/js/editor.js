@@ -1020,7 +1020,9 @@
       }
     }, listeners);
     window.addEventListener("keydown", event => {
-      if(root.dataset.documentKind==='fixed' || !(event.ctrlKey || event.metaKey)) return;
+      if(root.dataset.documentKind==='fixed' || root.dataset.homeView==='true' ||
+         root.querySelector('[data-dialog]:not([hidden])') || event.defaultPrevented ||
+         !(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if(key === "enter" && mode === "rich" && rich.contains(getSelection()?.anchorNode)){event.preventDefault();insertPage("break");return;}
       if (key === "z" || key === "y") {

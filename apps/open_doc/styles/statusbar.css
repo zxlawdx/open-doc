@@ -49,3 +49,15 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+
+/* Library, data and workbook keep the same zoom controls. */
+.open-doc[data-home-view="true"] .status-left,
+.open-doc[data-home-view="true"] .status-mode,
+.open-doc[data-workbook-view="true"] .header-actions > :not([data-action="theme"]),
+.open-doc[data-dataset-view="true"] .header-actions > :not([data-action="theme"]) {
+    display: none;
+}
+.open-doc .statusbar [data-zoom-step] {
+    min-width: 24px;
+    min-height: 24px;
+}

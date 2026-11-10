@@ -16,6 +16,7 @@ function setup(t, options={}){
  const w=dom.window;t.after(()=>w.close());
  w.OpenDocModel={id:(()=>{let x=0;return()=>'slide-node-'+(++x);})()};
  w.eval(chartScript);
+ w.eval(fs.readFileSync(path.join(__dirname,"../apps/open_doc/static/js/math_gallery.js"),"utf8"));
  w.eval(script);
  const root=w.document.querySelector('#root'),host=w.document.querySelector('#host'),
    controls=w.document.querySelector('#controls'),scroller=w.document.querySelector('#scroll'),

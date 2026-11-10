@@ -1,7 +1,7 @@
 # Open Doc
 
 O Open Doc é um aplicativo desktop de código aberto para escrever documentos,
-ler e anotar PDFs e montar apresentações. Os arquivos de trabalho ficam no
+ler e anotar PDFs, montar apresentações e trabalhar com planilhas e dados. Os arquivos de trabalho ficam no
 computador. O uso cotidiano dispensa conta e sincronização em nuvem.
 
 O projeto usa o [Vela Framework](https://github.com/zxlawdx/Vela-framework),
@@ -19,6 +19,8 @@ HTML, CSS e JavaScript exibida em uma janela pywebview.
 | Tinta digital | Caneta, marca-texto livre, borracha parcial, remoção de traço inteiro e conversão opcional de manuscrito com um reconhecedor local. |
 | PDFs | Navegar, buscar, destacar, comentar, adicionar notas adesivas, extrair páginas e exportar cópias anotadas. PDFs digitais compatíveis também permitem substituir trechos de texto e salvar uma cópia corrigida. |
 | Apresentações | Criar ou importar PPTX, organizar slides, inserir texto, formas e imagens, criar gráficos editáveis, aplicar transições, apresentar em tela cheia e exportar um slide ou a apresentação inteira. |
+| Planilhas e Dados | Editar planilhas XLSX, importar CSV/TSV, usar fórmulas e tabelas dinâmicas, consultar dados com SQL e preparar cadernos de código. |
+| Código | Editor Python e SQL com completamento. A execução Python roda em processo separado com as permissões do usuário e requer a versão iniciada pelo interpretador. |
 
 A edição de texto em PDF é experimental e depende da fonte e da composição do
 arquivo. OCR, digitalização e edição visual de imagens em PDF seguem pendentes.
@@ -26,11 +28,12 @@ Arquivos DOCX e PPTX com layouts ou efeitos complexos podem apresentar diferenç
 na importação ou na exportação. Para um panorama técnico, veja
 [Layout e limites](#layout-e-limites).
 
-## Como testar
+## Instalar e executar
 
-Consulte a página de [Releases](https://github.com/zxlawdx/open-doc/releases)
-para ver os executáveis publicados. Também é possível rodar a versão do
-repositório seguindo os passos abaixo.
+Baixe a versão para seu sistema na página de [Releases](https://github.com/zxlawdx/open-doc/releases).
+
+- **Windows x64.** Execute o instalador `Setup.exe` ou extraia o ZIP portátil inteiro e abra `Open-Doc.exe`.
+- **Ubuntu e Linux Mint x64.** Instale o arquivo `.deb` com `sudo apt install ./nome-do-arquivo.deb`. O arquivo `.tar.gz` contém a versão portátil e o instalador de atalho.
 
 ### Gerar uma release Windows e Linux x64
 
@@ -70,7 +73,7 @@ separada. Os pacotes são gerados sem assinatura Authenticode.
 
 ### Executar pelo código-fonte
 
-Tenha Git, Python 3.10 ou mais recente, Node.js 22 ou mais recente com npm e
+Tenha Git, Python 3.11 ou mais recente, Node.js 22 ou mais recente com npm e
 uma sessão gráfica. O CI usa Python 3.12 e Node.js 22 no Windows e no Linux.
 O primeiro preparo baixa as dependências. O aplicativo usa os recursos
 compilados localmente.
@@ -82,6 +85,7 @@ git clone https://github.com/zxlawdx/open-doc.git
 cd open-doc
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade "pip>=26.2"
 python -m pip install -r requirements.txt
 python manage.py collectstatic --yes
 python manage.py runapp
@@ -94,6 +98,7 @@ git clone https://github.com/zxlawdx/open-doc.git
 cd open-doc
 python3 -m venv .venv
 source .venv/bin/activate
+python -m pip install --upgrade "pip>=26.2"
 python -m pip install -r requirements.txt
 python manage.py collectstatic --yes
 python manage.py runapp
@@ -184,7 +189,7 @@ e guarda o estado completo anterior como um ponto de recuperação.
 - Páginas editáveis, quebra com Ctrl+Enter, página em branco e configuração de tamanho/orientação/margens.
 - Renomear, duplicar e excluir documentos internos na Home, com confirmação de exclusão.
 - Outline de títulos navegável; localizar/substituir com Ctrl+F/Ctrl+H.
-- Zoom real entre 50% e 150%, régua informativa e temas claro/escuro/sistema.
+- Zoom por contexto com Ctrl++, Ctrl+−, Ctrl+0 e Ctrl+roda. A engrenagem da Central e dos editores abre os temas Claro, Escuro e Automático.
 - Confirmação nativa de fechamento se houver alterações pendentes.
 
 Ctrl+N cria, Ctrl+O importa, Ctrl+F localiza, Ctrl+B e Ctrl+I formatam,
@@ -293,11 +298,12 @@ as dimensões lógicas. `python tools/qa_styles.py` captura a matriz visual no Q
 - [Sistema visual, responsividade e capturas Qt](docs/OPEN_DOC_STYLES.md)
 - [Integração Vela, fase 2, exportação, fontes e páginas](docs/OPEN_DOC_VELA_PHASE2.md)
 - [DOCX rico: modelo, preservação, testes e limites](docs/OPEN_DOC_RICH_DOCX.md)
-- [Auditoria e baseline](docs/OPEN_DOC_AUDIT.md)
+- [Auditoria integral e roteiro de validação](docs/auditoria/AUDITORIA_INTEGRAL.md)
+- [Baseline histórico](docs/OPEN_DOC_AUDIT.md)
 - [Pesquisa de referências](docs/EDITOR_REFERENCE_RESEARCH.md)
 - [Decisão do engine](docs/EDITOR_ENGINE_DECISION.md)
 - [Redesign, matriz de regressão e capturas](docs/OPEN_DOC_REDESIGN.md)
-- [Contribuição](docs/CONTRIBUTING.md)
+- [Contribuição](docs/CONTRIBUTING.md) e [relato de bugs](https://github.com/zxlawdx/open-doc/issues/new)
 
 ## Licenças
 

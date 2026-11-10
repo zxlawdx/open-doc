@@ -27,7 +27,11 @@ def test_template_library_creates_independent_native_copies(tmp_path, monkeypatc
     endpoint = "/api/open_doc/document/template"
 
     assert context.documents.bootstrap()["start_in_library"] is True
-    all_templates = client.get("/api/open_doc/files").json["templates"]
+    client.get("/api/open_doc/files", status=403)
+    client.get("/api/open_doc/files", headers={"X-Open-Doc-Token": "wrong"}, status=403)
+    listing = client.get("/api/open_doc/files", headers=headers)
+    assert listing.headers["Cache-Control"] == "no-store"
+    all_templates = listing.json["templates"]
     catalog = [template for template in all_templates if template["format"] != "xlsx"]
     assert {template["format"] for template in catalog} == {"docx", "pptx", "pdf"}
     client.post_json(endpoint, {"id": "field-report"}, status=403)
@@ -60,9 +64,12 @@ def test_template_library_creates_independent_native_copies(tmp_path, monkeypatc
             source = context.fixed_documents.source(identifier)
             assert len(PdfReader(source).pages) == 1
             context.fixed_documents.export(identifier, revision, "pdf", destination)
-            assert template["title"] in PdfReader(destination.with_suffix(".pdf")).pages[0].extract_text()
+            assert (
+                template["title"]
+                in PdfReader(destination.with_suffix(".pdf")).pages[0].extract_text()
+            )
 
-    library = client.get("/api/open_doc/files").json
+    library = client.get("/api/open_doc/files", headers=headers).json
     assert library["templates"] == all_templates
     assert not library["files"]
     assert created <= {document["id"] for document in library["documents"]}

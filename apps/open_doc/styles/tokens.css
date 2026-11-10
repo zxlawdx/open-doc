@@ -12,6 +12,9 @@
     font-display: swap;
 }
 .open-doc {
+    --interface-zoom: 1;
+    --interface-width: 100%;
+    --interface-height: 100vh;
     --color-app-chrome: #f8f9fa;
     --color-workspace: #e9edf2;
     --color-panel: #ffffff;
@@ -85,6 +88,10 @@
     --menubar-height: 30px;
     --toolbar-min-height: 40px;
     --statusbar-height: 26px;
+    --library-nav-width: 220px;
+    --library-nav-icon: 18px;
+    --library-nav-gap: 10px;
+    --library-nav-row: 38px;
     --navigator-width: 228px;
     --navigator-collapsed-width: 38px;
     --home-max-width: 1040px;

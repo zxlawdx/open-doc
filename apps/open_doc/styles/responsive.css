@@ -299,9 +299,9 @@
 
 /* Library sidebar yields to existing bottom navigation on small screens. */
 @media(max-width:1110px){
-  .open-doc .home{grid-template-columns:170px minmax(0,1fr)}
+  .open-doc {--library-nav-width:170px}
   .open-doc .home-side-nav{padding:20px 9px}
-  .open-doc .home-side-nav button{font-size:12px;gap:8px;padding:9px}
+  .open-doc .home-side-nav button{font-size:var(--font-size-sm);padding-inline:var(--space-2)}
 }
 @media(max-width:720px){
   .open-doc .home{display:block}
@@ -339,3 +339,17 @@
   .open-doc .dataset>.workbook-toolbar{flex-wrap:nowrap;overflow-x:auto}
   .open-doc .dataset>.workbook-toolbar>*{flex:0 0 auto}
 }
+
+/* The effective width of the Central changes with the interface zoom. */
+.open-doc[data-compact-interface="true"] .home { display: block; }
+.open-doc[data-compact-interface="true"] .home-side-nav { display: none; }
+.open-doc[data-compact-interface="true"] .home-mobile-modules { display: flex; }
+.open-doc[data-compact-interface="true"] .home-inner {
+    width: calc(100% - 28px);
+    max-width: none;
+}
+.open-doc[data-compact-interface="true"] .dataset > .workbook-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+.open-doc[data-compact-interface="true"] .dataset > .workbook-toolbar > * { flex: 0 0 auto; }

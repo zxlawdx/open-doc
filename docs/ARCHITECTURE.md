@@ -1,15 +1,16 @@
 # Open Doc architecture
 
-```text
-Vela / WebView
-   |
-Presentation: bridge.py, api.py, views/templates/static
-   |
-Application: DocumentApplication + ApplicationContext
-   |
-Domain: document concepts and model invariants
-   |
-Infrastructure: workspace/filesystem and format/native adapters
+```mermaid
+flowchart TD
+  UI["Vela Qt WebView"] --> HTTP["HTTP controllers"]
+  UI --> Native["Native bridge"]
+  HTTP --> App["Application context and use cases"]
+  Native --> App
+  App --> Docs["Document and fixed-format services"]
+  App --> Data["Workbook, dataset and template services"]
+  Docs --> Models["Canonical models and validators"]
+  Docs --> Disk["SQLite, workspace and format adapters"]
+  Data --> Disk
 ```
 
 ## Composition root
@@ -26,7 +27,7 @@ Node/npm remain system prerequisites and are never installed by Vela. In CI the 
 
 ## Thin boundaries
 
-`bridge.py` owns native UI concerns such as file pickers and delegates document operations to `DocumentApplication`. `api.py` owns HTTP authentication/status mapping and delegates document rules to the same facade.
+`bridge.py` owns native UI concerns such as file pickers and delegates document operations to `DocumentApplication`. `api.py` owns HTTP session authentication and status mapping. Document commands delegate to the same facade. Workbook and dataset controllers currently dispatch into their dedicated services. The composition root publishes its context only after the stores initialize.
 
 The historical `apps.open_doc.services.container` path remains as a compatibility shim while existing services/tests migrate to `apps.open_doc.application.context`.
 
@@ -37,6 +38,15 @@ The domain must not import Vela, Bottle or WebView. The existing `document_model
 ## Infrastructure
 
 Filesystem path policy is centralized in `infrastructure/workspace.py`. Import/export implementations remain technology adapters and may depend on filesystem, PDF/DOCX libraries and OS capabilities. Framework-version workarounds should live at this boundary only when they are still required.
+
+## Frontend contracts
+
+`app.js` owns lifecycle, routing and bridge access. The editor facade in
+`document_kinds.js` routes rich and fixed formats to their own adapters. Sheets
+and datasets share grid interaction and the Python/SQL editor while retaining
+different persistence models. `zoom.js` routes shared controls to the visible
+surface. `theme.js` and the semantic CSS tokens apply appearance across modules.
+The persisted document representations stay independent of both preferences.
 
 ## Tests
 

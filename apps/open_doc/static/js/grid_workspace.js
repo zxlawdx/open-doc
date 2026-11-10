@@ -65,8 +65,12 @@
       handle.focus();handle.setPointerCapture(event.pointerId);event.preventDefault();
     },{signal});
     handle.addEventListener("pointermove",event=>{
-      if(handle.hasPointerCapture(event.pointerId))
-        update(shell.getBoundingClientRect().right-event.clientX);
+      if(!handle.hasPointerCapture(event.pointerId))return;
+      const scale=Number(shell.closest("[data-app]")?.style.getPropertyValue("--interface-zoom"))||1;
+      const bounds=shell.getBoundingClientRect();
+      const app=shell.closest("[data-app]");
+      const visualRatio=app ? window.innerWidth/app.getBoundingClientRect().width : 1;
+      update((bounds.right*visualRatio-event.clientX)/scale);
     },{signal});
     handle.addEventListener("keydown",event=>{
       if(!["ArrowLeft","ArrowRight","Home","End"].includes(event.key))return;

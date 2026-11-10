@@ -5,6 +5,7 @@
     const list=$("[data-dataset-list]"), table=$("[data-dataset-table]");
     const status=$("[data-dataset-status]"), pagination=$("[data-dataset-pagination]");
     const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
+    const interfaceScale=()=>Number(host.closest("[data-app]").style.getPropertyValue("--interface-zoom"))||1;
     const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
     let row=0, column=0, current, busy=false, querying=false, selected=null, anchor=null, editing=null, menu=null;
     let conversion=null,lastQuery=null;
@@ -109,7 +110,7 @@
         handle.setPointerCapture(event.pointerId);event.stopPropagation();handle.focus();
       });
       handle.addEventListener("pointermove",event=>{
-        if(handle.hasPointerCapture(event.pointerId))resizeColumn(c,start[1]+event.clientX-start[0]);
+        if(handle.hasPointerCapture(event.pointerId))resizeColumn(c,start[1]+(event.clientX-start[0])/interfaceScale());
       });
       handle.addEventListener("keydown",event=>{
         if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
@@ -390,8 +391,9 @@
       const hint=document.createElement("small");
       hint.textContent="Tipo sem conversão destrutiva · dados inválidos recebem indicação.";
       container.append(hint);host.append(container);menu=container;
-      container.style.left=Math.max(7,Math.min(event.clientX||250,window.innerWidth-container.offsetWidth-8))+"px";
-      container.style.top=Math.max(7,Math.min(event.clientY||150,window.innerHeight-container.offsetHeight-8))+"px";
+      const scale=interfaceScale();
+      container.style.left=Math.max(7,Math.min((event.clientX||250)/scale,window.innerWidth/scale-container.offsetWidth-8))+"px";
+      container.style.top=Math.max(7,Math.min((event.clientY||150)/scale,window.innerHeight/scale-container.offsetHeight-8))+"px";
       container.querySelector("button")?.focus();
     }
     table.addEventListener("click",event=>{

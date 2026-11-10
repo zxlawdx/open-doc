@@ -768,7 +768,8 @@
       // selection. Handle text style shortcuts at window capture level so
       // Ctrl+B never opens Bookmarks instead of formatting the selected box.
       window.addEventListener("keydown",event=>{
-        if(!this.active||!this.selected)return;
+        if(!this.active||!this.selected||this.root.dataset.homeView==="true"||
+           this.root.querySelector("[data-dialog]:not([hidden])"))return;
         const object=this.getModel().surfaces[this.current]?.elements
           .find(item=>item.id===this.selected);
         if(!object||!canEditText(object))return;
@@ -2048,16 +2049,6 @@
           if(name)this.commands.updateObject(this.current,selected.id,{name});
         });
         if(selected.type==="math"){
-          const fields={
-            text:[["value","Expressão"]],bold:[["value","Texto em negrito"]],
-            fraction:[["numerator","Numerador"],["denominator","Denominador"]],
-            nary:[["lower","Limite inferior"],["upper","Limite superior"],["body","Integrando / termo"]],
-            superscript:[["base","Base"],["power","Expoente"]],
-            subscript:[["base","Base"],["sub","Índice"]],
-            sqrt:[["radicand","Radicando"]],
-            root:[["index","Índice da raiz"],["radicand","Radicando"]],
-            limit:[["base","Operador"],["lower","Limite"]]
-          };
           const title=document.createElement("h4");
           title.textContent="Equação nativa · componentes editáveis";
           if(this.mathDialog)this._button("Editar equação em LaTeX",
@@ -2090,7 +2081,7 @@
               }else this._property(label,value,"text",change(path.concat([key])),group);
             };
             if(part.kind==="matrix")renderVal(part.rows,"rows","Matriz");
-            else for(const [key,label] of fields[part.kind]||[])renderVal(part[key],key,label);
+            else for(const [key,label] of window.OpenDocMathGallery?.EDITABLE_FIELDS?.[part.kind]||[])renderVal(part[key],key,label);
             parent.append(group);
           };
           (selected.math_blocks||[]).forEach((part,index)=>

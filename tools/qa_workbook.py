@@ -127,7 +127,8 @@ def main():
             wait(window, "document.querySelector('[data-library-recent] .library-file-title')?.textContent==='Orçamento doméstico'")
             assert get_context().workbooks.list()[0]["revision"] == 2
             wait(window, "document.querySelector('.library-file-icon[data-format=xlsx]').textContent==='XLSX'")
-            assert js("getComputedStyle(document.querySelector('.statusbar')).display==='none'")
+            assert js("getComputedStyle(document.querySelector('.statusbar')).display!=='none'")
+            assert js("document.querySelector('[data-zoom-label]').textContent==='Zoom da interface'")
             capture_viewports(window, output, "central")
             click("[data-library-recent] .library-file-title")
             wait(window, "document.querySelector('[data-cell=\"1,3\"]')?.textContent==='520'")
@@ -276,8 +277,14 @@ def main():
                 target.unlink(missing_ok=True)
             capture(output, "code-notebook-full", width=640, height=720)
             assert js("""(() => {
-              const bounds=document.querySelector('[data-book-analysis]').getBoundingClientRect();
-              return bounds.left===0 && bounds.top===0 && bounds.right===innerWidth && bounds.bottom===innerHeight;
+              const panel=document.querySelector('[data-book-analysis]');
+              const bounds=panel.getBoundingClientRect();
+              const workspace=panel.parentElement.getBoundingClientRect();
+              const zoom=document.querySelector('[data-zoom]').getBoundingClientRect();
+              const appearance=document.querySelector('.header-actions [data-action=theme]').getBoundingClientRect();
+              return ['left','top','right','bottom'].every(key=>Math.abs(bounds[key]-workspace[key])<=1)
+                && appearance.height>0 && appearance.bottom<=bounds.top
+                && zoom.height>0 && zoom.top>=bounds.bottom;
             })()""")
             js("document.querySelector('[data-book-analysis] button[title=\"Tela dividida\"]').click()")
             wait(window, "!document.querySelector('[data-workbook] .code-notebook-full')")
