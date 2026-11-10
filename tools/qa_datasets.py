@@ -49,6 +49,21 @@ def main():
                 wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
                 assert "2 arquivos" in window.evaluate_js("document.querySelector('[data-dataset-status]').textContent")
                 capture_viewports(window, output, "dataset")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="2"][data-dataset-col="2"]');
+                  cell.click();
+                  document.querySelector('[data-dataset] [data-ribbon-tab=filter]').click();
+                  document.querySelector('[data-dataset-command=filter]').click();
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='002'")
+                assert window.evaluate_js("document.querySelectorAll('[data-dataset-table] tbody tr').length===1")
+                window.evaluate_js("document.querySelector('[data-dataset-command=reset]').click()")
+                wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
+                window.evaluate_js("""(() => {
+                  const handle=document.querySelector('.dataset-col-resize');
+                  handle.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+                })()""")
+                assert window.evaluate_js("!!document.querySelector('.dataset-col-resize').getAttribute('aria-valuenow')")
                 window.evaluate_js("document.querySelector('[data-dataset-command=show-sql]').click()")
                 wait(window, "!document.querySelector('[data-dataset-tools]').hidden")
                 capture_viewports(window, output, "dataset-sql")

@@ -47,7 +47,12 @@
         fields=engine.getFields(source(),range(),read);
         safeFields();render();
         onReport("Campos carregados: "+fields.length+".");
-      }catch(error){latest=null;onReport(error.message);message(error.message);}
+      }catch(error){
+        latest=null;fields=[];
+        $("[data-pivot-available]").replaceChildren();
+        $("[data-pivot-field-count]").textContent="(0)";
+        onReport(error.message);message(error.message);
+      }
     }
     function message(value) {
       $("[data-book-command=pivot-create]").disabled=true;

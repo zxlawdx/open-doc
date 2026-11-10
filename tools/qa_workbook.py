@@ -28,6 +28,11 @@ def capture_viewports(window, output, name):
     wait(window, "innerWidth===640 && innerHeight===720")
     if name == "pivot":
         check_pivot(window)
+    if name == "editor":
+        window.evaluate_js("document.querySelector('[data-workbook] [data-ribbon-overflow]').click()")
+        wait(window, "document.querySelector('[data-workbook] [data-ribbon-overflow]').getAttribute('aria-expanded')==='true'")
+        capture(output, "editor-overflow", width=640, height=720)
+        window.evaluate_js("document.querySelector('[data-workbook] [data-ribbon-overflow]').click()")
     capture(output, name)
 
 
@@ -134,6 +139,14 @@ def main():
             wait(window, "document.querySelector('[data-book-sidebar]').open")
             assert js("document.querySelector('[data-book-command=pivot-create]').disabled")
             assert js("document.activeElement.matches('[data-pivot-search]')")
+            assert js("""(() => {
+              const dialog=document.querySelector('[data-book-sidebar]');
+              const first=dialog.querySelector('header button');
+              const last=dialog.querySelector('footer [data-book-command="close-pivot"]');
+              first.focus();
+              first.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true}));
+              return document.activeElement===last;
+            })()""")
             js("document.querySelector('[data-pivot-range]').value='A1:D2'")
             click("[data-book-command=pivot-fields]")
             wait(window, "document.querySelectorAll('[data-pivot-field]').length===4")
