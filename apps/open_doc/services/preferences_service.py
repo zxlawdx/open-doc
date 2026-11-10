@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from threading import RLock
@@ -16,7 +17,11 @@ from threading import RLock
 from apps.open_doc.services.workspace_service import resolve_workspace
 
 APP_TITLE = "Open Doc"
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parents[3]
+)
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 800
 DEFAULT_SETTINGS = {

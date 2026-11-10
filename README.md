@@ -32,6 +32,32 @@ Consulte a página de [Releases](https://github.com/zxlawdx/open-doc/releases)
 para ver os executáveis publicados. Também é possível rodar a versão do
 repositório seguindo os passos abaixo.
 
+### Gerar uma release Windows x64
+
+O workflow **Open Doc Windows packages** gera dois downloads:
+
+- **Setup.exe** instala para o usuário atual, com assistente em português,
+  atalho no menu Iniciar, opção de atalho na área de trabalho e desinstalador.
+- **Portable.zip** contém o executável e as dependências do aplicativo. Extraia
+  o ZIP inteiro e abra `Open-Doc/Open-Doc.exe`.
+
+Em **Actions**, execute o workflow manualmente para gerar artefatos de teste.
+Após integrar a versão desejada à `main`, envie uma tag `vMAJOR.MINOR.PATCH`
+para criar uma release com os dois downloads e seus checksums SHA-256.
+
+```bash
+git switch main
+git pull --ff-only
+git tag -a v0.3.0 -m "Open Doc 0.3.0"
+git push origin v0.3.0
+```
+
+O Vela empacota Python, Qt e os arquivos da interface usados pelo aplicativo.
+O pacote não exige uma instalação prévia de Python ou Node.js. A execução de
+scripts Python em Planilhas e Dados ainda requer iniciar o Open Doc pelo
+interpretador, e as funções que usam LibreOffice dependem de sua instalação
+separada. Os pacotes são gerados sem assinatura Authenticode.
+
 ### Executar pelo código-fonte
 
 Tenha Git, Python 3.10 ou mais recente, Node.js 22 ou mais recente com npm e
