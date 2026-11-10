@@ -1,0 +1,121 @@
+name: Open Doc Windows packages
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/windows-release.yml"
+      - "packaging/windows/**"
+      - "assets/branding/**"
+      - "tools/build_release_icon.py"
+      - "tools/smoke_release.mjs"
+      - "tools/stage_release_notices.py"
+      - "requirements.txt"
+      - "config/**"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Determine version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($env:GITHUB_REF_NAME -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+              throw "Use uma tag vMAJOR.MINOR.PATCH."
+            }
+            $version = $env:GITHUB_REF_NAME.Substring(1)
+          }
+          "OPEN_DOC_BUILD_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Prepare assets and build with Vela
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements.txt 'vela-framework[build]'
+          python manage.py collectstatic --yes
+          python tools/build_release_icon.py
+          python manage.py buildapp --gui qt5 --icon build/open-doc.ico
+          if (-not (Test-Path 'dist/Open-Doc/Open-Doc.exe')) { throw 'Executável ausente.' }
+          Copy-Item LICENSE,THIRD_PARTY_NOTICES.md -Destination 'dist/Open-Doc/'
+          python tools/stage_release_notices.py dist/Open-Doc
+          New-Item -ItemType Directory -Force dist/release | Out-Null
+          $name = "Open-Doc-$env:OPEN_DOC_BUILD_VERSION-Windows-x64-Portable.zip"
+          # tar includes .vela-app.json, .vela and the Qt runtime directory.
+          tar.exe -a -cf "dist/release/$name" -C dist Open-Doc
+      - name: Compile branded installer
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+          if (-not (Test-Path $compiler)) {
+            choco install innosetup --yes --no-progress
+          }
+          & $compiler "/DReleaseVersion=$env:OPEN_DOC_BUILD_VERSION" packaging/windows/open-doc.iss
+      - name: Verify portable and installed executables
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: windows
+          QTWEBENGINE_DISABLE_SANDBOX: "1"
+          QT_OPENGL: software
+          QT_QUICK_BACKEND: software
+          QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --disable-gpu
+        run: |
+          $version = $env:OPEN_DOC_BUILD_VERSION
+          $portable = Join-Path $env:RUNNER_TEMP 'opendoc-portable'
+          Expand-Archive "dist/release/Open-Doc-$version-Windows-x64-Portable.zip" $portable
+          node tools/smoke_release.mjs "$portable/Open-Doc/Open-Doc.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $installed = Join-Path $env:RUNNER_TEMP 'opendoc-installed'
+          $setup = "dist/release/Open-Doc-$version-Windows-x64-Setup.exe"
+          $install = Start-Process $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$installed`"" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Instalação falhou ($($install.ExitCode))." }
+          node tools/smoke_release.mjs "$installed/Open-Doc.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $uninstall = Start-Process "$installed/unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "Desinstalação falhou ($($uninstall.ExitCode))." }
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/release -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)" | Out-File "$($_.FullName).sha256" -Encoding ascii
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-doc-windows-x64
+          path: dist/release/*
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: windows-x64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: open-doc-windows-x64
+          path: packages
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" packages/* --verify-tag \
+            --title "Open Doc $GITHUB_REF_NAME" --generate-notes

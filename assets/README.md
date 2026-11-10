@@ -4,7 +4,7 @@ Esta pasta segue a arquitetura documentada do **Vela Framework**: o comando `bui
 
 | Caminho | Finalidade |
 | --- | --- |
-| `assets/icons/open-doc.ico` | Ícone **Windows** do instalador/executável |
+| `build/open-doc.ico` | Ícone **Windows** gerado por `python tools/build_release_icon.py` |
 | `assets/icons/open-doc.icns` | Ícone **macOS** |
 | `assets/icons/open-doc.png` | Ícone de origem, exportação Linux, branding |
 | `assets/branding/` | Materiais aprovados: marca, paleta e guia visual |
@@ -27,12 +27,8 @@ Para a interface, use o static resolver: `{{ static('open_doc/brand/open-doc-log
 
 ### Ícone atual
 
-Código-fonte: https://github.com/zxlawdx/open-doc/blob/main/apps/open_doc/static/icons.svg
-
-O cabeçalho usa `#file-text` em `apps/open_doc/templates/base.html`. É um pictograma de documento, **não** uma logo oficial concluída.
-
-O instalador, favicon, miniaturas e ícone do cabeçalho devem reutilizar variantes de uma marca aprovada, sem depender de fonte externa ou de renderização específica da WebView.
-
-### SVG standalone para criar a logo oficial
-
-O arquivo [`assets/branding/icone-atual-open-doc.svg`](branding/icone-atual-open-doc.svg) reproduz exatamente a geometria do símbolo atual `#file-text` e pode ser aberto no Inkscape. A cor primária foi fixada em azul para tornar a visualização independente do CSS da aplicação. Não é uma marca oficial final.
+O cabeçalho usa o símbolo `#file-text` de `apps/open_doc/static/icons.svg`,
+com fundo azul e bordas arredondadas. O arquivo
+[`icone-atual-open-doc.svg`](branding/icone-atual-open-doc.svg) reproduz
+essa marca para o executável e o instalador. O build converte o SVG em um
+ICO com resoluções de 16 a 256 px.

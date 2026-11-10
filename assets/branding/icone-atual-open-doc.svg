@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"
-     viewBox="0 0 24 24" fill="none" aria-label="Ícone de documento do Open Doc">
-  <!-- Extracted without geometric changes from apps/open_doc/static/icons.svg#file-text.
-       Standalone artwork for producing the future official brand; not a finished logo. -->
-  <g stroke="#004AC6" stroke-width="1.8"
+     viewBox="0 0 35 35" aria-label="Marca do Open Doc">
+  <rect width="35" height="35" rx="11" fill="#004AC6"/>
+  <g transform="translate(7.5 7.5) scale(.8333333333)"
+     fill="none" stroke="#fff" stroke-width="1.8"
      stroke-linecap="round" stroke-linejoin="round">
     <path d="M6 2h9l5 5v15H6zM15 2v6h5M9 12h8M9 16h8"/>
   </g>
