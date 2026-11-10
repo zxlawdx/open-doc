@@ -40,15 +40,22 @@
 .open-doc .dataset [data-dataset-status] {border-top:1px solid var(--color-border);font-size:12px;min-height:30px}
 
 /* Pivot builder is a bounded, accessible overlay in the real workbook UI. */
-.open-doc .workbook-body>.workbook-pivot-dialog {
-  position:absolute;inset:8px;left:auto;z-index:20;
-  box-sizing:border-box;width:min(1140px,calc(100% - 16px));min-width:0;
-  padding:0;display:flex;flex-direction:column;overflow:hidden;
+/* showModal places the dialog in the WebView's top layer, independent of
+   the workbook scroll container, transforms, and desktop screen coordinates. */
+.open-doc .workbook-pivot-dialog {
+  position:fixed;top:0;right:0;bottom:0;left:0;margin:auto;
+  box-sizing:border-box;width:min(75rem,calc(100% - 2rem));max-width:none;
+  max-height:calc(100% - 2rem);padding:0;overflow:hidden;
   background:var(--color-panel);color:var(--color-text-primary);
   border:1px solid var(--color-border);border-radius:13px;
   box-shadow:0 16px 42px #0003
 }
-.open-doc .workbook-body>.workbook-pivot-dialog[hidden] {display:none}
+.open-doc .workbook-pivot-dialog[open] {display:flex;flex-direction:column}
+.open-doc .workbook-pivot-dialog::backdrop {background:#071b355e}
+.open-doc .workbook-pivot-dialog input:not([type=checkbox]) {
+  border:1px solid var(--color-border);background:var(--color-panel);
+  color:var(--color-text-primary);padding:.3rem .5rem
+}
 .open-doc .pivot-v2-header {
   display:flex;align-items:center;justify-content:space-between;gap:15px;
   padding:14px 20px;border-bottom:1px solid var(--color-border);flex:none;
@@ -58,13 +65,13 @@
 .open-doc .pivot-v2-header strong {display:block;font-size:19px;letter-spacing:-.3px}
 .open-doc .pivot-v2-header p {margin:3px 0 0;font-size:12px;color:var(--color-text-secondary)}
 .open-doc .pivot-v2-header button {width:34px;height:34px;border-radius:7px;font-size:21px}
-.open-doc .pivot-v2-content {display:flex;flex:1;flex-direction:column;min-height:0;overflow:auto;background:var(--color-workspace)}
+.open-doc .pivot-v2-content {display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:auto;background:var(--color-workspace)}
 .open-doc .pivot-v2-columns {display:grid;grid-template-columns:minmax(190px,25%) minmax(0,1fr);gap:12px;padding:14px;flex:none;min-width:0}
 .open-doc .pivot-v2-field-panel,.open-doc .pivot-v2-zone,.open-doc .pivot-v2-preview {
   box-sizing:border-box;border:1px solid var(--color-border);border-radius:9px;
   background:var(--color-panel);min-width:0
 }
-.open-doc .pivot-v2-field-panel {display:flex;flex-direction:column;padding:12px;min-height:210px;max-height:360px}
+.open-doc .pivot-v2-field-panel {display:flex;flex-direction:column;padding:12px;min-height:0;max-height:360px}
 .open-doc .pivot-v2-field-panel>strong {font-size:13px;margin-bottom:9px}
 .open-doc .pivot-v2-field-panel label {margin:3px 0;font-size:11px;color:var(--color-text-secondary)}
 .open-doc .pivot-v2-field-panel input {box-sizing:border-box;width:100%;min-height:34px;border-radius:6px;margin-top:4px}
@@ -75,8 +82,8 @@
 .open-doc .pivot-v2-field em {font-size:10px;font-style:normal;color:var(--color-text-secondary)}
 .open-doc .pivot-v2-field select {max-width:91px;min-width:0;border-radius:5px;font-size:11px;height:28px;padding:2px}
 .open-doc .pivot-v2-field button {flex:none;height:28px;min-width:28px;border-radius:5px;font-weight:750}
-.open-doc .pivot-v2-zones {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:1fr 1fr;gap:10px;min-height:0}
-.open-doc .pivot-v2-zone {padding:10px;min-height:146px;max-height:230px;display:flex;flex-direction:column;overflow:hidden}
+.open-doc .pivot-v2-zones {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto auto;gap:10px;min-height:0}
+.open-doc .pivot-v2-zone {padding:10px;height:clamp(8rem,20vh,12rem);min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .open-doc .pivot-v2-zone[data-dragover=true] {outline:2px dashed var(--color-primary);background:var(--color-primary-soft)}
 .open-doc .pivot-v2-zone-title {display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:750;margin-bottom:6px}
 .open-doc .pivot-v2-zone-title small {font-size:10px;background:var(--color-workspace);padding:2px 6px;border-radius:10px}
@@ -99,7 +106,7 @@
 .open-doc .pivot-v2-table thead th {position:sticky;top:0;z-index:2;background:var(--color-workspace);text-align:left}
 .open-doc .pivot-v2-table tbody th {position:sticky;left:0;z-index:1;background:var(--color-panel);text-align:left}
 .open-doc .pivot-v2-table tbody td {text-align:right;font-variant-numeric:tabular-nums}
-.open-doc .pivot-v2-table tbody tr:last-child {font-weight:700;background:var(--color-primary-soft)}
+.open-doc .pivot-v2-table tbody .pivot-summary-row {font-weight:700;background:var(--color-primary-soft)}
 .open-doc .pivot-v2-message {padding:16px;color:var(--color-text-secondary);font-size:12px}
 .open-doc .pivot-v2-footer {
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
@@ -127,11 +134,10 @@
  .open-doc .pivot-v2-zone {padding:8px}
 }
 @media(max-width:730px){
- .open-doc .workbook-body>.workbook-pivot-dialog {inset:0;width:100%;border-radius:0;max-height:100%}
  .open-doc .pivot-v2-columns {grid-template-columns:minmax(0,1fr);gap:10px;padding:10px}
  .open-doc .pivot-v2-field-panel {max-height:230px;min-height:180px}
  .open-doc .pivot-v2-zones {grid-template-columns:minmax(0,1fr);grid-template-rows:auto}
- .open-doc .pivot-v2-zone {min-height:95px;max-height:none}
+ .open-doc .pivot-v2-zone {height:auto;min-height:95px}
  .open-doc .pivot-v2-chips {min-height:35px;max-height:190px}
  .open-doc .pivot-v2-preview {margin:0 10px 10px;min-height:180px;flex:none}
  .open-doc .pivot-v2-table-scroll {max-height:175px}
@@ -159,99 +165,24 @@
 }
 
 
-/* V2 screenshot audit: keep preview reachable at 1366×768, align actions without wrap.
-   Cover the underlying editor like a proper desktop dialog; preserve small-screen scrolling. */
-@media(min-width:731px){
-  .open-doc .workbook-body>.workbook-pivot-dialog{
-    position:fixed;
-    inset:clamp(12px,2vh,24px) auto clamp(12px,2vh,24px) 50%;
-    transform:translateX(-50%);
-    height:auto;
-    max-height:calc(100vh - 24px);
-    width:min(1210px,calc(100vw - 28px));
-    max-width:1210px;
-    box-shadow:0 0 0 100vmax #071b355e,0 18px 48px #071b3536;
-    z-index:110
-  }
+/* Only the body scrolls. Keep the actions available at every width. */
+.open-doc .pivot-v2-footer>span {flex:1 1 14rem}
+.open-doc .pivot-v2-footer>div {align-items:center}
+.open-doc .pivot-v2-footer input[type=checkbox] {
+  appearance:auto;accent-color:var(--color-primary)
 }
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer {
-  flex-wrap:nowrap;min-height:58px;gap:15px
+.open-doc .pivot-v2-field-list {min-height:0}
+.open-doc .pivot-v2-field {min-height:36px}
+.open-doc .pivot-v2-preview {flex:none;min-height:145px}
+@media(max-width:730px) {
+  .open-doc .workbook-pivot-dialog {width:calc(100% - 1rem);max-height:calc(100% - 1rem)}
+  .open-doc .pivot-v2-field-panel {min-height:245px;max-height:285px}
 }
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer>span {
-  min-width:0;flex:1;line-height:1.4
+@media(max-height:480px) {
+  .open-doc .pivot-v2-footer>span {display:none}
 }
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer>div {
-  flex:0 0 auto;display:flex;flex-wrap:nowrap;align-items:center;gap:9px;width:auto
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer label {
-  margin:0;display:inline-flex;align-items:center;gap:5px;white-space:nowrap
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer input[type=checkbox]{
-  padding:0;margin:0;appearance:auto;width:15px;height:15px;flex:none;accent-color:var(--color-primary)
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer button {
-  width:auto;white-space:nowrap;border-radius:7px;min-width:80px
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer [data-book-command=pivot-create] {
-  box-sizing:border-box;min-width:158px;width:auto;max-width:200px;
-  background:var(--color-primary);color:white;padding:8px 16px
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-content {
-  min-height:0;overflow:auto;scrollbar-gutter:stable
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-columns {
-  grid-template-columns:minmax(225px,25%) minmax(0,1fr)
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-zone {
-  min-height:125px;max-height:210px
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-field-panel {
-  min-height:240px;max-height:320px
-}
-.open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-preview{
-  min-height:170px
-}
-@media(max-width:730px){
-  .open-doc .workbook-body>.workbook-pivot-dialog{
-    position:fixed;inset:0;transform:none;max-height:100vh;width:100vw;
-    border:0;border-radius:0;box-shadow:none;z-index:110
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer {
-    flex-wrap:wrap;min-height:65px
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer>span {
-    flex:1 1 100%
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer>div {
-    flex:1 1 100%;width:100%;min-width:0
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer button {
-    min-width:0;flex:1 1 0
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-footer [data-book-command=pivot-create] {
-    flex:1.4 1 0;min-width:120px;max-width:none
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-columns {
-    grid-template-columns:minmax(0,1fr)
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-field-panel {
-    max-height:235px;min-height:200px
-  }
-}
-
-
-@media(max-width:730px){
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-field-panel{
-    box-sizing:border-box;height:285px;min-height:0;max-height:285px;flex:none
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-field-list{
-    min-height:0;max-height:none;overflow-y:auto;overflow-x:hidden;flex:1 1 0
-  }
-  .open-doc .workbook-body>.workbook-pivot-dialog .pivot-v2-field{
-    min-height:36px;flex:none
-  }
-}
-
+.open-doc .book-context-menu {max-height:calc(100vh - 16px);overflow:auto}
+.open-doc[data-home-view=true] .statusbar {display:none}
 
 .open-doc .pivot-v2-preview-toolbar{
   display:flex;align-items:center;gap:12px;justify-content:space-between;
@@ -379,3 +310,134 @@
   max-height:160px;overflow:auto;padding-left:18px;font-size:11px
 }
 .open-doc .python-packages details summary {font-size:12px;cursor:pointer}
+
+/* Shared ribbon and work area. Groups keep their controls when the window
+   shrinks. The overflow affordance reveals the same controls in a wrapped tray. */
+.open-doc .workbook-ribbon-shell {
+  display:flex;align-items:stretch;min-width:0;border-bottom:1px solid var(--color-border)
+}
+.open-doc .workbook .workbook-ribbon {
+  flex:1;min-width:0;min-height:74px;border:0;
+  flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;
+  gap:0;padding:5px 8px
+}
+.open-doc .workbook .workbook-ribbon.ribbon-expanded {
+  flex-wrap:wrap;max-height:34vh;overflow:auto;align-content:start
+}
+.open-doc .workbook-ribbon-shell [data-ribbon-overflow] {align-self:center;margin-inline:4px;border-radius:6px}
+.open-doc .workbook-ribbon-shell [data-ribbon-overflow][hidden] {display:none}
+.open-doc .workbook-ribbon-shell [data-ribbon-overflow] svg {margin:0}
+.open-doc .workbook .workbook-tools {
+  position:relative;align-items:center;gap:3px;padding:2px 9px 17px;min-height:62px;max-width:100%
+}
+.open-doc .workbook .workbook-tools:last-child {border-right:0}
+.open-doc .workbook .workbook-tools button {
+  min-height:40px;min-width:42px;font-size:11px;line-height:1.15
+}
+.open-doc .workbook .workbook-tools button>svg {width:19px;height:19px}
+.open-doc .workbook .workbook-tools small {font-size:11px;line-height:14px}
+.open-doc .workbook .workbook-tools input,.open-doc .workbook .workbook-tools select {min-height:31px;border-radius:5px}
+.open-doc .workbook .workbook-tools [data-book-style=family] {max-width:112px}
+.open-doc .workbook .workbook-tools .ribbon-color {
+  display:grid;position:relative;justify-items:center;min-width:32px;gap:2px;cursor:pointer
+}
+.open-doc .ribbon-color svg {width:18px;height:18px;color:var(--color-primary)}
+.open-doc .workbook .ribbon-color input {min-height:13px;width:26px;padding:0;border:0;cursor:pointer}
+.open-doc .ribbon-expanded .workbook-tools {flex-wrap:wrap;white-space:normal}
+.open-doc .workbook-ribbon-tabs {scrollbar-width:thin}
+.open-doc .workbook-scroll {font-size:var(--book-grid-font,13px)}
+.open-doc .workbook-scroll .book-cell,.open-doc .workbook-scroll .book-heading,.open-doc .workbook-scroll .book-inline-editor {height:var(--book-cell-height,28px)}
+.open-doc .book-cell.book-wrapped {white-space:normal;overflow-wrap:anywhere;line-height:1.1;padding-block:1px}
+.open-doc .book-no-grid .book-cell {border-color:transparent}
+.open-doc .book-cell.book-bordered {box-shadow:inset 0 0 0 1px var(--color-text-secondary)}
+.open-doc .book-cell.book-bordered.book-type-error {box-shadow:inset 0 0 0 1px var(--color-text-secondary),inset 0 -3px #c84a4a}
+.open-doc .book-context-menu button[aria-current=true] {background:var(--color-primary-soft);font-weight:700}
+.open-doc .book-context-menu button>svg {margin-inline-end:8px}
+.open-doc .book-context-menu button {justify-content:flex-start}
+.open-doc [data-code-split]>.workbook-sidebar {
+  flex:0 0 clamp(15rem,var(--code-width,30vw),max(15rem,calc(100% - 17rem)));
+  min-width:0;box-sizing:border-box;border:0
+}
+.open-doc .code-splitter {flex:0 0 8px;cursor:col-resize;touch-action:none;background:var(--color-border)}
+.open-doc .code-splitter:hover,.open-doc .code-splitter:focus-visible {background:var(--color-primary)}
+.open-doc .code-splitter[hidden] {display:none}
+.open-doc .workbook-sidebar .dataset-code-editor,.open-doc .workbook-sidebar .dataset-code-editor .cm-editor {
+  min-width:0;width:100%;min-height:8rem
+}
+.open-doc .workbook-sidebar .cm-scroller {max-height:18rem}
+.open-doc .workbook-sidebar [data-dataset-query] {padding-inline:0}
+.open-doc .workbook-sidebar .dataset-python {padding-inline:0}
+.open-doc .dataset tbody td {font-size:13px}
+.open-doc .dataset th[data-dataset-col] {position:sticky;padding-right:20px}
+.open-doc .dataset-col-resize {
+  position:absolute;top:0;right:0;bottom:0;width:10px;cursor:col-resize;touch-action:none;
+  border-left:1px solid transparent
+}
+.open-doc .dataset-col-resize:hover,.open-doc .dataset-col-resize:focus-visible {border-color:var(--color-primary)}
+.open-doc .pivot-v2-header button {flex:none}
+.open-doc .pivot-v2-header button>svg {margin:0}
+@media(max-width:760px) {
+  .open-doc .code-splitter {display:none}
+  .open-doc [data-code-split]>.workbook-sidebar {border-left:1px solid var(--color-border)}
+}
+
+.open-doc .pivot-v2-footer label {display:inline-flex;align-items:center;gap:4px;font-size:12px}
+.open-doc .pivot-v2-field button>svg,.open-doc .pivot-v2-chip button>svg {margin:0;width:14px;height:14px}
+.open-doc .code-history {display:block;max-width:100%;margin:4px 0 9px;font-size:12px;border-radius:5px}
+
+.open-doc .workbook .workbook-sidebar .dataset-code-editor {background:var(--color-panel)}
+.open-doc .workbook .workbook-sidebar .cm-editor {color:var(--color-text-primary)}
+.open-doc .workbook .workbook-sidebar .cm-content {padding-block:6px}
+.open-doc .workbook .workbook-sidebar [data-dataset-query] {display:block}
+.open-doc .workbook .workbook-sidebar [data-dataset-query][hidden] {display:none}
+.open-doc .workbook .workbook-sidebar [data-dataset-query] button {margin:4px 3px 0 0}
+.open-doc .pivot-v2-preview-toolbar h3 {min-width:0}
+.open-doc .dataset-python summary svg {
+  display:inline-block;width:16px;height:16px;margin:0 6px;vertical-align:middle;color:var(--color-primary)
+}
+
+.open-doc .workbook [data-book-command=pivot-create]>svg,
+.open-doc .workbook [data-python-env-command=install]>svg {color:inherit}
+
+/* Code notebook, shared by the sheet and dataset panels. */
+.open-doc .code-notebook {margin:12px 0 20px;min-width:0}
+.open-doc .code-notebook-tools,.open-doc .code-notebook-cell-tools {
+  display:flex;flex-wrap:wrap;align-items:center;margin:-2px
+}
+.open-doc .code-notebook-tools button,.open-doc .code-notebook-cell-tools button {
+  margin:2px;min-height:34px;border-radius:6px
+}
+.open-doc .code-notebook button[hidden],.open-doc .code-notebook-output[hidden] {display:none}
+.open-doc .code-notebook-status {font-size:12px;color:var(--color-text-secondary);margin:8px 0}
+.open-doc .code-notebook-cell {
+  border:1px solid var(--color-border);border-radius:9px;margin:10px 0;padding:8px;min-width:0;
+  background:var(--color-panel)
+}
+.open-doc .code-notebook-cell:focus-within {border-color:var(--color-primary)}
+.open-doc .code-notebook-cell-tools strong {flex:1 1 100%;margin:3px 2px}
+.open-doc .code-notebook-cell textarea:not([hidden]) {width:100%;min-height:5rem;resize:vertical}
+.open-doc .code-notebook-cell .dataset-code-editor {margin-top:7px}
+.open-doc .code-notebook-output {
+  max-height:18rem;overflow:auto;padding:6px;border-top:1px solid var(--color-border);
+  background:var(--color-workspace)
+}
+.open-doc .code-notebook-output pre {white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.open-doc .code-notebook-output table {border-collapse:collapse;font-size:12px}
+.open-doc .code-notebook-output th,.open-doc .code-notebook-output td {
+  border:1px solid var(--color-border);padding:4px 7px
+}
+.open-doc [data-code-split].code-notebook-full>.workbook-sidebar:not([hidden]) {
+  position:fixed;top:0;right:0;bottom:0;left:0;width:auto;max-width:none;z-index:105;
+  background:var(--color-panel);padding:12px max(12px,calc((100vw - 88rem)/2))
+}
+.open-doc .code-notebook-full>.workbook-scroll,.open-doc .code-notebook-full>.code-splitter {visibility:hidden}
+@media(max-width:760px){
+  .open-doc [data-code-split]:not(.code-notebook-full) {flex-direction:column}
+  .open-doc [data-code-split]:not(.code-notebook-full)>.workbook-sidebar:not([hidden]) {
+    flex:0 0 55%;width:100%;border-top:1px solid var(--color-border)
+  }
+}
+.open-doc .code-notebook-tools {
+  position:sticky;top:0;z-index:2;padding:4px 2px;
+  background:var(--color-panel);border-bottom:1px solid var(--color-border)
+}

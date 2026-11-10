@@ -1,13 +1,17 @@
 "use strict";
 (() => {
-  function create({host,onApply,onReport,signal}) {
+  function create({host,onApply,onReport,onCancel,signal}) {
     const panel=host.querySelector("[data-book-sidebar]");
     const $=q=>panel.querySelector(q);
+    function tool(button,glyph,label){
+      button.type="button";button.title=label;button.setAttribute("aria-label",label);
+      button.append(window.OpenDocGridWorkspace.icon(host,glyph));
+    }
     const names={rows:"Linhas",columns:"Colunas",values:"Valores",filters:"Filtros"};
     const operations=[["sum","Soma"],["average","Média"],["count","Contagem"],["distinct","Contagem distinta"],
       ["min","Mínimo"],["max","Máximo"],["median","Mediana"],["stdev","Desvio padrão"],["product","Produto"]];
     const shows=[["value","Valor"],["grand_pct","% total geral"],["row_pct","% da linha"],["col_pct","% da coluna"]];
-    let context=null,settings=null,latest=null,fields=[],visibleFilters=new Map();
+    let context=null,settings=null,latest=null,fields=[],returnFocus;
     const empty=()=>({rows:[],columns:[],values:[],filters:[],totals:true,grouping:{},sort:{rows:"none"},chart:"table"});
     const clone=value=>JSON.parse(JSON.stringify(value));
     const engine=window.OpenDocWorkbookPivot;
@@ -43,9 +47,16 @@
         fields=engine.getFields(source(),range(),read);
         safeFields();render();
         onReport("Campos carregados: "+fields.length+".");
-      }catch(error){latest=null;onReport(error.message);message(error.message);}
+      }catch(error){
+        latest=null;fields=[];
+        $("[data-pivot-available]").replaceChildren();
+        $("[data-pivot-field-count]").textContent="(0)";
+        onReport(error.message);message(error.message);
+      }
     }
     function message(value) {
+      $("[data-book-command=pivot-create]").disabled=true;
+      $("[data-book-command=pivot-refresh]").disabled=true;
       const el=document.createElement("p");el.className="pivot-v2-message";el.textContent=value;
       $("[data-pivot-preview]").replaceChildren(el);
       $("[data-pivot-record-count]").textContent="Prévia indisponível";
@@ -82,10 +93,16 @@
     }
     function render() {
       if(!context)return;
+      const focused=document.activeElement;
+      const attribute=focused?.getAttributeNames().find(name=>name.startsWith("data-pivot-"));
+      const previous=attribute&&panel.contains(focused) ? focused.getAttribute(attribute) : null;
+      const focusedValue=focused?.value;
       $("[data-pivot-source]").textContent="Fonte: "+source().name+" · mantenha os dados originais";
       $("[data-pivot-field-count]").textContent="("+fields.length+")";
       const list=$("[data-pivot-available]"),search=$("[data-pivot-search]").value.toLocaleLowerCase("pt-BR");
-      const available=document.createDocumentFragment();
+      const choicesByField=new Map(Array.from(list.querySelectorAll("[data-pivot-choice]"),
+        input=>[input.dataset.pivotChoice,input.value]));
+      const scrollTop=list.scrollTop,available=document.createDocumentFragment();
       for(const field of fields) {
         if(!field.label.toLocaleLowerCase("pt-BR").includes(search))continue;
         const item=document.createElement("div");item.className="pivot-v2-field";
@@ -94,12 +111,12 @@
         const kind=document.createElement("em");kind.textContent=field.type==="auto"?"ABC/123":field.type;
         const zone=document.createElement("select");zone.dataset.pivotChoice=String(field.index);
         zone.setAttribute("aria-label","Escolher área para "+field.label);
-        choose(zone,Object.entries(names),"rows");
-        const button=document.createElement("button");button.type="button";button.textContent="+";
-        button.dataset.pivotAdd=String(field.index);button.title="Adicionar "+field.label;
+        choose(zone,Object.entries(names),choicesByField.get(String(field.index))||"rows");
+        const button=document.createElement("button");tool(button,"add-circle","Adicionar "+field.label);
+        button.dataset.pivotAdd=String(field.index);
         item.append(name,kind,zone,button);available.append(item);
       }
-      list.replaceChildren(available);
+      list.replaceChildren(available);list.scrollTop=scrollTop;
       for(const zone of Object.keys(names)){
         const chips=$('[data-pivot-chips="'+zone+'"]'),values=settings[zone],items=document.createDocumentFragment();
         $('[data-pivot-count="'+zone+'"]').textContent=String(values.length);
@@ -139,7 +156,7 @@
           }
           if(zone==="filters"){
             const choices=document.createElement("div");choices.className="pivot-v2-filter-choices";
-            const all=distinct(field);visibleFilters.set(i,all);
+            const all=distinct(field);
             for(const value of all.slice(0,40)){
               const entry=document.createElement("label");
               const checkbox=document.createElement("input");checkbox.type="checkbox";
@@ -154,28 +171,37 @@
             chip.append(choices);
           }
           if(values.length>1){
-            const up=document.createElement("button");up.type="button";up.textContent="↑";
-            up.dataset.pivotMoveUp=zone+":"+i;up.disabled=i===0;up.title="Subir "+label(field);
-            const down=document.createElement("button");down.type="button";down.textContent="↓";
-            down.dataset.pivotMoveDown=zone+":"+i;down.disabled=i===values.length-1;
-            down.title="Descer "+label(field);chip.append(up,down);
+            const up=document.createElement("button");tool(up,"arrow-up","Subir "+label(field));
+            up.dataset.pivotMoveUp=zone+":"+i;up.disabled=i===0;
+            const down=document.createElement("button");tool(down,"arrow-down","Descer "+label(field));
+            down.dataset.pivotMoveDown=zone+":"+i;down.disabled=i===values.length-1;chip.append(up,down);
           }
-          const remove=document.createElement("button");remove.type="button";remove.textContent="×";
-          remove.dataset.pivotRemove=zone+":"+i;remove.title="Remover campo";
+          const remove=document.createElement("button");tool(remove,"close","Remover "+label(field));
+          remove.dataset.pivotRemove=zone+":"+i;
           chip.append(remove);items.append(chip);
         });
         chips.replaceChildren(items);
       }
       $("[data-pivot-totals]").checked=settings.totals!==false;
+      const subtotals=$("[data-pivot-subtotals]");
+      subtotals.disabled=settings.rows.length<2;subtotals.checked=!subtotals.disabled&&settings.subtotals===true;
       $("[data-pivot-sort-rows]").value=settings.sort?.rows||"none";
       $("[data-pivot-chart]").value=settings.chart||"table";
       $("[data-book-command=pivot-refresh]").hidden=context.target===null;
-      $("[data-book-command=pivot-create]").textContent=context.target===null?"Criar tabela":"Aplicar alterações";
+      $("[data-pivot-apply-label]").textContent=context.target===null?"Criar tabela":"Aplicar alterações";
       preview();
+      if(previous!==null&&!focused.isConnected){
+        const replacement=Array.from(panel.querySelectorAll("["+attribute+"]")).find(el=>
+          el.getAttribute(attribute)===previous&&!el.disabled&&
+          (attribute!=="data-pivot-filter"||el.value===focusedValue));
+        (replacement||$("[data-pivot-search]")).focus({preventScroll:true});
+      }
     }
     function preview() {
       try {
         latest=engine.build({source:source(),sourceIndex:context.source,range:range(),config:settings,read});
+        $("[data-book-command=pivot-create]").disabled=false;
+        $("[data-book-command=pivot-refresh]").disabled=false;
         $("[data-pivot-record-count]").textContent=latest.sourceRows.toLocaleString("pt-BR")+" registros";
         if(settings.chart&&settings.chart!=="table"){
           const chart=chartOf(latest,settings.chart);
@@ -189,6 +215,7 @@
         const body=table.createTBody();
         latest.rows.slice(0,40).forEach((cells,r)=>{
           const tr=body.insertRow();
+          if(latest.summaryRows.includes(r))tr.classList.add("pivot-summary-row");
           cells.forEach((value,c)=>{
             const td=document.createElement(c===0?"th":"td");td.textContent=value;td.title=String(value);
             if(c>0&&latest.drillCells[(r+1)+","+c]){
@@ -210,7 +237,7 @@
     function chartOf(pivot,mode){
       const box=document.createElement("div");box.className="pivot-v2-chart";
       box.setAttribute("role","img");box.setAttribute("aria-label","Gráfico "+mode+" da primeira métrica");
-      const rows=pivot.rows.filter(row=>row[0]!=="Total geral").slice(0,15);
+      const rows=pivot.rows.filter((_,index)=>!pivot.summaryRows.includes(index)).slice(0,15);
       const values=rows.map(row=>engine.number(row[1]));
       if(!rows.length||values.some(v=>!Number.isFinite(v))){
         box.textContent="Escolha uma métrica numérica para o gráfico.";return box;
@@ -290,7 +317,7 @@
       if(!records.length)return;
       const fragment=document.createDocumentFragment();
       const back=document.createElement("button");back.type="button";back.dataset.pivotBack="true";
-      back.textContent="← Voltar à prévia";fragment.append(back);
+      tool(back,"arrow-left","Voltar à prévia");back.append(document.createTextNode("Voltar à prévia"));fragment.append(back);
       const table=document.createElement("table");table.className="pivot-v2-table";
       const th=table.createTHead().insertRow();
       for(const field of fields){const cell=document.createElement("th");cell.textContent=field.label;th.append(cell);}
@@ -311,7 +338,7 @@
       $("[data-pivot-range]").value=previous?
         addressString(previous.range):rangeText||"";
       $("[data-pivot-search]").value="";
-      panel.hidden=false;reload();$("[data-pivot-search]").focus();
+      returnFocus=document.activeElement;panel.showModal();reload();$("[data-pivot-search]").focus();
     }
     function addressString(bounds){
       return context.colName(bounds[1])+(bounds[0]+1)+":"+context.colName(bounds[3])+(bounds[2]+1);
@@ -321,7 +348,13 @@
       const output=engine.build({source:source(),sourceIndex:context.source,range:range(),config:settings,read});
       onApply(output,context.target,source().name);
     }
-    function close(){panel.hidden=true;context=null;settings=null;latest=null;visibleFilters.clear();}
+    function close(){
+      if(panel.open){
+        panel.close();
+        if(returnFocus?.isConnected) returnFocus.focus({preventScroll:true});
+      }
+      returnFocus=null;context=null;settings=null;latest=null;
+    }
     panel.addEventListener("click",event=>{
       if(!context)return;
       const addField=event.target.closest("[data-pivot-add]");
@@ -361,12 +394,12 @@
       }else if(el.matches("[data-pivot-chart]"))settings.chart=el.value;
       else if(el.matches("[data-pivot-filter]")){
         const i=Number(el.dataset.pivotFilter);
-        const visible=visibleFilters.get(i)||[];
         const checks=[...panel.querySelectorAll('[data-pivot-filter="'+i+'"]')];
         const selected=checks.filter(input=>input.checked).map(input=>input.value);
         settings.filters[i].values=selected.length===checks.length?[]:
           selected.length?selected:["__OPEN_DOC_NONE_SELECTED__"];
       }else if(el.matches("[data-pivot-totals]"))settings.totals=el.checked;
+      else if(el.matches("[data-pivot-subtotals]"))settings.subtotals=el.checked;
       else if(el.matches("[data-pivot-range]"))return reload();
       else return;
       render();
@@ -412,9 +445,17 @@
       if(target)drill(target.dataset.pivotDrill);
     },{signal});
     panel.addEventListener("keydown",event=>{
-      if(event.key==="Escape"){event.stopPropagation();close();}
+      if(event.key!=="Tab")return;
+      const focusable=Array.from(panel.querySelectorAll("button,input,select,[tabindex]"))
+        .filter(element=>!element.disabled&&element.tabIndex>=0&&element.getClientRects().length);
+      const first=focusable[0],last=focusable[focusable.length-1];
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+      if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
     },{signal});
-    return {open,close,reload,apply,drillAt:drill,isOpen:()=>!panel.hidden};
+    panel.addEventListener("cancel",event=>{
+      event.preventDefault();onCancel();
+    },{signal});
+    return {open,close,reload,apply,drillAt:drill,isOpen:()=>panel.open};
   }
   window.OpenDocWorkbookPivotUI={create};
 })();

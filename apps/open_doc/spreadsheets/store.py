@@ -1,6 +1,7 @@
 """Workbook persistence using the shared workspace and revision history."""
 
 import json
+import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -10,6 +11,9 @@ ROWS = 10000
 COLUMNS = 100
 MAX_CELLS = 50000
 FORMAT = "opendoc-workbook-v1"
+FONT_FAMILIES = {"Arial", "Calibri", "Georgia", "Verdana", "Courier New"}
+STYLE_FLAGS = {"italic", "underline", "strike", "border", "wrap"}
+STYLE_COLORS = {"color", "fill"}
 
 
 def empty_sheet(name="Planilha1"):
@@ -23,7 +27,7 @@ def validate(sheets):
     count = 0
     for sheet in sheets:
         if not isinstance(sheet, dict) or not {"name", "cells", "bold"} <= set(sheet) or (
-                set(sheet) - {"name", "cells", "bold", "types", "pivot"}):
+                set(sheet) - {"name", "cells", "bold", "styles", "types", "pivot"}):
             raise ValueError("Aba inválida.")
         types = sheet.get("types", {"columns": {}, "cells": {}})
         if not isinstance(types, dict) or set(types) - {"columns", "cells"}:
@@ -58,7 +62,7 @@ def validate(sheets):
                     (0 <= rng[0] < rng[2] < ROWS and 0 <= rng[1] <= rng[3] < COLUMNS) or
                     (rng[2]-rng[0]+1)*(rng[3]-rng[1]+1) > MAX_CELLS):
                 raise ValueError("Fonte ou intervalo da tabela dinâmica inválido.")
-            if not isinstance(config, dict) or set(config) - {"rows", "columns", "values", "filters", "totals", "grouping", "sort", "chart"}:
+            if not isinstance(config, dict) or set(config) - {"rows", "columns", "values", "filters", "totals", "subtotals", "grouping", "sort", "chart"}:
                 raise ValueError("Campos da tabela dinâmica inválidos.")
             for kind in ("rows", "columns"):
                 fields = config.get(kind, [])
@@ -107,7 +111,7 @@ def validate(sheets):
                         or len(condition["values"]) > 500 or
                         any(not isinstance(x, str) or len(x) > 8192 for x in condition["values"])):
                     raise ValueError("Filtro inválido.")
-            if "totals" in config and type(config["totals"]) is not bool:
+            if any(type(config.get(option, False)) is not bool for option in ("totals", "subtotals")):
                 raise ValueError("Totais inválidos.")
         name, cells, bold = sheet["name"], sheet["cells"], sheet["bold"]
         if (not isinstance(name, str) or not name.strip() or len(name) > 31
@@ -117,10 +121,28 @@ def validate(sheets):
         names.add(name.casefold())
         if not isinstance(cells, dict) or not isinstance(bold, list):
             raise ValueError("Células inválidas.")
-        count += len(cells) + len(bold)
+        styles = sheet.get("styles", {})
+        if not isinstance(styles, dict):
+            raise ValueError("Estilos de célula inválidos.")
+        for style in styles.values():
+            if not isinstance(style, dict) or not style or set(style) - (
+                    STYLE_FLAGS | STYLE_COLORS | {"family", "size", "align"}):
+                raise ValueError("Estilo de célula inválido.")
+            for prop, value in style.items():
+                if prop in STYLE_FLAGS and type(value) is not bool:
+                    raise ValueError("Estilo de célula inválido.")
+                if prop in STYLE_COLORS and (not isinstance(value, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", value)):
+                    raise ValueError("Cor de célula inválida.")
+            if "family" in style and (not isinstance(style["family"], str) or style["family"] not in FONT_FAMILIES):
+                raise ValueError("Fonte de célula inválida.")
+            if "size" in style and (type(style["size"]) is not int or not 6 <= style["size"] <= 96):
+                raise ValueError("Tamanho de fonte inválido.")
+            if "align" in style and style["align"] not in ("left", "center", "right"):
+                raise ValueError("Alinhamento inválido.")
+        count += len(cells) + len(bold) + len(styles)
         if count > MAX_CELLS:
             raise ValueError("Limite de 50 mil valores e estilos por pasta.")
-        for key in (*cells, *bold):
+        for key in (*cells, *bold, *styles):
             if not isinstance(key, str) or len(key) > 8:
                 raise ValueError("Endereço inválido.")
             parts = key.split(",")

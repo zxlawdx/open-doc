@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  const ROWS=10000, COLS=100, WIDTH=112, HEIGHT=28, GUTTER=52;
+  const ROWS=10000, COLS=100;
   const key=(r,c)=>r+","+c;
   function create({host,request,dialog,signal,loadCodeEditors}) {
     const {address,column,evaluate}=window.OpenDocWorkbookFormula;
@@ -8,9 +8,13 @@
     const viewport=$("[data-book-scroll]"), space=$("[data-book-space]");
     const title=$("[data-book-title]"), formula=$("[data-book-formula]");
     const coord=$("[data-book-address]"), tabs=$("[data-book-tabs]"), status=$("[data-book-status]");
-    const inline=$("[data-book-inline]"), sidebar=$("[data-book-sidebar]");
+    const inline=$("[data-book-inline]");
     const analysis=$("[data-book-analysis]"), analysisButton=$("[data-book-command=analysis]");
-    let sqlEditor, pythonEditor, analysisLoading, analysisBusy=false, lastSchema,lastSqlQuery=null;
+    let WIDTH=112, HEIGHT=28, GUTTER=52;
+    const workspace=window.OpenDocGridWorkspace;
+    workspace.ribbon(host,signal,tab=>{if(tab==="code"&&analysis.hidden)run("analysis");});
+    const syncSplitter=workspace.splitter(analysis,signal,schedule);
+    let sqlEditor, pythonEditor, notebook, analysisLoading, analysisBusy=false, lastSchema,lastSqlQuery=null,analysisGeneration=0;
     const undo=[], redo=[];
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
     const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>book?.id,signal});
@@ -23,7 +27,7 @@
       report("Alterações pendentes");
     }
     function report(message) {status.textContent=message;}
-    const pivotUI=window.OpenDocWorkbookPivotUI.create({host,signal,onReport:report,
+    const pivotUI=window.OpenDocWorkbookPivotUI.create({host,signal,onReport:report,onCancel:()=>togglePivot(false),
       onApply:(output,target,sourceName)=>{
         if(target!==null){
           const before=book.sheets[target],after={...before,cells:output.cells,bold:output.bold,pivot:output.pivot};
@@ -43,13 +47,27 @@
 
     const typesUI=window.OpenDocWorkbookTypes.create({host,signal,
       getState:()=>({sheet:sheet(),bounds:bounds(),report}),
-      change:(target,before,after)=>change(()=>{target.types=before;},()=>{target.types=after;})
+      change:(target,before,after)=>change(()=>{target.types=before;},()=>{target.types=after;}),
+      onCommand:(name,position)=>{
+        if(name.endsWith("row"))select(position.row,col);
+        if(name.endsWith("column"))select(row,position.col);
+        viewport.focus();run(name);
+      }
+
     });
     function controls() {
       coord.value=column(col)+(row+1);
       if(document.activeElement!==formula) formula.value=raw();
       $("[data-book-command=undo]").disabled=!undo.length;
       $("[data-book-command=redo]").disabled=!redo.length;
+      const style=sheet().styles?.[key(row,col)]||{};
+      for(const button of host.querySelectorAll("[data-book-command][aria-pressed]")){
+        const name=button.dataset.bookCommand;
+        if(["italic","underline","strike","border","wrap"].includes(name))button.setAttribute("aria-pressed",String(Boolean(style[name])));
+        if(name.startsWith("align-"))button.setAttribute("aria-pressed",String(style.align===name.slice(6)));
+      }
+      for(const field of host.querySelectorAll("select[data-book-style]"))
+        field.value=style[field.dataset.bookStyle]??"";
       $("[data-book-command=bold]").setAttribute("aria-pressed",String(sheet().bold.includes(key(row,col))));
       for(const button of tabs.children) button.setAttribute("aria-pressed",String(+button.dataset.index===index));
     }
@@ -74,7 +92,9 @@
         const line=document.createElement("div");
         line.setAttribute("role","row");
         line.setAttribute("aria-rowindex",String(r+1));
-        line.append(item("book-heading",left,(r+1)*HEIGHT,GUTTER,r+1));
+        const heading=item("book-heading",left,(r+1)*HEIGHT,GUTTER,r+1);
+        heading.dataset.bookRow=String(r);heading.setAttribute("role","rowheader");
+        line.append(heading);
         for(let c=firstCol;c<endCol;c++) {
           const id=key(r,c);
           const kind=typesUI.typeFor(sheet(),r,c),formatted=typesUI.show(calc(index,r,c),kind);
@@ -85,6 +105,18 @@
           cell.dataset.cell=id;
           cell.setAttribute("role","gridcell");
           cell.setAttribute("aria-colindex",String(c+1));
+          const style=sheet().styles?.[id];
+          if(style){
+            cell.style.fontFamily=style.family||"";
+            cell.style.fontSize=style.size ? style.size*(HEIGHT/28)+"pt" : "";
+            cell.style.fontStyle=style.italic?"italic":"";
+            cell.style.textDecoration=[style.underline?"underline":"",style.strike?"line-through":""].join(" ");
+            cell.style.color=style.color||"";
+            if(r<selection[0]||r>selection[2]||c<selection[1]||c>selection[3])cell.style.backgroundColor=style.fill||"";
+            cell.style.textAlign=style.align||"";
+            if(style.border)cell.classList.add("book-bordered");
+            if(style.wrap)cell.classList.add("book-wrapped");
+          }
           if(bold.has(id))cell.classList.add("bold");
           if(r===row&&c===col)cell.classList.add("active");
           if(r>=selection[0]&&r<=selection[2]&&c>=selection[1]&&c<=selection[3]){
@@ -109,7 +141,13 @@
     }
     function schedule() {if(frame===undefined)frame=requestAnimationFrame(draw);}
     function update(recalculate=true) {
-      if(recalculate){calc=evaluate(book.sheets);updateSchema();}
+      if(recalculate){
+        calc=evaluate(book.sheets);updateSchema();analysisGeneration++;
+        if(lastSqlQuery){
+          lastSqlQuery=null;$("[data-book-query-results]").replaceChildren();
+          $("[data-book-command=sql-to-sheet]").disabled=true;
+        }
+      }
       controls();schedule();
     }
     function select(r,c,extend=false,reveal=false) {
@@ -248,10 +286,13 @@
         catch{columns=[];}
         const signature=JSON.stringify(columns);
         if(signature!==lastSchema){sqlEditor.columns(columns);lastSchema=signature;}
+        notebook?.activate(columns);
       }
     }
     async function toggleAnalysis(open) {
       analysis.hidden=!open;
+      if(!open)notebook?.collapse();
+      syncSplitter();
       analysisButton.setAttribute("aria-expanded",String(open));
       schedule();
       if(!open)return;
@@ -259,9 +300,23 @@
       if(!analysisLoading)analysisLoading=(async()=>{
         await loadCodeEditors();
         const createEditor=window.OpenDocCodeEditor.create;
-        sqlEditor=createEditor({field:$("#book-sql"),language:"sql",request,signal,run:()=>run("run-sql")});
+        sqlEditor=createEditor({field:$("#book-sql"),language:"sql",request,signal,project:()=>book?.id,run:()=>run("run-sql")});
         pythonEditor=createEditor({field:$("#book-python"),language:"python",request,signal,
           signature:$("[data-book-signature]"),run:()=>run("run-python"),project:()=>book?.id});
+        notebook=window.OpenDocCodeNotebook.create({panel:analysis,signal,request,
+          project:()=>book?.id,onLayout:syncSplitter,execute:async(language,code)=>{
+            if(analysisBusy)throw Error("Já existe uma execução em andamento.");
+            finishInline();commit();
+            const snapshot=worksheetSnapshot(),generation=analysisGeneration;
+            analysisBusy=true;
+            try{
+              const result=language==="python"
+                ?await native().run_workbook_python(snapshot.columns,snapshot.rows,code,book.id)
+                :await request("workbook",{operation:"query",...snapshot,sql:code});
+              if(generation!==analysisGeneration)throw Error("A origem mudou durante a execução.");
+              return result;
+            }finally{analysisBusy=false;}
+          }});
       })().catch(error=>{analysisLoading=null;throw error;});
       await analysisLoading;
       updateSchema();
@@ -272,22 +327,24 @@
       if(analysisBusy||!sqlEditor||!pythonEditor)return;
       finishInline();commit();
       const snapshot=worksheetSnapshot();
-      const source=sheet();
+      const source=sheet(),generation=analysisGeneration;
       analysisBusy=true;
       try{
         report("Executando "+language+" na aba "+source.name+"…");
         if(language==="Python"){
+          pythonEditor.remember();
           const result=await native().run_workbook_python(snapshot.columns,snapshot.rows,pythonEditor.value(),book.id);
           if(result.error)throw Error(result.error);
           if(result.cancelled)return report("Execução cancelada.");
-          if(sheet()!==source)return;
+          if(generation!==analysisGeneration)return report("A origem mudou durante a execução. Execute novamente.");
           $("[data-book-python-output]").textContent=result.output;
           report(result.stopped==="timeout" ? "Execução encerrada após 15 segundos." :
             result.stopped==="output" ? "Saída limitada a 64 KiB." :
             result.returncode===0 ? "Python concluído." : "Python terminou com código "+result.returncode+".");
         }else{
+          sqlEditor.remember();
           const result=await request("workbook",{operation:"query",...snapshot,sql:sqlEditor.value()});
-          if(sheet()!==source)return;
+          if(generation!==analysisGeneration)return report("A origem mudou durante a execução. Execute novamente.");
           const table=document.createElement("table");
           const headers=table.createTHead().insertRow();
           for(const name of result.columns){
@@ -305,7 +362,13 @@
       }finally{analysisBusy=false;}
     }
     function togglePivot(open) {
-      if(!open){pivotUI.close();$("[data-book-command=pivot]").setAttribute("aria-expanded","false");schedule();return;}
+      if(open&&pivotUI.isOpen())return;
+      if(!open){
+        pivotUI.close();
+        $("[data-book-command=pivot]").setAttribute("aria-expanded","false");
+        schedule();return;
+      }
+      finishInline();commit();typesUI.close();
       toggleAnalysis(false);
       const selected=bounds();
       const target=sheet().pivot;
@@ -321,7 +384,7 @@
       applyCells(rectangle().flat().map(id=>[id,""]));
     }
     function load(value) {
-      inline.hidden=true;pivotUI.close();sidebar.hidden=true;
+      inline.hidden=true;pivotUI.close();
       $("[data-book-command=pivot]").setAttribute("aria-expanded","false");
       book=value;title.value=value.title;
       undo.length=0;redo.length=0;dirty=false;
@@ -350,6 +413,48 @@
     async function command(name) {
       if(!book||pending||importing)return;
       if(name==="save") return save();
+      if(name==="add-tab"||name==="rename-tab")return command(name.slice(0,-4));
+      if(["copy","cut","paste","paste-values"].includes(name))return transfer(name);
+      if(name==="types")return typesUI.open({row,col});
+      if(["insert-row","delete-row","insert-column","delete-column"].includes(name))
+        return changeStructure(name);
+      if(name==="sort-asc"||name==="sort-desc")return sortSelection(name==="sort-desc");
+      if(name==="fill-down")return fillValues();
+      if(name==="pivot-builder"||name==="pivot-chart"){
+        togglePivot(true);
+        if(name==="pivot-chart"){
+          const mode=$("[data-pivot-chart]");mode.value="bar";mode.dispatchEvent(new Event("change",{bubbles:true}));
+        }
+        return;
+      }
+      if(name==="grid"){
+        const enabled=viewport.classList.toggle("book-no-grid");
+        $("[data-book-command=grid]").setAttribute("aria-pressed",String(!enabled));
+        return;
+      }
+      if(name==="find"){
+        const target=sheet();
+        const search=await dialog("Localizar na aba","Informe o texto a localizar.",true);
+        if(!search||target!==sheet())return;
+        const matches=Object.keys(target.cells).map(id=>id.split(",").map(Number)).sort((a,b)=>a[0]-b[0]||a[1]-b[1])
+          .filter(([r,c])=>String(calc(index,r,c)).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")));
+        const next=matches.find(([r,c])=>r>row||(r===row&&c>col))||matches[0];
+        if(!next)return report("Nenhuma correspondência.");
+        select(...next,false,true);viewport.focus();return;
+      }
+      if(name.startsWith("function-")){
+        const fn=name.slice(9).toUpperCase();
+        const [r,c,r1,c1]=bounds();
+        const range=column(c)+(r+1)+":"+column(c1)+(r1+1);
+        if(r!==r1||c!==c1){
+          if(r1+1>=ROWS)throw Error("Não há linha livre abaixo da seleção.");
+          select(r1+1,c,false,true);editInline("="+fn+"("+range+")");
+        }else editInline("="+fn+"(");
+        return;
+      }
+      if(name.startsWith("align-"))return styleSelection("align",name.slice(6));
+      if(["italic","underline","strike","border","wrap"].includes(name))return styleSelection(name);
+      if(name==="clear-style")return styleSelection(null);
       if(name==="edit")return editInline();
       if(name==="clear")return clearSelection();
       if(name==="select-used"){
@@ -360,7 +465,7 @@
         viewport.focus();
         return;
       }
-      if(name==="pivot")return togglePivot(sidebar.hidden);
+      if(name==="pivot")return togglePivot(!pivotUI.isOpen());
       if(name==="analysis")return toggleAnalysis(analysis.hidden);
       if(name==="close-analysis")return toggleAnalysis(false);
       if(name==="run-sql")return analyzeWorkbook("SQL");
@@ -454,16 +559,17 @@
       const command=event.target.closest("[data-book-command]");
       const tab=event.target.closest("[data-index]");
       const cell=event.target.closest("[data-cell]");
-      const ribbon=event.target.closest("[data-ribbon-tab]");
-      if(ribbon){
-        const active=ribbon.dataset.ribbonTab;
-        for(const tab of host.querySelectorAll("[data-ribbon-tab]"))tab.setAttribute("aria-pressed",String(tab===ribbon));
-        for(const group of host.querySelectorAll("[data-ribbon-group]"))group.hidden=active!=="home"&&active!==group.dataset.ribbonGroup;
-        if(active==="analysis"&&analysis.hidden)run("analysis");
-      }
       if(command)run(command.dataset.bookCommand);
       if(tab){finishInline();choose(Number(tab.dataset.index));}
+      const rowHeading=event.target.closest("[data-book-row]"),colHeading=event.target.closest("[data-book-col]");
+      if(rowHeading||colHeading){
+        finishInline();commit();
+        if(rowHeading){const r=Number(rowHeading.dataset.bookRow);select(r,0);select(r,COLS-1,true);}
+        else {const c=Number(colHeading.dataset.bookCol);select(0,c);select(ROWS-1,c,true);}
+        viewport.focus();
+      }
       if(cell){
+        if(skipClick){skipClick=false;return;}
         finishInline();
         const id=cell.dataset.cell;
         const now=Date.now(), double=lastClick?.id===id && now-lastClick.time<350;
@@ -476,6 +582,28 @@
         }
       }
     },{signal});
+    let drag=null,skipClick=false;
+    viewport.addEventListener("pointerdown",event=>{
+      const cell=event.target.closest("[data-cell]");
+      if(event.button!==0||!cell||pending||importing)return;
+      skipClick=false;
+      drag={id:cell.dataset.cell,pointer:event.pointerId,extend:event.shiftKey,moved:false};
+    },{signal});
+    window.addEventListener("pointermove",event=>{
+      if(!drag||drag.pointer!==event.pointerId)return;
+      const cell=document.elementFromPoint(event.clientX,event.clientY)?.closest("[data-cell]");
+      if(!cell||!viewport.contains(cell)||(!drag.moved&&cell.dataset.cell===drag.id))return;
+      if(!drag.moved){
+        finishInline();commit();select(...drag.id.split(",").map(Number),drag.extend);
+        drag.moved=true;viewport.focus();
+      }
+      select(...cell.dataset.cell.split(",").map(Number),true);
+    },{signal});
+    function stopDrag(event){
+      if(drag?.pointer===event.pointerId){skipClick=drag.moved;drag=null;}
+    }
+    window.addEventListener("pointerup",stopDrag,{signal});
+    window.addEventListener("pointercancel",stopDrag,{signal});
     viewport.addEventListener("dblclick",event=>{
       const cell=event.target.closest("[data-cell]");
       if(cell&&inline.hidden){
@@ -523,7 +651,8 @@
     },{signal});
     viewport.addEventListener("contextmenu",event=>{
       const cell=event.target.closest("[data-cell]"),heading=event.target.closest("[data-book-col]");
-      if(!cell&&!heading)return;
+      const rowHeading=event.target.closest("[data-book-row]");
+      if(!cell&&!heading&&!rowHeading)return;
       event.preventDefault();finishInline();commit();
       let r=row,c=col;
       if(cell){
@@ -531,8 +660,11 @@
         const extent=bounds();
         if(r<extent[0]||r>extent[2]||c<extent[1]||c>extent[3])select(r,c);
       }
-      if(heading)c=Number(heading.dataset.bookCol);
-      typesUI.open({event,row:r,col:c,header:!!heading});
+      if(heading){c=Number(heading.dataset.bookCol);select(r,c);}
+      if(rowHeading){
+        r=Number(rowHeading.dataset.bookRow);select(r,0);select(r,COLS-1,true);
+      }
+      typesUI.open({event,row:r,col:c,header:!!heading,rowHeader:!!rowHeading});
     },{signal});
     viewport.addEventListener("keydown",event=>{
       if(event.isComposing||pending||importing)return;
@@ -543,9 +675,11 @@
         Enter:[event.shiftKey?-1:1,0],Tab:[0,event.shiftKey?-1:1]}[event.key];
       if(event.ctrlKey||event.metaKey){
         const name=event.key.toLowerCase();
+        if(name==="f"){event.preventDefault();run("find");}
         if(name==="z"||name==="y"){event.preventDefault();run(name==="y"||event.shiftKey?"redo":"undo");}
         return;
       }
+      if(event.key==="Escape"){formula.focus();return;}
       if(move){event.preventDefault();select(row+move[0],col+move[1],event.shiftKey&&event.key.startsWith("Arrow"),true);}
       else if(event.key==="Delete"||event.key==="Backspace"){
         event.preventDefault();
@@ -553,24 +687,168 @@
       } else if(event.key==="F2"){event.preventDefault();editInline();}
       else if(!event.altKey&&event.key.length===1){event.preventDefault();editInline(event.key);}
     },{signal});
-    for(const type of ["copy","cut","paste"]) viewport.addEventListener(type,event=>{
+    function changeStructure(name) {
+      const isColumn=name.endsWith("column"),insert=name.startsWith("insert");
+      const target=sheet(),position=isColumn?col:row,limit=isColumn?COLS:ROWS;
+      // Moving a reference without migrating its formula or pivot metadata could
+      // silently change a result. Allow this operation on plain workbooks only.
+      if(book.sheets.some(item=>item.pivot||Object.values(item.cells).some(value=>value.startsWith("="))))
+        throw Error("A estrutura só pode ser alterada em pastas sem fórmulas e sem tabelas dinâmicas.");
+      const move=index=>{
+        if(index<position)return index;
+        if(!insert&&index===position)return null;
+        const next=index+(insert?1:-1);
+        if(next>=limit)throw Error("A última posição está em uso. Remova o conteúdo antes de inserir.");
+        return next;
+      };
+      const cellAddress=id=>{
+        const [r,c]=id.split(",").map(Number),next=move(isColumn?c:r);
+        return next===null?null:isColumn?key(r,next):key(next,c);
+      };
+      const remap=(values,addressOf)=>Object.fromEntries(Object.entries(values||{}).flatMap(([id,value])=>{
+        const next=addressOf(id);
+        return next===null?[]:[[next,value]];
+      }));
+      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types};
+      const after={
+        cells:remap(target.cells,cellAddress),
+        bold:target.bold.map(cellAddress).filter(id=>id!==null),
+        styles:target.styles&&remap(target.styles,cellAddress),
+        types:target.types&&{cells:remap(target.types.cells,cellAddress),
+          columns:isColumn?remap(target.types.columns,id=>move(Number(id))):target.types.columns},
+      };
+      change(()=>Object.assign(target,before),()=>Object.assign(target,after));
+      report((isColumn?"Coluna":"Linha")+(insert?" inserida.":" excluída.")+" Ctrl+Z para desfazer.");
+    }
+    function fillValues() {
+      const range=rectangle(),source=range[0].map(id=>{
+        const [r,c]=id.split(",").map(Number);
+        const value=String(calc(index,r,c)??"");
+        if(/^#(?:REF|CICLO|FÓRMULA|LIMITE|VALOR|DIV)/.test(value))throw Error("Corrija o erro na célula de origem.");
+        return /^[=']/.test(value)?"'"+value:value;
+      });
+      applyCells(range.slice(1).flatMap(line=>line.map((id,c)=>[id,source[c]])));
+    }
+    function sortSelection(descending) {
+      const range=rectangle(),target=sheet();
+      if(range.length<2)throw Error("Selecione pelo menos duas linhas de dados, sem o cabeçalho.");
+      if(range.some(line=>line.some(id=>target.cells[id]?.startsWith("="))))
+        throw Error("A ordenação de células com fórmulas ainda não está disponível.");
+      const sortColumn=col-bounds()[1];
+      const compare=new Intl.Collator("pt-BR",{numeric:true,sensitivity:"base"}).compare;
+      const sorted=range.map(line=>{
+        const [r,c]=line[sortColumn].split(",").map(Number);
+        return {line,value:calc(index,r,c)};
+      }).sort((a,b)=>{
+        if(a.value===""||b.value==="")return Number(a.value==="")-Number(b.value==="");
+        const order=typeof a.value==="number"&&typeof b.value==="number"?a.value-b.value:compare(String(a.value),String(b.value));
+        return descending?-order:order;
+      });
+      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types};
+      const bold=new Set(target.bold),nextBold=new Set(bold);
+      const cells={...target.cells},styles=target.styles&&{...target.styles};
+      const cellTypes=target.types&&{...target.types.cells};
+      const copy=(to,from,dest,origin)=>{
+        if(!dest)return;
+        if(Object.prototype.hasOwnProperty.call(origin||{},from))dest[to]=origin[from];
+        else delete dest[to];
+      };
+      range.forEach((line,r)=>line.forEach((to,c)=>{
+        const from=sorted[r].line[c];
+        copy(to,from,cells,target.cells);copy(to,from,styles,target.styles);
+        copy(to,from,cellTypes,target.types?.cells);
+        if(bold.has(from))nextBold.add(to);else nextBold.delete(to);
+      }));
+      const after={cells,bold:[...nextBold],styles,types:target.types&&{...target.types,cells:cellTypes}};
+      change(()=>Object.assign(target,before),()=>Object.assign(target,after));
+    }
+    let copiedRange;
+    function selectionText(calculated=false) {
+      return rectangle().map(line=>line.map(id=>{
+        if(!calculated)return sheet().cells[id]||"";
+        const [r,c]=id.split(",").map(Number),value=String(calc(index,r,c)??"");
+        return value.startsWith("=")||value.startsWith("'")?"'"+value:value;
+      }).join("\t")).join("\n");
+    }
+    function pasteText(text,valuesOnly=false) {
+      if(text.length>1000000)throw Error("A colagem ultrapassa 1 MB.");
+      const entries=text.replace(/\r\n/g,"\n").replace(/\n$/,"").split("\n").flatMap((line,r)=>
+        line.split("\t").map((value,c)=>{
+          if(valuesOnly&&value.startsWith("="))value="'"+value;
+          if(row+r>=ROWS||col+c>=COLS||value.length>8192)throw Error("A colagem ultrapassa os limites da planilha.");
+          return [key(row+r,col+c),value];
+        }));
+      if(entries.length>50000)throw Error("A colagem ultrapassa 50 mil células.");
+      applyCells(entries);
+    }
+    function remember(text) {
+      copiedRange={text,values:selectionText(true)};
+    }
+    async function transfer(name) {
+      finishInline();commit();
+      if(name==="cut"||name==="copy"){
+        const source=sheet(),entries=rectangle().flat(),text=selectionText();
+        remember(text);
+        if(navigator.clipboard?.writeText){
+          try {await navigator.clipboard.writeText(text);}
+          catch {report("Copiado para a área de transferência do Open Doc.");}
+        }
+        if(name==="cut"&&source===sheet())applyCells(entries.map(id=>[id,""]));
+        return;
+      }
+      const source=sheet(),position=key(row,col);
+      let text;
+      try {text=await navigator.clipboard?.readText();} catch { /* Use the local clipboard if denied. */ }
+      if(source!==sheet()||position!==key(row,col)||host.hidden)return;
+      text=text??copiedRange?.text;
+      if(text===undefined)return report("Use Ctrl+V para colar da área de transferência do sistema.");
+      const valuesOnly=name==="paste-values";
+      pasteText(valuesOnly&&copiedRange?.text===text?copiedRange.values:text,valuesOnly);
+    }
+    for(const type of ["copy","cut","paste"])viewport.addEventListener(type,event=>{
       if(event.target===inline||!event.clipboardData||pending||importing)return;
       event.preventDefault();
-      try {
-        if(type==="paste"){
-          const text=event.clipboardData.getData("text/plain");
-          if(text.length>1000000)throw Error("A colagem ultrapassa 1 MB.");
-          const rows=text.replace(/\r\n/g,"\n").replace(/\n$/,"").split("\n");
-          const entries=rows.flatMap((line,r)=>line.split("\t").map((value,c)=>{
-            if(row+r>=ROWS||col+c>=COLS||value.length>8192)throw Error("A colagem ultrapassa os limites da planilha.");
-            return [key(row+r,col+c),value];
-          }));
-          if(entries.length>50000)throw Error("A colagem ultrapassa 50 mil células.");
-          applyCells(entries);
-        }else{
-          const rows=rectangle();
-          event.clipboardData.setData("text/plain",rows.map(line=>line.map(id=>sheet().cells[id] || "").join("\t")).join("\n"));
-          if(type==="cut")applyCells(rows.flat().map(id=>[id,""]));
+      try{
+        if(type==="paste")pasteText(event.clipboardData.getData("text/plain"));
+        else{
+          const text=selectionText();remember(text);
+          event.clipboardData.setData("text/plain",text);
+          if(type==="cut")clearSelection();
+        }
+      }catch(error){report(error.message);}
+    },{signal});
+    function styleSelection(property,value) {
+      const target=sheet(),before=target.styles,oldBold=target.bold;
+      const after={...before},ids=rectangle().flat();
+      const next=value??!ids.every(id=>after[id]?.[property]);
+      for(const id of ids){
+        const style={...after[id]};
+        if(!property)delete after[id];
+        else{
+          if(next)style[property]=next;else delete style[property];
+          if(Object.keys(style).length)after[id]=style;else delete after[id];
+        }
+      }
+      const remove=new Set(ids);
+      change(()=>{target.styles=before;target.bold=oldBold;},()=>{
+        target.styles=after;
+        if(!property)target.bold=oldBold.filter(id=>!remove.has(id));
+      });
+    }
+    host.addEventListener("change",event=>{
+      const field=event.target;
+      try{
+        if(field.dataset.bookStyle){
+          styleSelection(field.dataset.bookStyle,field.dataset.bookStyle==="size"?Number(field.value):field.value);
+        }
+        if(field.matches("[data-book-zoom]")){
+          const scale=Number(field.value)/100;
+          WIDTH=Math.round(112*scale);HEIGHT=Math.round(28*scale);GUTTER=Math.round(52*scale);
+          viewport.style.setProperty("--book-cell-height",HEIGHT+"px");
+          viewport.style.setProperty("--book-grid-font",Math.round(13*scale)+"px");
+          space.style.width=GUTTER+COLS*WIDTH+"px";
+          space.style.height=(ROWS+1)*HEIGHT+"px";
+          select(row,col,true,true);
         }
       }catch(error){report(error.message);}
     },{signal});

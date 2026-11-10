@@ -106,7 +106,8 @@
       allStats=metrics.map(()=>accumulator()),drill=new Map();
     const makeStats=()=>metrics.map(()=>accumulator());
     const getStats=(map,id)=>{if(!map.has(id))map.set(id,makeStats());return map.get(id);};
-    const group=ranges=>JSON.stringify(ranges.map(c=>text(read(currentRow,c))));
+    const subtotalGroups=new Map(),subtotalForRow=new Map();
+    const useSubtotals=config.subtotals===true&&rowFields.length>1;
     let currentRow=range[0]+1,accepted=0;
     for(;currentRow<=range[2];currentRow++){
       const present=fields.some(f=>!blank(source.cells[key(currentRow,f.index)]));
@@ -129,6 +130,18 @@
         const value=read(currentRow,v.field);
         for(const target of [a[i],b[i],c[i],allStats[i]])add(target,value,v.operation,v.label);
       });
+      if(useSubtotals){
+        const label=rvalues[0];
+        if(!subtotalGroups.has(label))subtotalGroups.set(label,{columns:new Map(),total:makeStats()});
+        const subtotal=subtotalGroups.get(label);
+        const byColumn=getStats(subtotal.columns,ck);
+        subtotalForRow.set(rk,label);
+        metrics.forEach((v,i)=>{
+          const value=read(currentRow,v.field);
+          add(byColumn[i],value,v.operation,v.label);
+          add(subtotal.total[i],value,v.operation,v.label);
+        });
+      }
       accepted++;
     }
     if(!accepted)throw Error("Nenhum registro corresponde aos campos e filtros.");
@@ -148,10 +161,10 @@
     sorter(rows,rowKeys,sort.rows,rowStats);sorter(columns,colKeys,sort.columns,colStats);
     const addTotals=colFields.length>0 && config.totals!==false;
     const width=1+columns.length*metrics.length+(addTotals?metrics.length:0);
-    const height=1+rows.length+(config.totals===false?0:1);
+    const height=1+rows.length+subtotalGroups.size+(config.totals===false?0:1);
     if(width>MAX_COLS||width*height>MAX_CELLS||height>MAX_ROWS)
       throw Error("O resultado excede 100 colunas ou 50 mil células. Reduza os campos.");
-    const cells={},bold=[],dataRows=[],drillCells={};
+    const cells={},bold=[],dataRows=[],drillCells={},summaryRows=[];
     const labelFor=v=>v.operation==="average"?"Média":v.operation==="distinct"?"Distintos":v.operation==="sum"?"Soma":v.operation==="count"?"Contagem":v.operation==="min"?"Mín":v.operation==="max"?"Máx":v.operation==="median"?"Mediana" :v.operation==="product"?"Produto":"Desvio";
     const columnLabels=[rowFields.map(c=>fields.find(f=>f.index===c).label).join(" / ")||"Grupo"];
     for(const ck of columns)for(const m of metrics){
@@ -176,33 +189,53 @@
       return format(v,m,a,result(rt?.[ri],m.operation),result(ct?.[ri],m.operation),result(gt?.[ri],m.operation));
     }
     function write(r,c,value,emphasis=false){
-      if(value!=="")cells[key(r,c)]=String(value).startsWith("=")?"'"+String(value):String(value);
+      if(value!=="")cells[key(r,c)]=/^[=']/.test(String(value))?"'"+String(value):String(value);
       if(emphasis)bold.push(key(r,c));
     }
     columnLabels.forEach((label,c)=>write(0,c,label,true));
-    for(let i=0;i<rows.length;i++){
-      const rk=rows[i], values=[rowKeys.get(rk)];
+    function writeDetail(rk){
+      const values=[rowKeys.get(rk)],position=dataRows.length+1;
       for(const ck of columns){
         const id=JSON.stringify([rk,ck]),a=matrix.get(id);
         for(let j=0;j<metrics.length;j++){
           values.push(statText(a,metrics[j],j,rowStats.get(rk),colStats.get(ck),allStats));
-          drillCells[key(i+1,values.length-1)]=(drill.get(id)||[]).slice();
+          drillCells[key(position,values.length-1)]=(drill.get(id)||[]).slice();
         }
       }
       if(addTotals)for(let j=0;j<metrics.length;j++)
         values.push(statText(rowStats.get(rk),metrics[j],j,rowStats.get(rk),null,allStats));
-      values.forEach((v,c)=>write(i+1,c,v,c===0));
+      values.forEach((v,c)=>write(position,c,v,c===0));
       dataRows.push(values);
     }
+    if(useSubtotals){
+      const orderedGroups=new Map();
+      for(const rk of rows){
+        const group=subtotalForRow.get(rk);
+        if(!orderedGroups.has(group))orderedGroups.set(group,[]);
+        orderedGroups.get(group).push(rk);
+      }
+      for(const [group,items] of orderedGroups){
+        for(const rk of items)writeDetail(rk);
+        const subtotal=subtotalGroups.get(group),values=[group+" · Subtotal"];
+        for(const ck of columns)for(let i=0;i<metrics.length;i++)
+          values.push(statText(subtotal.columns.get(ck),metrics[i],i,subtotal.total,colStats.get(ck),allStats));
+        if(addTotals)for(let i=0;i<metrics.length;i++)
+          values.push(statText(subtotal.total,metrics[i],i,subtotal.total,null,allStats));
+        summaryRows.push(dataRows.length);
+        values.forEach((v,c)=>write(dataRows.length+1,c,v,true));
+        dataRows.push(values);
+      }
+    }else for(const rk of rows)writeDetail(rk);
     if(config.totals!==false){
-      const last=rows.length+1,total=["Total geral"];
+      const last=dataRows.length+1,total=["Total geral"];
+      summaryRows.push(dataRows.length);
       for(const ck of columns)for(let i=0;i<metrics.length;i++)
         total.push(statText(colStats.get(ck),metrics[i],i,null,colStats.get(ck),allStats));
       if(addTotals)for(let i=0;i<metrics.length;i++)total.push(statText(allStats,metrics[i],i,null,null,allStats));
       total.forEach((v,c)=>write(last,c,v,true));
       dataRows.push(total);
     }
-    return {cells,bold,headers:columnLabels,rows:dataRows,drillCells,sourceRows:accepted,
+    return {cells,bold,headers:columnLabels,rows:dataRows,drillCells,summaryRows,sourceRows:accepted,
       pivot:{source:sourceIndex,range:range.slice(),config:JSON.parse(JSON.stringify(config))}};
   }
   const api={build,getFields,number,dateGroup};

@@ -5,6 +5,8 @@
     ["date","Data"],["time","Hora"],["datetime","Data e hora"],["boolean","Booleano"]];
   const symbols={auto:"",text:"T",integer:"123",decimal:"1,2",currency:"R$",percent:"%",
     date:"D",time:"H",datetime:"DH",boolean:"☑"};
+  const typeIcons={auto:"settings",text:"type-text",integer:"function-sum",decimal:"decimal",
+    currency:"currency",percent:"percent",date:"calendar",time:"clock",datetime:"calendar-clock",boolean:"toggle"};
   function typeFor(sheet,row,col) {
     return sheet.types?.cells?.[row+","+col]||sheet.types?.columns?.[String(col)]||"auto";
   }
@@ -71,7 +73,7 @@
     }
     return value;
   }
-  function create({host,signal,getState,change}) {
+  function create({host,signal,getState,change,onCommand}) {
     let menu=null,selection=null,mode="cell";
     const close=()=>{
       if(!menu)return;
@@ -97,19 +99,29 @@
         change(sheet,before,after);
       close();
     }
-    function open({event,row,col,header=false}) {
+    function open({event,row,col,header=false,rowHeader=false}) {
       close();
       const context=getState();
       selection={sheet:context.sheet,row,col,bounds:context.bounds};
-      mode=header?"column":"cell";
+      mode=header?"column":rowHeader?"selection":"cell";
       const box=document.createElement("div");box.className="book-context-menu";box.setAttribute("role","menu");
       box.setAttribute("aria-label","Alterar tipo de dado");
       const title=document.createElement("strong");title.textContent=header?"Tipo da coluna":"Tipo da célula ou seleção";
       box.append(title);
+      const icon=name=>window.OpenDocGridWorkspace.icon(host,name);
+      const commands=header?[["insert-column","Inserir coluna","column-add"],["delete-column","Excluir coluna","column-remove"]]:
+        rowHeader?[["insert-row","Inserir linha","row-add"],["delete-row","Excluir linha","row-remove"]]:
+        [["cut","Recortar","scissors"],["copy","Copiar","copy"],["paste","Colar","clipboard"]];
+      for(const [name,label,glyph] of commands){
+        const button=document.createElement("button");button.type="button";
+        button.append(icon(glyph),document.createTextNode(label));
+        button.addEventListener("click",()=>{close();onCommand(name,{row,col});});
+        box.append(button);
+      }
       const scope=document.createElement("div");
       scope.style.display="flex";scope.style.gap="4px";scope.style.flexWrap="wrap";
       for(const [id,label] of [["cell","Célula"],["selection","Seleção"],["column","Coluna"]]){
-        if(header&&id!=="column")continue;
+        if((header&&id!=="column")||(rowHeader&&id!=="selection"))continue;
         const button=document.createElement("button");button.type="button";button.textContent=label;
         button.dataset.typeScope=id;button.style.width="auto";button.style.fontWeight=id===mode?"bold":"normal";
         scope.append(button);
@@ -117,9 +129,9 @@
       box.append(scope);
       for(const [id,label] of OPTIONS){
         const button=document.createElement("button");button.type="button";button.dataset.typeChoose=id;
-        button.textContent=label;
+        button.append(icon(typeIcons[id]),document.createTextNode(label));
         if(typeFor(context.sheet,row,col)===id){
-          const check=document.createElement("span");check.textContent="✓";button.append(check);
+          button.setAttribute("aria-current","true");
         }
         box.append(button);
       }
@@ -150,7 +162,7 @@
     host.addEventListener("keydown",event=>{if(event.key==="Escape"&&menu){event.stopPropagation();close();}},{signal});
     return {open,close,typeFor,show,analysisValue,symbols};
   }
-  const api={create,typeFor,show,analysisValue,symbols};
+  const api={create,typeFor,show,analysisValue,symbols,typeIcons};
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   if(typeof window!=="undefined")window.OpenDocWorkbookTypes=api;
 })();

@@ -222,7 +222,7 @@ class Datasets:
                 ).fetchone()[0],
             }
 
-    def cell(self, identifier, row, column):
+    def cell(self, identifier, row, column, *, for_query=False):
         """Fetch the untruncated raw cell for in-grid editing."""
         if type(row) is not int or type(column) is not int or row < 1 or column < 0:
             raise ValueError("Endereço inválido.")
@@ -236,7 +236,25 @@ class Datasets:
             ).fetchone()
             if result is None:
                 raise ValueError("Linha não encontrada.")
-            return {"row": row, "column": column, "value": json.loads(result["values_json"])[column]}
+            value = json.loads(result["values_json"])[column]
+            if for_query:
+                kind = db.execute(
+                    "SELECT kind FROM dataset_field_types WHERE dataset_id=? AND column_number=? "
+                    "AND (scope='column' OR (scope='cell' AND row_number=?)) ORDER BY scope LIMIT 1",
+                    (identifier, column, row),
+                ).fetchone()
+                value = typed_value(value, kind["kind"] if kind else "auto")
+                if isinstance(value, str):
+                    # A text literal with NUL must use a blob cast because SQL
+                    # source strings cannot contain literal NUL characters.
+                    literal = ("CAST(X'" + value.encode().hex() + "' AS TEXT)" if "\x00" in value
+                               else "'" + value.replace("'", "''") + "'")
+                else:
+                    literal = "NULL" if value is None else repr(value)
+                if len(literal) > 11000:
+                    raise ValueError("Valor longo demais para a consulta de filtro.")
+                return {"literal": literal}
+            return {"row": row, "column": column, "value": value}
 
     def edit_cell(self, identifier, row, column, value):
         """Atomically edit one stored data cell without rewriting a large CSV."""

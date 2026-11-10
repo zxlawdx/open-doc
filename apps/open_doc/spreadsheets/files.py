@@ -8,7 +8,7 @@ from zipfile import BadZipFile, ZipFile
 
 from defusedxml.common import DefusedXmlException
 
-from .store import COLUMNS, MAX_CELLS, ROWS, empty_sheet, validate
+from .store import COLUMNS, FONT_FAMILIES, MAX_CELLS, ROWS, empty_sheet, validate
 
 FORMATS = ("xlsx", "csv", "tsv")
 FUNCTIONS = {"SOMA": "SUM", "MÉDIA": "AVERAGE", "MÍNIMO": "MIN", "MÁXIMO": "MAX",
@@ -23,6 +23,38 @@ def safe_formula(value):
         return None
     return re.sub(r"([A-Za-zÀ-ÿ]+)(?=\s*\()", lambda match: FUNCTIONS[match[0].upper()],
                   value.replace(";", ","))
+
+
+def _rgb(color):
+    if color is not None and color.type == "rgb" and isinstance(color.rgb, str):
+        value = color.rgb[-6:]
+        if re.fullmatch(r"[0-9a-fA-F]{6}", value):
+            return "#" + value.lower()
+    return None
+
+
+def _read_style(cell):
+    if not getattr(cell, "has_style", False):
+        return {}
+    font, fill, alignment, border = cell.font, cell.fill, cell.alignment, cell.border
+    style = {}
+    if font.name in FONT_FAMILIES:
+        style["family"] = font.name
+    if font.sz and font.sz.is_integer() and 6 <= font.sz <= 96:
+        style["size"] = int(font.sz)
+    for key, enabled in (("italic", font.italic), ("underline", font.underline), ("strike", font.strike),
+                         ("wrap", alignment.wrap_text)):
+        if enabled:
+            style[key] = True
+    if all(side is not None and side.style for side in (border.left, border.right, border.top, border.bottom)):
+        style["border"] = True
+    if alignment.horizontal in {"left", "center", "right"}:
+        style["align"] = alignment.horizontal
+    if color := _rgb(font.color):
+        style["color"] = color
+    if fill.patternType == "solid" and (color := _rgb(fill.fgColor)):
+        style["fill"] = color
+    return style
 
 
 def read(path):
@@ -60,6 +92,10 @@ def read(path):
                             bold = bool(getattr(cell, "font", None) and cell.font.bold)
                             if bold:
                                 sheet["bold"].append(key)
+                                count += 1
+                            style = _read_style(cell)
+                            if style:
+                                sheet.setdefault("styles", {})[key] = style
                                 count += 1
                             if count > MAX_CELLS:
                                 raise ValueError("Limite de 50 mil valores e estilos por pasta.")
@@ -118,7 +154,7 @@ def export(sheets, destination, fmt, sheet_index=0):
     try:
         if fmt == "xlsx":
             from openpyxl import Workbook
-            from openpyxl.styles import Font
+            from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
             book = Workbook()
             book.remove(book.active)
@@ -168,9 +204,24 @@ def export(sheets, destination, fmt, sheet_index=0):
                     else:
                         cell.value = literal(raw)
                         cell.data_type = "s"
-                for key in sheet["bold"]:
+                styles = sheet.get("styles", {})
+                bold = set(sheet["bold"])
+                for key in bold | styles.keys():
                     row, col = map(int, key.split(","))
-                    output.cell(row + 1, col + 1).font = Font(bold=True)
+                    cell = output.cell(row + 1, col + 1)
+                    style = styles.get(key, {})
+                    cell.font = Font(name=style.get("family"), size=style.get("size"),
+                                     bold=key in bold, italic=style.get("italic", False),
+                                     underline="single" if style.get("underline") else None,
+                                     strike=style.get("strike", False),
+                                     color=style.get("color", "")[1:] or None)
+                    if "fill" in style:
+                        cell.fill = PatternFill("solid", fgColor=style["fill"][1:])
+                    if style.get("border"):
+                        side = Side(style="thin")
+                        cell.border = Border(left=side, right=side, top=side, bottom=side)
+                    if "align" in style or style.get("wrap"):
+                        cell.alignment = Alignment(horizontal=style.get("align"), wrap_text=style.get("wrap"))
             book.save(temporary)
         else:
             cells = sheets[sheet_index]["cells"]

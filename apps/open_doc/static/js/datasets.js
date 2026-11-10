@@ -8,21 +8,47 @@
     const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
     let row=0, column=0, current, busy=false, querying=false, selected=null, anchor=null, editing=null, menu=null;
     let conversion=null,lastQuery=null;
+    const widths=new Map();
+    const workspace=window.OpenDocGridWorkspace;
+    workspace.ribbon(host,signal);
+    const icon=name=>workspace.icon(host,name);
     const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>list.value,signal});
     const sqlField=$("[data-dataset-sql]");
     const pythonEditor=window.OpenDocCodeEditor.create({field:code,language:"python",request,signal,
       signature:$("[data-dataset-signature]"),run:()=>run(executePython),project:()=>list.value});
-    const sqlEditor=window.OpenDocCodeEditor.create({field:sqlField,language:"sql",request,signal,
+    const sqlEditor=window.OpenDocCodeEditor.create({field:sqlField,language:"sql",request,signal,project:()=>list.value,
       run:()=>run(executeQuery)});
     const tools=$("[data-dataset-tools]"), toolsButton=$("[data-dataset-command=tools]");
-    let toolsOpen=!window.matchMedia("(max-width: 760px)").matches;
+    const syncSplitter=workspace.splitter(tools,signal);
+    const notebook=window.OpenDocCodeNotebook.create({panel:tools,signal,request,
+      project:()=>current?.id,onLayout:syncSplitter,execute:async(language,code)=>{
+        if(busy)throw Error("Aguarde a operação de Dados em andamento.");
+        busy=true;
+        controls();
+        try{
+          return await (language==="python"
+            ?window.pywebview.api.run_dataset_python(list.value,code)
+            :request("dataset",{operation:"query",id:list.value,sql:code}));
+        }finally{busy=false;controls();}
+      }});
+    let toolsOpen=false;
+    function showCode(language){
+      if(!current)return;
+      toolsOpen=true;showTools();
+      if(language==="python")$("[data-dataset-python]").open=true;
+      (language==="python"?pythonEditor:sqlEditor).focus();
+    }
     function showTools() {
       tools.hidden=!current || !toolsOpen;
+      if(tools.hidden)notebook.collapse();
       toolsButton.disabled=busy || !current;
       toolsButton.setAttribute("aria-expanded",String(!tools.hidden));
+      for(const button of host.querySelectorAll("[data-dataset-command^=show-]"))
+        button.disabled=busy||!current;
+      syncSplitter();
     }
     function controls() {
-      for (const control of host.querySelectorAll("input,select,button,textarea")) control.disabled=busy;
+      for (const control of host.querySelectorAll("input,select,button,textarea")) if(!control.closest(".code-notebook"))control.disabled=busy;
       $("[data-dataset-command=append]").disabled=busy || !list.value;
       $("[data-dataset-command=export]").disabled=busy || !current;
       $("[data-dataset-python]").hidden=!current;
@@ -37,6 +63,8 @@
         (!!conversion?.result.invalid&&!$("[data-conversion-keep-invalid]").checked);
       $("[data-dataset-query]").hidden=!current;
       $("[data-dataset-command=reset]").disabled=busy || !querying;
+      for(const name of ["types","sort-asc","sort-desc","nulls","distinct","filter","counts"])
+        $(`[data-dataset-command=${name}]`).disabled=busy||!current||querying;
       $("[data-dataset-command=previous]").disabled=busy || row===0;
       $("[data-dataset-command=next]").disabled=busy || !current || row+50>=current.row_count;
     }
@@ -60,11 +88,41 @@
         td.classList.toggle("dataset-active",!!selected&&r===selected[0]&&c===selected[1]);
       }
     }
+    function resizeColumn(c,width) {
+      const value=Math.round(Math.min(640,Math.max(90,width)));
+      widths.set(c,value);
+      for(const cell of table.querySelectorAll('[data-dataset-col="'+c+'"]')){
+        cell.style.width=value+"px";cell.style.minWidth=value+"px";cell.style.maxWidth=value+"px";
+      }
+      table.querySelector('[data-dataset-col="'+c+'"] [role=separator]')?.setAttribute("aria-valuenow",String(value));
+    }
+    function columnHandle(cell,c,name) {
+      const handle=document.createElement("span");
+      handle.className="dataset-col-resize";handle.tabIndex=0;
+      handle.setAttribute("role","separator");handle.setAttribute("aria-orientation","vertical");
+      handle.setAttribute("aria-label","Largura de "+name);
+      handle.setAttribute("aria-valuemin","90");handle.setAttribute("aria-valuemax","640");
+      let start;
+      handle.addEventListener("pointerdown",event=>{
+        if(event.button!==0)return;
+        start=[event.clientX,cell.offsetWidth];
+        handle.setPointerCapture(event.pointerId);event.stopPropagation();handle.focus();
+      });
+      handle.addEventListener("pointermove",event=>{
+        if(handle.hasPointerCapture(event.pointerId))resizeColumn(c,start[1]+event.clientX-start[0]);
+      });
+      handle.addEventListener("keydown",event=>{
+        if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
+        event.preventDefault();event.stopPropagation();
+        resizeColumn(c,cell.offsetWidth+(event.key==="ArrowLeft"?-16:16));
+      });
+      cell.append(handle);
+    }
     function draw(result, preview=true) {
       const head=document.createElement("thead"),body=document.createElement("tbody");
       const headings=head.insertRow();
       const cell=(tr,value,tag,r,c)=>{
-        const el=document.createElement(tag);el.textContent=value ?? "";
+        const el=document.createElement(tag);el.textContent=value ?? (tag==="td"?"NULL":"");
         if(preview&&Number.isInteger(c)){
           el.dataset.datasetCol=String(c);
           if(tag==="td"){
@@ -72,13 +130,13 @@
             el.tabIndex=0;
             const kind=kindFor(r,c);
             const shown=window.OpenDocWorkbookTypes.show(value,kind);
-            el.textContent=shown.text;el.title=shown.valid?"Tipo: "+kind+" · original: "+String(value??""):
+            el.textContent=value===null?"NULL":shown.text;el.title=shown.valid?"Tipo: "+kind+" · original: "+String(value??""):
               "Valor incompatível com "+kind+" · original: "+String(value??"");
             if(!shown.valid)el.classList.add("dataset-type-error");
           }else{
             const kind=current.types?.columns?.[String(c)]||"auto";
             if(kind!=="auto"){el.classList.add("dataset-typed");el.title="Tipo de coluna: "+kind;}
-            el.tabIndex=0;
+            el.tabIndex=0;columnHandle(el,c,String(value));
           }
         }
         tr.append(el);return el;
@@ -90,22 +148,26 @@
         const line=body.insertRow();
         if(preview)cell(line,(row+index+1).toLocaleString("pt-BR"),"th");
         cells.forEach((value,c)=>{
-          cell(line,value??"NULL","td",preview?row+index+1:null,preview?column+c:null);
+          cell(line,value,"td",preview?row+index+1:null,preview?column+c:null);
         });
       });
-      table.replaceChildren(head,body);paintSelection();
+      table.replaceChildren(head,body);
+      if(preview)for(const [c,width] of widths)resizeColumn(c,width);
+      paintSelection();
     }
     async function showPage(nextRow=0,nextColumn=0) {
       if(!list.value){
-        current=null;table.replaceChildren();status.textContent="Importe um ou mais CSVs com cabeçalho para começar.";
+        current=null;notebook.activate([]);table.replaceChildren();status.textContent="Importe um ou mais CSVs com cabeçalho para começar.";
         return;
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
       if(current?.id!==result.id){
-        selected=null;anchor=null;conversion=null;
+        selected=null;anchor=null;conversion=null;widths.clear();
         output.textContent="";
         const schema=await request("dataset",{operation:"columns",id:result.id});
         sqlEditor.columns(schema.columns);
+        current=result;
+        notebook.activate(schema.columns);
       }
       current=result;row=nextRow;column=nextColumn;querying=false;lastQuery=null;
       rowInput.value=row+1;columnInput.value=column+1;
@@ -139,6 +201,7 @@
       status.textContent=result.added.toLocaleString("pt-BR")+" linhas acrescentadas. "+status.textContent;
     }
     async function executePython() {
+      pythonEditor.remember();
       output.textContent="";
       status.textContent="Aguardando confirmação para executar Python…";
       const result=await window.pywebview.api.run_dataset_python(list.value,pythonEditor.value());
@@ -150,6 +213,8 @@
         result.returncode===0 ? "Python concluído." : "Python terminou com código "+result.returncode+".";
     }
     async function executeQuery(){
+      sqlEditor.remember();
+      status.textContent="Executando SQL…";
       const result=await request("dataset",{operation:"query",id:list.value,sql:sqlEditor.value()});
       querying=true;lastQuery=result;
       draw(result,false);
@@ -283,7 +348,8 @@
       }
       container.append(scopes);
       for(const [kind,label] of typeNames){
-        const button=document.createElement("button");button.type="button";button.textContent=label;
+        const button=document.createElement("button");button.type="button";
+        button.append(icon(window.OpenDocWorkbookTypes.typeIcons[kind]),document.createTextNode(label));
         button.addEventListener("click",()=>{
           const data={operation:"type",id:list.value,scope,kind,column:scope==="selection"?origin[1]:c};
           if(scope==="cell")data.row=r;
@@ -309,7 +375,7 @@
       convertChoice.value=kindFor(r,c)==="auto"?"decimal":kindFor(r,c);
       convertLabel.append(convertChoice);container.append(convertLabel);
       const preview=document.createElement("button");
-      preview.type="button";preview.textContent="Prévia e conversão…";
+      preview.type="button";preview.append(icon("edit"),document.createTextNode("Prévia e conversão…"));
       preview.title="Analisar todos os valores antes de alterar. Não faz mudanças até confirmar.";
       preview.addEventListener("click",()=>{
         const kind=convertChoice.value,datasetId=list.value;
@@ -331,6 +397,9 @@
     table.addEventListener("click",event=>{
       const cell=event.target.closest("[data-dataset-cell]");
       if(cell&&!editing)selectCell(Number(cell.dataset.datasetRow),Number(cell.dataset.datasetCol),event.shiftKey);
+      const heading=event.target.closest("thead [data-dataset-col]");
+      if(heading&&!event.target.closest("[role=separator]")&&current?.rows.length)
+        selectCell(selected?.[0]??row+1,Number(heading.dataset.datasetCol));
     },{signal});
     table.addEventListener("dblclick",event=>{
       const cell=event.target.closest("[data-dataset-cell]");
@@ -347,6 +416,11 @@
       if(!cell&&!header)return;
       const r=cell?Number(cell.dataset.datasetRow):row+1;
       const c=Number((cell||header).dataset.datasetCol);
+      const step={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[event.key];
+      if(step&&cell){
+        const next=table.querySelector(`[data-dataset-row="${r+step[0]}"][data-dataset-col="${c+step[1]}"]`);
+        if(next){event.preventDefault();selectCell(r+step[0],c+step[1],event.shiftKey);next.focus();}
+      }
       if(event.key==="F2"&&cell){event.preventDefault();editCell(cell);}
       if(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")){
         event.preventDefault();showTypeMenu(event,{r,c,header:!!header});
@@ -361,10 +435,42 @@
     host.addEventListener("keydown",event=>{
       if(menu&&event.key==="Escape"){event.preventDefault();closeMenu();}
     },{signal});
+    async function queryFor(name) {
+      const cell=selected||[row+1,column];
+      const heading=table.querySelector('thead [data-dataset-col="'+cell[1]+'"]');
+      if(!heading)throw Error("Selecione uma coluna visível.");
+      const field='"'+heading.textContent.replace(/"/g,'""')+'"';
+      const sql={
+        "nulls":`SELECT * FROM dados WHERE ${field} IS NULL OR TRIM(${field}) = '' LIMIT 100`,
+        "distinct":`SELECT DISTINCT ${field} FROM dados LIMIT 100`,
+        "sort-asc":`SELECT * FROM dados ORDER BY ${field} ASC LIMIT 100`,
+        "sort-desc":`SELECT * FROM dados ORDER BY ${field} DESC LIMIT 100`,
+        "counts":`SELECT ${field}, COUNT(*) AS frequência FROM dados GROUP BY ${field} ORDER BY frequência DESC LIMIT 100`,
+      };
+      if(name==="filter"){
+        const element=table.querySelector(`[data-dataset-row="${cell[0]}"][data-dataset-col="${cell[1]}"]`);
+        if(!element)throw Error("Selecione uma célula visível para filtrar.");
+        const {literal}=await request("dataset",{operation:"filter-literal",id:list.value,row:cell[0],column:cell[1]});
+        sql.filter=`SELECT * FROM dados WHERE ${field} IS ${literal} LIMIT 100`;
+      }
+      sqlEditor.remember();
+      sqlEditor.replace(sql[name]);
+      showCode("sql");
+      return executeQuery();
+    }
     host.addEventListener("click",event=>{
-      const command=event.target.closest("[data-dataset-command]")?.dataset.datasetCommand;
+      const button=event.target.closest("[data-dataset-command]");
+      const command=button?.dataset.datasetCommand;
       if(command==="new" || command==="append")run(()=>ingest(command==="append"));
       if(command==="tools"){toolsOpen=!toolsOpen;showTools();}
+      if(command==="close-tools"){toolsOpen=false;showTools();host.querySelector("[data-ribbon-tab][aria-pressed=true]").focus();}
+      if(command==="show-sql"||command==="show-python")showCode(command.slice(5));
+      if(command==="types"){
+        const [r,c]=selected||[row+1,column],rect=button.getBoundingClientRect();
+        showTypeMenu({preventDefault(){},clientX:rect.left,clientY:rect.bottom},{r,c});
+      }
+      if(["sort-asc","sort-desc","nulls","distinct","filter","counts"].includes(command))
+        run(()=>queryFor(command));
       if(command==="python")run(executePython);
       if(command==="export")run(async()=>{
         const result=await window.pywebview.api.export_dataset(list.value,current.title);

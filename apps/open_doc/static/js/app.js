@@ -146,7 +146,7 @@
       for (const file of items) {
         const row = document.createElement('li'); row.className='library-row';
         row.dataset.fileFormat = notes ? String(file.source_kind || 'docx').toLowerCase() : String(file.type || file.name?.split('.').pop() || 'docx').toLowerCase();
-        const icon = document.createElement('span'); icon.className = 'library-file-icon'; icon.textContent = notes ? 'DOC' : file.type.toUpperCase();
+        const icon = document.createElement('span'); icon.className = 'library-file-icon'; icon.textContent = row.dataset.fileFormat.toUpperCase();
         const info = document.createElement('div'); info.className='library-file-main';
         const editable=notes || Boolean(file.capabilities?.open);
         const name = document.createElement(editable ? 'button' : 'span'); name.className='library-file-title'; name.textContent = notes ? file.title : file.name; name.title=name.textContent;
@@ -159,7 +159,7 @@
         const date = document.createElement('small'); date.className='library-file-meta';
         date.textContent = notes ? new Date(file.updated_at).toLocaleString('pt-BR') : editable ? 'Abrir como novo documento' : 'Arquivo importado · leitura ainda não disponível';
         info.append(name, date);
-        const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? (file.source_kind==='pptx'?'Apresentação local':file.source_kind==='pdf'?'PDF local':'Documento local') : file.type.toUpperCase();
+        const kind = document.createElement('span'); kind.className = 'library-file-kind'; kind.textContent = notes ? (file.source_kind==='pptx'?'Apresentação local':file.source_kind==='pdf'?'PDF local':file.source_kind==='xlsx'?'Planilha local':'Documento local') : file.type.toUpperCase();
         row.append(icon, info, kind);
         if(notes && file.source_kind !== 'xlsx'){const details=document.createElement('details'),summary=document.createElement('summary');details.className='library-file-actions';summary.textContent='⋯';summary.setAttribute('aria-haspopup','menu');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Ações de '+file.title);details.appendChild(summary);const menu=document.createElement('div');menu.className='document-action-menu';menu.setAttribute('role','menu');details.appendChild(menu);
           for(const [operation,label] of [['rename','Renomear'],['duplicate','Duplicar'],['delete','Excluir']]){const button=document.createElement('button');button.textContent=label;button.setAttribute('role','menuitem');if(operation==='delete'){button.className='danger-action';menu.appendChild(document.createElement('hr'));}button.addEventListener('click',()=>operate(async()=>{
@@ -271,11 +271,13 @@
   async function loadCodeEditors() {
     if (!window.OpenDocCodeVendor) await loadScript('vendor/code-editor.bundle.js');
     if (!window.OpenDocCodeEditor) await loadScript('code_editor.js');
+    if (!window.OpenDocCodeNotebook) await loadScript('code_notebook.js');
   }
   async function openDatasets() {
     await editor.flush();
     const host = root.querySelector('[data-dataset]');
     if (!datasets) {
+      if (!window.OpenDocGridWorkspace) await loadScript('grid_workspace.js');
       await loadCodeEditors();
       if (!window.OpenDocWorkbookPivot) await loadScript('workbook_pivot.js');
       if (!window.OpenDocWorkbookTypes) await loadScript('workbook_types.js');
@@ -294,6 +296,7 @@
     await editor.flush();
     const host = root.querySelector('[data-workbook]');
     if (!workbook) {
+      if (!window.OpenDocGridWorkspace) await loadScript('grid_workspace.js');
       if (!window.OpenDocWorkbookFormula) await loadScript('workbook_formula.js');
       if (!window.OpenDocWorkbookPivot) await loadScript('workbook_pivot.js');
       if (!window.OpenDocWorkbookPivotUI) await loadScript('workbook_pivot_ui.js');
@@ -426,6 +429,12 @@
     if (root.dataset.workbookView === 'true') {
       if (name === 'home') return leaveWorkbook();
       if (name === 'template-save') return operate(()=>saveTemplate(true));
+      if (name === 'workbook-new' || name === 'workbook-import') return operate(async()=>{
+        try {
+          await workbook.save();
+          await openWorkbook(name==='workbook-new'?{operation:'new'}:null);
+        } catch(error) { workbook.report(error.message); }
+      });
       if (name === 'save') return workbook.save().catch(error=>workbook.report(error.message));
       return;
     }
@@ -652,7 +661,7 @@
     }, {signal});
     window.addEventListener('keydown',event=>{
       if(!(event.ctrlKey||event.metaKey)||event.altKey||event.shiftKey||
-        event.key.toLowerCase()!=='s'||!root.querySelector('[data-dialog]').hidden)return;
+        event.key.toLowerCase()!=='s'||root.querySelector('[data-book-sidebar][open]')||!root.querySelector('[data-dialog]').hidden)return;
       event.preventDefault();
       event.stopPropagation();
       if(!event.repeat)action('save');

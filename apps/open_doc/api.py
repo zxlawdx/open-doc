@@ -294,8 +294,9 @@ def dataset(context=None):
             return store.page(data["id"], data["row"], data["column"])
         if data["operation"] == "columns":
             return {"columns": store.columns(data["id"])}
-        if data["operation"] == "cell":
-            return store.cell(data["id"], data["row"], data["column"])
+        if data["operation"] in {"cell", "filter-literal"}:
+            return store.cell(data["id"], data["row"], data["column"],
+                              for_query=data["operation"] == "filter-literal")
         if data["operation"] == "edit":
             return store.edit_cell(data["id"], data["row"], data["column"], data["value"])
         if data["operation"] == "type":

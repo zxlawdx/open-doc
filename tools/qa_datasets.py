@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from qa_docx_list import capture, wait
+from qa_workbook import capture_viewports
 
 import webview
 
@@ -47,7 +48,25 @@ def main():
                 window.evaluate_js("document.querySelector('[data-dataset-command=previous]').click()")
                 wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
                 assert "2 arquivos" in window.evaluate_js("document.querySelector('[data-dataset-status]').textContent")
-                capture(output, "append")
+                capture_viewports(window, output, "dataset")
+                window.evaluate_js("""(() => {
+                  const cell=document.querySelector('[data-dataset-cell][data-dataset-row="2"][data-dataset-col="2"]');
+                  cell.click();
+                  document.querySelector('[data-dataset] [data-ribbon-tab=filter]').click();
+                  document.querySelector('[data-dataset-command=filter]').click();
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='002'")
+                assert window.evaluate_js("document.querySelectorAll('[data-dataset-table] tbody tr').length===1")
+                window.evaluate_js("document.querySelector('[data-dataset-command=reset]').click()")
+                wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
+                window.evaluate_js("""(() => {
+                  const handle=document.querySelector('.dataset-col-resize');
+                  handle.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+                })()""")
+                assert window.evaluate_js("!!document.querySelector('.dataset-col-resize').getAttribute('aria-valuenow')")
+                window.evaluate_js("document.querySelector('[data-dataset-command=show-sql]').click()")
+                wait(window, "!document.querySelector('[data-dataset-tools]').hidden")
+                capture_viewports(window, output, "dataset-sql")
                 window.evaluate_js("""const editor=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-query] .cm-editor'));
                   editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:'SELECT COUNT(*) FROM dados'}});
                   document.querySelector('[data-dataset-command=query]').click();""")
@@ -150,6 +169,17 @@ def main():
                 })()""")
                 wait(window, "document.querySelector('[data-dataset-cell][data-dataset-row=\"1\"][data-dataset-col=\"0\"]')?.textContent==='009'")
                 capture(output, "conversion-undo")
+                js = window.evaluate_js
+                js("""(() => {
+                  const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
+                  notebook.querySelector('button[title="SQL"]').click();
+                  const cell=notebook.querySelector('[data-code-cell=sql]');
+                  const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+                  editor.dispatch({changes:{from:0,insert:'SELECT COUNT(*) FROM dados'}});
+                  cell.querySelector('button[title="Executar"]').click();
+                })()""")
+                wait(window, "Boolean(document.querySelector('[data-dataset] [data-code-cell=sql] td'))")
+                print("QT_DATASET_CODE_NOTEBOOK_OK", flush=True)
                 print("QT_DATASET_CONVERSION_PREVIEW_CONFIRM_UNDO_OK", flush=True)
                 window.evaluate_js("""(() => {
                   const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-query] .cm-editor'));
