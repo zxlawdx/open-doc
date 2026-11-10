@@ -67,20 +67,24 @@ jobs:
       - name: Verify portable and installed executables
         shell: pwsh
         env:
+          QT_QPA_PLATFORM: windows
+          QTWEBENGINE_DISABLE_SANDBOX: "1"
           QT_OPENGL: software
           QT_QUICK_BACKEND: software
-          QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
+          QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --disable-gpu
         run: |
           $version = $env:OPEN_DOC_BUILD_VERSION
           $portable = Join-Path $env:RUNNER_TEMP 'opendoc-portable'
           Expand-Archive "dist/release/Open-Doc-$version-Windows-x64-Portable.zip" $portable
           node tools/smoke_release.mjs "$portable/Open-Doc/Open-Doc.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $installed = Join-Path $env:RUNNER_TEMP 'opendoc-installed'
           $setup = "dist/release/Open-Doc-$version-Windows-x64-Setup.exe"
           $install = Start-Process $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$installed`"" -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Instalação falhou ($($install.ExitCode))." }
           node tools/smoke_release.mjs "$installed/Open-Doc.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $uninstall = Start-Process "$installed/unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "Desinstalação falhou ($($uninstall.ExitCode))." }
       - name: Write checksums
