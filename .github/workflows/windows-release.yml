@@ -17,6 +17,7 @@ on:
       - "tools/build_release_icon.py"
       - "tools/smoke_release.mjs"
       - "tools/stage_release_notices.py"
+      - "tools/build_linux_deb.py"
       - "requirements.txt"
       - "config/**"
 
@@ -148,7 +149,7 @@ jobs:
       - name: Install Linux runtime libraries
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0
+          sudo apt-get install -y desktop-file-utils xdg-utils libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0
       - name: Build and archive Linux package
         run: |
           python -m pip install -r requirements.txt 'vela-framework[build]' 'PyQt5-Qt5==5.15.2' 'PyQtWebEngine-Qt5==5.15.2'
@@ -173,6 +174,20 @@ jobs:
           "$bundle/Instalar.sh"
           test -f "$XDG_DATA_HOME/applications/Open-Doc.desktop"
           node tools/smoke_release.mjs "$XDG_DATA_HOME/vela-apps/Open-Doc/Open-Doc"
+      - name: Build Debian installer and smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/build_linux_deb.py --version "$OPEN_DOC_BUILD_VERSION"
+          package="dist/release/Open-Doc-${OPEN_DOC_BUILD_VERSION}-Linux-amd64.deb"
+          dpkg-deb --info "$package"
+          sudo apt-get install -y "./$package"
+          command -v open-doc
+          test -x /opt/open-doc/Open-Doc/Open-Doc
+          desktop-file-validate /usr/share/applications/open-doc.desktop
+          node tools/smoke_release.mjs /opt/open-doc/Open-Doc/Open-Doc
+          sudo dpkg --remove open-doc
+
       - uses: actions/upload-artifact@v4
         with:
           name: open-doc-linux-x64
