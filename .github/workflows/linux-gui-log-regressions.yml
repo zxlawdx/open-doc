@@ -1,0 +1,35 @@
+name: Linux GUI log regressions
+on:
+  pull_request:
+  push:
+    branches: [test/linux-rendering-matrix-20261110]
+  workflow_dispatch:
+jobs:
+  regression-ubuntu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run regression scenarios
+        run: |
+          mkdir -p artifacts
+          python3 -m unittest discover -s tests -p test_linux_gui_regressions.py -v 2>&1 | tee artifacts/regression.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-gui-regressions-ubuntu
+          path: artifacts/
+  regression-fedora:
+    runs-on: ubuntu-24.04
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python and run regression scenarios
+        run: |
+          dnf install -y python3
+          mkdir -p artifacts
+          python3 -m unittest discover -s tests -p test_linux_gui_regressions.py -v 2>&1 | tee artifacts/regression.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-gui-regressions-fedora
+          path: artifacts/
