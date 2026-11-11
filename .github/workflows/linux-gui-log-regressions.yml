@@ -43,7 +43,7 @@ jobs:
       - name: Install graphical runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libegl1 libgl1 libxkbcommon-x11-0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libasound2t64
+          sudo apt-get install -y xvfb libxcb-cursor0 libegl1 libgl1 libxkbcommon-x11-0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libasound2t64
           python3 -m pip install --break-system-packages "PyQt6>=6.8,<7" "PyQt6-WebEngine>=6.8,<7"
       - name: Launch QtWebEngine and capture real pixels
         env:
