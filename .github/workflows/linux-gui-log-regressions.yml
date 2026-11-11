@@ -33,3 +33,31 @@ jobs:
         with:
           name: linux-gui-regressions-fedora
           path: artifacts/
+
+  real-qt-render:
+    name: Real QtWebEngine / X11
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install graphical runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libegl1 libgl1 libxkbcommon-x11-0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libasound2t64
+          python3 -m pip install --break-system-packages "PyQt6>=6.8,<7" "PyQt6-WebEngine>=6.8,<7"
+      - name: Launch QtWebEngine and capture real pixels
+        env:
+          QT_QPA_PLATFORM: xcb
+          QTWEBENGINE_DISABLE_SANDBOX: "1"
+          QT_OPENGL: software
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          timeout 50s xvfb-run -a -s "-screen 0 1280x800x24" python3 tests/linux_qt_webengine_smoke.py 2>&1 | tee artifacts/qt-runtime.log
+      - name: Upload screenshot, result and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-qt-render-ubuntu-x11
+          path: artifacts/
