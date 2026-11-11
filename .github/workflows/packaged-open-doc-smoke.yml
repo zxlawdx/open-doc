@@ -12,13 +12,16 @@ jobs:
       - name: Install diagnostics
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xdotool imagemagick libegl1 libgl1 libxkbcommon-x11-0 libnss3 libasound2t64
+          sudo apt-get install -y xvfb xdotool imagemagick libxcb-cursor0 libegl1 libgl1 libxkbcommon-x11-0 libnss3 libasound2t64
       - name: Download release DEB
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p artifacts
-          gh release download v1.0.1 --repo zxlawdx/open-doc --pattern '*Linux-amd64.deb' --dir artifacts
+          release=$(gh release list --repo zxlawdx/open-doc --limit 30 --json tagName,isDraft --jq '[.[] | select(.isDraft == false) | .tagName][0] // empty')
+          if [ -z "$release" ]; then echo 'ERRO: nenhuma release publicada para testar o pacote Linux' >&2; exit 1; fi
+          echo "Verificando release: $release"
+          gh release download "$release" --repo zxlawdx/open-doc --pattern '*Linux-amd64.deb' --dir artifacts
           test "$(find artifacts -name '*Linux-amd64.deb' | wc -l)" -eq 1
           sha256sum artifacts/*Linux-amd64.deb | tee artifacts/package.sha256
       - name: Install and execute packaged Open Doc
