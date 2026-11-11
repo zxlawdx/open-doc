@@ -47,9 +47,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libxcb-xinerama0 libxcb-cursor0 libxcb-cursor0 libegl1 libgl1 libxkbcommon-x11-0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libasound2t64
-          python3 -m pip install --break-system-packages "PyQt6>=6.8,<7" "PyQt6-WebEngine>=6.8,<7"
+          python3 -m pip install --break-system-packages "PyQt5>=5.15.11,<6" "PyQtWebEngine>=5.15.7,<6" "qtpy>=2.4,<3"
       - name: Launch QtWebEngine and capture real pixels
         env:
+          QT_API: pyqt5
+          QT_DEBUG_PLUGINS: "1"
           QT_QPA_PLATFORM: xcb
           QTWEBENGINE_DISABLE_SANDBOX: "1"
           QT_OPENGL: software
