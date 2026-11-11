@@ -225,7 +225,10 @@ jobs:
             dnf install -y tar gzip xorg-x11-server-Xvfb libX11 libXext libXrender libXtst libXcomposite libXdamage libXrandr libXScrnSaver libxkbcommon-x11 xcb-util-cursor xcb-util-wm xcb-util-keysyms xcb-util-image xcb-util-renderutil mesa-libEGL mesa-libGL nss alsa-lib fontconfig
           else
             apt-get update
-            DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb libx11-6 libx11-xcb1 libxext6 libxrender1 libxtst6 libxcomposite1 libxdamage1 libxrandr2 libxss1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-shape0 libxcb-randr0 libxcb-xfixes0 libxcb-sync1 libxcb-shm0 libxcb-xkb1 libxcb-render0 libx11-xcb1 libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libxcb-xinerama0 libegl1 libgl1 libnss3 libasound2 libfontconfig1
+            . /etc/os-release
+            audio=libasound2
+            if [[ "$VERSION_ID" == 24.04 ]]; then audio=libasound2t64; fi
+            DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb libx11-6 libx11-xcb1 libxext6 libxrender1 libxtst6 libxcomposite1 libxdamage1 libxrandr2 libxss1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-shape0 libxcb-randr0 libxcb-xfixes0 libxcb-sync1 libxcb-shm0 libxcb-xkb1 libxcb-render0 libx11-xcb1 libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libxcb-xinerama0 libegl1 libgl1 libnss3 "$audio" libfontconfig1
           fi
       - uses: actions/setup-node@v4
         with:
