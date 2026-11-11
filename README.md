@@ -34,6 +34,7 @@ Baixe a versão para seu sistema na página de [Releases](https://github.com/zxl
 
 - **Windows x64.** Execute o instalador `Setup.exe` ou extraia o ZIP portátil inteiro e abra `Open-Doc.exe`.
 - **Ubuntu e Linux Mint x64.** Instale o arquivo `.deb` com `sudo apt install ./nome-do-arquivo.deb`. O arquivo `.tar.gz` contém a versão portátil e o instalador de atalho.
+- **Fedora x64.** Use o `.tar.gz`, extraia o pacote completo e execute `Open-Doc/Open-Doc` ou `Open-Doc/Instalar.sh`. O `.deb` é destinado a sistemas Debian/Ubuntu. O pacote portátil requer as bibliotecas gráficas do sistema (X11/XWayland, XCB, Mesa, NSS, ALSA e Fontconfig).
 
 ### Gerar uma release Windows e Linux x64
 
@@ -53,6 +54,8 @@ O workflow **Open Doc Windows and Linux packages** gera os seguintes downloads:
 Em **Actions**, execute o workflow manualmente para gerar artefatos de teste.
 Após integrar a versão desejada à `main`, envie uma tag `vMAJOR.MINOR.PATCH`
 para criar uma release com os pacotes dos dois sistemas e seus checksums SHA-256.
+A publicação exige o smoke test do executável em ambientes limpos Ubuntu 22.04, Ubuntu 24.04 e Fedora com X11. Isso não certifica todos os drivers e GPUs físicos.
+Em sessões Wayland com XWayland disponível, o runtime prefere `xcb`; uma escolha explícita de `QT_QPA_PLATFORM` é preservada.
 
 Para complementar uma release existente que só tenha Windows, execute o
 workflow pela `main` e preencha **linux_release_tag** com a tag da release.

@@ -1,0 +1,68 @@
+name: Linux GUI log regressions
+on:
+  pull_request:
+  push:
+    branches: [test/linux-rendering-matrix-20261110]
+  workflow_dispatch:
+jobs:
+  regression-ubuntu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run regression scenarios
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          python3 -m unittest discover -s tests -p test_linux_gui_regressions.py -v 2>&1 | tee artifacts/regression.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-gui-regressions-ubuntu
+          path: artifacts/
+  regression-fedora:
+    runs-on: ubuntu-24.04
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python and run regression scenarios
+        shell: bash
+        run: |
+          dnf install -y python3
+          mkdir -p artifacts
+          set -o pipefail
+          python3 -m unittest discover -s tests -p test_linux_gui_regressions.py -v 2>&1 | tee artifacts/regression.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-gui-regressions-fedora
+          path: artifacts/
+
+  real-qt-render:
+    name: Real QtWebEngine / X11
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install graphical runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libxcb-shape0 libxcb-randr0 libxcb-xfixes0 libxcb-sync1 libxcb-shm0 libxcb-xkb1 libxcb-render0 libx11-xcb1 libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libxcb-xinerama0 libxcb-cursor0 libxcb-cursor0 libegl1 libgl1 libxkbcommon-x11-0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libasound2t64
+          python3 -m pip install --break-system-packages "PyQt5>=5.15.11,<6" "PyQtWebEngine>=5.15.7,<6" "qtpy>=2.4,<3"
+      - name: Launch QtWebEngine and capture real pixels
+        env:
+          QT_API: pyqt5
+          QT_DEBUG_PLUGINS: "1"
+          QT_QPA_PLATFORM: xcb
+          QTWEBENGINE_DISABLE_SANDBOX: "1"
+          QT_OPENGL: software
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          timeout 50s xvfb-run -a -s "-screen 0 1280x800x24" python3 tests/linux_qt_webengine_smoke.py 2>&1 | tee artifacts/qt-runtime.log
+      - name: Upload screenshot, result and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-qt-render-ubuntu-x11
+          path: artifacts/
