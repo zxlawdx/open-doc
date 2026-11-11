@@ -11,10 +11,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-
 DEPENDENCIES = (
     "libc6 (>= 2.35), libx11-6, libx11-xcb1, libxext6, libxrender1, "
-    "libxtst6, libxkbcommon-x11-0, libxcb-xinerama0, libxcb-cursor0, "
+    "libxtst6, libxkbcommon-x11-0, libxcb-xinerama0, libxcb-cursor0, libxcb-icccm4, libxcb-keysyms1, libxcb-image0, libxcb-render-util0, "
     "libegl1, libgl1, libnss3, libasound2, libfontconfig1, xdg-utils"
 )
 
@@ -47,7 +46,9 @@ def build_deb(version: str, root: Path) -> Path:
     icon = root / "build" / "open-doc.png"
     license_file = root / "LICENSE"
     if not binary.is_file() or not icon.is_file() or not license_file.is_file():
-        raise FileNotFoundError("Binario Vela, icone ou LICENSE ausente antes de gerar DEB.")
+        raise FileNotFoundError(
+            "Binario Vela, icone ou LICENSE ausente antes de gerar DEB."
+        )
 
     release = root / "dist" / "release"
     release.mkdir(parents=True, exist_ok=True)

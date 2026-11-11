@@ -12,6 +12,7 @@ jobs:
       - name: Run regression scenarios
         run: |
           mkdir -p artifacts
+          set -o pipefail
           python3 -m unittest discover -s tests -p test_linux_gui_regressions.py -v 2>&1 | tee artifacts/regression.log
       - uses: actions/upload-artifact@v4
         if: always()
@@ -24,9 +25,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Python and run regression scenarios
+        shell: bash
         run: |
           dnf install -y python3
           mkdir -p artifacts
+          set -o pipefail
           python3 -m unittest discover -s tests -p test_linux_gui_regressions.py -v 2>&1 | tee artifacts/regression.log
       - uses: actions/upload-artifact@v4
         if: always()
@@ -43,7 +46,7 @@ jobs:
       - name: Install graphical runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libxcb-cursor0 libegl1 libgl1 libxkbcommon-x11-0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libasound2t64
+          sudo apt-get install -y xvfb libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libxcb-xinerama0 libxcb-cursor0 libxcb-cursor0 libegl1 libgl1 libxkbcommon-x11-0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libasound2t64
           python3 -m pip install --break-system-packages "PyQt6>=6.8,<7" "PyQt6-WebEngine>=6.8,<7"
       - name: Launch QtWebEngine and capture real pixels
         env:
