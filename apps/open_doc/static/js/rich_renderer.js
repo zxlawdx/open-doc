@@ -107,8 +107,18 @@
   }
   function render(model,surface,mediaRequest){renderNodes(model,surface,mediaRequest);}
   function patch(model,surface,ids,mediaRequest){
-    for(const id of ids){const block=model.blocks.find(b=>b.id===id);if(!block)continue;
-      const nodes=Array.from(surface.querySelectorAll('[data-node-id]')).filter(n=>n.dataset.nodeId===id || n.dataset.fragmentOf===id);
+    if(!ids.length)return;
+    const wanted=new Set(ids), blocks=new Map(model.blocks.map(block=>[block.id,block])), fragments=new Map();
+    for(const node of surface.querySelectorAll('[data-node-id]')){
+      const own=node.dataset.nodeId, fragment=node.dataset.fragmentOf;
+      for(const id of own===fragment?[own]:[own,fragment]){
+        if(!wanted.has(id))continue;
+        if(!fragments.has(id))fragments.set(id,[]);
+        fragments.get(id).push(node);
+      }
+    }
+    for(const id of ids){const block=blocks.get(id);if(!block)continue;
+      const nodes=fragments.get(id) || [];
       if(!nodes.length)continue;const temporary=document.createElement('div');renderNodes({...model,blocks:[block]},temporary,mediaRequest);
       for(const image of Array.from(temporary.querySelectorAll('img[data-node-id]'))){const oldImage=nodes.flatMap(n=>Array.from(n.querySelectorAll('img[data-node-id]'))).find(n=>n.dataset.nodeId===image.dataset.nodeId);if(oldImage)image.replaceWith(oldImage);}
       const oldMarker=nodes[0].querySelector('[data-list-marker]'),newMarker=temporary.querySelector('[data-list-marker]');if(oldMarker && newMarker)newMarker.textContent=oldMarker.textContent;
@@ -118,18 +128,35 @@
   function reconcile(before,after,surface,mediaRequest){
     const listStructure=blocks=>blocks.filter(b=>b.list_info).map(b=>[b.id,b.list_info]);
     if(JSON.stringify(listStructure(before?.blocks||[]))!==JSON.stringify(listStructure(after.blocks)))return false;
-    const oldIds=(before?.blocks || []).map(b=>b.id),newIds=after.blocks.map(b=>b.id),shared=oldIds.filter(id=>newIds.includes(id));
-    if(JSON.stringify(shared)!==JSON.stringify(newIds.filter(id=>oldIds.includes(id))))return false;
-    const removed=oldIds.filter(id=>!newIds.includes(id));
-    for(const node of surface.querySelectorAll('[data-node-id]'))if(removed.includes(node.dataset.nodeId) || removed.includes(node.dataset.fragmentOf))node.remove();
-    const changed=after.blocks.filter(b=>oldIds.includes(b.id) && JSON.stringify(b)!==JSON.stringify(before.blocks.find(v=>v.id===b.id))).map(b=>b.id);
+    const oldBlocks=new Map((before?.blocks || []).map(block=>[block.id,block]));
+    const newIds=new Set(after.blocks.map(block=>block.id));
+    const shared=[...oldBlocks.keys()].filter(id=>newIds.has(id));
+    const ordered=after.blocks.filter(block=>oldBlocks.has(block.id));
+    if(shared.some((id,index)=>id!==ordered[index].id))return false;
+    const removed=new Set([...oldBlocks.keys()].filter(id=>!newIds.has(id)));
+    if(removed.size)for(const node of surface.querySelectorAll('[data-node-id]'))
+      if(removed.has(node.dataset.nodeId) || removed.has(node.dataset.fragmentOf))node.remove();
+    const changed=ordered.filter(block=>{
+      const previous=oldBlocks.get(block.id);
+      return block!==previous && JSON.stringify(block)!==JSON.stringify(previous);
+    }).map(block=>block.id);
     patch(after,surface,changed,mediaRequest);
-    for(let i=0;i<after.blocks.length;i++){const block=after.blocks[i];if(oldIds.includes(block.id))continue;
+    if(after.blocks.length===ordered.length)return true;
+    // Index the remaining nodes once, then insert backwards using the next
+    // existing anchor. Avoid repeated full DOM scans for each new paragraph.
+    const nodes=new Map();
+    for(const node of surface.querySelectorAll('[data-node-id]'))
+      if(!nodes.has(node.dataset.nodeId))nodes.set(node.dataset.nodeId,node);
+    const fallback=Array.from(surface.querySelectorAll('[data-page-content]')).pop() || surface;
+    let next=null;
+    for(let i=after.blocks.length-1;i>=0;i--){
+      const block=after.blocks[i];
+      if(oldBlocks.has(block.id)){next=nodes.get(block.id) || next;continue;}
       const temp=document.createElement('div');renderNodes({...after,blocks:[block]},temp,mediaRequest);
-      const next=after.blocks.slice(i+1).map(b=>Array.from(surface.querySelectorAll('[data-node-id]')).find(n=>n.dataset.nodeId===b.id)).find(Boolean);
-      const container=next?.parentNode || Array.from(surface.querySelectorAll('[data-page-content]')).pop() || surface;
+      const container=next?.parentNode || fallback;
       if(!container.matches('[data-page-content],[data-rich],ul,ol'))return false;
-      container.insertBefore(temp.firstChild,next || null);
+      const added=temp.firstChild;
+      container.insertBefore(added,next); next=added;
     }
     return true;
   }

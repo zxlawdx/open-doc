@@ -354,3 +354,36 @@ test('model-first backspace joins paragraphs without editing page wrappers',t=>{
  assert.equal(op.model.blocks[0].children[0].text,'Importado');
  assert.equal(previous.blocks.length,2,'transaction must not mutate original state');
 });
+
+test('explicit save supersedes pending local and SQLite recovery snapshots', async t => {
+  let release;
+  const {window,editor,input,calls}=setup(t,{request:async(route,data)=>{
+    calls.push({route,data});
+    if(route==='document/save')await new Promise(resolve=>{release=resolve;});
+    return {...data,revision:data.revision+1};
+  }});
+  let localWrites=0;window.OpenDocRecovery.write=()=>localWrites++;
+  input('Cálculos com caneta');
+  const saving=editor.flush();
+  while(!release)await new Promise(resolve=>setTimeout(resolve,0));
+  await new Promise(resolve=>setTimeout(resolve,750));
+  assert.equal(localWrites,0,'do not encode the same model while its save is pending');
+  assert.deepEqual(calls.map(call=>call.route),['document/save']);
+  release();await saving;assert.equal(editor.isClean(),true);
+});
+
+test('failed save restores local and SQLite recovery scheduling', async t => {
+  const calls=[];
+  const {window,editor,input}=setup(t,{request:async(route,data)=>{
+    calls.push({route,data});
+    if(route==='document/save')throw Error('Disco indisponível');
+    return {saved:true};
+  }});
+  let cached;window.OpenDocRecovery.write=value=>{cached=value;};
+  input('Cálculo preservado');
+  await assert.rejects(editor.flush(),/Disco indisponível/);
+  await new Promise(resolve=>setTimeout(resolve,750));
+  assert.equal(cached.markdown,'Cálculo preservado');
+  assert.equal(calls[1].route,'document/recovery');
+  assert.equal(calls[1].data.markdown,'Cálculo preservado');
+});

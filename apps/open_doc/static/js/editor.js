@@ -298,25 +298,28 @@
 
     function flush() {
       finishLogicalTransaction();
+      clearTimeout(cacheTimer); clearTimeout(recoveryTimer);
       if(suspended)return Promise.resolve();
       return enqueue(async () => {
         if (isClean()) return documentState;
         let result;
         while (!isClean()) {
+        clearTimeout(cacheTimer); clearTimeout(recoveryTimer);
         const snapshot = buffer();
-        cache();
         status("Salvando…");
         root.dataset.saving = "true";
         try {
           result = await request("document/save", snapshot);
           documentState.revision = result.revision;
           saved = snapshot;
-          cache();
+          window.OpenDocRecovery.clear(snapshot.id);
+          if (!isClean()) cache();
           render();
           if (!isClean()) scheduleRecovery();
           status(isClean() ? "Salvo no dispositivo" : "Alterações não salvas");
         } catch (error) {
           root.querySelector("[data-conflict]").hidden = !error.conflict;
+          cache(); scheduleRecovery();
           status(error.message);
           throw error;
         } finally {

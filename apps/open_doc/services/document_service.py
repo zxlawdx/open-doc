@@ -132,7 +132,7 @@ class Editor:
 
         for item in (document, document["recovery"]):
             if item and item.get("content_json"):
-                item["content"] = load_document(item["content_json"])
+                item["content"] = load_document(item.pop("content_json"))
         return document
 
     def stash_recovery(
