@@ -28,7 +28,17 @@ def main():
     native_start = webview.start
 
     def exercise():
-        from PyQt5.QtCore import QObject, QPoint, Qt, QTimer, pyqtSignal, pyqtSlot
+        from PyQt5.QtCore import (
+            QObject,
+            QPoint,
+            QPointF,
+            QEvent,
+            Qt,
+            QTimer,
+            pyqtSignal,
+            pyqtSlot,
+        )
+        from PyQt5.QtGui import QMouseEvent
         from PyQt5.QtTest import QTest
         from PyQt5.QtWidgets import (
             QApplication,
@@ -62,7 +72,20 @@ def main():
                                 round(a[0] + (b[0] - a[0]) * step / 8),
                                 round(a[1] + (b[1] - a[1]) * step / 8),
                             )
-                            QTest.mouseMove(target, point, delay=25)
+                            # Offscreen Qt has no system cursor for QTest.mouseMove.
+                            # Send a native Qt motion event with the held button,
+                            # through the same WebEngine widget event path.
+                            QApplication.sendEvent(
+                                target,
+                                QMouseEvent(
+                                    QEvent.MouseMove,
+                                    QPointF(point),
+                                    Qt.NoButton,
+                                    Qt.LeftButton,
+                                    Qt.NoModifier,
+                                ),
+                            )
+                            QTest.qWait(25)
                         QTest.mouseRelease(target, Qt.LeftButton, pos=QPoint(*b))
                         QTest.qWait(200)
                     elif action == "click":

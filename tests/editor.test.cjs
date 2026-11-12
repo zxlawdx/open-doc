@@ -371,3 +371,19 @@ test('explicit save supersedes pending local and SQLite recovery snapshots', asy
   assert.deepEqual(calls.map(call=>call.route),['document/save']);
   release();await saving;assert.equal(editor.isClean(),true);
 });
+
+test('failed save restores local and SQLite recovery scheduling', async t => {
+  const calls=[];
+  const {window,editor,input}=setup(t,{request:async(route,data)=>{
+    calls.push({route,data});
+    if(route==='document/save')throw Error('Disco indisponível');
+    return {saved:true};
+  }});
+  let cached;window.OpenDocRecovery.write=value=>{cached=value;};
+  input('Cálculo preservado');
+  await assert.rejects(editor.flush(),/Disco indisponível/);
+  await new Promise(resolve=>setTimeout(resolve,750));
+  assert.equal(cached.markdown,'Cálculo preservado');
+  assert.equal(calls[1].route,'document/recovery');
+  assert.equal(calls[1].data.markdown,'Cálculo preservado');
+});

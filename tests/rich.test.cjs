@@ -901,3 +901,19 @@ test('native insertion inside a text run updates only that run and falls back on
  assert.equal(serializations,1);
  assert.equal(q.editor.snapshot().content.blocks[0].children[0].text,'Texto selecionado á\u00a0Y');
 });
+
+test('large document reconciliation preserves node identity and ordered inserts/removals',async t=>{
+ const s=await setup(t),renderer=s.w.OpenDocRichRenderer;
+ const paragraph=id=>({id,type:'paragraph',children:[{id:'text-'+id,type:'text',text:id}]});
+ const before={...s.w.OpenDocModel.empty(),blocks:Array.from({length:1500},(_,i)=>paragraph('paragraph-'+i))};
+ const surface=s.w.document.createElement('div');surface.dataset.rich='';
+ renderer.render(before,surface);
+ const preserved=surface.querySelector('[data-node-id=paragraph-1000]');
+ const after={...before,blocks:[paragraph('first'),...before.blocks.slice(1,750),paragraph('middle-a'),paragraph('middle-b'),...before.blocks.slice(750),paragraph('last')]};
+ assert.equal(renderer.reconcile(before,after,surface),true);
+ assert.deepEqual(Array.from(surface.children,node=>node.dataset.nodeId),after.blocks.map(block=>block.id));
+ assert.equal(surface.querySelector('[data-node-id=paragraph-1000]'),preserved);
+ assert.equal(surface.querySelector('[data-node-id=paragraph-0]'),null);
+ const reordered={...after,blocks:after.blocks.slice().reverse()};
+ assert.equal(renderer.reconcile(after,reordered,surface),false,'reordered existing blocks require the full-render fallback');
+});

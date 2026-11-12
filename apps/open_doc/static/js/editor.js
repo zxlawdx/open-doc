@@ -312,12 +312,14 @@
           result = await request("document/save", snapshot);
           documentState.revision = result.revision;
           saved = snapshot;
-          cache();
+          window.OpenDocRecovery.clear(snapshot.id);
+          if (!isClean()) cache();
           render();
           if (!isClean()) scheduleRecovery();
           status(isClean() ? "Salvo no dispositivo" : "Alterações não salvas");
         } catch (error) {
           root.querySelector("[data-conflict]").hidden = !error.conflict;
+          cache(); scheduleRecovery();
           status(error.message);
           throw error;
         } finally {
