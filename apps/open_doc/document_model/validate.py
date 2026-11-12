@@ -44,10 +44,14 @@ HIGHLIGHTS = {
 }
 
 
-def validate_rich_document(model):
+def validate_rich_document(model, *, return_encoded=False):
     if not isinstance(model, dict) or model.get("version") != VERSION:
         raise ValueError("Modelo de documento inválido.")
-    encoded = json.dumps(model, ensure_ascii=False, allow_nan=False)
+    # Validate the exact canonical bytes that will be persisted. Reuse this
+    # encoding on save instead of encoding every pen point a second time.
+    encoded = json.dumps(
+        model, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+    )
     if len(encoded.encode()) > MAX_MODEL_JSON_BYTES:
         raise ValueError("Modelo ultrapassa 16 MB.")
     ids = set()
@@ -152,12 +156,22 @@ def validate_rich_document(model):
                 ):
                     raise ValueError("Nível de lista inválido.")
             elif kind == "table":
-                spacing=obj.get("cell_spacing_pt")
-                if spacing is not None and (type(spacing) not in (int,float)
-                    or not math.isfinite(spacing) or not 0 <= spacing <= 36):
-                    raise ValueError("Espaçamento das células deve estar entre 0 e 36 pt.")
-                preset=obj.get("style_preset")
-                if preset is not None and preset not in ("grid","header","matrix","plain"):
+                spacing = obj.get("cell_spacing_pt")
+                if spacing is not None and (
+                    type(spacing) not in (int, float)
+                    or not math.isfinite(spacing)
+                    or not 0 <= spacing <= 36
+                ):
+                    raise ValueError(
+                        "Espaçamento das células deve estar entre 0 e 36 pt."
+                    )
+                preset = obj.get("style_preset")
+                if preset is not None and preset not in (
+                    "grid",
+                    "header",
+                    "matrix",
+                    "plain",
+                ):
                     raise ValueError("Modelo de tabela inválido.")
                 if not isinstance(obj.get("rows"), list):
                     raise ValueError("Tabela inválida.")
@@ -185,10 +199,17 @@ def validate_rich_document(model):
                     raise ValueError("Link inválido.")
                 nodes(obj.get("children"), False, depth + 1)
             elif kind == "image":
-                if not isinstance(model.get('media', {}), dict) or obj.get('media_id') not in model.get('media', {}):
-                    raise ValueError('Referência de imagem ausente no catálogo de mídia.')
-                if 'geometry_edited' in obj and type(obj['geometry_edited']) is not bool:
-                    raise ValueError('Estado de edição de imagem inválido.')
+                if not isinstance(model.get("media", {}), dict) or obj.get(
+                    "media_id"
+                ) not in model.get("media", {}):
+                    raise ValueError(
+                        "Referência de imagem ausente no catálogo de mídia."
+                    )
+                if (
+                    "geometry_edited" in obj
+                    and type(obj["geometry_edited"]) is not bool
+                ):
+                    raise ValueError("Estado de edição de imagem inválido.")
                 if not re.fullmatch("[a-f0-9]{64}", obj.get("media_id", "")):
                     raise ValueError("Imagem inválida.")
                 if obj.get("placement", "inline") not in ("inline", "floating"):
@@ -237,4 +258,4 @@ def validate_rich_document(model):
     from ..ink.validation import validate_layers
 
     validate_layers(model.get("ink_layers", []))
-    return model
+    return encoded if return_encoded else model

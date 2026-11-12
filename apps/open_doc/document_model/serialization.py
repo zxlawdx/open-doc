@@ -5,9 +5,7 @@ from apps.open_doc.document_model.validate import validate_rich_document
 
 
 def serialize_document(model):
-    return json.dumps(
-        validate_rich_document(model), ensure_ascii=False, separators=(",", ":")
-    )
+    return validate_rich_document(model, return_encoded=True)
 
 
 def load_document(value):
@@ -32,7 +30,15 @@ def rich_to_markdown(model):
         if kind == "fraction":
             return "(" + value("numerator") + ")/(" + value("denominator") + ")"
         if kind == "nary":
-            return part["operator"] + "_(" + value("lower") + ")^(" + value("upper") + ")" + value("body")
+            return (
+                part["operator"]
+                + "_("
+                + value("lower")
+                + ")^("
+                + value("upper")
+                + ")"
+                + value("body")
+            )
         if kind == "superscript":
             return value("base") + "^(" + value("power") + ")"
         if kind == "subscript":
@@ -44,8 +50,13 @@ def rich_to_markdown(model):
         if kind == "limit":
             return value("base") + "_(" + value("lower") + ")"
         if kind == "matrix":
-            return "[" + "; ".join(", ".join(math_value(cell) for cell in row)
-                                    for row in part["rows"]) + "]"
+            return (
+                "["
+                + "; ".join(
+                    ", ".join(math_value(cell) for cell in row) for row in part["rows"]
+                )
+                + "]"
+            )
         return ""
 
     def inline(values):
