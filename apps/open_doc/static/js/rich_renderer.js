@@ -29,6 +29,13 @@
     if(style.page_break_before)s.breakBefore='page';
   }
   function applyBorders(e,values){for(const side of ['top','right','bottom','left']){const b=values && values[side];if(!b)continue;const css='border'+side[0].toUpperCase()+side.slice(1);if(['none','nil'].includes(b.style)){e.style[css]='none';continue;}e.style[css]=Math.max(0,Math.min(20,Number(b.size_pt) || .5))+'pt '+({double:'double',dotted:'dotted',dashed:'dashed',dashSmallGap:'dashed'}[b.style] || 'solid')+' '+(color(b.color)||'#666');}}
+  function imageGeometry(element,node){
+    element.dataset.imageNode=JSON.stringify(node);
+    element.style.width=(node.width_pt||72)+'pt';element.style.height=(node.height_pt||72)+'pt';
+    const floating=node.placement==='floating'&&Number.isFinite(node.x_pt)&&Number.isFinite(node.y_pt);
+    element.style.position=floating?'absolute':'relative';
+    element.style.left=floating?node.x_pt+'pt':'';element.style.top=floating?node.y_pt+'pt':'';
+  }
   function renderNodes(model,surface,mediaRequest){surface.replaceChildren();const counters={};
     function label(value,format){if(format==='bullet')return '•';if(['lowerLetter','upperLetter'].includes(format)){let out='';while(value>0){value--;out=String.fromCharCode(97+value%26)+out;value=Math.floor(value/26);}return format==='upperLetter'?out.toUpperCase():out;}if(['lowerRoman','upperRoman'].includes(format)){let out='';for(const [n,s] of [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']])while(value>=n){out+=s;value-=n;}return format==='lowerRoman'?out.toLowerCase():out;}return String(value);}
     function build(n){const kind=n.type;let e;
@@ -50,7 +57,22 @@
       else if(kind==='hyperlink'){e=document.createElement('a');if(/^(https?:\/\/|mailto:|#)/i.test(n.href))e.href=n.href;n.children.forEach(c=>e.appendChild(build(c)));}
       else if(kind==='tab'){e=document.createElement('span');e.contentEditable='false';e.textContent='\t';e.style.whiteSpace='pre';}
       else if(kind==='break'){e=document.createElement('br');if(n.break_type==='page'){e=document.createElement('span');e.textContent='— Quebra de página —';e.contentEditable='false';e.className='rich-page-break';}}
-      else if(kind==='image'){e=document.createElement('img');e.alt=n.alt_text || '';e.draggable=false;if(n.width_pt>0 && n.width_pt<5000)e.style.width=n.width_pt+'pt';if(n.height_pt>0 && n.height_pt<5000)e.style.height=n.height_pt+'pt';e.style.maxWidth='100%';if(mediaRequest)mediaRequest(n.media_id).then(url=>{if(e.isConnected && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(url))e.src=url;}).catch(()=>{e.alt='Imagem preservada; preview indisponível';});}
+      else if(kind==='image'){
+        e=document.createElement('span');e.className='rich-image';e.contentEditable='false';
+        e.tabIndex=0;e.setAttribute('role','group');
+        e.setAttribute('aria-label',(n.alt_text||'Imagem')+'. Arraste para mover; setas movem, Alt+setas redimensionam, Delete exclui.');
+        e.title='Arraste para mover, inclusive entre páginas. Setas movem; Alt+setas redimensionam; Shift aumenta o passo; Delete exclui.';
+        e.dataset.imageNode=JSON.stringify(n);
+        const picture=document.createElement('img');picture.alt=n.alt_text||'';picture.draggable=false;
+        picture.style.width='100%';picture.style.height='100%';picture.style.display='block';
+        e.appendChild(picture);
+        imageGeometry(e,n);
+        const handle=document.createElement('span');handle.dataset.imageResize='';
+        handle.className='rich-image-resize';handle.setAttribute('aria-hidden','true');e.appendChild(handle);
+        if(mediaRequest)mediaRequest(n.media_id).then(url=>{
+          if(e.isConnected && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(url))picture.src=url;
+        }).catch(()=>{picture.alt='Imagem preservada; preview indisponível';});
+      }
       else if(kind==='table'){e=document.createElement('table');applyBorders(e,n.borders);
         if(n.style_preset)e.dataset.tablePreset=n.style_preset;
         if(Number.isFinite(n.cell_spacing_pt)){
@@ -111,5 +133,5 @@
     }
     return true;
   }
-  window.OpenDocRichRenderer={render,patch,reconcile,textStyle,paragraphStyle,color};
+  window.OpenDocRichRenderer={imageGeometry,render,patch,reconcile,textStyle,paragraphStyle,color};
 })();

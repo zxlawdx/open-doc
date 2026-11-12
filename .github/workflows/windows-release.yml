@@ -16,6 +16,7 @@ on:
       - "assets/branding/**"
       - "tools/build_release_icon.py"
       - "tools/smoke_release.mjs"
+      - "apps/open_doc/document_model/images.py"
       - "tools/stage_release_notices.py"
       - "tools/build_linux_deb.py"
       - "requirements.txt"

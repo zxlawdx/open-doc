@@ -32,6 +32,11 @@
         }catch{throw Error('Objeto matemático inválido na edição.');}
         continue;
       }
+      if(kind==='image'){
+        let value=old;
+        if(c.dataset.imageNode){value={...old,...JSON.parse(c.dataset.imageNode)};}
+        out.push({...value,id:identity(c),type:'image'});continue;
+      }
       if(['opaque-ooxml','image','note-reference','field','tab','break'].includes(kind) && old.type){out.push({...M.clone(old),id:identity(c)});continue;}
       if(kind==='tab' && c.textContent==='\t'){out.push({id:identity(c),type:'tab'});continue;}
       if(c.tagName==='BR'){if(parent.childNodes.length>1)out.push({id:identity(c),type:'break',break_type:'line'});continue;}

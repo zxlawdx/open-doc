@@ -470,6 +470,28 @@
         if(!window.OpenDocEquationAssistant)await loadScript('equation_assistant.js');
         return window.OpenDocEquationAssistant.EquationAssistant.open({dialog,root,editor,status});
       },
+      'image-insert':()=>{
+        if(root.dataset.documentKind==='fixed')return status('Abra um documento de texto para inserir uma imagem.');
+        editor.capture();
+        const imageDocumentId=editor.snapshot().id;
+        let input=root.querySelector('[data-docx-image-input]');
+        if(!input){input=document.createElement('input');input.type='file';input.hidden=true;
+          input.accept='image/png,image/jpeg,image/webp';input.dataset.docxImageInput='';root.appendChild(input);}
+        input.value='';
+        input.onchange=async()=>{
+          const file=input.files?.[0];if(!file)return;
+          try{
+            status('Inserindo imagem…');
+            if(file.size>4*1024*1024)throw Error('A imagem deve ter no máximo 4 MB.');
+            const data=await new Promise((resolve,reject)=>{const reader=new FileReader();
+              reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler a imagem.'));
+              reader.readAsDataURL(file);});
+            if(editor.snapshot().id!==imageDocumentId)return status('O documento mudou; insira a imagem novamente.');
+            await editor.insertImage(data,file.name);
+          }catch(error){status(error.message);}
+        };
+        input.click();
+      },
       'table-insert':()=>root.dataset.documentKind==='fixed'
         ? editor.insertTable() : tableDialog(),
 

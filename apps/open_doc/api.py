@@ -134,6 +134,11 @@ def recovery_document(context=None):
     return _handle(lambda: _documents().recover(_data(context)))
 
 
+@api.post("/open_doc/document/image-asset")
+def document_image_asset(context=None):
+    return _handle(lambda: _documents().insert_image_asset(_data(context)))
+
+
 @api.post("/open_doc/document/media")
 def document_media(context=None):
     return _handle(

@@ -86,6 +86,9 @@ class ImageRun:
     alt_text: str = ""
     placement: Literal["inline", "floating"] = "inline"
     raw_anchor_xml: str | None = None
+    x_pt: float | None = None
+    y_pt: float | None = None
+    geometry_edited: bool = False
 
 
 @dataclass(slots=True)
