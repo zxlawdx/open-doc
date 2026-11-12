@@ -11,6 +11,8 @@ from docx import Document
 from docx.shared import Pt
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from apps.open_doc.services.container import services
 from apps.open_doc.services.preferences_service import Config
 from config.wsgi import create_app
