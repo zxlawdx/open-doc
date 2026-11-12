@@ -99,6 +99,7 @@ function Dt(e) {`);
     r.appendChild(o);
   }
   const c = document.createElement("span");`);
+  replace('return e.runs.length === 0 && !e.bullet && (c.innerHTML = "&nbsp;"), r.appendChild(c), r;', 'return !c.textContent && !e.bullet && ((c.firstElementChild || c).textContent = "\\u00a0"), r.appendChild(c), r;');
   replace('l && l !== "noStrike" && (r.strikethrough = !0);','l && (r.strikethrough = l !== "noStrike");');
   replace('    index: t,\n    background: A,','    index: t,\n    showMasterShapes: m(o, "showMasterSp") !== "0",\n    background: A,');
   replace('if (i.appendChild(o), r && (n == null ? void 0 : n.showMasterShapes) !== !1)', 'if (i.appendChild(o), r && e.showMasterShapes !== false && (n == null ? void 0 : n.showMasterShapes) !== !1)');

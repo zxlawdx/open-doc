@@ -87,3 +87,11 @@ test('numbered bullets inherit visible text styling and respect explicit restart
  assert.deepEqual(bullets.map(n=>n.textContent),['1.','2.','1.']);
  for(const bullet of bullets){assert.equal(bullet.style.color,'rgb(255, 255, 255)');assert.equal(bullet.style.fontSize,'40px');}
 });
+
+test('empty paragraphs retain a visible line and their end-paragraph font size',async t=>{
+ const {w,presentation}=await load(t,deck('<a:p><a:endParaRPr sz="2400"/></a:p>'));
+ w.OpenDocPptxVendor.renderSlideToElement(presentation,0,w.document.querySelector('#slide'),{width:960,height:540});
+ const paragraph=w.document.querySelector('p');
+ assert.equal(paragraph.textContent,'\u00a0');
+ assert.equal(paragraph.querySelector('[style*="font-size"]').style.fontSize,'32px');
+});
