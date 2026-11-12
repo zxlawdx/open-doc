@@ -3,6 +3,7 @@ name: Open Doc Windows and Linux packages
 on:
   push:
     tags: ["v*"]
+    branches: ["release/rebuild-v1.0.1"]
   workflow_dispatch:
     inputs:
       linux_release_tag:
@@ -16,6 +17,9 @@ on:
       - "assets/branding/**"
       - "tools/build_release_icon.py"
       - "tools/smoke_release.mjs"
+      - "tools/pptx_compat_fixture.mjs"
+      - "tools/build_vendor_js.mjs"
+      - "apps/open_doc/static/js/vendor/pptx.bundle.js"
       - "apps/open_doc/document_model/images.py"
       - "apps/open_doc/document_model/serialization.py"
       - "apps/open_doc/document_model/validate.py"
@@ -257,7 +261,7 @@ jobs:
           path: artifacts/
 
   publish:
-    if: github.event_name == 'push' && github.ref_type == 'tag'
+    if: github.event_name == 'push' && (github.ref_type == 'tag' || github.ref_name == 'release/rebuild-v1.0.1')
     needs: [windows-x64, linux-x64, linux-clean-runtime]
     runs-on: ubuntu-latest
     permissions:
@@ -271,13 +275,36 @@ jobs:
         with:
           name: open-doc-linux-x64
           path: packages
+      # All packages and clean-distribution checks pass before replacing v1.0.1.
+      - name: Replace v1.0.1 after package validation
+        if: github.ref_name == 'release/rebuild-v1.0.1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test -f packages/Open-Doc-1.0.1-Windows-x64-Setup.exe
+          test -f packages/Open-Doc-1.0.1-Linux-x64.tar.gz
+          test -f packages/Open-Doc-1.0.1-Linux-amd64.deb
+          # Only the explicitly requested tag is replaced, after successful builds.
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[] | select(.tag_name == "v1.0.1") | .id' | while read -r id; do
+            gh api --method DELETE "repos/$GH_REPO/releases/$id"
+          done
+          tag_sha=$(gh api --method POST "repos/$GH_REPO/git/tags" -f tag=v1.0.1 -f message="Open Doc v1.0.1: correções de compatibilidade PPTX" -f object="$GITHUB_SHA" -f type=commit --jq .sha)
+          if gh api "repos/$GH_REPO/git/ref/tags/v1.0.1" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GH_REPO/git/refs/tags/v1.0.1" -f sha="$tag_sha" -F force=true
+          else
+            gh api --method POST "repos/$GH_REPO/git/refs" -f ref=refs/tags/v1.0.1 -f sha="$tag_sha"
+          fi
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" packages/* --verify-tag \
-            --title "Open Doc $GITHUB_REF_NAME" --generate-notes
+          tag="$GITHUB_REF_NAME"
+          if [[ "$GITHUB_REF_NAME" == release/rebuild-v1.0.1 ]]; then tag=v1.0.1; fi
+          gh release create "$tag" packages/* --verify-tag \
+            --title "Open Doc $tag" --generate-notes
 
 
   publish-linux-backfill:
