@@ -450,3 +450,21 @@
   border-top: 1px solid var(--color-border);
 }
 .open-doc[data-compact-interface="true"] .code-splitter { display: none; }
+
+/* Seleção e resultados de análise compartilham a grade virtualizada. */
+.open-doc .book-heading.book-heading-selected {background:var(--color-primary-soft);color:var(--color-primary);font-weight:750}
+.open-doc .book-cell.selected {background:var(--color-primary-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-primary) 20%,transparent)}
+.open-doc .book-cell.active {outline:2px solid var(--color-primary);outline-offset:-2px;z-index:2}
+.open-doc .book-cell.book-pivot-cell {border-color:var(--color-border);background:var(--color-panel);text-align:right}
+.open-doc .book-cell.book-pivot-label {text-align:left;font-weight:600}
+.open-doc .book-cell.book-pivot-header {background:var(--color-primary-soft);color:var(--color-text-primary);font-weight:750;border-top:2px solid var(--color-primary)}
+.open-doc .book-cell.book-pivot-total {background:var(--color-workspace);font-weight:750;border-top:1px solid var(--color-primary)}
+.open-doc .book-cell.book-pivot-bottom {border-bottom:2px solid var(--color-primary)}
+.open-doc .book-cell.book-pivot-right {border-right:2px solid var(--color-primary)}
+.open-doc .book-cell.book-pivot-cell.selected {background:var(--color-primary-soft)}
+.open-doc .pivot-v2-table thead th {background:var(--color-primary-soft);border-top:2px solid var(--color-primary);padding:10px 12px}
+.open-doc .pivot-v2-table tbody tr:hover td {background:var(--color-primary-soft)}
+.open-doc .pivot-v2-filter-choices {max-height:180px;overflow:auto;flex:1 1 100%}
+.open-doc .pivot-tutorial {margin:12px 14px 0;padding:12px 16px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);font-size:13px;line-height:1.6}
+.open-doc .pivot-tutorial summary {cursor:pointer;font-weight:700;color:var(--color-primary)}
+.open-doc .pivot-tutorial li {margin:6px 0}

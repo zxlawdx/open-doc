@@ -184,3 +184,29 @@ test('quick pivot counts text without treating explicitly typed identifiers as s
   assert.deepEqual(result.rows[0],["123","2"]);
   assert.throws(()=>pivot.quickBuild({source,sourceIndex:0,range:[0,0,0,0],read:()=>""}),/Shift/);
 });
+
+test('pivot requires unambiguous source headers and keeps zero-valued records',()=>{
+  const source={cells:{'0,0':'Grupo','0,1':'Valor','1,0':'Zero','1,1':0}};
+  const options={source,range:[0,0,1,1],config:{rows:[0],columns:[],values:[metric(1)],totals:false}};
+  assert.deepEqual(pivot.build(options).rows,[['Zero','0']]);
+  source.cells['0,1']=' grupo ';
+  assert.throws(()=>pivot.build(options),/únicos/);
+  source.cells['0,1']='';
+  assert.throws(()=>pivot.build(options),/cabeçalho/);
+});
+
+test('computed source values participate even without stored raw cells',()=>{
+  const result=pivot.build({source:{cells:{}},range:[0,0,1,1],
+    read:(r,c)=>[['Grupo','Valor'],['Calculado',0]][r][c],
+    config:{rows:[0],values:[metric(1)],totals:false}});
+  assert.deepEqual(result.rows,[['Calculado','0']]);
+});
+
+test('row and column percentage totals include the appropriate denominator',()=>{
+  for(const show of ['row_pct','col_pct']){
+    const result=pivot.build({source:source(),range,config:config([metric(2,'sum',show)])});
+    assert.equal(result.rows.at(-1).at(-1),'100.00%');
+    if(show==='row_pct')assert.equal(result.rows[0].at(-1),'100.00%');
+    else assert.equal(result.rows.at(-1)[1],'100.00%');
+  }
+});
