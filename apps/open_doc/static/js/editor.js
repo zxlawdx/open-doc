@@ -93,13 +93,15 @@
     const currentTitle=()=>title.value.trim() || "Sem título";
 
     function buffer() {
+      const selection=mode==='rich'?commands.bookmark():{start:source.selectionStart,length:source.selectionEnd-source.selectionStart};
+      const image=rich.contains(document.activeElement)&&document.activeElement.closest?.('.rich-image');
       return {
         id: documentState.id,
         title: currentTitle(),
         markdown: source.value,
         ...(model?{content_format:"opendoc-rich-v1",content:model}:{}),
         revision: documentState.revision,
-        selection: mode === "rich" ? commands.bookmark() : {start: source.selectionStart, length: source.selectionEnd - source.selectionStart}
+        selection: image?{...selection,imageId:image.dataset.nodeId}:selection
       };
     }
 
@@ -261,6 +263,7 @@
 
     function load(note) {
       finishLogicalTransaction();
+      imageDrag=null;
       clearTimeout(recoveryTimer);clearTimeout(cacheTimer);markdownStale=false;
       typingStyle=null;deletionStyle=null;
       documentState = {...note};
@@ -398,7 +401,11 @@
       }else renderRich();
       cache(); scheduleRecovery(); render();
       status(isClean() ? "Salvo no dispositivo" : "Alterações não salvas");
-      if (mode === "rich") commands.restoreBookmark(snapshot.selection);
+      if (mode === "rich") {
+        commands.restoreBookmark(snapshot.selection);
+        if(snapshot.selection?.imageId)selectImage(Array.from(rich.querySelectorAll('.rich-image'))
+          .find(element=>element.dataset.nodeId===snapshot.selection.imageId));
+      }
       else { source.focus(); source.setSelectionRange(snapshot.selection?.start || 0, (snapshot.selection?.start || 0) + (snapshot.selection?.length || 0)); }
       if(canvas){canvas.scrollTop=top;canvas.scrollLeft=left;}
     }
@@ -466,6 +473,162 @@
       try{return {id:selectedMathId,math_blocks:JSON.parse(el.dataset.mathBlocks)};}
       catch{return null;}
     }
+    // Binary assets are uploaded once. Image gestures commit one model snapshot.
+    function imageBounds(element){
+      const page=element?.closest('[data-page-index]');
+      const section=model?.sections?.[0]||{};
+      const width=Number(page?.dataset.widthPt)||section.page_width_pt||595.28;
+      const height=Number(page?.dataset.heightPt)||section.page_height_pt||841.89;
+      const host=page||rich,rect=host.getBoundingClientRect();
+      return {host,rect,width,height,scale:rect.width>0?width/rect.width:.75};
+    }
+    function imageNode(element){return JSON.parse(element.dataset.imageNode);}
+    function fitImage(value,bounds){
+      const node={...value,placement:'floating',geometry_edited:true};
+      node.width_pt=Number(node.width_pt)||72;node.height_pt=Number(node.height_pt)||72;
+      const factor=Math.min(1,bounds.width/node.width_pt,bounds.height/node.height_pt);
+      node.width_pt*=factor;node.height_pt*=factor;
+      node.x_pt=Math.max(0,Math.min(bounds.width-node.width_pt,Number(node.x_pt)||0));
+      node.y_pt=Math.max(0,Math.min(bounds.height-node.height_pt,Number(node.y_pt)||0));
+      return node;
+    }
+    function imageChanged(before){
+      history.checkpoint(before);
+      updateModel();
+      source.value=window.OpenDocModel.markdown(model);markdownStale=false;
+      history.record(buffer(),'image',{structural:true});
+      cache();scheduleRecovery();render();
+      root.dispatchEvent(new CustomEvent('open-doc:text-layout-changed',{detail:{full:true,reason:'image'}}));
+      root.dispatchEvent(new CustomEvent('open-doc:changed'));
+      status('Imagem atualizada. Arraste para mover; alça para redimensionar; setas para ajustar.');
+    }
+    function selectImage(element){
+      rich.querySelectorAll('.rich-image.is-selected').forEach(n=>n.classList.remove('is-selected'));
+      if(element){element.classList.add('is-selected');element.focus({preventScroll:true});}
+    }
+    async function insertImage(dataUrl,altText=''){
+      finishLogicalTransaction();
+      if(lockedState||suspended||destroyed)return false;
+      if(mode!=='rich')setMode('rich');
+      commands.restore();
+      const selectionMark=commands.bookmark(),documentId=documentState.id;
+      const result=await request('document/image-asset',{id:documentId,data_url:dataUrl,alt_text:altText});
+      if(destroyed||suspended||lockedState||documentState.id!==documentId)return false;
+      commands.restoreBookmark(selectionMark);
+      if(!model)updateModel();
+      const before=buffer();
+      const selection=getSelection();
+      let range=selection?.rangeCount?selection.getRangeAt(0):null;
+      if(!range||!rich.contains(range.commonAncestorContainer)){
+        const box=rich.querySelector('[data-page-content]')||rich;
+        const paragraph=document.createElement('p');paragraph.dataset.nodeId=window.OpenDocModel.id();
+        paragraph.dataset.nodeType='paragraph';paragraph.appendChild(document.createElement('br'));box.appendChild(paragraph);
+        range=document.createRange();range.selectNodeContents(paragraph);range.collapse(true);
+      }
+      const anchor=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement;
+      const bounds=imageBounds(anchor),rect=anchor.getBoundingClientRect();
+      const node=fitImage({...result.node,
+        x_pt:Math.max(0,(rect.left-bounds.rect.left)*bounds.scale),
+        y_pt:Math.max(0,(rect.top-bounds.rect.top)*bounds.scale)},bounds);
+      const temp=document.createElement('div');
+      window.OpenDocRichRenderer.render({blocks:[{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[node]}]},temp);
+      const element=temp.querySelector('[data-node-type=image]');
+      model={...model,media:{...model.media,[node.media_id]:result.media}};
+      mediaCache.set(node.media_id,Promise.resolve(result.url));
+      element.querySelector('img').src=result.url;
+      // Insert at the caret without deleting a selected text passage.
+      range.collapse(true);range.insertNode(element);
+      selectImage(element);imageChanged(before);
+      return true;
+    }
+    let imageDrag=null;
+    rich.addEventListener('pointerdown',event=>{
+      const element=event.target.closest?.('.rich-image');
+      if(!element){selectImage(null);return;}
+      if(lockedState||suspended||mode!=='rich'||event.button!==0)return;
+      event.preventDefault();event.stopPropagation();finishLogicalTransaction();
+      selectImage(element);
+      const bounds=imageBounds(element),node=imageNode(element);
+      const rect=element.getBoundingClientRect();
+      const geometry=fitImage({...node,
+        x_pt:(rect.left-bounds.rect.left)*bounds.scale,
+        y_pt:(rect.top-bounds.rect.top)*bounds.scale},bounds);
+      imageDrag={element,bounds,node,geometry,before:buffer(),x:event.clientX,y:event.clientY,
+        pointerId:event.pointerId,resize:Boolean(event.target.closest('[data-image-resize]')),changed:false,
+        parent:element.parentNode,next:element.nextSibling,created:[],
+        grabX:(event.clientX-rect.left)*bounds.scale,grabY:(event.clientY-rect.top)*bounds.scale};
+      element.setPointerCapture?.(event.pointerId);
+    },{signal:controller.signal});
+    rich.addEventListener('pointermove',event=>{
+      const drag=imageDrag;if(!drag||event.pointerId!==drag.pointerId)return;
+      event.preventDefault();
+      const dx=(event.clientX-drag.x)*drag.bounds.scale,dy=(event.clientY-drag.y)*drag.bounds.scale;
+      if(!drag.resize){
+        const page=document.elementFromPoint?.(event.clientX,event.clientY)?.closest('[data-page-index]');
+        if(page&&rich.contains(page)&&page!==drag.element.closest('[data-page-index]')){
+          const box=page.querySelector('[data-page-content]');
+          let paragraph=Array.from(box.children).filter(n=>n.matches('p,h1,h2,h3,h4,h5,h6,blockquote,pre'))
+            .sort((a,b)=>Math.abs(a.getBoundingClientRect().top-event.clientY)-Math.abs(b.getBoundingClientRect().top-event.clientY))[0];
+          if(!paragraph){paragraph=document.createElement('p');paragraph.dataset.nodeId=window.OpenDocModel.id();
+            paragraph.dataset.nodeType='paragraph';box.appendChild(paragraph);drag.created.push(paragraph);}
+          paragraph.appendChild(drag.element);drag.element.setPointerCapture?.(event.pointerId);
+        }
+      }
+      drag.bounds=imageBounds(drag.element);
+      let value={...drag.geometry};
+      if(drag.resize){
+        const ratio=value.width_pt/value.height_pt;
+        const delta=Math.abs(dx)>=Math.abs(dy*ratio)?dx:dy*ratio;
+        const width=Math.min(drag.bounds.width-value.x_pt,
+          (drag.bounds.height-value.y_pt)*ratio,Math.max(4,value.width_pt+delta));
+        value.width_pt=width;value.height_pt=width/ratio;
+      }else{value.x_pt=(event.clientX-drag.bounds.rect.left)*drag.bounds.scale-drag.grabX;
+        value.y_pt=(event.clientY-drag.bounds.rect.top)*drag.bounds.scale-drag.grabY;}
+      value=fitImage(value,drag.bounds);
+      drag.changed=Math.abs(dx)+Math.abs(dy)>1;
+      window.OpenDocRichRenderer.imageGeometry(drag.element,value);
+    },{signal:controller.signal});
+    function finishImageDrag(event,cancel=false){
+      const drag=imageDrag;if(!drag||event.pointerId!==drag.pointerId)return;
+      imageDrag=null;
+      drag.element.releasePointerCapture?.(event.pointerId);
+      if(cancel||!drag.changed){
+        drag.parent.insertBefore(drag.element,drag.next?.parentNode===drag.parent?drag.next:null);
+        drag.created.filter(p=>!p.childNodes.length).forEach(p=>p.remove());
+        window.OpenDocRichRenderer.imageGeometry(drag.element,drag.node);return;
+      }
+      if(!drag.parent.childNodes.length)drag.parent.appendChild(document.createElement('br'));
+      drag.created.filter(p=>!p.childNodes.length).forEach(p=>p.remove());
+      imageChanged(drag.before);selectImage(drag.element);
+    }
+    rich.addEventListener('pointerup',event=>finishImageDrag(event),{signal:controller.signal});
+    rich.addEventListener('pointercancel',event=>finishImageDrag(event,true),{signal:controller.signal});
+    rich.addEventListener('keydown',event=>{
+      const element=event.target.closest?.('.rich-image');
+      if(!element||lockedState||suspended||mode!=='rich'||event.ctrlKey||event.metaKey)return;
+      if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();selectImage(null);rich.focus();return;}
+      if(!['Delete','Backspace','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+      event.preventDefault();event.stopImmediatePropagation();finishLogicalTransaction();
+      const before=buffer();
+      if(['Delete','Backspace'].includes(event.key)){
+        const paragraph=element.parentElement;element.remove();
+        if(!paragraph.childNodes.length)paragraph.appendChild(document.createElement('br'));
+        imageChanged(before);rich.focus();return;
+      }
+      const bounds=imageBounds(element),node=imageNode(element),rect=element.getBoundingClientRect();
+      const step=event.shiftKey?10:1;
+      let value=fitImage({...node,
+        x_pt:(node.placement==='floating'&&Number.isFinite(node.x_pt)?node.x_pt:(rect.left-bounds.rect.left)*bounds.scale)+(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0),
+        y_pt:(node.placement==='floating'&&Number.isFinite(node.y_pt)?node.y_pt:(rect.top-bounds.rect.top)*bounds.scale)+(event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0)},bounds);
+      if(event.altKey){
+        const ratio=node.width_pt/node.height_pt;
+        const width=Math.min(bounds.width-(node.x_pt||0),(bounds.height-(node.y_pt||0))*ratio,
+          Math.max(4,node.width_pt+(['ArrowRight','ArrowDown'].includes(event.key)?step:-step)));
+        value=fitImage({...node,width_pt:width,height_pt:width/ratio},bounds);
+      }
+      window.OpenDocRichRenderer.imageGeometry(element,value);imageChanged(before);selectImage(element);
+    },{capture:true,signal:controller.signal});
+
     function insertMath(blocks){
       if(lockedState||suspended||!Array.isArray(blocks)||!blocks.length)return false;
       if(mode!=="rich")setMode("rich");
@@ -1105,7 +1268,7 @@
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }
     function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}
-    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPlainText, insertMath, selectedMath, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
+    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPlainText, insertImage, insertMath, selectedMath, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;
     if(window.OpenDocPagination)pagination=window.OpenDocPagination.create({root,model:()=>model,pageMetrics:()=>model?.sections?.[0],capture:()=>{commands.capture();return commands.bookmark();},restore:b=>commands.restoreBookmark(b)});
     if(window.OpenDocPageMenu)window.OpenDocPageMenu.create(root,instance,controller.signal);

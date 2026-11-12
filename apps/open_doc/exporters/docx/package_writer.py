@@ -112,11 +112,14 @@ def text_properties(style, raw=None):
 
 
 class DocxPackageWriter:
-    def __init__(self, original=None):
+    def __init__(self, original=None, package_directory=None):
         self.original = Path(original) if original else None
+        self.package_directory = package_directory
 
     def write(self, model, target):
         model = load_document(model)
+        self.media_catalog = model.get("media", {})
+        self.media_directory = Path(self.package_directory) / "media" if self.package_directory else None
         if self.original and self.original.exists():
             self.parts = dict(DocxPackage.open(self.original).parts)
         else:
@@ -130,6 +133,18 @@ class DocxPackageWriter:
             if "word/numbering.xml" in self.parts
             else element("numbering")
         )
+        from apps.open_doc.document_model.images import NS as IMAGE_NS
+
+        self.image_sequence = 0
+        for part, blob in self.parts.items():
+            if part.endswith(".xml"):
+                for item in parse_xml(blob).iter("{" + IMAGE_NS["wp"] + "}docPr"):
+                    try:
+                        self.image_sequence = max(
+                            self.image_sequence, int(item.get("id", "0"))
+                        )
+                    except ValueError:
+                        pass
         self.new_lists = {}
         root = parse_xml(self.parts["word/document.xml"])
         body = root.find(w("body"))
@@ -452,8 +467,9 @@ class DocxPackageWriter:
             t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
             t.text = n["text"]
             out.append(t)
-        elif kind == "image" and n.get("xml"):
-            out.append(parse_xml(n["xml"].encode()))
+        elif kind == "image":
+            from apps.open_doc.document_model.images import write_image
+            out.append(write_image(self, n))
         elif kind == "tab":
             out.append(element("tab"))
         elif kind == "break":

@@ -324,9 +324,26 @@ class DocxImporter:
                     )
                 )
                 if floating:
-                    self.warnings.append(
-                        "DEGRADED_WITH_WARNING: imagem flutuante aproximada inline"
-                    )
+                    anchor = c.find(".//wp:anchor", NS)
+                    positions = [
+                        anchor.find("wp:position" + axis, NS) for axis in ("H", "V")
+                    ]
+                    if all(
+                        pos is not None
+                        and pos.get("relativeFrom") == "page"
+                        and pos.find("wp:posOffset", NS) is not None
+                        for pos in positions
+                    ):
+                        values = [
+                            emu_to_pt(pos.find("wp:posOffset", NS).text)
+                            for pos in positions
+                        ]
+                        if all(
+                            value is not None and 0 <= value <= 5000 for value in values
+                        ):
+                            out[-1].update(x_pt=values[0], y_pt=values[1])
+                    else:
+                        self.warnings.append("DEGRADED_WITH_WARNING: posição relativa de imagem preservada no DOCX; prévia inline")
             else:
                 out.append(self.opaque(c, part))
         return out

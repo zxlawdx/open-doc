@@ -353,3 +353,5 @@
     overflow-x: auto;
 }
 .open-doc[data-compact-interface="true"] .dataset > .workbook-toolbar > * { flex: 0 0 auto; }
+
+@media print {.open-doc .rich-image {outline:none!important;} .open-doc .rich-image-resize {display:none!important;}}

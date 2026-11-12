@@ -8,4 +8,6 @@ def export_docx(document, target, title, *, package_directory=None):
     if isinstance(document, str):
         return export_markdown_docx(document, target, title)
     original = package_directory / "original.docx" if package_directory else None
-    DocxPackageWriter(original).write(document, target)
+    DocxPackageWriter(original, package_directory=package_directory).write(
+        document, target
+    )

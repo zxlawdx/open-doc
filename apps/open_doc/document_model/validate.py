@@ -184,10 +184,34 @@ def validate_rich_document(model):
                 if not re.match(r"^(https?://|mailto:|#)", obj.get("href", ""), re.I):
                     raise ValueError("Link inválido.")
                 nodes(obj.get("children"), False, depth + 1)
-            elif kind == "image" and not re.fullmatch(
-                "[a-f0-9]{64}", obj.get("media_id", "")
-            ):
-                raise ValueError("Imagem inválida.")
+            elif kind == "image":
+                if not isinstance(model.get('media', {}), dict) or obj.get('media_id') not in model.get('media', {}):
+                    raise ValueError('Referência de imagem ausente no catálogo de mídia.')
+                if 'geometry_edited' in obj and type(obj['geometry_edited']) is not bool:
+                    raise ValueError('Estado de edição de imagem inválido.')
+                if not re.fullmatch("[a-f0-9]{64}", obj.get("media_id", "")):
+                    raise ValueError("Imagem inválida.")
+                if obj.get("placement", "inline") not in ("inline", "floating"):
+                    raise ValueError("Posicionamento da imagem inválido.")
+                for key in ("width_pt", "height_pt", "x_pt", "y_pt"):
+                    value = obj.get(key)
+                    if value is not None and (
+                        type(value) not in (int, float)
+                        or not math.isfinite(value)
+                        or value < 0
+                        or value > 5000
+                        or (key in ("width_pt", "height_pt") and value == 0)
+                    ):
+                        raise ValueError("Geometria da imagem inválida.")
+                if obj.get("geometry_edited") and any(
+                    obj.get(k) is None for k in ("width_pt", "height_pt")
+                ):
+                    raise ValueError("Dimensões da imagem ausentes.")
+                if (
+                    not isinstance(obj.get("alt_text", ""), str)
+                    or len(obj.get("alt_text", "")) > 1000
+                ):
+                    raise ValueError("Descrição da imagem inválida.")
             elif kind == "break" and obj.get("break_type") not in {
                 "line",
                 "page",

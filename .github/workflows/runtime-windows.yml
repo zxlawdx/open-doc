@@ -72,6 +72,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_docx_list.py docs/images/stabilization/docx-list
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_docx_images.py docs/images/docx-images
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # Capture PPTX on Windows even if later DOCX stress fails.
           python -u tools/qa_ink.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -92,6 +94,7 @@ jobs:
         with:
           name: windows-qt-screenshots
           path: |
+            docs/images/docx-images/
             docs/images/appearance-zoom/
             docs/images/workbook-mvp/
             docs/images/datasets/
@@ -151,6 +154,7 @@ jobs:
           python -u tools/qa_math_visual.py
           python -u tools/qa_pdf_native.py
           python -u tools/qa_docx_list.py docs/images/stabilization/docx-list
+          python -u tools/qa_docx_images.py docs/images/docx-images
           python -u tools/qa_ink.py
           python -u tools/qa_pptx.py
           python -u tools/qa_pptx_table_border.py docs/images/ink/pptx-table-border
@@ -163,6 +167,7 @@ jobs:
         with:
           name: linux-qt-screenshots
           path: |
+            docs/images/docx-images/
             docs/images/appearance-zoom/
             docs/images/workbook-mvp/
             docs/images/datasets/

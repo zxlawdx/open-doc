@@ -307,6 +307,18 @@ class DocumentApplication:
             self.context.exports.default_export_directory() / filename,
         )
 
+    def insert_image_asset(self, data):
+        from apps.open_doc.document_model.images import store_image
+
+        document = self.context.editor.get(data["id"])
+        if document.get("content_format") == "opendoc-fixed-v1":
+            raise ValueError("Abra um documento de texto para inserir a imagem.")
+        return store_image(
+            self.context.editor.package_directory(document["id"]),
+            data.get("data_url"),
+            data.get("alt_text", ""),
+        )
+
     def media_url(self, document_id: str, media_id: str) -> dict[str, str]:
         document = self.context.editor.get(document_id)
         if (

@@ -315,3 +315,11 @@ DOMPurify Apache-2.0/MPL-2.0. Licenças preservadas junto aos vendors.
 Nenhum código de ONLYOFFICE/WebODF/engines pesquisados foi incorporado.
 
 Correção de teclado, tinta e undo local: [relatório e evidências](docs/OPEN_DOC_INPUT_STABILITY.md).
+
+### Imagens no editor DOCX
+
+Use **Inserir → Imagem…** ou o botão de imagem na barra. São aceitos PNG, JPEG e WebP até 4 MB (16 milhões de pixels e até 8.000 pixels por dimensão). Fotografias com orientação EXIF são normalizadas; WebP é convertido para PNG para exportação Word.
+
+Clique na imagem para selecioná-la. Arraste para posicionar livremente na página ou levá-la a outra página; a imagem fica à frente do texto. A alça no canto inferior direito redimensiona proporcionalmente. Setas movem, Alt + setas redimensionam e Shift aumenta o passo para 10 pontos. Delete/Backspace excluem. Cada gesto pode ser desfeito e refeito com Ctrl+Z/Ctrl+Y.
+
+As imagens ficam separadas dos snapshots de texto e são deduplicadas por conteúdo. Salvar, reabrir e exportar DOCX preserva os objetos nativos `wp:anchor`, suas coordenadas, dimensões e mídia. O PDF simplificado continua tendo as limitações de fidelidade descritas pelo diálogo de exportação.
