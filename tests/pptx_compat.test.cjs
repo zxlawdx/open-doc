@@ -51,8 +51,9 @@ test('exact relationship types resolve masters and layouts with mapped colors an
  const rels=items=>`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items.map(([id,type,target])=>`<Relationship Id="${id}" Type="${R}/${type}" Target="${target}"/>`).join('')}</Relationships>`;
  put('ppt/_rels/presentation.xml.rels',rels([['slide','slide','slides/slide1.xml'],['master','slideMaster','slideMasters/slideMaster1.xml']]));
  put('ppt/slides/_rels/slide1.xml.rels',rels([['layout','slideLayout','../slideLayouts/slideLayout1.xml']]));
- put('ppt/slideMasters/_rels/slideMaster1.xml.rels',rels([['layout','slideLayout','../slideLayouts/slideLayout1.xml']]));
+ put('ppt/slideMasters/_rels/slideMaster1.xml.rels',rels([['layout','slideLayout','../slideLayouts/slideLayout1.xml'],['theme','theme','../theme/theme2.xml']]));
  put('ppt/slideLayouts/_rels/slideLayout1.xml.rels',rels([['master','slideMaster','../slideMasters/slideMaster1.xml']]));
+ put('ppt/theme/theme2.xml',`<a:theme xmlns:a="${A}" name="Master-specific theme"><a:themeElements><a:clrScheme name="Brown"><a:dk1><a:srgbClr val="4E3B30"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1></a:clrScheme></a:themeElements></a:theme>`);
  const mapped='<a:solidFill><a:schemeClr val="tx1"/></a:solidFill>';
  put('ppt/slideMasters/slideMaster1.xml',`<p:sldMaster xmlns:p="${P}" xmlns:a="${A}" xmlns:r="${R}"><p:cSld><p:bg><p:bgPr><a:solidFill><a:schemeClr val="bg1"/></a:solidFill></p:bgPr></p:bg><p:spTree/></p:cSld><p:clrMap bg1="dk1" tx1="lt1"/><p:sldLayoutIdLst><p:sldLayoutId id="1" r:id="layout"/></p:sldLayoutIdLst></p:sldMaster>`);
  const placeholder=`<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4572000" cy="2743200"/></a:xfrm></p:spPr><p:txBody><a:bodyPr anchor="b"/><a:lstStyle><a:lvl1pPr><a:defRPr sz="3000">${mapped}</a:defRPr></a:lvl1pPr></a:lstStyle><a:p><a:r><a:t>Layout prompt</a:t></a:r></a:p></p:txBody></p:sp>`;
@@ -65,6 +66,6 @@ test('exact relationship types resolve masters and layouts with mapped colors an
  assert.equal(run.fontSize,40);assert.equal(run.color.hex,'#FFFFFF');
  assert.equal(presentation.slides[0].elements.find(e=>e.id==='2').text.verticalAlign,'bottom');
  w.OpenDocPptxVendor.renderSlideToElement(presentation,0,w.document.querySelector('#slide'),{width:960,height:540});
- assert.equal(w.document.querySelector('svg > rect').getAttribute('fill'),'#000000');
+ assert.equal(w.document.querySelector('svg > rect').getAttribute('fill'),'#4E3B30');
  assert.ok(!w.document.querySelector('#slide').textContent.includes('Layout prompt'));
 });

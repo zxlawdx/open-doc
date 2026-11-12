@@ -24,6 +24,22 @@ const pptxCompatibility={name:'opendoc-pptx-compatibility',setup(builder){
    source=source.replace(from,to);
   }
   replace('      for (const [l, c] of r)\n        if (l.includes(i) || i.includes(l))\n          return c;','      return r.get(hn(i)) || [];');
+  replace('        const x = yr($, g, e, c.colors, g);',`        let theme=c;
+        const rels=e.getText(jt(g));
+        if(rels){
+          const relationships=q(rels), relationship=relationships.getByType(rt.THEME)[0];
+          const path=relationship && relationships.resolvePath(relationship.id,g);
+          const xml=path && e.getText(path);
+          if(xml)theme=yn(xml);
+        }
+        const x = yr($, g, e, theme.colors, g);
+        x.theme=theme;`);
+  replace('const U = Fr(E, P, e, c.colors, P, g);','const U = Fr(E, P, e, g.theme.colors, P, g);');
+  replace('const E = Ar(S, b, e, c.colors, x, w, F);','const E = Ar(S, b, e, F?.theme.colors || c.colors, x, w, F);');
+  replace('  for (const l of e) i(l.elements);\n  for (const l of t.values()) i(l.elements);\n  for (const l of n.values()) i(l.elements);',`  const fallback=r;
+  for (const l of e){r=n.get(t.get(l.layoutId)?.masterId)?.theme || fallback;i(l.elements);}
+  for (const l of t.values()){r=n.get(l.masterId)?.theme || fallback;i(l.elements);}
+  for (const l of n.values()){r=l.theme || fallback;i(l.elements);}`);
   replace('function mn(e, t) {','function mn(e, t) {\n  e = t.__colorMap?.[e] || e;');
   replace('  const p = {\n    themeColors: r,','  r = {...r, __colorMap: {...l?.colorMap, ...i?.colorMap, ...wr(o)}};\n  const p = {\n    themeColors: r,');
   replace('  const u = {\n    themeColors: r,','  r = {...r, __colorMap: Cr(l)};\n  const u = {\n    themeColors: r,');
