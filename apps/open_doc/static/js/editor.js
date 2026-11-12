@@ -7,7 +7,11 @@
   window.OpenDocDebug=window.OpenDocDebug || {input:false};
 
   function create(options) {
-    const {root, request, status, autosaveSeconds} = options;
+    const {root, request, status, autosaveSeconds, onDirty} = options;
+    function notifyDirty(value){
+      const result=onDirty?onDirty(value):window.pywebview?.api?.set_dirty?.(value);
+      result?.catch?.(()=>{});
+    }
     const source = root.querySelector("[data-source]");
     const rich = root.querySelector("[data-rich]");
     const title = root.querySelector("[data-title]");
@@ -143,9 +147,7 @@
       root.dataset.dirty = String(dirtyState);
       root.dispatchEvent(new CustomEvent("open-doc:content", {detail: {mode}}));
       updateHistoryControls();
-      if (window.pywebview?.api?.set_dirty) {
-        window.pywebview.api.set_dirty(dirtyState).catch(() => {});
-      }
+      notifyDirty(dirtyState);
     }
 
     function enqueue(operation) {
@@ -256,7 +258,7 @@
       scheduleRecovery();
       const dirtyState=!isClean();
       root.dataset.dirty = String(dirtyState);
-      if (window.pywebview?.api?.set_dirty) window.pywebview.api.set_dirty(dirtyState).catch(() => {});
+      notifyDirty(dirtyState);
       status("Alterações não salvas");
       root.dispatchEvent(new CustomEvent("open-doc:changed"));
     }
@@ -294,6 +296,13 @@
         !recovered || window.OpenDocHistory.sameSnapshot(recovered,saved);
       render();
       status(recovered && !window.OpenDocHistory.sameSnapshot(recovered,saved) ? "Recuperação disponível" : "Salvo no dispositivo");
+      const loadedId=documentState.id, loadedSaved=saved;
+      window.OpenDocRecovery.readAsync?.(loadedId).then(cached=>{
+        if(!cached || destroyed || suspended || documentState.id!==loadedId || saved!==loadedSaved || !isClean())return;
+        if(window.OpenDocHistory.sameSnapshot(cached,saved))return;
+        recovered=cached;root.querySelector('[data-recovery]').hidden=false;
+        status('Recuperação disponível');
+      }).catch(()=>{});
     }
 
     function flush() {
@@ -381,7 +390,7 @@
         cache();scheduleRecovery();updateHistoryControls();
         const dirty=!isClean();
         root.dataset.dirty=String(dirty);
-        window.pywebview?.api?.set_dirty?.(dirty)?.catch?.(()=>{});
+        notifyDirty(dirty);
         root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
         status(dirty?'Alterações não salvas':'Salvo no dispositivo');
         return;
@@ -1267,7 +1276,7 @@
       cache();scheduleRecovery();updateHistoryControls();
       if(root.dataset.dirty!=='true'){
         root.dataset.dirty='true';
-        window.pywebview?.api?.set_dirty?.(true)?.catch?.(()=>{});
+        notifyDirty(true);
       }
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }

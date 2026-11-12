@@ -2,11 +2,12 @@
 "use strict";
 (() => {
  const clone=v=>JSON.parse(JSON.stringify(v));
- function create({root,request,status,token,asset,signal,tableDialog,mathDialog}){
+ function create({root,request,status,token,asset,signal,tableDialog,mathDialog,onDirty}){
   const host=document.createElement('section');host.className='fixed-document';host.hidden=true;root.querySelector('[data-document-body]').after(host);
   const controls=document.createElement('div');controls.className='fixed-controls';const sidebar=document.createElement('aside');sidebar.className='fixed-sidebar';sidebar.setAttribute('aria-label','Páginas e marcadores');const scroller=document.createElement('div');scroller.className='fixed-scroll';scroller.tabIndex=0;host.append(controls,sidebar,scroller);
   let note=null,model=null,saved='',pdf=null,pptx=null,epoch=0,queue=Promise.resolve(),timer=null,recoveryTimer=null,searchTimer=null,zoom=1,locked=false,rendering=new Set(),renderTasks=new Map(),renderedPages=new Map(),searchingPages=new Set(),pageNodes=[],active=false,searchEpoch=0,thumbObserver=null,slideFitMode=null,pptxPreviewIndex=0,nativeEditMode=false;
   const history=window.OpenDocHistory.create(),title=root.querySelector('[data-title]');
+  const notifyDirty=value=>onDirty?onDirty(value):window.pywebview.api.set_dirty?.(value);
   let viewTimer=null,viewReady=false;
   const recentViews=new Map();
   let viewWrites=Promise.resolve();
@@ -201,7 +202,7 @@
   const recover=button('Recuperar alterações',async()=>{if(!note.recovery)return;const n=clone(note);n.content=note.recovery.content;load(n);saved='';await flush();recover.hidden=true;});recover.hidden=true;
   function snapshot(){return {id:note.id,title:title.value.trim()||'Sem título',revision:note.revision,content_format:'opendoc-fixed-v1',content:model,markdown:''};}
   function signature(){return JSON.stringify([title.value,model]);}
-  function changed(){window.OpenDocRecovery.write(snapshot());window.pywebview.api.set_dirty?.(true);history.record(snapshot(),'ink');clearTimeout(timer);timer=setTimeout(()=>flush().catch(e=>status(e.message)),800);clearTimeout(recoveryTimer);recoveryTimer=setTimeout(()=>{if(!active || signature()===saved)return;const b=snapshot();window.OpenDocRecovery.write?.(b);request('document/recovery',b).catch(e=>status(e.message));},250);root.dispatchEvent(new CustomEvent('open-doc:content'));}
+  function changed(){window.OpenDocRecovery.write(snapshot());notifyDirty(true);history.record(snapshot(),'ink');clearTimeout(timer);timer=setTimeout(()=>flush().catch(e=>status(e.message)),800);clearTimeout(recoveryTimer);recoveryTimer=setTimeout(()=>{if(!active || signature()===saved)return;const b=snapshot();window.OpenDocRecovery.write?.(b);request('document/recovery',b).catch(e=>status(e.message));},250);root.dispatchEvent(new CustomEvent('open-doc:content'));}
   function setInkLayers(layers){model=clone(model);for(const s of model.surfaces){const l=layers.find(l=>l.surface_index===s.index);s.strokes=l?.strokes || [];s.text_overlays=l?.text_overlays || [];}changed();texts();}
   function inkLayers(){return model?.surfaces.map(s=>({...s,surface_index:s.index})) || [];}
   function insertRecognized(text,style,index,ids){const layers=inkLayers(),l=layers.find(l=>l.surface_index===index);if(!l)return;const points=l.strokes.filter(s=>ids.includes(s.id)).flatMap(s=>s.points),x=Math.min(...points.map(p=>p.x)),y=Math.min(...points.map(p=>p.y));l.text_overlays.push({id:window.OpenDocModel.id(),text,x,y,width:Math.max(.1,1-x),height:Math.min(.2,1-y),...style});l.strokes=l.strokes.filter(s=>!ids.includes(s.id));setInkLayers(layers);}
@@ -222,7 +223,7 @@
         const dirty=signature()!==saved;
         if(!dirty)window.OpenDocRecovery.clear(document.id);
         else window.OpenDocRecovery.write(snapshot());
-        window.pywebview.api.set_dirty?.(dirty);
+        notifyDirty(dirty);
         status(model?.editable_deck?'Apresentação salva.':'Anotações salvas.');
       }
       return result;

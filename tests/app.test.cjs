@@ -332,3 +332,37 @@ test('module resources load concurrently, reuse shared scripts and allow direct 
   assert.equal(saves,2);
   assert.equal(new Set(loaded).size,loaded.length,'no script is loaded twice');
 });
+
+test('a slow DOCX save cannot block spreadsheets or let a late document steal the view',async t=>{
+ const {w,root}=await mount(t);const app=w.OpenDocApp,fetch=w.fetch;
+ let releaseSave,releaseNew,newStarted=false;
+ const editor=app.editor(),flush=editor.flush;
+ editor.setMode('markdown');const source=root.querySelector('[data-source]');
+ source.value='Cálculos pendentes';source.dispatchEvent(new w.Event('input',{bubbles:true}));editor.refresh();
+ editor.flush=()=>new Promise(resolve=>{releaseSave=resolve;});
+ w.OpenDocGridWorkspace={};w.OpenDocWorkbookFormula={};w.OpenDocWorkbookPivot={};
+ w.OpenDocWorkbookPivotUI={};w.OpenDocWorkbookTypes={};w.OpenDocPythonPackages={};
+ w.OpenDocWorkbook={create:options=>{
+  return {load:()=>options.onDirty(false),save:async()=>{},value:()=>100};
+ }};
+ await app.action('workbook-new');
+ assert.equal(root.dataset.workbookView,'true','the sheet opens before DOCX save completes');
+ assert.equal(root.dataset.globalDirty,'true','a clean workbook cannot clear the unsaved document warning');
+ assert.equal(typeof releaseSave,'function');
+ releaseSave();editor.flush=flush;
+ await app.action('home');
+ w.fetch=async(url,options)=>{
+  if(String(url).endsWith('/document/new')){
+   newStarted=true;await new Promise(resolve=>{releaseNew=resolve;});
+   return {ok:true,json:async()=>({id:'late',title:'Novo',markdown:'',revision:1})};
+  }
+  return fetch(url,options);
+ };
+ const pending=app.action('new');
+ while(!newStarted)await new Promise(resolve=>setTimeout(resolve,0));
+ await app.action('workbook-new');
+ assert.equal(root.dataset.workbookView,'true');
+ releaseNew();await pending;
+ assert.equal(root.dataset.workbookView,'true','a completed DOCX request must not steal the chosen view');
+ assert.equal(editor.snapshot().id,'late','the created document remains available behind the sheet');
+});

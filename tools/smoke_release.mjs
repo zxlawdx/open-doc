@@ -86,6 +86,12 @@ try {
         if (!await editor.insertImage('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAMCAIAAADtbgqsAAAAGUlEQVR4nGNcoZTGQC5gIlvnqOZRzTTXDACIewFIN82hKgAAAABJRU5ErkJggg==', 'Packaged image QA')) throw Error('Image insertion failed.');
         await editor.flush();
         const saved = editor.snapshot();
+        const recovery = {...saved, id: 'packaged-worker-probe'};
+        await OpenDocRecovery.write(recovery);
+        const recovered = await OpenDocRecovery.readAsync(recovery.id);
+        if (!recovered?.content?.blocks.some(block => block.children?.some(node => node.type === 'image')))
+          throw Error('Packaged persistence worker or IndexedDB recovery is unavailable.');
+        await OpenDocRecovery.clear(recovery.id);
         const images = () => (editor.snapshot().content?.blocks || []).flatMap(block => block.children || []).filter(node => node.type === 'image');
         if (images().length !== 1) throw Error('Image missing from saved model.');
         editor.format('undo');
