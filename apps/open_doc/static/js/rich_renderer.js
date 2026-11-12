@@ -107,10 +107,12 @@
   }
   function render(model,surface,mediaRequest){renderNodes(model,surface,mediaRequest);}
   function patch(model,surface,ids,mediaRequest){
-    const blocks=new Map(model.blocks.map(block=>[block.id,block])), fragments=new Map();
+    if(!ids.length)return;
+    const wanted=new Set(ids), blocks=new Map(model.blocks.map(block=>[block.id,block])), fragments=new Map();
     for(const node of surface.querySelectorAll('[data-node-id]')){
-      for(const id of new Set([node.dataset.nodeId,node.dataset.fragmentOf])){
-        if(!id)continue;
+      const own=node.dataset.nodeId, fragment=node.dataset.fragmentOf;
+      for(const id of own===fragment?[own]:[own,fragment]){
+        if(!wanted.has(id))continue;
         if(!fragments.has(id))fragments.set(id,[]);
         fragments.get(id).push(node);
       }
@@ -132,13 +134,14 @@
     const ordered=after.blocks.filter(block=>oldBlocks.has(block.id));
     if(shared.some((id,index)=>id!==ordered[index].id))return false;
     const removed=new Set([...oldBlocks.keys()].filter(id=>!newIds.has(id)));
-    for(const node of surface.querySelectorAll('[data-node-id]'))
+    if(removed.size)for(const node of surface.querySelectorAll('[data-node-id]'))
       if(removed.has(node.dataset.nodeId) || removed.has(node.dataset.fragmentOf))node.remove();
     const changed=ordered.filter(block=>{
       const previous=oldBlocks.get(block.id);
       return block!==previous && JSON.stringify(block)!==JSON.stringify(previous);
     }).map(block=>block.id);
     patch(after,surface,changed,mediaRequest);
+    if(after.blocks.length===ordered.length)return true;
     // Index the remaining nodes once, then insert backwards using the next
     // existing anchor. Avoid repeated full DOM scans for each new paragraph.
     const nodes=new Map();
