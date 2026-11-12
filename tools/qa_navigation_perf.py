@@ -6,6 +6,7 @@ from pathlib import Path
 from statistics import median
 from tempfile import TemporaryDirectory
 from time import sleep
+from threading import Event
 
 from qa_stabilization import Config, create_app, services, wait, webview
 from qa_runtime import Keyboard, report
@@ -30,7 +31,7 @@ def fixture(path):
     document.save(path)
 
 
-def exercise(window):
+def exercise(window, save_gate, save_entered, save_timed_out):
     js = window.evaluate_js
     wait(window, "document.querySelector('[data-app]')?.dataset.ready==='true'")
     wait(
@@ -61,24 +62,66 @@ def exercise(window):
     )
 
     js("""(() => {
-      window.__navigationMetrics={requests:[],actions:[]};
-      const fetch=window.fetch;
-      window.fetch=async(...args)=>{const start=performance.now();const response=await fetch(...args);
-        __navigationMetrics.requests.push({url:String(args[0]),ms:performance.now()-start});return response;};
-      const root=document.querySelector('[data-app]');
-      __navigationMetrics.inkBytes=JSON.stringify(OpenDocApp.editor().inkLayers()).length;
+      window.__navigationMetrics={requests:[],actions:[],mainThreadInkEncodes:0};
+      const root=document.querySelector('[data-app]'),model=OpenDocApp.editor().snapshot().content;
+      __navigationMetrics.inkBytes=JSON.stringify(model.ink_layers).length;
       window.__navigationDoc=OpenDocApp.editor().snapshot().id;
-      window.__navigationDone=false;
-      (async()=>{for(const name of ['workbook-new','datasets','workbook-new','new','home','workbook-new','home']){
+      const stringify=JSON.stringify;
+      JSON.stringify=function(value,...rest){
+        if(value===model || value?.content===model)__navigationMetrics.mainThreadInkEncodes++;
+        return stringify.call(this,value,...rest);
+      };
+      const send=OpenDocRecovery.sendRequest;
+      OpenDocRecovery.sendRequest=async(...args)=>{
+        const start=performance.now();
+        try{return await send(...args);}finally{
+          __navigationMetrics.requests.push({url:args[0],ms:performance.now()-start});
+        }
+      };
+      window.__navigationDone=false;window.__navigationIndependent=false;
+      (async()=>{
+        const recovery={...OpenDocApp.editor().snapshot(),id:'qa-worker-recovery'};
+        await OpenDocRecovery.write(recovery);
+        const cached=await OpenDocRecovery.readAsync(recovery.id);
+        if(cached?.content?.ink_layers.length!==model.ink_layers.length)throw Error('Worker recovery did not preserve ink');
+        await OpenDocRecovery.clear(recovery.id);
+        if(await OpenDocRecovery.readAsync(recovery.id))throw Error('Worker recovery was not cleared');
+        for(const name of ['workbook-new','datasets','workbook-new','home']){
+          const start=performance.now();await OpenDocApp.action(name);
+          __navigationMetrics.actions.push({name,ms:performance.now()-start,
+            workbook:root.dataset.workbookView,dataset:root.dataset.datasetView,home:root.dataset.homeView});
+        }
+        window.__navigationIndependent=true;
+      })().catch(error=>{window.__navigationError=error.message;__navigationDone=true;});
+    })()""")
+    wait(
+        window,
+        "window.__navigationIndependent===true || Boolean(window.__navigationError)",
+    )
+    assert not js("window.__navigationError || null")
+    assert save_entered.wait(2), "The background save did not reach the real server"
+    assert (
+        not save_timed_out.is_set()
+    ), "Module navigation waited for document persistence"
+    assert not save_gate.is_set()
+    assert js("document.querySelector('[data-app]').dataset.globalDirty==='true'")
+    save_gate.set()
+    js(
+        """(async()=>{
+      const root=document.querySelector('[data-app]');
+      for(const name of ['new','home','workbook-new','home']){
         const start=performance.now();await OpenDocApp.action(name);
         __navigationMetrics.actions.push({name,ms:performance.now()-start,
           workbook:root.dataset.workbookView,dataset:root.dataset.datasetView,home:root.dataset.homeView});
-      }__navigationDone=true;})().catch(error=>{window.__navigationError=error.message;__navigationDone=true;});
-    })()""")
+      }
+      __navigationMetrics.navigatedWhileSavePending=true;__navigationDone=true;
+    })().catch(error=>{window.__navigationError=error.message;__navigationDone=true;})"""
+    )
     wait(window, "window.__navigationDone===true")
     assert not js("window.__navigationError || null")
     result = js("__navigationMetrics")
     print("QT_NAVIGATION_PERF", json.dumps(result), flush=True)
+    assert result["mainThreadInkEncodes"] == 0, result
     for action in result["actions"]:
         if action["name"] == "workbook-new":
             assert action["workbook"] == "true", action
@@ -93,15 +136,17 @@ def exercise(window):
 
 def main():
     errors = []
+    save_gate, save_entered, save_timed_out = Event(), Event(), Event()
     native_start = webview.start
 
     def qa():
         window = webview.windows[0]
         try:
-            exercise(window)
+            exercise(window, save_gate, save_entered, save_timed_out)
         except Exception as error:
             errors.append(error)
         finally:
+            save_gate.set()
             window.confirm_close = False
             window.destroy()
 
@@ -113,6 +158,16 @@ def main():
             fixture(source)
             app = create_app(config)
             services().editor.import_docx(source)
+            editor = services().editor
+            original_save = editor.save
+
+            def delayed_save(*args, **kwargs):
+                save_entered.set()
+                if not save_gate.wait(10):
+                    save_timed_out.set()
+                return original_save(*args, **kwargs)
+
+            editor.save = delayed_save
             app.run()
     finally:
         webview.start = native_start

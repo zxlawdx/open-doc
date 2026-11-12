@@ -2,7 +2,7 @@
 (() => {
   const ROWS=10000, COLS=100;
   const key=(r,c)=>r+","+c;
-  function create({host,request,dialog,signal,loadCodeEditors,settings,persist}) {
+  function create({host,request,dialog,signal,loadCodeEditors,settings,persist,onDirty}) {
     const {address,column,evaluate}=window.OpenDocWorkbookFormula;
     const $=selector=>host.querySelector(selector);
     const viewport=$("[data-book-scroll]"), space=$("[data-book-space]");
@@ -21,9 +21,10 @@
     const sheet=()=>book.sheets[index];
     const raw=()=>sheet().cells[key(row,col)] || "";
     const native=()=>window.pywebview.api;
+    const notifyDirty=value=>onDirty?onDirty(value):native().set_dirty?.(value);
     function mark() {
       dirty=true;
-      native().set_dirty?.(true);
+      notifyDirty(true);
       report("Alterações pendentes");
     }
     function report(message) {status.textContent=message;}
@@ -218,7 +219,7 @@
       const value=inline.value;
       inline.hidden=true;
       if(accept)applyCells([[key(row,col),value]]);
-      native().set_dirty?.(dirty);
+      notifyDirty(dirty);
     }
     function positionInline() {
       inline.style.left=GUTTER+col*WIDTH+"px";
@@ -417,7 +418,7 @@
       inline.hidden=true;pivotUI.close();
       $("[data-book-command=pivot]").setAttribute("aria-expanded","false");
       book=value;title.value=value.title;
-      undo.length=0;redo.length=0;dirty=false;
+      undo.length=0;redo.length=0;dirty=false;notifyDirty(false);
       resizeGrid(zoom);renderTabs();choose(0);report("Salvo neste dispositivo");
     }
     async function save() {
@@ -433,7 +434,7 @@
       try {
         const result=await pending;
         book.revision=result.revision;book.title=result.title;title.value=result.title;dirty=false;
-        native().set_dirty?.(false);
+        notifyDirty(false);
         report("Salvo neste dispositivo");
       } finally {
         pending=null;
@@ -650,7 +651,7 @@
       }
     },{signal});
     inline.addEventListener("blur",()=>finishInline(),{signal});
-    inline.addEventListener("input",()=>native().set_dirty?.(true),{signal});
+    inline.addEventListener("input",()=>notifyDirty(true),{signal});
     inline.addEventListener("keydown",event=>{
       event.stopPropagation();
       if(event.isComposing||!["Escape","Enter","Tab"].includes(event.key))return;

@@ -13,7 +13,9 @@
   let workbook, datasets;
   let editor, theme, layout, zoom, navigation, menus, design, token = '', destroyed = false;
   let operationChain = Promise.resolve(), pendingOperations = 0;
-  const scriptLoads = new Map();
+  const scriptLoads = new Map(), dirtyModules = new Map();
+  let backgroundSave, navigationEpoch=0, moduleChain=Promise.resolve(), modulePending=0;
+  const currentNavigation=ticket=>ticket===undefined || ticket===navigationEpoch;
   let settings = {}, preferenceChain = Promise.resolve();
   let dialogResolver = null, dialogFocus = null, noticeTimer;
   let lastStatus = '';
@@ -85,6 +87,12 @@
     } catch (error) { report(name, error); }
   }
   async function request(path, data) {
+    if(destroyed)throw Error('Janela encerrada.');
+    if(data!==undefined){
+      const result=await window.OpenDocRecovery.sendRequest?.(path,data,token);
+      if(result?.handled)return result.value;
+      if(destroyed)throw Error('Janela encerrada.');
+    }
     const options = {headers: {'X-Open-Doc-Token': token}};
     if (data !== undefined) {
       options.method = 'POST';
@@ -156,6 +164,16 @@
     operationChain = task.catch(() => {});
     return task;
   }
+  function operateModule(operation) {
+    const run=async()=>{
+      try {if(!destroyed)return await operation();}
+      catch(error){status(error.message);}
+      finally {modulePending--;}
+    };
+    const immediate=modulePending++===0;
+    const task=immediate?run():moduleChain.then(run);
+    moduleChain=task.catch(()=>{});return task;
+  }
   async function refresh() {
     const data = await request('files');
     if (destroyed) return;
@@ -173,12 +191,18 @@
         const info = document.createElement('div'); info.className='library-file-main';
         const editable=notes || Boolean(file.capabilities?.open);
         const name = document.createElement(editable ? 'button' : 'span'); name.className='library-file-title'; name.textContent = notes ? file.title : file.name; name.title=name.textContent;
-        if (editable) name.addEventListener('click', () => operate(async () => {
-          await editor.flush();
-          if (file.source_kind === 'xlsx' || file.workbook) return openWorkbook({operation:'open', id:file.id});
-          editor.load(await request('document/open', notes ? {id: file.id} : {path: file.path}));
-          showView(false);
-        }), {signal});
+        if (editable) name.addEventListener('click', () => {
+          const ticket=++navigationEpoch;
+          if(file.source_kind==='xlsx' || file.workbook)return operateModule(async()=>{
+            if(root.dataset.workbookView==='true')await workbook.save();
+            return openWorkbook({operation:'open',id:file.id},null,ticket);
+          });
+          return operate(async()=>{
+            await editor.flush();
+            editor.load(await request('document/open',notes?{id:file.id}:{path:file.path}));
+            if(currentNavigation(ticket))showView(false);
+          });
+        }, {signal});
         const date = document.createElement('small'); date.className='library-file-meta';
         date.textContent = notes ? new Date(file.updated_at).toLocaleString('pt-BR') : editable ? 'Abrir como novo documento' : 'Arquivo importado · leitura ainda não disponível';
         info.append(name, date);
@@ -275,12 +299,13 @@
         const accepted = await decision;
         confirm.textContent = label;
         if (!accepted) return;
-        await editor.flush();
-        if (template.format === 'xlsx' && template.id.startsWith('sheet-')) return openWorkbook({operation:'template', template:template.id});
+        const ticket=++navigationEpoch;
+        if(template.format==='xlsx')saveDocumentInBackground();else await editor.flush();
+        if (template.format === 'xlsx' && template.id.startsWith('sheet-')) return openWorkbook({operation:'template', template:template.id},null,ticket);
         const copy = await request('document/template', {id: template.id});
-        if (template.format === 'xlsx') return openWorkbook(null,copy);
+        if (template.format === 'xlsx') return openWorkbook(null,copy,ticket);
         editor.load(copy);
-        showView(false);
+        if(currentNavigation(ticket))showView(false);
         status('Cópia criada a partir do template.');
       }), {signal});
       grid.append(card);
@@ -290,6 +315,18 @@
   function libraryRoute(route = 'home', section) {
     showView(true);
     design?.navigateLibrary(route, section);
+  }
+  function moduleDirty(name,value) {
+    dirtyModules.set(name,Boolean(value));
+    const dirty=[...dirtyModules.values()].some(Boolean);
+    if(root.dataset.globalDirty===String(dirty))return;
+    root.dataset.globalDirty=String(dirty);
+    window.pywebview?.api?.set_dirty?.(dirty)?.catch?.(()=>{});
+  }
+  function saveDocumentInBackground() {
+    if(!backgroundSave)backgroundSave=Promise.resolve().then(()=>editor.flush())
+      .catch(error=>status('Documento com alterações pendentes: '+error.message))
+      .finally(()=>{backgroundSave=null;});
   }
   function loadResources(resources) {
     return Promise.all(resources.map(([global, file]) => window[global] ? null : loadScript(file)));
@@ -306,13 +343,15 @@
     ['OpenDocWorkbookTypes','workbook_types.js'],
     ['OpenDocPythonPackages','python_packages.js']
   ];
-  async function openDatasets() {
+  async function openDatasets(ticket) {
     const host = root.querySelector('[data-dataset]');
-    await Promise.all([editor.flush(), !datasets && Promise.all([
+    saveDocumentInBackground();
+    await Promise.all([!datasets && Promise.all([
       loadResources([...gridResources,['OpenDocDatasets','datasets.js']]), loadCodeEditors()
     ])]);
     if (!datasets) datasets = window.OpenDocDatasets.create({host,request,signal,
-      onOpenWorkbook:value=>operate(()=>openWorkbook(null,value))});
+      onOpenWorkbook:value=>{const ticket=++navigationEpoch;return operateModule(()=>openWorkbook(null,value,ticket));}});
+    if(!currentNavigation(ticket))return;
     showView(true, false);
     root.dataset.datasetView = 'true';
     root.querySelector('[data-library]').hidden = true;
@@ -320,16 +359,18 @@
     zoom?.sync();
     await datasets.load();
   }
-  async function openWorkbook(data, existing) {
+  async function openWorkbook(data, existing, ticket) {
     const host = root.querySelector('[data-workbook]');
-    await Promise.all([editor.flush(), !workbook && loadResources([...gridResources,
+    saveDocumentInBackground();
+    await Promise.all([!workbook && loadResources([...gridResources,
       ['OpenDocWorkbookFormula','workbook_formula.js'],
       ['OpenDocWorkbookPivotUI','workbook_pivot_ui.js'],['OpenDocWorkbook','workbook.js']
     ])]);
-    if (!workbook) workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors,settings,persist});
+    if (!workbook) workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors,settings,persist,onDirty:value=>moduleDirty('workbook',value)});
     const value = existing || (data ? await request('workbook',data) : await window.pywebview.api.import_workbook());
     if (value.error) throw Error(value.error);
     if (value.cancelled) return;
+    if(!currentNavigation(ticket)){workbook.load(value);return;}
     showView(true, false);
     root.dataset.workbookView = 'true';
     root.querySelector('[data-library]').hidden = true;
@@ -355,22 +396,23 @@
       workbook.report(error.message);
     }
   }
-  async function newDocument() {
+  async function newDocument(ticket) {
     await editor.flush(); editor.load(await request('document/new', {title: 'Documento sem título'}));
+    if(!currentNavigation(ticket))return;
     showView(false); root.querySelector('[data-title]').focus(); root.querySelector('[data-title]').select();
   }
-  async function newPresentation() {
+  async function newPresentation(ticket) {
     await editor.flush();
     const document=await request('document/new',{content_format:'opendoc-presentation-v1',title:'Nova apresentação'});
-    editor.load(document);showView(false);status('Apresentação criada. Adicione textos e formas aos slides.');
+    editor.load(document);if(!currentNavigation(ticket))return;showView(false);status('Apresentação criada. Adicione textos e formas aos slides.');
   }
-  async function importDocument() {
+  async function importDocument(ticket) {
     await editor.flush();
     status("Abrindo documento…");
     const result = await window.pywebview.api.import_document();
     if (result.error) throw Error(result.error);
     if (result.cancelled) return;
-    if(result.document){editor.load(result.document);editor.setMode('rich');showView(false);status('Documento importado.');return;}
+    if(result.document){editor.load(result.document);editor.setMode('rich');if(!currentNavigation(ticket))return;showView(false);status('Documento importado.');return;}
     showView(true); status('Arquivo importado: ' + result.name);
   }
   function closeDialog(value = null) {
@@ -451,18 +493,23 @@
       return;
     }
     const moduleNavigation = {
-      home:()=>libraryRoute(), new:newDocument, 'presentation-new':newPresentation,
+      home:ticket=>{if(currentNavigation(ticket))libraryRoute();}, new:newDocument, 'presentation-new':newPresentation,
       import:importDocument, datasets:openDatasets,
-      'workbook-new':()=>openWorkbook({operation:'new'}),
-      'workbook-import':()=>openWorkbook(),
-      'library-recent':()=>libraryRoute('home','recent'),
-      'library-files':()=>libraryRoute('home','imports'),
-      'resume-editor':()=>showView(false)
+      'workbook-new':ticket=>openWorkbook({operation:'new'},null,ticket),
+      'workbook-import':ticket=>openWorkbook(null,null,ticket),
+      'library-recent':ticket=>{if(currentNavigation(ticket))libraryRoute('home','recent');},
+      'library-files':ticket=>{if(currentNavigation(ticket))libraryRoute('home','imports');},
+      'resume-editor':ticket=>{if(currentNavigation(ticket))showView(false);}
     };
-    if (moduleNavigation[name]) return operate(async()=>{
-      if (root.dataset.workbookView === 'true') await workbook.save();
-      return moduleNavigation[name]();
-    });
+    if (moduleNavigation[name]) {
+      const ticket=++navigationEpoch;
+      const run=async()=>{
+        if (root.dataset.workbookView === 'true') await workbook.save();
+        if(name==='home' || name==='library-recent' || name==='library-files')saveDocumentInBackground();
+        return moduleNavigation[name](ticket);
+      };
+      return ['new','presentation-new','import'].includes(name)?operate(run):operateModule(run);
+    }
     if (root.dataset.datasetView === 'true' || root.dataset.workbookView === 'true') {
       if (root.dataset.workbookView === 'true') {
         if (name === 'template-save') return operate(()=>saveTemplate(true));
@@ -625,7 +672,7 @@
     destroy() {
       previewObserver?.disconnect();
       for (const dispose of previewDisposers.splice(0)) dispose();
-      editor?.destroy(); design?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
+      editor?.destroy(); window.OpenDocRecovery.destroy?.(); design?.destroy(); destroyed = true; controller.abort(); clearTimeout(noticeTimer);
       if (dialogResolver) closeDialog();
     },
     action, showHome: () => action('home'), editor: () => editor,
@@ -648,7 +695,8 @@
     if(bootstrap.assets){const response=await fetch(new URL('vendor/vendor-manifest.json',scriptUrl));if(!response.ok)throw Error('Manifesto local ausente. Execute npm run build.');const manifest=await response.json();if(manifest.build_hash!==bootstrap.assets.build_hash || window.OpenDocPdf?.version!==manifest.versions['pdfjs-dist'])throw Error('Recursos locais desatualizados. Execute npm run build.');console.info('Open Doc runtime',{ua:navigator.userAgent,pdfjs:window.OpenDocPdf.version,vendor:manifest.build_hash,structuredClone:typeof window.structuredClone,pointerEvents:typeof window.PointerEvent});}
     token = bootstrap.token; settings = bootstrap.settings;
     collapsed(settings.sidebar_collapsed);
-    editor = window.OpenDocDocumentKinds.create({root, request, status, token, signal, tableDialog, mathDialog, asset:name=>new URL(name,scriptUrl).href, document: bootstrap.document, viewMode: settings.view_mode, autosaveSeconds: bootstrap.autosave_seconds});
+    window.OpenDocRecovery.configure?.(new URL('persistence_worker.js',scriptUrl).href);
+    editor = window.OpenDocDocumentKinds.create({root, request, status, token, signal, tableDialog, mathDialog, onDirty:value=>moduleDirty('document',value), asset:name=>new URL(name,scriptUrl).href, document: bootstrap.document, viewMode: settings.view_mode, autosaveSeconds: bootstrap.autosave_seconds});
     window.OpenDocInk.create({root,editor,status,signal});
     root.addEventListener('open-doc:page-setup',()=>action('page-setup'),{signal});
     root.querySelectorAll('[data-table-op]').forEach(button=>button.addEventListener('click',()=>{try{editor.tableOperation(button.dataset.tableOp);}catch(error){status(error.message);}},{signal}));

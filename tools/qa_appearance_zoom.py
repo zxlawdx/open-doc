@@ -131,6 +131,14 @@ def exercise(window, output, reopen):
     zoom(100)
     js("document.querySelector('[data-rich]').focus()")
     keyboard.type("Teste de zoom e tema")
+    wait(
+        window,
+        "document.querySelector('[data-rich]').textContent.includes('Teste de zoom e tema')",
+    )
+    # Native Qt typing and its logical transaction may finish after keyClicks
+    # returns. Establish a committed baseline before checking zoom invariance.
+    js("OpenDocApp.editor().flush().then(()=>window.__appearanceTypingSaved=true)")
+    wait(window, "window.__appearanceTypingSaved===true")
     before = js("JSON.stringify(OpenDocApp.editor().snapshot().content)")
     click("[data-zoom-step='10']")
     zoom(110)
@@ -144,6 +152,10 @@ def exercise(window, output, reopen):
         window,
         "document.querySelector('.fixed-surface .slide-object, .slide-stage') || document.querySelector('[data-slide-editor=true] .fixed-surface')",
     )
+    # Native Qt typing and its logical transaction may finish after keyClicks
+    # returns. Establish a committed baseline before checking zoom invariance.
+    js("OpenDocApp.editor().flush().then(()=>window.__appearanceTypingSaved=true)")
+    wait(window, "window.__appearanceTypingSaved===true")
     before = js("JSON.stringify(OpenDocApp.editor().snapshot().content)")
     keyboard.press("0")
     zoom(100)
