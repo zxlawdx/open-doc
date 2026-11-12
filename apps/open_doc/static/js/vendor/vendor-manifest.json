@@ -11,14 +11,14 @@
     "@codemirror/lang-sql": "6.10.0"
   },
   "target": "chrome83",
-  "source_hash": "e8159e2066f62f4d056eb00515d84e9fd22466bac266deb47b1caaae58f39d68",
+  "source_hash": "c4d22cd2eefb40d59d3df32bc31b4320d9a57b3e4cff285bfaf4ae6ee0b983eb",
   "files": {
     "pdf.bundle.js": "c227b2fdceccf9739ec709fd8c9454955e080f39fec64fa77c1320a57fcc789f",
     "pdf.worker.bundle.js": "a093627362cf42982a28cfd1774edfb88ffcc920b6c8c4d2f20215d584fecf16",
     "freehand.bundle.js": "3e93d52c14f1f9bc74fbc79c38712cf16ce8a6cf56e594ae7beabca90ae8d8b2",
-    "pptx.bundle.js": "35d611ac230eff7d69fc0259d5a1c5700c961ad94baca7e0a275a8717f0fba61",
+    "pptx.bundle.js": "2bd597e8f1e27b53ad7c831f4288a4f57828acf1317aebb7c55ab109da0f3c27",
     "code-editor.bundle.js": "cd6934edc1ddd671dd42f3b1bd43cc586fcc14ea9f0a78a1073a78dcc81fc4e6"
   },
-  "build_hash": "66fbcdc6f9eaca44dccb224b26e90136f773dc75abbd4a6c0bbeb427dc1da865",
-  "built_at": "2026-11-12T15:44:16.900Z"
+  "build_hash": "4335cd2a73c2a9483bc09c48682e33bd3b75ffc5f3f6590de0bfc6f0c3c4e30b",
+  "built_at": "2026-11-12T15:48:02.747Z"
 }

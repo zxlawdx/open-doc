@@ -69,3 +69,12 @@ test('exact relationship types resolve masters and layouts with mapped colors an
  assert.equal(w.document.querySelector('svg > rect').getAttribute('fill'),'#4E3B30');
  assert.ok(!w.document.querySelector('#slide').textContent.includes('Layout prompt'));
 });
+
+
+test('DrawingML luminance darkens in HSL without losing the base hue',async t=>{
+ const {unzipSync,zipSync,strToU8,strFromU8}=require('fflate');
+ const files=unzipSync(deck('<a:p/>'));
+ files['ppt/slides/slide1.xml']=strToU8(strFromU8(files['ppt/slides/slide1.xml']).replace('<a:srgbClr val="377591"/>','<a:srgbClr val="CCDDEA"><a:lumMod val="10000"/></a:srgbClr>'));
+ const {presentation}=await load(t,zipSync(files));
+ assert.equal(presentation.slides[0].elements.find(e=>e.id==='3').fill.color.hex,'#0D171F');
+});

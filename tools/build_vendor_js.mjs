@@ -41,6 +41,27 @@ const pptxCompatibility={name:'opendoc-pptx-compatibility',setup(builder){
   for (const l of t.values()){r=n.get(l.masterId)?.theme || fallback;i(l.elements);}
   for (const l of n.values()){r=l.theme || fallback;i(l.elements);}`);
   replace('function mn(e, t) {','function mn(e, t) {\n  e = t.__colorMap?.[e] || e;');
+  replace('function R(e, t) {','function openDocBaseColor(e, t) {');
+  replace('function Dt(e) {',`function R(e,t){
+    const color=openDocBaseColor(e,t);
+    if(!color)return color;
+    const node=h(e,"srgbClr") || h(e,"schemeClr") || h(e,"prstClr");
+    if(!node)return color;
+    let rgb=[1,3,5].map(i=>parseInt(color.hex.slice(i,i+2),16)/255),changed=false;
+    for(const transform of Array.from(node.children)){
+      const name=transform.localName,value=C(transform,"val",100000)/100000;
+      if(name!=="lumMod" && name!=="lumOff")continue;
+      // DrawingML luminance changes HSL lightness, not each RGB channel.
+      const low=Math.min(...rgb),high=Math.max(...rgb),light=(low+high)/2;
+      const saturation=high===low?0:(high-low)/(1-Math.abs(2*light-1));
+      const next=Math.max(0,Math.min(1,name==="lumMod"?light*value:light+value));
+      const chroma=(1-Math.abs(2*next-1))*saturation;
+      rgb=rgb.map(c=>(high===low?0:(c-low)/(high-low)*chroma)+next-chroma/2);
+      changed=true;
+    }
+    return changed?{...color,hex:"#"+rgb.map(c=>Math.round(Math.max(0,Math.min(1,c))*255).toString(16).padStart(2,"0")).join("").toUpperCase()}:color;
+  }
+function Dt(e) {`);
   replace('  const p = {\n    themeColors: r,','  r = {...r, __colorMap: {...l?.colorMap, ...i?.colorMap, ...wr(o)}};\n  const p = {\n    themeColors: r,');
   replace('  const u = {\n    themeColors: r,','  r = {...r, __colorMap: Cr(l)};\n  const u = {\n    themeColors: r,');
   replace('  const d = {\n    themeColors: r,','  r = {...r, __colorMap: {...i?.colorMap, ...wr(c)}};\n  const d = {\n    themeColors: r,');
