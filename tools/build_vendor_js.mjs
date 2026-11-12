@@ -90,6 +90,15 @@ function Dt(e) {`);
           'e.hasAttribute("b") && (r.bold = Q(e, "b")), e.hasAttribute("i") && (r.italic = Q(e, "i"));');
   replace('i && i !== "none" && (r.underline = !0);','i && (r.underline = i !== "none");');
   replace('n.style.fontFamily = `"${e.fontFamily}", sans-serif`','n.style.fontFamily = `"${e.fontFamily}", Arial, "Liberation Sans", "DejaVu Sans", sans-serif`');
+  replace('      startAt: a,','      startAt: a,\n      explicitStart: i.hasAttribute("startAt"),');
+  replace('t.lastBulletType.get(s) !== u && (t.numbers.set(s, e.bullet.startAt || 1)', '(t.lastBulletType.get(s) !== u || e.bullet.explicitStart) && (t.numbers.set(s, e.bullet.startAt || 1)');
+  replace('    r.appendChild(o);\n  }\n  const c = document.createElement("span");',`    const first=e.runs.find(run=>run.text.trim()) || {};
+    if(!e.bullet.color && first.color)o.style.color=T(first.color);
+    if(!e.bullet.font && first.fontFamily)o.style.fontFamily='"'+first.fontFamily+'", Arial, "Liberation Sans", "DejaVu Sans", sans-serif';
+    if(!e.bullet.sizePercent && first.fontSize)o.style.fontSize=first.fontSize*n.fontScale+"px";
+    r.appendChild(o);
+  }
+  const c = document.createElement("span");`);
   replace('l && l !== "noStrike" && (r.strikethrough = !0);','l && (r.strikethrough = l !== "noStrike");');
   replace('    index: t,\n    background: A,','    index: t,\n    showMasterShapes: m(o, "showMasterSp") !== "0",\n    background: A,');
   replace('if (i.appendChild(o), r && (n == null ? void 0 : n.showMasterShapes) !== !1)', 'if (i.appendChild(o), r && e.showMasterShapes !== false && (n == null ? void 0 : n.showMasterShapes) !== !1)');

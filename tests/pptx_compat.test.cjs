@@ -78,3 +78,12 @@ test('DrawingML luminance darkens in HSL without losing the base hue',async t=>{
  const {presentation}=await load(t,zipSync(files));
  assert.equal(presentation.slides[0].elements.find(e=>e.id==='3').fill.color.hex,'#0D171F');
 });
+
+test('numbered bullets inherit visible text styling and respect explicit restarts',async t=>{
+ const paragraph=(text,start='')=>`<a:p><a:pPr><a:buAutoNum type="arabicPeriod" ${start}/><a:defRPr sz="3000">${white}<a:latin typeface="Arial"/></a:defRPr></a:pPr><a:r><a:t>${text}</a:t></a:r></a:p>`;
+ const {w,presentation}=await load(t,deck(paragraph('Primeiro','startAt="1"')+paragraph('Segundo')+paragraph('Reinício','startAt="1"')));
+ w.OpenDocPptxVendor.renderSlideToElement(presentation,0,w.document.querySelector('#slide'),{width:960,height:540});
+ const bullets=[...w.document.querySelectorAll('p')].map(p=>p.firstElementChild);
+ assert.deepEqual(bullets.map(n=>n.textContent),['1.','2.','1.']);
+ for(const bullet of bullets){assert.equal(bullet.style.color,'rgb(255, 255, 255)');assert.equal(bullet.style.fontSize,'40px');}
+});
