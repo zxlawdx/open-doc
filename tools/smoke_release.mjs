@@ -86,7 +86,7 @@ try {
         if (!await editor.insertImage('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAMCAIAAADtbgqsAAAAGUlEQVR4nGNcoZTGQC5gIlvnqOZRzTTXDACIewFIN82hKgAAAABJRU5ErkJggg==', 'Packaged image QA')) throw Error('Image insertion failed.');
         await editor.flush();
         const saved = editor.snapshot();
-        const images = () => editor.snapshot().content.blocks.flatMap(block => block.children || []).filter(node => node.type === 'image');
+        const images = () => (editor.snapshot().content?.blocks || []).flatMap(block => block.children || []).filter(node => node.type === 'image');
         if (images().length !== 1) throw Error('Image missing from saved model.');
         editor.format('undo');
         if (images().length) throw Error('Image insertion cannot be undone.');

@@ -89,3 +89,12 @@ test('Alt and arrow keys resize proportionally without moving the anchor',async 
  s.picture().dispatchEvent(new s.w.KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'ArrowRight',altKey:true}));
  const after=s.geometry()[0];assert.equal(after.width_pt,121);assert.equal(after.width_pt/after.height_pt,1.5);assert.equal(after.x_pt,before.x_pt);
 });
+
+test('new Markdown-backed documents can undo the first image insertion and redo it',async t=>{
+ const s=await setup(t);s.editor.load({...s.note,content:undefined,content_format:'markdown',markdown:'Texto inicial'});
+ const paragraph=s.rich.querySelector('p');s.rich.focus();const range=s.w.document.createRange();range.selectNodeContents(paragraph);
+ s.w.getSelection().removeAllRanges();s.w.getSelection().addRange(range);s.editor.capture();
+ assert.equal(await s.editor.insertImage(url),true);assert.equal(s.geometry().length,1);
+ s.editor.format('undo');assert.equal(s.rich.querySelectorAll('.rich-image').length,0);assert.equal(s.rich.textContent,'Texto inicial');
+ s.editor.format('redo');assert.equal(s.geometry().length,1);assert.equal(s.rich.textContent,'Texto inicial');
+});

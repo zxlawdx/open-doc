@@ -395,7 +395,8 @@
       const firstNode=Array.from(rich.querySelectorAll('[data-node-id]')).find(n=>affected.includes(n.dataset.nodeId));
       const pageIndex=Number(firstNode?.closest('[data-page-index]')?.dataset.pageIndex || 0);
       model=after;source.readOnly=Boolean(model);
-      if(!affected.length){root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));}
+      if(!before||!after)renderRich();
+      else if(!affected.length){root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));}
       else if(JSON.stringify(previous.sections || [])===JSON.stringify(target.sections || []) && window.OpenDocRichRenderer.reconcile(previous,target,rich,mediaUrl)){
         if(JSON.stringify(previous.blocks.map(b=>b.id))!==JSON.stringify(target.blocks.map(b=>b.id)) || changed.some(id=>!pagination?.fits(id)))pagination?.invalidate(changed[0],{preserveScroll:true,pageIndex});
       }else renderRich();
