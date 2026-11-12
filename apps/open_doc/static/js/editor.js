@@ -7,9 +7,9 @@
   window.OpenDocDebug=window.OpenDocDebug || {input:false};
 
   function create(options) {
-    const {root, request, status, autosaveSeconds} = options;
+    const {root, request, status, autosaveSeconds, onDirty} = options;
     function notifyDirty(value){
-      const result=options.onDirty?options.onDirty(value):window.pywebview?.api?.set_dirty?.(value);
+      const result=onDirty?onDirty(value):window.pywebview?.api?.set_dirty?.(value);
       result?.catch?.(()=>{});
     }
     const source = root.querySelector("[data-source]");
