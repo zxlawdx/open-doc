@@ -4,6 +4,8 @@ import { createServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
+import {pptxCompatibilityFixture} from "./pptx_compat_fixture.mjs";
+const pptxBytes = Array.from(pptxCompatibilityFixture());
 const binary = resolve(process.argv[2]);
 const server = createServer();
 await new Promise((done, reject) => {
@@ -81,6 +83,16 @@ try {
     ws.onopen = () => ws.send(JSON.stringify({id: 2, method: 'Runtime.evaluate', params: {
       awaitPromise: true, returnByValue: true,
       expression: `(async () => {
+        const pptx = await OpenDocPptx.loadBytes(new Uint8Array(${JSON.stringify(pptxBytes)}).buffer);
+        const surface = document.createElement('div');
+        document.body.appendChild(surface);
+        try {
+          const content = pptx.render(0, surface, 960, 540);
+          const title = [...content.querySelectorAll('span')].find(n => n.textContent === 'Packaged PPTX QA' && n.style.fontSize);
+          const curves = [...content.querySelectorAll('path')].filter(n => (n.getAttribute('d') || '').includes(' C '));
+          if (!title || getComputedStyle(title).fontSize !== '40px' || getComputedStyle(title).color !== 'rgb(255, 255, 255)' || curves.length !== 1)
+            throw Error('Packaged PPTX paragraph inheritance or wave geometry failed.');
+        } finally {surface.remove(); pptx.destroy();}
         await OpenDocApp.action('new');
         const editor = OpenDocApp.editor();
         if (!await editor.insertImage('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAMCAIAAADtbgqsAAAAGUlEQVR4nGNcoZTGQC5gIlvnqOZRzTTXDACIewFIN82hKgAAAABJRU5ErkJggg==', 'Packaged image QA')) throw Error('Image insertion failed.');
@@ -116,6 +128,7 @@ try {
     };
   });
   if (!imageCheck?.ok) throw Error('DOCX image validation failed.');
+  console.log(`OPEN_DOC_FROZEN_PPTX_COMPAT_OK ${binary}`);
   console.log(`OPEN_DOC_FROZEN_DOCX_IMAGE_OK ${binary} ${imageCheck.media}`);
   console.log(`OPEN_DOC_FROZEN_UI_OK ${binary}`);
 } finally {
