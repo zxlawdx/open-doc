@@ -236,6 +236,7 @@ test('global zoom separates Central and document, and handles keyboard variants 
   click('[data-zoom-step="-10"]');
   assert.equal(output(), '90%');
   click('.product');
+  await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(output(), '110%');
   await new Promise(resolve => setTimeout(resolve, 0));
   const persisted = requests.filter(item => item.url.endsWith('/settings')).map(item => JSON.parse(item.body).settings);
@@ -267,4 +268,67 @@ test('appearance can be changed in Central and responds to the system preference
   click('[data-dialog-confirm]');
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(root.dataset.theme, 'light');
+});
+
+test('navigation clicks received during a slow document request are executed in order', async t => {
+  const {w, root} = await mount(t);
+  const fetch=w.fetch; let release, created=0;
+  w.fetch=async(url,options)=>{
+    if(String(url).endsWith('/document/new')){
+      const number=++created;
+      if(number===1)await new Promise(resolve=>{release=resolve;});
+      return {ok:true,json:async()=>({id:'created-'+number,title:'Novo '+number,markdown:'',revision:1})};
+    }
+    return fetch(url,options);
+  };
+  const first=w.OpenDocApp.action('new');
+  while(!release)await new Promise(resolve=>setTimeout(resolve,0));
+  const second=w.OpenDocApp.action('new');
+  assert.equal(created,1,'the second request must wait for the first');
+  assert.equal(root.dataset.busy,'true');
+  release(); await Promise.all([first,second]);
+  assert.equal(created,2,'the second click must not be dropped');
+  assert.equal(w.OpenDocApp.editor().snapshot().id,'created-2');
+  assert.equal(root.dataset.busy,'false');
+});
+
+test('module resources load concurrently, reuse shared scripts and allow direct navigation', async t => {
+  const {w,root,requests}=await mount(t);
+  const names={
+    'grid_workspace.js':'OpenDocGridWorkspace','workbook_formula.js':'OpenDocWorkbookFormula',
+    'workbook_pivot.js':'OpenDocWorkbookPivot','workbook_pivot_ui.js':'OpenDocWorkbookPivotUI',
+    'workbook_types.js':'OpenDocWorkbookTypes','python_packages.js':'OpenDocPythonPackages',
+    'workbook.js':'OpenDocWorkbook','datasets.js':'OpenDocDatasets',
+    'code-editor.bundle.js':'OpenDocCodeVendor','code_editor.js':'OpenDocCodeEditor',
+    'code_notebook.js':'OpenDocCodeNotebook'
+  };
+  let saves=0,loads=0; const pending=[],loaded=[];
+  const append=w.document.body.append.bind(w.document.body);
+  w.document.body.append=(node)=>{
+    if(node.tagName!=='SCRIPT')return append(node);
+    const file=node.src.split('/').pop();loaded.push(file);
+    pending.push(()=>{
+      w[names[file]]=file==='workbook.js'?{create:()=>({load:()=>loads++,save:async()=>saves++,value:()=>100})}:
+        file==='datasets.js'?{create:()=>({load:async()=>{}})}:{};
+      node.onload();
+    });
+  };
+  const filesBefore=requests.filter(r=>r.url.endsWith('/files')).length;
+  const opening=w.OpenDocApp.action('workbook-new');
+  assert.equal(pending.length,7,'independent resources start together');
+  pending.splice(0).forEach(resolve=>resolve());await opening;
+  assert.equal(root.dataset.workbookView,'true');assert.equal(loads,1);
+  assert.equal(requests.filter(r=>r.url.endsWith('/files')).length,filesBefore,
+    'opening a module must not refresh invisible template previews');
+  const data=w.OpenDocApp.action('datasets');
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(pending.length,4,'shared grid resources must be reused');
+  pending.splice(0).forEach(resolve=>resolve());await data;
+  assert.equal(root.dataset.datasetView,'true');assert.equal(saves,1);
+  await w.OpenDocApp.action('workbook-new');
+  assert.equal(root.dataset.workbookView,'true');assert.equal(loads,2);
+  await w.OpenDocApp.action('new');
+  assert.equal(root.dataset.homeView,'false');assert.equal(root.dataset.workbookView,'false');
+  assert.equal(saves,2);
+  assert.equal(new Set(loaded).size,loaded.length,'no script is loaded twice');
 });

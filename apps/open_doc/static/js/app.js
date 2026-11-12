@@ -11,7 +11,9 @@
   const scriptUrl = document.currentScript.src;
   const controller = new AbortController(), signal = controller.signal;
   let workbook, datasets;
-  let editor, theme, layout, zoom, navigation, menus, design, token = '', destroyed = false, busy = false;
+  let editor, theme, layout, zoom, navigation, menus, design, token = '', destroyed = false;
+  let operationChain = Promise.resolve(), pendingOperations = 0;
+  const scriptLoads = new Map();
   let settings = {}, preferenceChain = Promise.resolve();
   let dialogResolver = null, dialogFocus = null, noticeTimer;
   let lastStatus = '';
@@ -118,8 +120,8 @@
     try { await persist({sidebar_collapsed: next}); }
     catch (error) { collapsed(previous); status(error.message); }
   }
-  function showView(home = false) {
-    const wasHome = root.dataset.homeView === 'true' && root.dataset.workbookView !== 'true';
+  function showView(home = false, refreshLibrary = true) {
+    const wasHome = root.dataset.homeView === 'true' && root.dataset.workbookView !== 'true' && root.dataset.datasetView !== 'true';
     root.dataset.workbookView = 'false';
     root.dataset.datasetView = 'false';
     root.querySelector('[data-dataset]').hidden = true;
@@ -129,7 +131,7 @@
     root.querySelector('[data-document-body]').hidden = home || root.dataset.documentKind==='fixed';
     design?.sync();
     zoom?.sync();
-    if (home && !wasHome) refresh().catch(error => status(error.message));
+    if (home && !wasHome && refreshLibrary) refresh().catch(error => status(error.message));
     else if (!home) {
       layout?.measure(); editor?.refresh();
       // The view was hidden during document.load(). Fixed slides must only
@@ -137,11 +139,22 @@
       root.dispatchEvent(new CustomEvent('open-doc:view-ready'));
     }
   }
-  async function operate(operation) {
-    if (busy || !editor || destroyed) return;
-    busy = true; editor.setLocked(true);
-    try { await operation(); } catch (error) { status(error.message); }
-    finally { busy = false; if (!destroyed) editor.setLocked(false); }
+  function operate(operation) {
+    // Preserve clicks received while a save/import is awaiting I/O. Serialize
+    // mutations so a late response cannot overwrite the next document.
+    const run = async () => {
+      if (!editor || destroyed) return;
+      root.dataset.busy = 'true'; editor.setLocked(true);
+      try { return await operation(); } catch (error) { status(error.message); }
+      finally {
+        pendingOperations--; root.dataset.busy = 'false';
+        if (!destroyed) editor.setLocked(false);
+      }
+    };
+    const immediate = pendingOperations++ === 0;
+    const task = immediate ? run() : operationChain.then(run);
+    operationChain = task.catch(() => {});
+    return task;
   }
   async function refresh() {
     const data = await request('files');
@@ -278,25 +291,29 @@
     showView(true);
     design?.navigateLibrary(route, section);
   }
-  async function loadCodeEditors() {
-    if (!window.OpenDocCodeVendor) await loadScript('vendor/code-editor.bundle.js');
-    if (!window.OpenDocCodeEditor) await loadScript('code_editor.js');
-    if (!window.OpenDocCodeNotebook) await loadScript('code_notebook.js');
+  function loadResources(resources) {
+    return Promise.all(resources.map(([global, file]) => window[global] ? null : loadScript(file)));
   }
+  function loadCodeEditors() {
+    return loadResources([
+      ['OpenDocCodeVendor','vendor/code-editor.bundle.js'],
+      ['OpenDocCodeEditor','code_editor.js'],['OpenDocCodeNotebook','code_notebook.js']
+    ]);
+  }
+  const gridResources = [
+    ['OpenDocGridWorkspace','grid_workspace.js'],
+    ['OpenDocWorkbookPivot','workbook_pivot.js'],
+    ['OpenDocWorkbookTypes','workbook_types.js'],
+    ['OpenDocPythonPackages','python_packages.js']
+  ];
   async function openDatasets() {
-    await editor.flush();
     const host = root.querySelector('[data-dataset]');
-    if (!datasets) {
-      if (!window.OpenDocGridWorkspace) await loadScript('grid_workspace.js');
-      await loadCodeEditors();
-      if (!window.OpenDocWorkbookPivot) await loadScript('workbook_pivot.js');
-      if (!window.OpenDocWorkbookTypes) await loadScript('workbook_types.js');
-      if (!window.OpenDocPythonPackages) await loadScript('python_packages.js');
-      if (!window.OpenDocDatasets) await loadScript('datasets.js');
-      datasets = window.OpenDocDatasets.create({host,request,signal,
-        onOpenWorkbook:value=>openWorkbook(null,value)});
-    }
-    showView(true);
+    await Promise.all([editor.flush(), !datasets && Promise.all([
+      loadResources([...gridResources,['OpenDocDatasets','datasets.js']]), loadCodeEditors()
+    ])]);
+    if (!datasets) datasets = window.OpenDocDatasets.create({host,request,signal,
+      onOpenWorkbook:value=>operate(()=>openWorkbook(null,value))});
+    showView(true, false);
     root.dataset.datasetView = 'true';
     root.querySelector('[data-library]').hidden = true;
     host.hidden = false;
@@ -304,22 +321,16 @@
     await datasets.load();
   }
   async function openWorkbook(data, existing) {
-    await editor.flush();
     const host = root.querySelector('[data-workbook]');
-    if (!workbook) {
-      if (!window.OpenDocGridWorkspace) await loadScript('grid_workspace.js');
-      if (!window.OpenDocWorkbookFormula) await loadScript('workbook_formula.js');
-      if (!window.OpenDocWorkbookPivot) await loadScript('workbook_pivot.js');
-      if (!window.OpenDocWorkbookPivotUI) await loadScript('workbook_pivot_ui.js');
-      if (!window.OpenDocWorkbookTypes) await loadScript('workbook_types.js');
-      if (!window.OpenDocPythonPackages) await loadScript('python_packages.js');
-      if (!window.OpenDocWorkbook) await loadScript('workbook.js');
-      workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors,settings,persist});
-    }
+    await Promise.all([editor.flush(), !workbook && loadResources([...gridResources,
+      ['OpenDocWorkbookFormula','workbook_formula.js'],
+      ['OpenDocWorkbookPivotUI','workbook_pivot_ui.js'],['OpenDocWorkbook','workbook.js']
+    ])]);
+    if (!workbook) workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors,settings,persist});
     const value = existing || (data ? await request('workbook',data) : await window.pywebview.api.import_workbook());
     if (value.error) throw Error(value.error);
     if (value.cancelled) return;
-    showView(true);
+    showView(true, false);
     root.dataset.workbookView = 'true';
     root.querySelector('[data-library]').hidden = true;
     host.hidden = false;
@@ -439,20 +450,24 @@
       if (value) await theme?.set(value).catch(error => status(error.message));
       return;
     }
-    if (root.dataset.datasetView === 'true') {
-      if (name === 'home') return libraryRoute();
-      return;
-    }
-    if (root.dataset.workbookView === 'true') {
-      if (name === 'home') return leaveWorkbook();
-      if (name === 'template-save') return operate(()=>saveTemplate(true));
-      if (name === 'workbook-new' || name === 'workbook-import') return operate(async()=>{
-        try {
-          await workbook.save();
-          await openWorkbook(name==='workbook-new'?{operation:'new'}:null);
-        } catch(error) { workbook.report(error.message); }
-      });
-      if (name === 'save') return workbook.save().catch(error=>workbook.report(error.message));
+    const moduleNavigation = {
+      home:()=>libraryRoute(), new:newDocument, 'presentation-new':newPresentation,
+      import:importDocument, datasets:openDatasets,
+      'workbook-new':()=>openWorkbook({operation:'new'}),
+      'workbook-import':()=>openWorkbook(),
+      'library-recent':()=>libraryRoute('home','recent'),
+      'library-files':()=>libraryRoute('home','imports'),
+      'resume-editor':()=>showView(false)
+    };
+    if (moduleNavigation[name]) return operate(async()=>{
+      if (root.dataset.workbookView === 'true') await workbook.save();
+      return moduleNavigation[name]();
+    });
+    if (root.dataset.datasetView === 'true' || root.dataset.workbookView === 'true') {
+      if (root.dataset.workbookView === 'true') {
+        if (name === 'template-save') return operate(()=>saveTemplate(true));
+        if (name === 'save') return workbook.save().catch(error=>workbook.report(error.message));
+      }
       return;
     }
     const operations = {
@@ -496,14 +511,14 @@
         ? editor.insertTable() : tableDialog(),
 
       new: () => operate(newDocument), 'presentation-new': () => operate(newPresentation), import: () => operate(importDocument),
-      home: () => libraryRoute(),
+      home: () => operate(()=>libraryRoute()),
       datasets: () => operate(openDatasets),
       'template-save': () => operate(()=>saveTemplate()),
       'workbook-new': () => operate(()=>openWorkbook({operation:'new'})),
       'workbook-import': () => operate(()=>openWorkbook()),
-      'resume-editor': () => showView(false),
-      'library-recent':()=>libraryRoute('home','recent'),
-      'library-files':()=>libraryRoute('home','imports'),
+      'resume-editor': () => operate(()=>showView(false)),
+      'library-recent':()=>operate(()=>libraryRoute('home','recent')),
+      'library-files':()=>operate(()=>libraryRoute('home','imports')),
       save: async()=>{
         status('Salvando…');
         try{
@@ -591,13 +606,20 @@
     const select = root.querySelector('[data-paragraph]');
     if (select && document.activeElement !== select && state.paragraph) select.value = state.paragraph;
   }
-  async function loadScript(name) {
-    if (destroyed) return;
+  function loadScript(name) {
+    if (destroyed) return Promise.resolve();
+    if (scriptLoads.has(name)) return scriptLoads.get(name);
     const script = document.createElement('script'); script.src = new URL(name, scriptUrl).href;
-    await new Promise((resolve, reject) => {
-      script.onload = resolve; script.onerror = () => reject(Error('Não foi possível carregar os recursos locais.'));
+    const task = new Promise((resolve, reject) => {
+      script.onload = () => { script.remove(); resolve(); };
+      script.onerror = () => {
+        script.remove(); scriptLoads.delete(name);
+        reject(Error('Não foi possível carregar os recursos locais.'));
+      };
       document.body.append(script);
-    }); script.remove();
+    });
+    scriptLoads.set(name, task);
+    return task;
   }
   const page = {
     destroy() {

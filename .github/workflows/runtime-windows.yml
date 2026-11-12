@@ -53,6 +53,8 @@ jobs:
           exit $LASTEXITCODE
       - name: DOCX pen-to-keyboard responsiveness
         run: python -u tools/qa_docx_ink_typing.py
+      - name: DOCX pen-to-module navigation
+        run: python -u tools/qa_navigation_perf.py
       - name: Actual Vela PyQt QtWebEngine
         shell: pwsh
         run: |
@@ -144,6 +146,8 @@ jobs:
           npm test
       - name: DOCX pen-to-keyboard responsiveness
         run: python -u tools/qa_docx_ink_typing.py
+      - name: DOCX pen-to-module navigation
+        run: python -u tools/qa_navigation_perf.py
       - name: Actual Vela PyQt QtWebEngine
         run: |
           python -u tools/qa_appearance_zoom.py docs/images/appearance-zoom

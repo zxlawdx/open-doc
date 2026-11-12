@@ -169,7 +169,7 @@ class DocumentApplication:
             return self.context.fixed_documents.save(
                 data["id"], data["title"], data["content"], data["revision"]
             )
-        return self.context.editor.save(
+        result = self.context.editor.save(
             data["id"],
             data["title"],
             data.get("markdown", ""),
@@ -177,6 +177,10 @@ class DocumentApplication:
             data.get("content"),
             data.get("content_format", "markdown"),
         )
+        # The client already owns the saved model; acknowledge its revision
+        # without sending the entire JSON (including every pen point) back.
+        result.pop("content_json", None)
+        return result
 
     def versions(self, data: dict[str, Any]) -> dict[str, Any]:
         identifier = data["id"]

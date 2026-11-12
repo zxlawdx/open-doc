@@ -83,3 +83,33 @@ def test_external_import_organizes_file_before_opening(tmp_path):
     assert result["document"] == {"title": "external", "path": managed}
     assert result["opened"] is True
     assert result["view"] == "rich"
+
+
+def test_rich_save_ack_does_not_echo_pen_payload_and_open_returns_one_model(tmp_path):
+    from apps.open_doc.services.document_service import Editor
+    from apps.open_doc.services.preferences_service import Config
+    from apps.open_doc.document_model.schema import RichDocument
+
+    editor = Editor(Config(tmp_path))
+    model = RichDocument().to_dict()
+    note = editor.create_rich_copy("Caderno", model)
+    context = _context(tmp_path, FakeOrganizer())
+    context.editor = editor
+    result = DocumentApplication(context).save({
+        "id": note["id"], "title": "Caderno", "revision": note["revision"],
+        "content_format": "opendoc-rich-v1", "content": model,
+    })
+    assert result["revision"] == note["revision"] + 1
+    assert "content_json" not in result
+    reopened = editor.get(note["id"])
+    assert reopened["content"] == model
+    assert "content_json" not in reopened
+    editor.stash_recovery(note["id"], "Rascunho", "", result["revision"], model, "opendoc-rich-v1")
+    # Identical content is intentionally not retained as a recovery draft.
+    model["blocks"] = [{"id": "p", "type": "paragraph", "children": [
+        {"id": "r", "type": "text", "text": "Novo cálculo"}
+    ]}]
+    editor.stash_recovery(note["id"], "Rascunho", "", result["revision"], model, "opendoc-rich-v1")
+    recovered = editor.get(note["id"])["recovery"]
+    assert recovered["content"] == model
+    assert "content_json" not in recovered

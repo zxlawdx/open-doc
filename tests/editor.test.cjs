@@ -354,3 +354,20 @@ test('model-first backspace joins paragraphs without editing page wrappers',t=>{
  assert.equal(op.model.blocks[0].children[0].text,'Importado');
  assert.equal(previous.blocks.length,2,'transaction must not mutate original state');
 });
+
+test('explicit save supersedes pending local and SQLite recovery snapshots', async t => {
+  let release;
+  const {window,editor,input,calls}=setup(t,{request:async(route,data)=>{
+    calls.push({route,data});
+    if(route==='document/save')await new Promise(resolve=>{release=resolve;});
+    return {...data,revision:data.revision+1};
+  }});
+  let localWrites=0;window.OpenDocRecovery.write=()=>localWrites++;
+  input('Cálculos com caneta');
+  const saving=editor.flush();
+  while(!release)await new Promise(resolve=>setTimeout(resolve,0));
+  await new Promise(resolve=>setTimeout(resolve,750));
+  assert.equal(localWrites,0,'do not encode the same model while its save is pending');
+  assert.deepEqual(calls.map(call=>call.route),['document/save']);
+  release();await saving;assert.equal(editor.isClean(),true);
+});

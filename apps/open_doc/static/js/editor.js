@@ -298,13 +298,14 @@
 
     function flush() {
       finishLogicalTransaction();
+      clearTimeout(cacheTimer); clearTimeout(recoveryTimer);
       if(suspended)return Promise.resolve();
       return enqueue(async () => {
         if (isClean()) return documentState;
         let result;
         while (!isClean()) {
+        clearTimeout(cacheTimer); clearTimeout(recoveryTimer);
         const snapshot = buffer();
-        cache();
         status("Salvando…");
         root.dataset.saving = "true";
         try {
