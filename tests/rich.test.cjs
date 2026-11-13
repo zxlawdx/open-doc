@@ -925,3 +925,9 @@ test('ink history budgets geometry without JSON encoding points and preserves un
  q.editor.setInkLayers([{surface_index:0,width_pt:595,height_pt:842,strokes,text_overlays:[]}]);
  assert.equal(encoded,0);assert.equal(q.editor.inkLayers()[0].strokes.length,10000);q.editor.format('undo');assert.equal(JSON.stringify(q.editor.inkLayers()),JSON.stringify(before));q.editor.format('redo');assert.equal(q.editor.inkLayers()[0].strokes.length,10000);
 });
+
+test('academic document profile updates every section and table text while keeping identities and undo',async t=>{
+ const q=await setup(t),content=structuredClone(q.note.content);content.sections=[{id:'section-a',type:'section',margin_left_pt:72},{id:'section-b',type:'section',margin_left_pt:36}];q.editor.load({...q.note,content});
+ const profile={scope:'document',paragraph:{alignment:'justify',first_line_indent_pt:35},text:{font_family:'Times New Roman',font_size_pt:12},section:{margin_left_pt:85,margin_right_pt:57}};
+ q.editor.applyProfile(profile);const after=q.editor.snapshot().content;assert.deepEqual(Array.from(after.sections,s=>s.margin_left_pt),[85,85]);assert.deepEqual(Array.from(after.sections,s=>s.id),['section-a','section-b']);assert.equal(after.blocks[1].rows[0].cells[0].blocks[0].children[0].style.font_family,'Times New Roman');assert.equal(after.blocks[0].id,'p1');assert.equal(after.blocks[0].style.alignment,'justify');q.editor.format('undo');assert.deepEqual(Array.from(q.editor.snapshot().content.sections,s=>s.margin_left_pt),[72,36]);q.editor.format('redo');assert.equal(q.editor.snapshot().content.sections[1].margin_left_pt,85);
+});

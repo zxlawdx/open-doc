@@ -863,7 +863,7 @@
         function inline(children){for(const run of children||[]){if(run.type==='text'){run.style={...run.style,...profile.text};delete run.raw_properties;}if(run.children)inline(run.children);}}
         inline(block.children);
       }}visit(next.blocks);
-      const previous=next.sections?.[0]||{};next.sections=[{...window.OpenDocPagination.defaults,...previous,...profile.section,id:previous.id||M.id(),type:'section'},...(next.sections||[]).slice(1)];
+      const sections=next.sections?.length?next.sections:[{}];next.sections=sections.map(previous=>({...window.OpenDocPagination.defaults,...previous,...profile.section,id:previous.id||M.id(),type:'section'}));
       commitModel(next);pagination?.invalidate();status(profile.note||'Perfil aplicado. Revise o documento.');
     }
     function pageSetup(values){
