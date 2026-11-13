@@ -905,6 +905,11 @@
         const from=sorted[r].line[c];
         copy(to,from,cells,target.cells);copy(to,from,styles,target.styles);
         copy(to,from,cellTypes,target.types?.cells);copy(to,from,cellTools,target.cell_tools);
+        const spark=cellTools?.[to]?.sparkline,sourceRow=Number(from.split(',')[0]);
+        if(spark&&spark.range[0]===sourceRow&&spark.range[2]===sourceRow&&spark.range[1]>=bounds()[1]&&spark.range[3]<=bounds()[3]){
+          const destinationRow=Number(to.split(',')[0]);
+          cellTools[to]={...cellTools[to],sparkline:{...spark,range:[destinationRow,spark.range[1],destinationRow,spark.range[3]]}};
+        }
         if(bold.has(from))nextBold.add(to);else nextBold.delete(to);
       }));
       const after={cells,bold:[...nextBold],styles,cell_tools:cellTools,types:target.types&&{...target.types,cells:cellTypes}};

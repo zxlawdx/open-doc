@@ -207,6 +207,18 @@ def main():
                     window,
                     "document.querySelectorAll('svg[aria-label^=Minigráfico]').length===2",
                 )
+                address("D3:B2")
+                command("sort-desc")
+                command("save")
+                wait(
+                    window,
+                    "document.querySelector('[data-book-status]').textContent==='Salvo neste dispositivo'",
+                )
+                sorted_book = get_context().workbooks.get(book["id"])
+                assert sorted_book["sheets"][0]["cell_tools"]["1,3"]["sparkline"][
+                    "range"
+                ] == [1, 1, 1, 2]
+                command("undo")
                 address("A7")
                 command("shape")
                 wait(
