@@ -37,7 +37,8 @@ a escrita, sem manter uma cópia de cada foto no modelo da planilha.
 
 1. Em **Inserir → Imagem**, escolha um arquivo local. Clique na imagem para
    acessar Editar, Duplicar e Excluir; arraste para mover ou use o canto para
-   redimensionar. Imagens mantêm a proporção, a menos que Shift esteja pressionado.
+   redimensionar. Também é possível colar imagens da área de transferência ou
+   arrastar arquivos para a grade. Imagens mantêm a proporção, a menos que Shift esteja pressionado.
 2. Para criar um gráfico, selecione a linha dos cabeçalhos, uma coluna de
    categorias e as colunas numéricas. Escolha o tipo e clique em **Gráfico da
    seleção**. Dê um título. Alterar os valores das células atualiza o desenho.

@@ -137,6 +137,18 @@ def main():
                     window,
                     "document.querySelectorAll('.workbook-drawing img').length===2",
                 )
+                js("""(() => {
+                  const bytes=Uint8Array.from(atob(%s),char=>char.charCodeAt(0));
+                  const data=new DataTransfer();data.items.add(new File([bytes],'clipboard.png',{type:'image/png'}));
+                  document.querySelector('[data-book-scroll]').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
+                })()""" % json.dumps(encoded))
+                wait(
+                    window,
+                    "document.querySelectorAll('.workbook-drawing img').length===3",
+                )
+                assert js(
+                    "document.querySelector('[data-cell=\"0,0\"]').textContent==='Mês'"
+                )
                 js(
                     """(() => {const address=document.querySelector('[data-book-address]');address.value='A1:C3';address.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));document.querySelector('[data-book-command=chart]').click();})()"""
                 )
@@ -222,14 +234,14 @@ def main():
                 address("A7")
                 command("shape")
                 wait(
-                    window, "document.querySelectorAll('.workbook-drawing').length===5"
+                    window, "document.querySelectorAll('.workbook-drawing').length===6"
                 )
                 js("document.querySelector('[data-book-shape-kind]').value='text'")
                 address("A12")
                 command("shape")
                 confirm("Caixa de texto criada na interface")
                 wait(
-                    window, "document.querySelectorAll('.workbook-drawing').length===6"
+                    window, "document.querySelectorAll('.workbook-drawing').length===7"
                 )
                 command("save")
                 wait(
@@ -245,7 +257,7 @@ def main():
                 )
                 native = load_workbook(target)
                 assert (
-                    len(native.active._images) == 2 and len(native.active._charts) == 2
+                    len(native.active._images) == 3 and len(native.active._charts) == 2
                 )
                 assert native.active._images[0].anchor._from.colOff > 0
                 assert native.active["E1"].value is True

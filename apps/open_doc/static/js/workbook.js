@@ -58,7 +58,7 @@
 
     });
     const drawings=window.OpenDocWorkbookObjects.create({host,viewport,signal,request,dialog,report,
-      getState:()=>({sheet:sheet(),bookId:book.id,index,row,col,bounds:bounds(),calc,scale:WIDTH/112,gutter:GUTTER,cellHeight:HEIGHT}),
+      getState:()=>({sheet:sheet(),bookId:book.id,index,row,col,bounds:bounds(),calc,scale:WIDTH/112,gutter:GUTTER,cellHeight:HEIGHT,busy:Boolean(pending||importing),idle:async()=>{if(pending)await pending;}}),
       change:(target,before,after)=>change(()=>{if(before===undefined)delete target.objects;else target.objects=before;},()=>{target.objects=after;})});
     function controls() {
       coord.value=anchor[0]===row&&anchor[1]===col?column(col)+(row+1):rangeAddress(bounds());
@@ -962,13 +962,25 @@
       if(event.target===inline||!event.clipboardData||pending||importing)return;
       event.preventDefault();
       try{
-        if(type==="paste")pasteText(event.clipboardData.getData("text/plain"));
+        if(type==="paste"){
+          const image=Array.from(event.clipboardData.files||[]).find(file=>/^image\/(png|jpeg|jpg|webp)$/.test(file.type));
+          if(image){drawings.addImage(image).catch(error=>report(error.message));return;}
+          pasteText(event.clipboardData.getData("text/plain"));
+        }
         else{
           const text=selectionText();remember(text);
           event.clipboardData.setData("text/plain",text);
           if(type==="cut")clearSelection();
         }
       }catch(error){report(error.message);}
+    },{signal});
+    viewport.addEventListener('dragover',event=>{if(Array.from(event.dataTransfer?.types||[]).includes('Files'))event.preventDefault();},{signal});
+    viewport.addEventListener('drop',event=>{
+      const files=Array.from(event.dataTransfer?.files||[]).filter(file=>/^image\/(png|jpeg|jpg|webp)$/.test(file.type)||/\.(png|jpe?g|webp)$/i.test(file.name));
+      if(!files.length)return;event.preventDefault();
+      if(pending||importing)return;
+      const cell=event.target.closest('[data-cell]');if(cell)select(...cell.dataset.cell.split(',').map(Number));
+      (async()=>{for(const file of files)await drawings.addImage(file);})().catch(error=>report(error.message));
     },{signal});
     function styleSelection(property,value) {
       const target=sheet(),before=target.styles,oldBold=target.bold;

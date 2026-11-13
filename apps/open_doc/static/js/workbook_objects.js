@@ -100,8 +100,14 @@
     function updateObject(identifier,patch){apply(snapshot().objects.map(o=>o.id===identifier?{...o,...patch}:o));}
     function choose(identifier){selected=identifier;for(const node of layer.children)node.dataset.selected=String(node.dataset.objectId===identifier);}
     async function addImage(file){
-      const start=snapshot(),dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler a imagem.'));reader.readAsDataURL(file);});
+      const start=snapshot();
+      if(file.size>4*1024*1024)throw Error('A imagem deve ter no máximo 4 MB.');
+      const mime=file.type==='image/jpg'?'image/jpeg':file.type||(/\.png$/i.test(file.name)?'image/png':/\.webp$/i.test(file.name)?'image/webp':'image/jpeg');
+      if(!['image/png','image/jpeg','image/webp'].includes(mime))throw Error('Escolha uma imagem PNG, JPEG ou WebP.');
+      let dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Não foi possível ler a imagem.'));reader.readAsDataURL(file);});
+      dataUrl='data:'+mime+';base64,'+String(dataUrl).split(',')[1];
       const asset=await request('workbook',{operation:'image-add',id:start.bookId,data_url:dataUrl,name:file.name});
+      await start.idle?.();
       if(snapshot().bookId!==start.bookId||snapshot().sheet!==start.sheet)return;
       remember(asset.media_id,asset.url);const scale=Math.min(1,360/asset.width,280/asset.height);
       const obj={id:id(),type:'image',name:file.name.slice(0,200),media_id:asset.media_id,
@@ -113,6 +119,7 @@
       if((range[2]-range[0]+1)*(range[3]-range[1]+1)>50000)throw Error('Use até 50 mil células por gráfico.');
       if(range[0]>=range[2]||range[1]>=range[3])throw Error('Selecione os cabeçalhos, categorias e pelo menos uma coluna de valores.');
       const name=await dialog('Inserir gráfico','Título do gráfico:',true,null,{label:'Título ',type:'text',initial:'Gráfico'});if(!name)return;
+      await s.idle?.();
       if(snapshot().sheet!==s.sheet)return;
       const kind=host.querySelector('[data-book-chart-kind]').value;
       const obj={id:id(),type:'chart',name:name.slice(0,200),chart_kind:kind,range:range.slice(),
@@ -131,6 +138,7 @@
         text=await dialog('Inserir caixa de texto','Texto da caixa:',true,null,{label:'Texto ',type:'text',initial:'Texto'});
         if(!text||snapshot().sheet!==s.sheet)return;
       }
+      await s.idle?.();if(snapshot().sheet!==s.sheet)return;
       const obj={id:id(),type:'shape',name:kind==='text'?text.slice(0,200):'Forma',shape_kind:kind,text,fill:'#E8F0FE',color:'#174EA6',x:s.col*112,y:s.row*28,width:240,height:kind==='text'?80:140};
       selected=obj.id;apply([...snapshot().objects,obj]);
     }
@@ -168,7 +176,7 @@
     }
     input.addEventListener('change',()=>{const file=input.files[0];if(file)addImage(file).catch(error=>report(error.message));input.value='';},{signal});
     layer.addEventListener('click',async event=>{
-      const node=event.target.closest('[data-object-id]');if(!node)return;
+      const node=event.target.closest('[data-object-id]');if(!node||snapshot().busy)return;
       event.stopPropagation();choose(node.dataset.objectId);
       const action=event.target.closest('[data-object-action]')?.dataset.objectAction;if(!action)return;
       const s=snapshot(),obj=s.objects.find(o=>o.id===selected);if(!obj)return;
@@ -180,7 +188,7 @@
       }
     },{signal});
     layer.addEventListener('pointerdown',event=>{
-      const node=event.target.closest('[data-object-id]');if(!node||event.button!==0||event.target.closest('[data-object-action]'))return;
+      const node=event.target.closest('[data-object-id]');if(!node||snapshot().busy||event.button!==0||event.target.closest('[data-object-action]'))return;
       event.preventDefault();event.stopPropagation();choose(node.dataset.objectId);node.focus({preventScroll:true});
       const s=snapshot(),obj=s.objects.find(o=>o.id===selected);
       drag={node,obj,scale:s.scale,x:event.clientX,y:event.clientY,resize:!!event.target.closest('[data-object-resize]'),pointer:event.pointerId};
@@ -202,7 +210,7 @@
     layer.addEventListener('pointerup',event=>{if(!drag||drag.pointer!==event.pointerId)return;const {obj,patch}=drag;drag=null;if(patch)updateObject(obj.id,patch);},{signal});
     layer.addEventListener('pointercancel',()=>{drag=null;lastObjects=null;sync();},{signal});
     layer.addEventListener('keydown',event=>{
-      if(!selected||event.target.closest('button'))return;
+      if(!selected||snapshot().busy||event.target.closest('button'))return;
       const obj=snapshot().objects.find(o=>o.id===selected);if(!obj)return;
       if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();event.stopPropagation();apply(snapshot().objects.filter(o=>o.id!==selected));selected=null;}
       const move={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key];
