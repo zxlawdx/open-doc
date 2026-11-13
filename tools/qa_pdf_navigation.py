@@ -3,11 +3,13 @@
 import hashlib
 import json
 import os
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import sleep
 
-import fitz
+from fpdf import FPDF
+from pypdf import PdfReader, PdfWriter
 from qa_runtime import Keyboard
 from qa_stabilization import Config, create_app, services, wait, webview
 
@@ -18,39 +20,57 @@ OUTPUT.mkdir(parents=True, exist_ok=True)
 
 
 def fixture(path):
-    document = fitz.open()
+    document = FPDF(unit="pt", format=(595, 842))
+    document.set_auto_page_break(False)
     for index in range(1016):
-        page = document.new_page(width=595, height=842)
-        page.insert_text(
-            (72, 90), "PDF navigation validation - page " + str(index + 1), fontsize=15
-        )
+        document.add_page()
+        document.set_font("Helvetica", size=15)
+        document.text(72, 90, "PDF navigation validation - page " + str(index + 1))
         if index == 973:
-            page.insert_text((72, 180), "Clonando o repositorio", fontsize=24)
-            page.insert_text(
-                (72, 220),
-                "Navigation keeps chapters, sections and page position.",
-                fontsize=12,
+            document.set_font("Helvetica", size=24)
+            document.text(72, 180, "Clonando o repositorio")
+            document.set_font("Helvetica", size=12)
+            document.text(
+                72, 220, "Navigation keeps chapters, sections and page position."
             )
-    document.set_toc(
-        [
-            [1, "Prefácio", 1],
-            [1, "Instalação", 2],
-            [1, "Notação", 3],
-            [1, "Introdução", 4],
-            [2, "Objetivos", 5],
-            [2, "Método", 6],
-            [1, "Apêndice: ferramentas", 970],
-            [2, "Contribuindo", 972],
-            [3, "Código fonte", 973],
-            [4, "Clonando o repositório", 974],
-            [1, "Bibliography", 1000],
-            [1, "Python Module Index", 1007],
-            [1, "Index", 1010],
-        ],
-        collapse=1,
-    )
-    document.save(path)
-    document.close()
+    writer = PdfWriter()
+    writer.append(PdfReader(BytesIO(bytes(document.output()))))
+    parents = {}
+    for level, title, page in [
+        [1, "Prefácio", 1],
+        [1, "Instalação", 2],
+        [1, "Notação", 3],
+        [1, "Introdução", 4],
+        [2, "Objetivos", 5],
+        [2, "Método", 6],
+        [1, "Apêndice: ferramentas", 970],
+        [2, "Contribuindo", 972],
+        [3, "Código fonte", 973],
+        [4, "Clonando o repositório", 974],
+        [1, "Bibliography", 1000],
+        [1, "Python Module Index", 1007],
+        [1, "Index", 1010],
+    ]:
+        parents[level] = writer.add_outline_item(
+            title, page - 1, parent=parents.get(level - 1), is_open=False
+        )
+    writer.write(path)
+
+
+def outline_entries(reader):
+    entries = []
+
+    def walk(items, level):
+        for item in items:
+            if isinstance(item, list):
+                walk(item, level + 1)
+            else:
+                entries.append(
+                    [level, item.title, reader.get_destination_page_number(item) + 1]
+                )
+
+    walk(reader.outline, 1)
+    return entries
 
 
 def capture(window, name):
@@ -203,9 +223,9 @@ def main():
         if not source.exists():
             fixture(source)
         before = hashlib.sha256(source.read_bytes()).hexdigest()
-        with fitz.open(source) as document:
-            expected = document.get_toc()
-            assert document.page_count == 1016
+        document = PdfReader(source)
+        expected = outline_entries(document)
+        assert len(document.pages) == 1016
 
         def qa():
             window = webview.windows[0]
