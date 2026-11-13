@@ -103,8 +103,15 @@
   return pts.some(p=>underEraser(p,eraser,rect,threshold));
  }
  function eraseStrokes(strokes,eraser,rect,dimensions,radius,whole){
-  const result=[];let changed=false;
-  for(const stroke of strokes){
+  const result=[];let changed=false,candidates=null;
+  if(window.OpenDocInkEngine&&strokes.length>=256&&eraser.length){
+   const xs=eraser.map(p=>p.x),ys=eraser.map(p=>p.y),pad=(radius+6)/Math.max(1,Math.min(rect.width,rect.height));
+   const box={left:Math.min(...xs)-pad,top:Math.min(...ys)-pad,right:Math.max(...xs)+pad,bottom:Math.max(...ys)+pad};
+   const spatial=window.OpenDocInkEngine.index(strokes);candidates=new Set(spatial.query(box).map(i=>spatial.strokes[i].id));
+  }
+  for(let i=0;i<strokes.length;i++){const stroke=strokes[i];
+   if(candidates&&!candidates.has(stroke.id)){result.push(stroke);continue;}
+
    if(whole){
     if(touchesStroke(stroke,eraser,rect,dimensions,radius)){changed=true;continue;}
     result.push(stroke);
@@ -114,6 +121,7 @@
     result.push(...cut.fragments);
    }
   }
+  if(changed)window.OpenDocInkEngine?.carryErasure(strokes,result);
   return {strokes:result,changed};
  }
  function create({root,editor,status,signal}){
@@ -124,7 +132,10 @@
   function suppressSyntheticClick(event,force=false){if(mode==='cursor' || (!force && performance.now()>=suppressClickUntil))return;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();}
   function releaseCapture(svg,pointerId){try{if(svg.hasPointerCapture?.(pointerId)===false)return;svg.releasePointerCapture?.(pointerId);}catch{}}
   const bar=document.createElement('div');bar.className='ink-toolbar';bar.setAttribute('role','toolbar');bar.setAttribute('aria-label','Tinta e escrita');
-  for(const [value,label] of [['cursor','Selecionar'],['pen','Caneta'],['highlighter','Marca-texto'],['eraser-partial','Borracha parcial'],['eraser','Apagar traço'],['handwriting','Escrita']]){const b=document.createElement('button');b.textContent=label;b.dataset.inkMode=value;b.title=value==='eraser-partial'?'Apaga somente a área percorrida, preservando o restante do traço':value==='eraser'?'Apaga o traço inteiro ao tocá-lo':'';b.setAttribute('aria-pressed',String(value===mode));b.addEventListener('click',()=>setMode(value),{signal});bar.append(b);}
+  for(const [value,label] of [['cursor','Selecionar'],['rectangle','Retângulo'],['ellipse','Elipse'],['line','Linha'],['arrow','Seta'],['pen','Caneta'],['highlighter','Marca-texto'],['eraser-partial','Borracha parcial'],['eraser','Apagar traço'],['handwriting','Escrita']]){const b=document.createElement('button');b.textContent=label;b.dataset.inkMode=value;b.title=value==='eraser-partial'?'Apaga somente a área percorrida, preservando o restante do traço':value==='eraser'?'Apaga o traço inteiro ao tocá-lo':'';b.setAttribute('aria-pressed',String(value===mode));b.addEventListener('click',()=>setMode(value),{signal});bar.append(b);}
+  const shapes=document.createElement('select');shapes.setAttribute('aria-label','Formas geométricas');const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Formas';shapes.append(placeholder);
+  for(const name of ['rectangle','ellipse','line','arrow']){const button=bar.querySelector('[data-ink-mode='+name+']'),option=document.createElement('option');option.value=name;option.textContent=button.textContent;shapes.append(option);button.hidden=true;}
+  shapes.addEventListener('change',()=>{if(shapes.value)setMode(shapes.value);},{signal});bar.insertBefore(shapes,bar.querySelector('[data-ink-mode=pen]'));
   const c=document.createElement('input');c.type='color';c.value=color;c.setAttribute('aria-label','Cor da tinta');c.oninput=()=>{color=c.value;};bar.append(c);
   const s=document.createElement('input');s.type='number';s.min='.5';s.max='30';s.step='.5';s.value=size;s.setAttribute('aria-label','Espessura em pontos');s.onchange=()=>{size=Math.max(.5,Math.min(30,Number(s.value)||2));};bar.append(s);
   for(const [label,action] of [['Desfazer',()=>editor.format('undo')],['Refazer',()=>editor.format('redo')],['Converter escrita',convert]]){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',action,{signal});bar.append(b);}
@@ -140,9 +151,9 @@
     try{const result=await window.pywebview.api.handwriting_capabilities?.();if(signal.aborted)return;const backends=result?.backends || [];const backend=backends.find(b=>b.available);
       capable=Boolean(backend);convertButton.disabled=!capable;availability.textContent=backend?backend.backend+' · '+(backend.language || 'pt-BR'):'Escrita local: indisponível';convertButton.title=backend?'Converter escrita com revisão':backends.map(b=>b.reason).filter(Boolean).join(' ') || 'Reconhecimento manuscrito local não instalado.';
       if(!capable)availability.textContent='Escrita local indisponível';
-      handwritingDetails.hidden=capable;
+      handwritingDetails.hidden=capable||mode!=='handwriting';
       if(!capable)console.info('Open Doc: backends de escrita indisponíveis',convertButton.title);
-    }catch(error){capable=false;convertButton.disabled=true;availability.textContent='Escrita local indisponível';convertButton.title=error.message;handwritingDetails.hidden=false;console.warn('Open Doc: falha na verificação de escrita local',error);}
+    }catch(error){capable=false;convertButton.disabled=true;availability.textContent='Escrita local indisponível';convertButton.title=error.message;handwritingDetails.hidden=mode!=='handwriting';console.warn('Open Doc: falha na verificação de escrita local',error);}
   }
   capabilities();root.addEventListener('open-doc:handwriting-capabilities',capabilities,{signal});
   const family=document.createElement('select');family.dataset.inkFont='';family.setAttribute('aria-label','Fonte do texto reconhecido');for(const name of ['Arial','Inter']){const option=document.createElement('option');option.value=name;option.textContent=name;family.append(option);}bar.append(family);
@@ -150,7 +161,7 @@
   refreshFonts();root.addEventListener('open-doc:fonts',refreshFonts,{signal});
   const fontSize=document.createElement('input');fontSize.type='number';fontSize.min='1';fontSize.max='512';fontSize.value='12';fontSize.dataset.inkFontSize='';fontSize.setAttribute('aria-label','Tamanho do texto reconhecido');bar.append(fontSize);
   root.querySelector('.toolbar')?.after(bar);
-  function setMode(value){mode=value;root.dataset.inkMode=mode;bar.querySelectorAll('[data-ink-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.inkMode===mode)));refresh();}
+  function setMode(value){if(active)cancel();mode=value;root.dataset.inkMode=mode;shapes.value=['rectangle','ellipse','line','arrow'].includes(mode)?mode:'';for(const control of [convertButton,availability,family,fontSize])control.hidden=mode!=='handwriting';handwritingDetails.hidden=capable||mode!=='handwriting';bar.querySelectorAll('[data-ink-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.inkMode===mode)));refresh();}
   function layers(){return editor.inkLayers?.() || [];}
   const rendered=new WeakMap();
   function commit(layer){
@@ -159,6 +170,13 @@
    editor.setInkLayers(next);queue();
   }
   function paintStrokes(svg,strokes){
+   const raster=rasterPages.get(svg.parentElement);
+   if(strokes.length>=256&&window.OpenDocInkEngine&&raster&&(!raster.visible||raster.canvas)){
+    if(raster.visible&&raster.canvas&&raster.strokes!==strokes)updateRaster(svg.parentElement,svg,strokes,2500000);
+    // Finished strokes live in the canvas; SVG contains only the live preview.
+    for(const child of [...svg.children])if(!child.classList.contains('ink-preview'))child.remove();
+    rendered.set(svg,{strokes,nodes:new Map()});return;
+   }
    const previous=rendered.get(svg);
    if(previous?.strokes===strokes)return;
    const nodes=new Map();
@@ -186,9 +204,10 @@
      if(page)page.visible=entry.isIntersecting;
     }
     queue();
-   },{root:root.querySelector('[data-canvas]')})
+   },{root:null})
    :null;
   function discardRaster(page){
+   page.generation=(page.generation||0)+1;page.pending=false;
    if(!page.canvas)return;
    page.canvas.width=page.canvas.height=0;
    page.canvas.remove();
@@ -199,11 +218,12 @@
    if(!stroke.outline?.length)return;
    ctx.fillStyle=stroke.color;
    ctx.globalAlpha=stroke.opacity;
-   ctx.fill(new Path2D(path(stroke)));
+   if(window.OpenDocInkEngine)window.OpenDocInkEngine.paint(ctx,stroke);else ctx.fill(new Path2D(path(stroke)));
   }
   function appendRasterStroke(svg,previous,strokes){
    const page=rasterPages.get(svg.parentElement);
    if(!page?.canvas)return;
+   if(page.pending){page.strokes=null;queue();return;}
    const ctx=page.strokes===previous&&page.canvas.getContext('2d');
    if(!ctx||ctx.isContextLost?.()){discardRaster(page);return;}
    fillRasterStroke(ctx,strokes[strokes.length-1]);
@@ -211,7 +231,7 @@
   }
   function updateRaster(surface,svg,strokes,budget){
    let page=rasterPages.get(surface);
-   if(!rasterObserver||shouldErase(mode)||root.dataset.homeView==='true'||!surface.classList.contains('document-page')||!strokes.length){
+   if(!rasterObserver||root.dataset.homeView==='true'||!strokes.length){
     if(page){discardRaster(page);rasterObserver.unobserve(surface);rasterPages.delete(surface);}
     return 0;
    }
@@ -238,8 +258,12 @@
     if(!ctx){discardRaster(page);return 0;}
     canvas.width=width;canvas.height=height;
     ctx.setTransform(width,0,0,height,0,0);
-    for(const stroke of strokes)fillRasterStroke(ctx,stroke);
-    page.strokes=strokes;
+    const generation=page.generation=(page.generation||0)+1;
+    page.strokes=strokes;page.pending=strokes.length>=256;
+    if(page.pending&&window.OpenDocInkEngine){
+     window.OpenDocInkEngine.render(ctx,strokes,{cancelled:()=>signal.aborted||!surface.isConnected||!page.visible||root.dataset.homeView==='true'||page.generation!==generation,onDone:metrics=>{page.pending=false;page.metrics=metrics;svg.dataset.inkPainted=String(metrics.count);svg.dataset.inkMaxSlice=String(metrics.maxSlice);svg.dataset.inkFrames=String(metrics.frames);}});
+    }else{for(const stroke of strokes)fillRasterStroke(ctx,stroke);page.pending=false;}
+
    }
    for(const key of ['left','top','width','height'])canvas.style[key]=svg.style[key];
    svg.classList.add('ink-raster-active');
@@ -254,7 +278,7 @@
 
   function refresh(){scheduled=false;if(signal.aborted)return;
    for(const [surface,page] of rasterPages){
-    if(!surface.isConnected||!surface.contains(page.svg)||root.dataset.documentKind==='fixed'||root.dataset.homeView==='true'){discardRaster(page);rasterObserver.unobserve(surface);rasterPages.delete(surface);}
+    if(!surface.isConnected||!surface.contains(page.svg)||root.dataset.homeView==='true'){discardRaster(page);rasterObserver.unobserve(surface);rasterPages.delete(surface);}
     else if(!page.visible)discardRaster(page);
    }
    let rasterBudget=6000000;
@@ -278,8 +302,8 @@
    svg.style.pointerEvents=mode==='cursor'?'none':'auto';
    if(active?.svg===svg)continue;
    const strokes=layer?.strokes || emptyStrokes;
-   paintStrokes(svg,strokes);
    rasterBudget-=updateRaster(surface,svg,strokes,rasterBudget);
+   paintStrokes(svg,strokes);
   }}
   function queue(){if(!scheduled){scheduled=true;requestAnimationFrame(refresh);}}
   function sample(event,rect){return {x:clamp((event.clientX-rect.left)/rect.width),y:clamp((event.clientY-rect.top)/rect.height),pressure:event.pointerType==='mouse' && !(event.pressure>0)?.5:Number.isFinite(event.pressure)?clamp(event.pressure):.5,tilt_x:event.tiltX || 0,tilt_y:event.tiltY || 0,timestamp_ms:Math.max(0,event.timeStamp)};}
@@ -307,12 +331,15 @@
     return;
    }
    const w=a.layer.width_pt,h=a.layer.height_pt;
-   const stride=final?1:Math.ceil(a.points.length/MAX_PREVIEW_POINTS);
+   const geometry=['rectangle','ellipse','line','arrow'].includes(mode)&&window.OpenDocInkEngine;
+   const samples=geometry?window.OpenDocInkEngine.shapePoints(mode,a.points[0],a.points[a.points.length-1]):a.points;
+   if(geometry)a.geometryPoints=samples;
+   const stride=final?1:Math.ceil(samples.length/MAX_PREVIEW_POINTS);
    const input=[];
-   for(let i=0;i<a.points.length-1;i+=stride){
-    const p=a.points[i];input.push([p.x*w,p.y*h,p.pressure]);
+   for(let i=0;i<samples.length-1;i+=stride){
+    const p=samples[i];input.push([p.x*w,p.y*h,p.pressure]);
    }
-   const end=a.points[a.points.length-1];input.push([end.x*w,end.y*h,end.pressure]);
+   const end=samples[samples.length-1];input.push([end.x*w,end.y*h,end.pressure]);
    a.previewSampled=stride>1;
    a.stroke.outline=window.OpenDocFreehand.getStroke(input,{size:a.stroke.size,simulatePressure:false,thinning:.5}).map(p=>[clamp(p[0]/w),clamp(p[1]/h)]);
    a.preview.setAttribute('d',path(a.stroke));
@@ -321,7 +348,7 @@
    stopInkEvent(e);
    const coalesced=e.getCoalescedEvents?.();
    for(const v of coalesced?.length?coalesced:[e])
-    if(active.points.length<20000)active.points.push(sample(v,active.rect));
+    active.points.push(sample(v,active.rect));
   }
   function move(e){
    debugPointer(e);if(!active||active.id!==e.pointerId)return;
@@ -343,7 +370,7 @@
     a.preview.remove();
     if(a.eraseChanged)commit(a.layer);else refresh();
    }else{
-    a.stroke.points=simplify(a.points);
+    a.stroke.points=simplify(a.geometryPoints||a.points);
     const previous=rendered.get(a.svg);
     const canAppend=previous?.strokes===a.layer.strokes&&a.preview.parentNode===a.svg;
     const previousStrokes=a.layer.strokes;
@@ -372,7 +399,7 @@
   root.addEventListener('open-doc:ink-changed',queue,{signal});
   root.addEventListener('open-doc:paper-zoom',queue,{signal});
   window.addEventListener('resize',queue,{signal});
-  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});signal.addEventListener('abort',()=>{observer.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
+  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});const activity=new MutationObserver(()=>{for(const page of rasterPages.values())discardRaster(page);queue();});activity.observe(root,{attributes:true,attributeFilter:['data-home-view','data-document-kind','data-workbook-view','data-dataset-view']});signal.addEventListener('abort',()=>{observer.disconnect();activity.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
  window.OpenDocInk={create,simplify,path,shouldErase,eraseStrokes,erasePartialStroke};
 })();

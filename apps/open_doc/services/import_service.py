@@ -14,6 +14,11 @@ from pathlib import Path
 from apps.open_doc.services.preferences_service import Config
 
 TYPE_FOLDERS = {
+    ".odt": "documents/odt",
+    ".odp": "documents/odp",
+    ".xlsx": "documents/xlsx",
+    ".csv": "documents/csv",
+    ".tsv": "documents/tsv",
     ".docx": "documents/docx",
     ".pptx": "documents/pptx",
     ".pdf": "documents/pdf",
@@ -21,7 +26,11 @@ TYPE_FOLDERS = {
     ".txt": "notes",
 }
 PDF_SIGNATURE = b"%PDF-"
-OFFICE_PARTS = {".docx": "word/document.xml", ".pptx": "ppt/presentation.xml"}
+OFFICE_PARTS = {
+    ".docx": "word/document.xml",
+    ".pptx": "ppt/presentation.xml",
+    ".xlsx": "xl/workbook.xml",
+}
 
 
 class FileOrganizer:
@@ -42,6 +51,10 @@ class FileOrganizer:
             raise ValueError("Formato não suportado: " + extension)
         if not source.is_file() or source.is_symlink():
             raise ValueError("Selecione um arquivo regular.")
+        if extension in {".odt", ".odp"}:
+            from apps.open_doc.office.opendocument import inspect_package
+
+            inspect_package(source)
         if extension == ".pdf":
             with source.open("rb") as stream:
                 if stream.read(len(PDF_SIGNATURE)) != PDF_SIGNATURE:
@@ -53,7 +66,7 @@ class FileOrganizer:
                         raise ValueError("Estrutura Office inválida.")
             except zipfile.BadZipFile as exc:
                 raise ValueError("Documento Office inválido.") from exc
-        if extension in {".md", ".txt"}:
+        if extension in {".md", ".txt", ".csv", ".tsv"}:
             with source.open(encoding="utf-8") as stream:
                 for _ in stream:
                     pass
@@ -67,6 +80,7 @@ class FileOrganizer:
         """
         extension = self.detect_type(source)
         directory = self.config.root / TYPE_FOLDERS[extension]
+        directory.mkdir(parents=True, exist_ok=True)
         counter = 0
         while True:
             suffix = f" ({counter})" if counter else ""
@@ -91,7 +105,7 @@ class FileOrganizer:
         files = []
         for folder in sorted(set(TYPE_FOLDERS.values())):
             directory = self.config.root / folder
-            for path in directory.iterdir():
+            for path in directory.iterdir() if directory.is_dir() else ():
                 if (
                     path.is_file()
                     and not path.is_symlink()
@@ -103,8 +117,7 @@ class FileOrganizer:
                             "type": path.suffix.lower().lstrip("."),
                             "path": path.relative_to(self.config.root).as_posix(),
                             "capabilities": {
-                                k: path.suffix.lower()
-                                in {".docx", ".md", ".txt", ".pdf", ".pptx"}
+                                k: path.suffix.lower() in set(TYPE_FOLDERS)
                                 for k in ("open", "edit", "export")
                             },
                         }

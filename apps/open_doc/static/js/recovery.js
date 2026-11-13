@@ -47,13 +47,32 @@
       else task.resolve({handled:true,value:message.value});
     };
     worker.onerror=fail;
+    async function send(op,data){
+      if(!await ready || !available)return {handled:false};
+      return new Promise((resolve,reject)=>{
+        const id=++next;pending.set(id,{resolve,reject});
+        try{worker.postMessage({id,op,data});}catch(error){pending.delete(id);reject(error);}
+      });
+    }
+    let staging=0;
     return {
       async call(op,data){
+        const layers=data.snapshot?.content?.ink_layers;
+        if(!layers?.some(layer=>layer.strokes?.length>1024))return send(op,data);
         if(!await ready || !available)return {handled:false};
-        return new Promise((resolve,reject)=>{
-          const id=++next;pending.set(id,{resolve,reject});
-          try{worker.postMessage({id,op,data});}catch(error){pending.delete(id);reject(error);}
-        });
+        // Structured cloning a whole illustrated document can also block the
+        // interface. Stage bounded chunks and assemble them only in the worker.
+        const refs=[],copy=layers.slice();
+        try{
+          for(let at=0;at<layers.length;at++){
+            const strokes=layers[at].strokes;if(!strokes||strokes.length<=1024)continue;
+            const key='ink-'+(++staging);refs.push({at,key});
+            await send('stage-begin',{key});
+            for(let offset=0;offset<strokes.length;offset+=256)await send('stage-append',{key,strokes:strokes.slice(offset,offset+256)});
+            copy[at]={...layers[at],strokes:[]};
+          }
+          return await send(op,{...data,stagedInk:refs,snapshot:{...data.snapshot,content:{...data.snapshot.content,ink_layers:copy}}});
+        }finally{if(available)await send('stage-discard',{keys:refs.map(ref=>ref.key)});}
       },
       destroy:fail
     };

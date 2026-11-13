@@ -3,9 +3,9 @@
 import math
 import re
 
-MAX_STROKES = 50000
-MAX_POINTS = 20000
-MAX_JSON = 16 * 1024 * 1024
+MAX_STROKES = 1000000
+MAX_POINTS = 200000
+MAX_JSON = 128 * 1024 * 1024
 
 
 def number(value, low, high):
@@ -72,7 +72,7 @@ def validate_layers(layers):
             ):
                 raise ValueError("Traço inválido.")
             points += len(values) + len(outline)
-            if points > 1000000:
+            if points > 8000000:
                 raise ValueError("Limite total de pontos excedido.")
             for point in values:
                 if not isinstance(point, dict):

@@ -27,5 +27,5 @@ def validate(model):
     validate_annotations(model)
     SlideModelValidator().validate(model)
     if len(json.dumps(model, allow_nan=False).encode()) > MAX_JSON:
-        raise ValueError("Documento ultrapassa 16 MB de anotações.")
+        raise ValueError("Documento ultrapassa 128 MB de anotações.")
     return model

@@ -12,7 +12,7 @@
   }
   function create() {
     let entries = [], index = -1, lastTime = 0, lastKind = "";
-    const bytesOf=item=>2*(item.content?window.OpenDocModel.snapshotSize(item.content):(item.markdown || '').length);
+    const bytesOf=item=>2*(item.content?window.OpenDocModel.historySize(item.content):(item.markdown || '').length);
     // Pen snapshots share immutable text and previously drawn strokes. Charge
     // the history budget for retained changes and array references, not a
     // full copy of the illustrated document for every stroke.
@@ -26,12 +26,12 @@
         const oldStrokes=oldLayer?.strokes||[],newStrokes=newLayer?.strokes||[];
         bytes+=128+8*(oldStrokes.length+newStrokes.length);
         if(newStrokes.length===oldStrokes.length+1&&oldStrokes.every((stroke,i)=>newStrokes[i]===stroke)){
-          bytes+=2*window.OpenDocModel.jsonLength(newStrokes[newStrokes.length-1]);
+          bytes+=window.OpenDocModel.inkMemory(newStrokes[newStrokes.length-1]);
           continue;
         }
         const oldSet=new Set(oldStrokes),newSet=new Set(newStrokes);
-        for(const stroke of oldStrokes)if(!newSet.has(stroke))bytes+=2*window.OpenDocModel.jsonLength(stroke);
-        for(const stroke of newStrokes)if(!oldSet.has(stroke))bytes+=2*window.OpenDocModel.jsonLength(stroke);
+        for(const stroke of oldStrokes)if(!newSet.has(stroke))bytes+=window.OpenDocModel.inkMemory(stroke);
+        for(const stroke of newStrokes)if(!oldSet.has(stroke))bytes+=window.OpenDocModel.inkMemory(stroke);
       }
       return bytes;
     }

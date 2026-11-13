@@ -199,7 +199,8 @@
           });
           return operate(async()=>{
             await editor.flush();
-            editor.load(await request('document/open',notes?{id:file.id}:{path:file.path}));
+            const opened=await request('document/open',notes?{id:file.id}:{path:file.path});
+            if(opened.workbook){await openWorkbook(null,opened.workbook,ticket);return;}editor.load(opened);
             if(currentNavigation(ticket))showView(false);
           });
         }, {signal});
@@ -412,7 +413,8 @@
     const result = await window.pywebview.api.import_document();
     if (result.error) throw Error(result.error);
     if (result.cancelled) return;
-    if(result.document){editor.load(result.document);editor.setMode('rich');if(!currentNavigation(ticket))return;showView(false);status('Documento importado.');return;}
+    if(result.workbook){await openWorkbook(null,result.workbook,ticket);return;}
+    if(result.document){editor.load(result.document);editor.setMode('rich');if(!currentNavigation(ticket))return;showView(false);status(result.document.conversion_warnings?.join(' ')||'Documento importado.');return;}
     showView(true); status('Arquivo importado: ' + result.name);
   }
   function closeDialog(value = null) {
@@ -688,7 +690,7 @@
       ['OpenDocCompat', 'compat.js'], ['marked', 'vendor/marked.js'], ['DOMPurify', 'vendor/purify.js'],
       ['TurndownService', 'vendor/turndown.js'], ['OpenDocCommands', 'editor_commands.js'],
       ['OpenDocHistory', 'history.js'], ['OpenDocRecovery', 'recovery.js'],
-      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocLogicalTransactions','logical_transactions.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlideCharts','slide_charts.js'],['OpenDocMathParser','native_math_parser.js'],['OpenDocMathGallery','math_gallery.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInk','ink.js']
+      ['OpenDocModel','document_model.js'],['OpenDocRichRenderer','rich_renderer.js'],['OpenDocRichSerializer','rich_serializer.js'],['OpenDocFormatting','formatting.js'],['OpenDocTables','tables.js'],['OpenDocPopovers','popovers.js'],['OpenDocPagination','pagination.js'],['OpenDocLogicalTransactions','logical_transactions.js'],['OpenDocPageMenu','page_menu.js'],['OpenDocEditor','editor.js'],['OpenDocFreehand','vendor/freehand.bundle.js'],['OpenDocPdf','vendor/pdf.bundle.js'],['OpenDocPptxVendor','vendor/pptx.bundle.js'],['OpenDocPptx','pptx_renderer.js'],['OpenDocSemanticAnnotations','semantic_annotations.js'],['OpenDocSlideCharts','slide_charts.js'],['OpenDocMathParser','native_math_parser.js'],['OpenDocMathGallery','math_gallery.js'],['OpenDocSlidesEditor','slide_editor.js'],['OpenDocFixedDocument','fixed_document.js'],['OpenDocDocumentKinds','document_kinds.js'],['OpenDocInkEngine','ink_engine.js'],['OpenDocOfficeWorkspace','office_workspace.js'],['OpenDocInk','ink.js']
     ]) if (!window[global]) await loadScript(file);
     if (destroyed) return;
     const bootstrap = await window.pywebview.api.get_bootstrap();
@@ -793,13 +795,14 @@
     }catch(error){console.error('Open Doc: fontes',error);}
     menus = await auxiliary('menus', 'OpenDocMenus', 'menus.js', module => module.create(root, editor.capture, signal));
     theme = await auxiliary('aparência', 'OpenDocTheme', 'theme.js', module => module.create(root, settings, persist, signal));
-    layout = await auxiliary('zoom', 'OpenDocPaperLayout', 'paper_layout.js', module => module.create(root, settings, persist, signal));
+    layout = await auxiliary('zoom', 'OpenDocPaperLayout', 'paper_layout.js', module => module.create(root, settings, persist, signal, editor));
     if (layout) zoom = await auxiliary('controles de zoom', 'OpenDocZoom', 'zoom.js',
       module => module.create({root, settings, persist, status, paper: layout, editor, workbook: () => workbook, signal}));
     navigation = await auxiliary('navegação', 'OpenDocNavigation', 'navigation.js', module => module.create(root, editor, signal));
     design = await auxiliary('interface de documentos', 'OpenDocDesign', 'design_system.js', module => module.create({root,action,signal}));
     if (bootstrap.start_in_library) libraryRoute();
     else showView(false);
+    window.OpenDocOfficeWorkspace.create({root,editor,signal,formats:bootstrap.formats||[],profiles:bootstrap.academic_profiles||[],action,status,dialog});
     installTooltips();
     if (bootstrap.startup_error) status(bootstrap.startup_error);
     root.dataset.ready = 'true';

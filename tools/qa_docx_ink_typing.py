@@ -135,8 +135,22 @@ def exercise(window):
         js("OpenDocApp.editor().format('undo')")
         wait(window, "OpenDocApp.editor().inkLayers()===__inkTypingLayers")
         js("document.querySelector('[data-ink-mode=eraser]').click()")
-        assert js(f"!({raster_on_edited_page})")
-        assert js("!document.querySelector('.document-page > .ink-raster-active')")
+        # Erasing now keeps the canvas instead of rebuilding every stroke as SVG.
+        assert js(f"Boolean({raster_on_edited_page})")
+        assert js("Boolean(document.querySelector('.document-page > .ink-raster-active'))")
+        js(f"""(() => {{
+          const canvas={raster_on_edited_page},page=canvas.parentElement,svg=page.querySelector('.ink-overlay');
+          const layer=OpenDocApp.editor().inkLayers().find(item=>item.surface_index===Number(page.dataset.pageIndex));
+          const point=layer.strokes[0].points[0],rect=svg.getBoundingClientRect();
+          for(const type of ['pointerdown','pointerup'])svg.dispatchEvent(new PointerEvent(type,{{
+            pointerType:'pen',pointerId:79,button:0,buttons:type==='pointerup'?0:1,
+            pressure:.5,bubbles:true,cancelable:true,
+            clientX:rect.left+rect.width*point.x,clientY:rect.top+rect.height*point.y}}));
+        }})()""")
+        remaining=js("OpenDocApp.editor().inkLayers().reduce((n,l)=>n+l.strokes.length,0)")
+        assert 0 < remaining < 112, remaining
+        js("OpenDocApp.editor().format('undo')")
+        wait(window, "OpenDocApp.editor().inkLayers()===__inkTypingLayers")
         js("document.querySelector('[data-ink-mode=cursor]').click()")
         wait(window, f"Boolean({raster_on_edited_page})")
         js(f"window.__inkTypingRaster={raster_on_edited_page}")

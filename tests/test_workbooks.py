@@ -29,7 +29,10 @@ def test_workbook_is_independent_reopens_and_restores(tmp_path):
     assert restored["revision"] == 3
     assert restored["sheets"][0]["cells"]["1,1"] == "1500"
     assert len(context.workbooks.versions(original["id"])) == 3
-    assert len(templates.catalog()) == 5
+    assert len(templates.catalog()) == 8
+    assert {"sheet-research-budget", "sheet-study-grades", "sheet-experiment"} <= {
+        item["id"] for item in templates.catalog()
+    }
 
 
 @pytest.mark.parametrize("extension, delimiter", [("csv", ";"), ("tsv", "\t")])

@@ -15,6 +15,11 @@ class WorkspacePathResolver:
                 "documents/docx",
                 "documents/pdf",
                 "documents/pptx",
+                "documents/odt",
+                "documents/odp",
+                "documents/xlsx",
+                "documents/csv",
+                "documents/tsv",
             )
         )
 

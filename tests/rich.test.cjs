@@ -10,7 +10,7 @@ async function setup(t){
  const note={id:'test',title:'Rico',markdown:'Texto selecionado',revision:1,content_format:'opendoc-rich-v1',content};let saved;
  w.pywebview={api:{get_bootstrap:async()=>({token:'test',settings:{theme:'light',zoom:100},document:note,autosave_seconds:30}),get_font_catalog:async()=>({fonts:['Arial','DejaVu Serif']}),set_dirty:async()=>{}}};
  w.fetch=async(url,options)=>({ok:true,json:async()=>{const data=options.body?JSON.parse(options.body):{};if(url.endsWith('/document/save'))saved=data;return {...data,revision:2};}});
- for(const f of ['compat.js','vendor/marked.js','vendor/purify.js','vendor/turndown.js','document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js','history.js','recovery.js','popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','fixed_document.js','document_kinds.js','ink.js','design_system.js','menus.js','theme.js','paper_layout.js','zoom.js','navigation.js'])w.eval(fs.readFileSync(path.join(base,'apps/open_doc/static/js',f),'utf8'));
+ for(const f of ['compat.js','vendor/marked.js','vendor/purify.js','vendor/turndown.js','document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js','history.js','recovery.js','popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','fixed_document.js','document_kinds.js','ink_engine.js','office_workspace.js','ink.js','design_system.js','menus.js','theme.js','paper_layout.js','zoom.js','navigation.js'])w.eval(fs.readFileSync(path.join(base,'apps/open_doc/static/js',f),'utf8'));
  w.document.execCommand=command=>{const range=w.getSelection().getRangeAt(0),span=w.document.createElement(command==='bold'?'b':'i');range.surroundContents(span);return true;};
  Object.defineProperty(w.document,'currentScript',{value:{src:'http://localhost/static/open_doc/js/app.js'}});w.eval(fs.readFileSync(path.join(base,'apps/open_doc/static/js/app.js'),'utf8'));
  for(let i=0;i<50 && root.dataset.ready!=='true';i++)await new Promise(r=>setTimeout(r,5));assert.equal(root.dataset.ready,'true');
@@ -916,4 +916,18 @@ test('large document reconciliation preserves node identity and ordered inserts/
  assert.equal(surface.querySelector('[data-node-id=paragraph-0]'),null);
  const reordered={...after,blocks:after.blocks.slice().reverse()};
  assert.equal(renderer.reconcile(after,reordered,surface),false,'reordered existing blocks require the full-render fallback');
+});
+
+test('ink history budgets geometry without JSON encoding points and preserves undo',async t=>{
+ const q=await setup(t),original=q.w.OpenDocModel.jsonLength;let encoded=0;
+ q.w.OpenDocModel.jsonLength=value=>{if(value?.points)encoded++;return original(value);};
+ const before=q.editor.inkLayers(),strokes=Array.from({length:10000},(_,i)=>({id:'budget-'+i,tool:'pen',color:'#202124',size:2,opacity:1,points:[{x:.1,y:.2,pressure:.5}],outline:[[.1,.2],[.11,.2],[.1,.21]]}));
+ q.editor.setInkLayers([{surface_index:0,width_pt:595,height_pt:842,strokes,text_overlays:[]}]);
+ assert.equal(encoded,0);assert.equal(q.editor.inkLayers()[0].strokes.length,10000);q.editor.format('undo');assert.equal(JSON.stringify(q.editor.inkLayers()),JSON.stringify(before));q.editor.format('redo');assert.equal(q.editor.inkLayers()[0].strokes.length,10000);
+});
+
+test('academic document profile updates every section and table text while keeping identities and undo',async t=>{
+ const q=await setup(t),content=structuredClone(q.note.content);content.sections=[{id:'section-a',type:'section',margin_left_pt:72},{id:'section-b',type:'section',margin_left_pt:36}];q.editor.load({...q.note,content});
+ const profile={scope:'document',paragraph:{alignment:'justify',first_line_indent_pt:35},text:{font_family:'Times New Roman',font_size_pt:12},section:{margin_left_pt:85,margin_right_pt:57}};
+ q.editor.applyProfile(profile);const after=q.editor.snapshot().content;assert.deepEqual(Array.from(after.sections,s=>s.margin_left_pt),[85,85]);assert.deepEqual(Array.from(after.sections,s=>s.id),['section-a','section-b']);assert.equal(after.blocks[1].rows[0].cells[0].blocks[0].children[0].style.font_family,'Times New Roman');assert.equal(after.blocks[0].id,'p1');assert.equal(after.blocks[0].style.alignment,'justify');q.editor.format('undo');assert.deepEqual(Array.from(q.editor.snapshot().content.sections,s=>s.margin_left_pt),[72,36]);q.editor.format('redo');assert.equal(q.editor.snapshot().content.sections[1].margin_left_pt,85);
 });
