@@ -193,6 +193,14 @@ def main():
                 address("E3")
                 command("hyperlink")
                 confirm("https://example.com/dados")
+                address("E1:E2")
+                command("sort-asc")
+                wait(window, "!!document.querySelector('[data-book-choice=\"0,4\"]')")
+                assert js(
+                    "document.querySelector('[data-cell=\"0,4\"]').title.includes('Verificado no Qt')"
+                )
+                command("undo")
+                wait(window, "!!document.querySelector('[data-book-choice=\"1,4\"]')")
                 address("B2:C3")
                 command("sparkline")
                 wait(

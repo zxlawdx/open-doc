@@ -892,10 +892,10 @@
         const order=typeof a.value==="number"&&typeof b.value==="number"?a.value-b.value:compare(String(a.value),String(b.value));
         return descending?-order:order;
       });
-      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types};
+      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types,cell_tools:target.cell_tools};
       const bold=new Set(target.bold),nextBold=new Set(bold);
       const cells={...target.cells},styles=target.styles&&{...target.styles};
-      const cellTypes=target.types&&{...target.types.cells};
+      const cellTypes=target.types&&{...target.types.cells},cellTools=target.cell_tools&&{...target.cell_tools};
       const copy=(to,from,dest,origin)=>{
         if(!dest)return;
         if(Object.prototype.hasOwnProperty.call(origin||{},from))dest[to]=origin[from];
@@ -904,10 +904,10 @@
       range.forEach((line,r)=>line.forEach((to,c)=>{
         const from=sorted[r].line[c];
         copy(to,from,cells,target.cells);copy(to,from,styles,target.styles);
-        copy(to,from,cellTypes,target.types?.cells);
+        copy(to,from,cellTypes,target.types?.cells);copy(to,from,cellTools,target.cell_tools);
         if(bold.has(from))nextBold.add(to);else nextBold.delete(to);
       }));
-      const after={cells,bold:[...nextBold],styles,types:target.types&&{...target.types,cells:cellTypes}};
+      const after={cells,bold:[...nextBold],styles,cell_tools:cellTools,types:target.types&&{...target.types,cells:cellTypes}};
       change(()=>Object.assign(target,before),()=>Object.assign(target,after));
     }
     let copiedRange;
