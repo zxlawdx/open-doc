@@ -124,11 +124,12 @@
       const kind=host.querySelector('[data-book-chart-kind]').value;
       const obj={id:id(),type:'chart',name:name.slice(0,200),chart_kind:kind,range:range.slice(),
         x:s.col*112,y:(range[2]+2)*28,width:560,height:320};
-      for(let pass=0;pass<=s.objects.length;pass++){
-        const overlap=s.objects.find(other=>obj.x<other.x+other.width&&obj.x+obj.width>other.x&&obj.y<other.y+other.height&&obj.y+obj.height>other.y);
+      const current=snapshot();
+      for(let pass=0;pass<=current.objects.length;pass++){
+        const overlap=current.objects.find(other=>obj.x<other.x+other.width&&obj.x+obj.width>other.x&&obj.y<other.y+other.height&&obj.y+obj.height>other.y);
         if(!overlap)break;obj.y=overlap.y+overlap.height+24;
       }
-      obj.y=Math.min(280000,obj.y);selected=obj.id;apply([...s.objects,obj]);
+      obj.y=Math.min(280000,obj.y);selected=obj.id;apply([...current.objects,obj]);
       viewport.scrollTop=Math.max(viewport.scrollTop,s.cellHeight+(obj.y+obj.height)*s.scale-viewport.clientHeight);
     }
     async function addShape(){

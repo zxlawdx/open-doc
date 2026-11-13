@@ -56,3 +56,15 @@ test('native-style shapes render literal editable text and minigraphs keep zeros
  assert.equal(svg.querySelectorAll('rect').length,3);
  assert.equal(svg.querySelectorAll('rect[fill="#db4437"]').length,1);
 });
+
+test('chart insertion preserves objects added while awaiting an in-flight save',async t=>{
+ const q=setup(t);let release,entered;
+ const started=new Promise(resolve=>{entered=resolve;});
+ q.state.idle=()=>{entered();return new Promise(resolve=>{release=resolve;});};
+ const adding=q.module.addChart();await started;
+ q.sheet.objects=[{id:'existing',type:'shape',shape_kind:'rect',name:'Forma',text:'',fill:'#FFFFFF',color:'#123456',x:0,y:0,width:100,height:100}];
+ release();await adding;
+ assert.equal(q.sheet.objects.length,2);
+ assert.equal(q.sheet.objects[0].id,'existing');
+ assert.equal(q.sheet.objects[1].type,'chart');
+});
