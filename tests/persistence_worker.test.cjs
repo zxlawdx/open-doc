@@ -72,3 +72,18 @@ test('a worker startup failure retains the legacy recovery path',async t=>{
  assert.equal(recovery.read('doc').markdown,'Preservado');
  assert.equal((await recovery.sendRequest('document/save',snapshot,'token')).handled,false);
 });
+
+test('large ink crosses the interface in bounded chunks; worker assembles concurrent snapshots and releases staging',async t=>{
+ const dom=new JSDOM('',{url:'http://localhost',runScripts:'outside-only'}),w=dom.window,bodies=[],contexts=[],sizes=[];
+ w.Worker=class{
+  constructor(){const owner=this;this.context=vm.createContext({self:{postMessage(message){queueMicrotask(()=>owner.onmessage?.({data:structuredClone(message)}));}},JSON,Error,Map,fetch:async(url,options)=>{bodies.push(JSON.parse(options.body));return{ok:true,json:async()=>({revision:2})};}});contexts.push(this.context);vm.runInContext(source('persistence_worker.js'),this.context);}
+  postMessage(message){if(message.data.strokes)sizes.push(message.data.strokes.length);if(message.data.snapshot)assert.ok(message.data.snapshot.content.ink_layers[0].strokes.length<=1024);const copy=structuredClone(message);queueMicrotask(()=>this.context.self.onmessage({data:copy}));}
+  terminate(){}
+ };
+ w.eval(source('recovery.js'));w.OpenDocRecovery.configure('worker.js');t.after(()=>{w.OpenDocRecovery.destroy();w.close();});
+ w.JSON.stringify=()=>{throw Error('Geometry encoded on interface thread');};
+ const snapshot=id=>({id,revision:1,content:{ink_layers:[{strokes:Array.from({length:2049},(_,i)=>({id:id+'-'+i,points:[{x:.1,y:.2}]}))}]}});
+ await Promise.all(['one','two'].map(id=>w.OpenDocRecovery.sendRequest('document/save',snapshot(id),'token')));
+ assert.equal(bodies.length,2);for(const body of bodies){assert.equal(body.content.ink_layers[0].strokes.length,2049);assert.equal(body.content.ink_layers[0].strokes[2048].id,body.id+'-2048');}
+ assert.ok(sizes.every(size=>size<=256));assert.equal(vm.runInContext('stagedInk.size',contexts[0]),0);
+});

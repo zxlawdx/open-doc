@@ -852,6 +852,20 @@
       const target=rich.querySelector('[data-node-id="'+inserted.find(n=>n.type==='paragraph').id+'"]');
       if(target){const range=document.createRange();range.selectNodeContents(target);range.collapse(true);rich.focus();getSelection().removeAllRanges();getSelection().addRange(range);commands.capture();}
     }
+    function applyProfile(profile){
+      if(lockedState||!profile||!profile.paragraph||!profile.text)throw Error('Perfil de formatação inválido.');
+      if(profile.scope==='selection'){style('paragraph',profile.paragraph);style('inline',profile.text);return;}
+      const next=ensureModel();
+      function visit(blocks){for(const block of blocks||[]){
+        if(block.type==='table'){for(const row of block.rows)for(const cell of row.cells)visit(cell.blocks);continue;}
+        if(block.type!=='paragraph')continue;
+        if(typeof block.style?.outline_level!=='number')block.style={...block.style,...profile.paragraph};delete block.raw_xml;
+        function inline(children){for(const run of children||[]){if(run.type==='text'){run.style={...run.style,...profile.text};delete run.raw_properties;}if(run.children)inline(run.children);}}
+        inline(block.children);
+      }}visit(next.blocks);
+      const previous=next.sections?.[0]||{};next.sections=[{...window.OpenDocPagination.defaults,...previous,...profile.section,id:previous.id||M.id(),type:'section'},...(next.sections||[]).slice(1)];
+      commitModel(next);pagination?.invalidate();status(profile.note||'Perfil aplicado. Revise o documento.');
+    }
     function pageSetup(values){
       const next=ensureModel();const previous=next.sections?.[0] || {};
       const section={...window.OpenDocPagination.defaults,...previous,...values,type:'section',id:previous.id || window.OpenDocModel.id()};
@@ -1281,7 +1295,7 @@
       status('Alterações não salvas');root.dispatchEvent(new CustomEvent('open-doc:ink-changed'));
     }
     function insertRecognized(text,style,index,strokeIds){const next=ensureModel(),layer=(next.ink_layers || []).find(l=>l.surface_index===index);if(!layer)return;const at=next.blocks.findIndex(b=>b.id===layer.anchor_block_id);next.blocks.splice(at<0?next.blocks.length:at+1,0,{id:window.OpenDocModel.id(),type:'paragraph',style:{},children:[{id:window.OpenDocModel.id(),type:'text',text,style:{...style,color:style.color.replace('#','')}}]});layer.strokes=layer.strokes.filter(s=>!strokeIds.includes(s.id));commitModel(next,'recognition');}
-    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPlainText, insertImage, insertMath, selectedMath, insertPage, pageSetup, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
+    const instance = {suspend:value=>{suspended=value;},inkLayers,setInkLayers,insertRecognized,load, flush, destroy, isClean, setLocked, setMode, format, insertPlainText, insertImage, insertMath, selectedMath, insertPage, pageSetup, applyProfile, replaceText, tableOperation, pageView: value=>pagination?.setMode(value), pagination:()=>pagination, copy: copyDocument, export: exportDocument, capture: commands.capture, restoreSelection: commands.restoreBookmark, style, textState, commandState: commands.state, refresh: render, snapshot: buffer};
     active = instance;
     if(window.OpenDocPagination)pagination=window.OpenDocPagination.create({root,model:()=>model,pageMetrics:()=>model?.sections?.[0],capture:()=>{commands.capture();return commands.bookmark();},restore:b=>commands.restoreBookmark(b)});
     if(window.OpenDocPageMenu)window.OpenDocPageMenu.create(root,instance,controller.signal);

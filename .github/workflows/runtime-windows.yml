@@ -51,6 +51,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm test
           exit $LASTEXITCODE
+      - name: Unified office UI and staged ink stress
+        env:
+          OPEN_DOC_STRESS_COUNTS: "300,1000,10000"
+          OPEN_DOC_QA_OUTPUT: docs/images/office-foundation
+        run: python -u tools/qa_office_foundation.py
       - name: DOCX pen-to-keyboard responsiveness
         run: python -u tools/qa_docx_ink_typing.py
       - name: DOCX pen-to-module navigation
@@ -101,6 +106,7 @@ jobs:
         with:
           name: windows-qt-screenshots
           path: |
+            docs/images/office-foundation/
             docs/images/pptx-compat/
             docs/images/pptx-import-edit/
             docs/images/docx-images/
@@ -136,7 +142,7 @@ jobs:
       - name: Linux runtime libraries
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0 libreoffice-writer libreoffice-impress
       - name: Dependencies and collectstatic bootstrap
         run: |
           python -m pip install -r requirements-dev.txt
@@ -151,6 +157,11 @@ jobs:
         run: |
           python -m pytest -q
           npm test
+      - name: Unified office UI and staged ink stress
+        env:
+          OPEN_DOC_STRESS_COUNTS: "300,1000,10000"
+          OPEN_DOC_QA_OUTPUT: docs/images/office-foundation
+        run: python -u tools/qa_office_foundation.py
       - name: DOCX pen-to-keyboard responsiveness
         run: python -u tools/qa_docx_ink_typing.py
       - name: DOCX pen-to-module navigation
@@ -181,6 +192,7 @@ jobs:
         with:
           name: linux-qt-screenshots
           path: |
+            docs/images/office-foundation/
             docs/images/pptx-compat/
             docs/images/pptx-import-edit/
             docs/images/docx-images/

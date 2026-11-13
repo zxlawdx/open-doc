@@ -12,6 +12,8 @@ from typing import Any
 from PIL import Image
 
 from apps.open_doc.application import template_catalog
+from apps.open_doc.office.capabilities import matrix
+from apps.open_doc.office.academic import PROFILES
 from apps.open_doc.spreadsheets import templates as workbook_templates
 from apps.open_doc.infrastructure.workspace import WorkspacePathResolver
 from apps.open_doc.services.document_service import AUTOSAVE_SECONDS
@@ -29,10 +31,10 @@ class DocumentApplication:
         fixed = self.context.fixed_documents
         return {
             "token": self.context.token,
+            "formats": matrix(),
+            "academic_profiles": PROFILES,
             "settings": self.context.config.load_settings(),
-            "document": (
-                fixed.current() if fixed.active_kind() != "rich" else None
-            )
+            "document": (fixed.current() if fixed.active_kind() != "rich" else None)
             or self.context.editor.current(),
             "autosave_seconds": AUTOSAVE_SECONDS,
             "assets": self.context.assets,
@@ -42,19 +44,36 @@ class DocumentApplication:
 
     def list_library(self) -> dict[str, Any]:
         personal = self.context.templates.personal()
-        workbooks = [book for book in self.context.workbooks.list() if book["id"] not in personal]
+        workbooks = [
+            book for book in self.context.workbooks.list() if book["id"] not in personal
+        ]
         return {
-            "files": self.context.organizer.list_files() + [
-                {"id": book["id"], "name": book["title"], "type": "xlsx",
-                 "workbook": True, "capabilities": {"open": True}}
-                for book in workbooks if book["imported"]
+            "files": self.context.organizer.list_files()
+            + [
+                {
+                    "id": book["id"],
+                    "name": book["title"],
+                    "type": "xlsx",
+                    "workbook": True,
+                    "capabilities": {"open": True},
+                }
+                for book in workbooks
+                if book["imported"]
             ],
-            "templates": [asdict(template) for template in template_catalog.CATALOG] + workbook_templates.catalog() + [
-                {**item, "category": "Meus templates", "sections": []} for item in personal.values()
+            "templates": [asdict(template) for template in template_catalog.CATALOG]
+            + workbook_templates.catalog()
+            + [
+                {**item, "category": "Meus templates", "sections": []}
+                for item in personal.values()
             ],
             "documents": sorted(
-                [item for item in self.context.editor.list_documents() + self.context.fixed_documents.list_documents()
-                 if item["id"] not in personal] + workbooks,
+                [
+                    item
+                    for item in self.context.editor.list_documents()
+                    + self.context.fixed_documents.list_documents()
+                    if item["id"] not in personal
+                ]
+                + workbooks,
                 key=lambda document: document["updated_at"],
                 reverse=True,
             ),
@@ -64,17 +83,23 @@ class DocumentApplication:
         personal = self.context.templates.personal().get(identifier)
         if personal:
             return self.context.templates.create(personal)
-        template = next((item for item in template_catalog.CATALOG if item.id == identifier), None)
+        template = next(
+            (item for item in template_catalog.CATALOG if item.id == identifier), None
+        )
         if template is None:
             raise ValueError("Modelo não encontrado.")
         if template.format == "docx":
-            return self.create({
-                "title": template.title, "content_format": "opendoc-rich-v1",
-                "content": template_catalog.rich_document(template),
-            })
+            return self.create(
+                {
+                    "title": template.title,
+                    "content_format": "opendoc-rich-v1",
+                    "content": template_catalog.rich_document(template),
+                }
+            )
         if template.format == "pptx":
             return self.context.fixed_documents.create_presentation(
-                template.title, deck=template_catalog.presentation(template),
+                template.title,
+                deck=template_catalog.presentation(template),
             )
         with TemporaryDirectory(dir=self.context.config.root) as directory:
             source = Path(directory) / (template.title + ".pdf")
@@ -117,6 +142,34 @@ class DocumentApplication:
 
     def _open_workspace_path(self, path: Path) -> dict[str, Any]:
         suffix = path.suffix.lower()
+        if suffix in {".odt", ".odp"}:
+            from apps.open_doc.office.opendocument import convert
+
+            with TemporaryDirectory(dir=self.context.config.root) as directory:
+                target = Path(directory) / (
+                    path.stem + (".docx" if suffix == ".odt" else ".pptx")
+                )
+                convert(path, target, target.suffix[1:])
+                note = self._open_workspace_path(target)
+                note["conversion_warnings"] = [
+                    "Convertido de "
+                    + suffix.upper()
+                    + ": revise fontes, layout e recursos avançados."
+                ]
+                return note
+        if suffix in {".xlsx", ".csv", ".tsv"}:
+            from apps.open_doc.spreadsheets.files import read
+            from apps.open_doc.spreadsheets.objects import media_directory
+
+            return {
+                "workbook": self.context.workbooks.create(
+                    path.stem,
+                    read(
+                        path, media_directory=media_directory(self.context.config.root)
+                    ),
+                    imported=True,
+                )
+            }
         if suffix == ".pdf":
             return self.context.fixed_documents.import_pdf(path)
         if suffix == ".pptx":
@@ -132,6 +185,16 @@ class DocumentApplication:
         """Import an external file, copying it into the managed workspace."""
         target = self.context.organizer.organize(Path(path))
         suffix = target.suffix.lower()
+        if suffix in {".odt", ".odp", ".xlsx", ".csv", ".tsv"}:
+            note = self._open_workspace_path(target)
+            if "workbook" in note:
+                return {**note, "name": target.name, "opened": True, "view": "workbook"}
+            return {
+                "document": note,
+                "name": target.name,
+                "opened": True,
+                "view": "rich" if suffix == ".odt" else "presentation",
+            }
         if suffix == ".docx":
             self.context.fixed_documents.activate("rich")
             return {
@@ -187,8 +250,13 @@ class DocumentApplication:
         fixed = self.context.fixed_documents.exists(identifier)
         operation = data["operation"]
         result = self.context.editor.versions(
-            identifier, operation, fixed=fixed, version_id=data.get("version_id"),
-            revision=data.get("revision"), name=data.get("name"), slide_index=data.get("slide_index"),
+            identifier,
+            operation,
+            fixed=fixed,
+            version_id=data.get("version_id"),
+            revision=data.get("revision"),
+            name=data.get("name"),
+            slide_index=data.get("slide_index"),
         )
         if operation in {"restore", "restore_slide"}:
             service = self.context.fixed_documents if fixed else self.context.editor
@@ -246,17 +314,26 @@ class DocumentApplication:
         return service.duplicate(identifier)
 
     def export_descriptor(self, document_id: str, file_format: str) -> dict[str, Any]:
-        if not isinstance(file_format, str) or file_format not in (EXTENSIONS | {"pptx"}):
+        if not isinstance(file_format, str) or file_format not in (
+            EXTENSIONS | {"pptx", "odt", "odp"}
+        ):
             raise ExportError("Formato de exportação inválido.")
         fixed = self.context.fixed_documents.exists(document_id)
         if fixed:
             note = self.context.fixed_documents.get(document_id)
-            allowed = ["pdf"] if note["source_kind"] == "pdf" else ["pptx"]
+            allowed = ["pdf"] if note["source_kind"] == "pdf" else ["pptx", "odp"]
             if file_format not in allowed:
                 raise ExportError("Exporte este documento como PDF ou PPTX compatível.")
             filename = safe_stem(note["title"]) + "." + file_format
         else:
-            filename = self.context.exports.suggest_filename(document_id, file_format)
+            if file_format == "odt":
+                filename = (
+                    safe_stem(self.context.editor.get(document_id)["title"]) + ".odt"
+                )
+            else:
+                filename = self.context.exports.suggest_filename(
+                    document_id, file_format
+                )
         return {
             "fixed": fixed,
             "directory": self.context.exports.default_export_directory(),
@@ -271,6 +348,22 @@ class DocumentApplication:
             if self.context.fixed_documents.exists(document_id)
             else self.context.exports
         )
+        if file_format in {"odt", "odp"}:
+            self.export_descriptor(document_id, file_format)
+            from apps.open_doc.office.opendocument import convert
+
+            with TemporaryDirectory(dir=self.context.config.root) as directory:
+                intermediate = "docx" if file_format == "odt" else "pptx"
+                native = Path(directory) / ("export." + intermediate)
+                service.export(document_id, revision, intermediate, native)
+                return {
+                    **convert(
+                        native,
+                        Path(destination).with_suffix("." + file_format),
+                        file_format,
+                    ),
+                    "revision": revision,
+                }
         return service.export(document_id, revision, file_format, Path(destination))
 
     def export_native_pdf_edit(
@@ -294,7 +387,11 @@ class DocumentApplication:
         )
 
     def extract_pdf_pages(
-        self, document_id: str, revision: int, first_page: int, last_page: int,
+        self,
+        document_id: str,
+        revision: int,
+        first_page: int,
+        last_page: int,
         destination: Path,
     ) -> dict[str, Any]:
         if not self.context.fixed_documents.exists(document_id):
@@ -304,7 +401,7 @@ class DocumentApplication:
         )
 
     def export_temporary(self, data: dict[str, Any], filename: str) -> dict[str, Any]:
-        return self.context.exports.export(
+        return self.export_to(
             data["id"],
             data["revision"],
             data["format"],
@@ -336,9 +433,7 @@ class DocumentApplication:
         ).read_bytes()
         with Image.open(io.BytesIO(blob)) as image:
             kind = image.format.lower()
-        return {
-            "url": f"data:image/{kind};base64," + base64.b64encode(blob).decode()
-        }
+        return {"url": f"data:image/{kind};base64," + base64.b64encode(blob).decode()}
 
     def artifact_source(self, identifier: str, preview: bool = False) -> Path:
         return self.context.fixed_documents.source(identifier, preview)

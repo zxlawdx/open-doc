@@ -149,7 +149,7 @@ class OpenDocBridge(BaseBridge):
             webview.FileDialog.OPEN,
             allow_multiple=False,
             directory=default_import_directory(),
-            file_types=("Documentos (*.pdf;*.docx;*.pptx;*.md;*.txt)",),
+            file_types=("Documentos (*.pdf;*.docx;*.pptx;*.odt;*.odp;*.xlsx;*.csv;*.tsv;*.md;*.txt)",),
         )
         if not paths:
             return {"cancelled": True}

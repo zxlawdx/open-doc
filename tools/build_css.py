@@ -30,6 +30,7 @@ STYLE_ORDER = (
     "statusbar.css",
     "ink.css",
     "semantic_annotations.css",
+    "office_workspace.css",
     "states.css",
     "oficio_design.css",
     "slide_editor.css",

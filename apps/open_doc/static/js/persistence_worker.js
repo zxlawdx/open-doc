@@ -1,6 +1,7 @@
 /* Document encoding and crash recovery stay off the interface thread. */
 'use strict';
 let database;
+const stagedInk=new Map();
 function openDatabase() {
   if (!database) database = new Promise((resolve,reject)=>{
     const request=indexedDB.open('open-doc-recovery',1);
@@ -24,6 +25,11 @@ async function storage(op,data) {
 }
 async function handle(message) {
   const {op,data}=message;
+  if(op==='stage-begin'){stagedInk.set(data.key,[]);return null;}
+  if(op==='stage-append'){const strokes=stagedInk.get(data.key);if(!strokes)throw Error('Lote de tinta expirado.');strokes.push(...data.strokes);return null;}
+  if(op==='stage-discard'){for(const key of data.keys)stagedInk.delete(key);return null;}
+  if(data.stagedInk?.length){for(const ref of data.stagedInk){const strokes=stagedInk.get(ref.key);if(!strokes)throw Error('Lote de tinta incompleto.');data.snapshot.content.ink_layers[ref.at].strokes=strokes;}}
+
   if(op!=='request')return storage(op,data);
   const response=await fetch('/api/open_doc/'+data.path,{
     method:'POST',headers:{'Content-Type':'application/json','X-Open-Doc-Token':data.token},

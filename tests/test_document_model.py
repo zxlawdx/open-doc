@@ -112,7 +112,7 @@ def test_canonical_size_limit_is_identical_on_save_and_reopen(monkeypatch):
     monkeypatch.setattr(
         validation, "MAX_MODEL_JSON_BYTES", len(encoded.encode("utf-8")) - 1
     )
-    with pytest.raises(ValueError, match="16 MB"):
+    with pytest.raises(ValueError, match="128 MB"):
         serialize_document(value)
-    with pytest.raises(ValueError, match="16 MB"):
+    with pytest.raises(ValueError, match="128 MB"):
         load_document(encoded)

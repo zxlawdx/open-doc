@@ -8,7 +8,7 @@ from apps.open_doc.document_model.schema import TextStyle, ParagraphStyle
 from apps.open_doc.readers.pptx.native_math import validate_math_blocks
 
 VERSION = "opendoc-rich-v1"
-MAX_MODEL_JSON_BYTES = 16 * 1024 * 1024
+MAX_MODEL_JSON_BYTES = 128 * 1024 * 1024
 MAX_OPAQUE_BYTES = 1024 * 1024
 INLINE = {
     "text",
@@ -53,7 +53,7 @@ def validate_rich_document(model, *, return_encoded=False):
         model, ensure_ascii=False, allow_nan=False, separators=(",", ":")
     )
     if len(encoded.encode()) > MAX_MODEL_JSON_BYTES:
-        raise ValueError("Modelo ultrapassa 16 MB.")
+        raise ValueError("Modelo ultrapassa 128 MB.")
     ids = set()
     count = 0
 

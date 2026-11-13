@@ -45,6 +45,16 @@
       return jsonLength(value);
     });
   }
+  // History needs a conservative retention budget, not an exact JSON encoding.
+  // Counting geometry arrays avoids serializing every point on a pen commit.
+  const historySizes=new WeakMap();
+  function inkMemory(stroke){return 1024+512*(stroke.points?.length||0)+160*(stroke.outline?.length||0);}
+  function historySize(content){
+    if(historySizes.has(content))return historySizes.get(content);
+    let size=snapshotSize({...content,ink_layers:[]});
+    for(const layer of content.ink_layers||[]){let cost=historySizes.get(layer);if(cost===undefined){cost=256+8*(layer.strokes?.length||0)+(layer.strokes||[]).reduce((sum,stroke)=>sum+inkMemory(stroke),0)+jsonLength(layer.text_overlays||[]);historySizes.set(layer,cost);}size+=cost;}
+    historySizes.set(content,size);return size;
+  }
   const styleKey=s=>JSON.stringify(Object.keys(s || {}).sort().map(k=>[k,s[k]]));
   function normalizeRuns(children){const out=[];for(const n of children){const p=out[out.length-1];if(p && n.type==='text' && p.type==='text' && styleKey(p.style)===styleKey(n.style) && p.raw_properties===n.raw_properties)p.text+=n.text;else out.push(n);}return out;}
   function markdown(model){
@@ -68,5 +78,5 @@
     function inline(values){return values.map(n=>{if(n.type==='math')return mathValue(n.math_blocks||[]);if(n.type==='hyperlink')return '['+inline(n.children)+']('+n.href+')';if(n.type==='break')return '\n';if(n.type==='tab')return '\t';let v=n.text || '',s=n.style || {};if(s.bold)v='**'+v+'**';if(s.italic)v='_'+v+'_';return v;}).join('');}
     function blocks(values){return values.map(n=>{if(n.type==='table'){const rows=n.rows.map(r=>'| '+r.cells.filter(c=>!c.merge_continue).map(c=>blocks(c.blocks).replace(/\n/g,' ')).join(' | ')+' |');if(rows.length)rows.splice(1,0,'| '+n.rows[0].cells.filter(c=>!c.merge_continue).map(()=>'---').join(' | ')+' |');return rows.join('\n');}if(n.type!=='paragraph')return '';let v=inline(n.children || []),s=n.style || {};if(typeof s.outline_level==='number' && s.outline_level>=0 && s.outline_level<6)v='#'.repeat(s.outline_level+1)+' '+v;if(n.list_info)v='  '.repeat(n.list_info.level || 0)+(n.list_info.format==='bullet'?'- ':'1. ')+v;if(n.block_kind==='quote')v='> '+v;if(n.block_kind==='code'){const f='`'.repeat(Math.max(3,...(v.match(/`+/g) || []).map(r=>r.length+1)));v=f+'\n'+v+'\n'+f;}return v;}).filter(Boolean).join('\n\n');}return blocks(model.blocks);
   }
-  window.OpenDocModel={id,clone,empty,index,sameContent,snapshotSize,jsonLength,normalizeRuns,markdown};
+  window.OpenDocModel={id,clone,empty,index,sameContent,snapshotSize,historySize,inkMemory,jsonLength,normalizeRuns,markdown};
 })();

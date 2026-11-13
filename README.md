@@ -338,3 +338,7 @@ original, as anotações e a recuperação. Clique numa miniatura e use as setas
 Page Up/Down ou Home/End para navegar. No slide, as setas movem o objeto
 selecionado. Use **Apresentar**, **F5** (desde o início), **Shift+F5** (slide atual)
 e **Esc** para encerrar a apresentação.
+
+### Edição unificada e modelos acadêmicos
+
+A [matriz de compatibilidade](docs/OFFICE_COMPATIBILITY.md) descreve DOCX, PDF, XLSX, CSV, TSV, PPTX, ODT e ODP, os novos comandos e modelos acadêmicos e os recursos ainda pendentes. ODT/ODP usam conversão opcional pelo LibreOffice, com revisão de fidelidade. Veja também o [benchmark real de 300 a 100 mil traços](docs/OFFICE_PERFORMANCE.md).

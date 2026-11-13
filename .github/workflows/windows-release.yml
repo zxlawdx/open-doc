@@ -38,6 +38,12 @@ on:
       - "tools/workbook_objects_fixture.mjs"
       - "requirements.txt"
       - "config/**"
+      - "apps/open_doc/office/**"
+      - "apps/open_doc/application/**"
+      - "apps/open_doc/static/js/ink*.js"
+      - "apps/open_doc/static/js/paper_layout.js"
+      - "apps/open_doc/static/js/office_workspace.js"
+      - "apps/open_doc/styles/office_workspace.css"
 
 permissions:
   contents: read
