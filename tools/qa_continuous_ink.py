@@ -1,10 +1,14 @@
 """Qt regression: continuous rich text must prepare a drawable paged surface.
 
-Mouse input traverses Qt's native WebEngine focus proxy. Stylus pressure is
+Mouse input uses Qt's focus proxy on Linux and browser hit testing via CDP on
+Windows hosted desktops. Stylus pressure is
 synthetic; this does not claim validation of a physical tablet driver.
 """
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
@@ -68,7 +72,49 @@ def exercise(window):
         """(() => {const r=document.querySelector('.ink-overlay').getBoundingClientRect();
       return {x:r.left+100,y:Math.max(r.top+100,380)};})()"""
     )
-    Mouse(window).draw(point["x"], point["y"])
+    hit = js(
+        f"document.elementFromPoint({point['x']},{point['y']})?.closest('.ink-overlay')?true:false"
+    )
+    assert hit, {
+        "point": point,
+        "viewport": js("[innerWidth,innerHeight,devicePixelRatio]"),
+    }
+    if (
+        os.environ.get("OPEN_DOC_QA_MOUSE", "cdp" if sys.platform == "win32" else "qt")
+        == "cdp"
+    ):
+        # The hosted Windows desktop can deliver QTest mouse events outside the
+        # WebEngine viewport. CDP uses viewport coordinates and performs a real
+        # browser hit test (unlike dispatchEvent on the SVG).
+        script = """
+        (async()=>{
+          const pages=await(await fetch('http://127.0.0.1:'+process.argv[1]+'/json/list')).json();
+          const ws=new WebSocket(pages.find(p=>p.type==='page').webSocketDebuggerUrl);
+          await new Promise((ok,bad)=>{ws.onopen=ok;ws.onerror=bad});
+          let id=0;const pending=new Map();
+          ws.onmessage=e=>{const r=JSON.parse(e.data),p=pending.get(r.id);if(p){pending.delete(r.id);r.error?p[1](Error(JSON.stringify(r.error))):p[0](r.result)}};
+          const send=(method,params)=>new Promise((ok,bad)=>{const n=++id;pending.set(n,[ok,bad]);ws.send(JSON.stringify({id:n,method,params}))});
+          const x=Number(process.argv[2]),y=Number(process.argv[3]);
+          await send('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',buttons:1,clickCount:1});
+          for(let i=1;i<=8;i++)await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:x+i*10,y:y+i*3,button:'left',buttons:1});
+          await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:x+80,y:y+24,button:'left',buttons:0,clickCount:1});
+          ws.close();
+        })().catch(e=>{console.error(e);process.exitCode=1});
+        """
+        subprocess.run(
+            [
+                "node",
+                "-e",
+                script,
+                os.environ["QTWEBENGINE_REMOTE_DEBUGGING"],
+                str(point["x"]),
+                str(point["y"]),
+            ],
+            check=True,
+            timeout=20,
+        )
+    else:
+        Mouse(window).draw(point["x"], point["y"])
     wait(window, "OpenDocApp.editor().inkLayers()[0]?.strokes.length===1")
     # Pressure, shapes and erasing use the same prepared surface.
     js("""window.__stroke=(mode,x,y) => {
