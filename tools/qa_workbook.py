@@ -12,6 +12,7 @@ import webview
 
 from apps.open_doc.application.context import get_context
 from apps.open_doc.services.preferences_service import Config
+from apps.open_doc.spreadsheets.templates import catalog
 from config.wsgi import create_app
 
 VIEWPORTS = (
@@ -106,7 +107,7 @@ def main():
             click(".home-side-nav [data-library-route=xlsx]")
             wait(
                 window,
-                "document.querySelectorAll('[data-template-id^=sheet-]:not([hidden])').length===5",
+                f"document.querySelectorAll('[data-template-id^=sheet-]:not([hidden])').length==={len(catalog())}",
             )
             capture(output, "templates")
             click("[data-template-id=sheet-budget]")

@@ -50,9 +50,9 @@ def exercise(window):
     assert "Citação longa" in js(
         "document.querySelector('.office-command-palette').textContent"
     )
-    js(
-        "document.querySelector('.office-command-palette input').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))"
-    )
+    js("document.querySelector('.office-command-palette input').dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true}))")
+    assert js("document.activeElement.textContent") == 'Fechar'
+    js("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
     capture(window, "academic-editor.png")
     js("OpenDocApp.theme().set('dark')")
     sleep(0.2)

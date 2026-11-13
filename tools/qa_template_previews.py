@@ -29,7 +29,12 @@ def main():
                 ("research-deck", ".pptx-thumbnail"),
                 ("review-sheet", "canvas"),
                 ("sheet-budget", "table td"),
+                ("academic-article", ".template-paper"),
+                ("academic-defense", ".pptx-thumbnail"),
+                ("sheet-research-budget", "table td"),
             ):
+                wait(window, f"!!document.querySelector('[data-template-id={identifier}]')")
+                js(f"document.querySelector('[data-template-id={identifier}]').scrollIntoView({{block:'center'}})")
                 wait(window, f"!!document.querySelector('[data-template-id={identifier}] {selector}')")
             capture(output, "gallery")
             js("document.querySelector('[data-template-id=sheet-budget]').click()")
