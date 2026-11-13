@@ -56,6 +56,24 @@ a escrita, sem manter uma cópia de cada foto no modelo da planilha.
    imagens, gráficos, formas, notas, links e controles compatíveis. CSV e TSV
    armazenam apenas os valores das células.
 
+## Dimensões e arquivos de referência
+
+- Arraste a divisória direita do cabeçalho de uma coluna ou a divisória inferior
+  do número de uma linha. Duplo clique na divisória ajusta aos dados.
+- Em **Layout**, use **Largura da coluna**, **Altura da linha**, **Ajustar coluna
+  aos dados** e **Ajustar linha aos dados**. A seleção pode abranger várias
+  linhas/colunas. A altura e a largura definem o tamanho das células na grade.
+- Tamanhos ficam no histórico, são salvos com o arquivo e exportados para XLSX.
+- A importação preserva dimensões, células mescladas, congelamento, exibição da
+  grade, alinhamento vertical e formatos numéricos. Mesclagens importadas são
+  editáveis pela célula inicial. Alterar a estrutura com mesclagens/congelamento
+  permanece protegido para impedir referências deslocadas.
+- IF/SE, COUNT, COUNTA e IFERROR/SEERRO complementam as funções numéricas
+  existentes. IF avalia apenas o ramo escolhido, inclusive em fórmulas que
+  retornam texto vazio quando ainda não há dados.
+- A virtualização usa posições acumuladas e busca binária para localizar as
+  linhas/colunas visíveis; o arraste cria uma única alteração no histórico.
+
 ## Limites e itens ainda não integrados
 
 - Imagem como valor de célula do Excel 2024 é diferente de uma imagem DrawingML

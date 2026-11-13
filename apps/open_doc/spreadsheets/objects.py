@@ -81,8 +81,8 @@ def validate_objects(sheet):
         if not isinstance(obj["name"], str) or len(obj["name"]) > 200:
             raise ValueError("Nome do objeto inválido.")
         for field, lower, upper in (
-            ("x", 0, 11200),
-            ("y", 0, 280000),
+            ("x", 0, 200000),
+            ("y", 0, 20000000),
             ("width", 16, 4000),
             ("height", 16, 4000),
         ):
@@ -143,13 +143,14 @@ def validate_objects(sheet):
             raise ValueError("Tipo de objeto desconhecido.")
 
 
-def _anchor(obj):
+def _anchor(obj, sheet):
     from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
     from openpyxl.drawing.xdr import XDRPositiveSize2D
     from openpyxl.utils.units import pixels_to_EMU
 
-    col, x = divmod(obj["x"], 112)
-    row, y = divmod(obj["y"], 28)
+    from .layout import cell_anchor
+
+    col, row, x, y = cell_anchor(sheet, obj["x"], obj["y"])
     return OneCellAnchor(
         _from=AnchorMarker(
             col=int(col), row=int(row), colOff=pixels_to_EMU(x), rowOff=pixels_to_EMU(y)
@@ -180,7 +181,7 @@ def export_objects(sheet, output, directory):
                 verified.add(obj["media_id"])
             picture = Image(str(Path(directory) / obj["media_id"]))
             picture.width, picture.height = obj["width"], obj["height"]
-            picture.anchor = _anchor(obj)
+            picture.anchor = _anchor(obj, sheet)
             output.add_image(picture)
             continue
         if obj["type"] == "shape":
@@ -217,7 +218,7 @@ def export_objects(sheet, output, directory):
             chart.set_categories(
                 Reference(output, min_col=left + 1, min_row=top + 2, max_row=bottom + 1)
             )
-        chart.anchor = _anchor(obj)
+        chart.anchor = _anchor(obj, sheet)
         output.add_chart(chart)
 
 
@@ -230,9 +231,12 @@ def import_objects(source, sheet, directory):
     def geometry(anchor, width=480, height=300):
         marker = getattr(anchor, "_from", None)
         extent = getattr(anchor, "ext", None)
+        from .layout import cell_position
+
+        x, y = cell_position(sheet, marker.row, marker.col) if marker else (112, 28)
         return {
-            "x": marker.col * 112 + EMU_to_pixels(marker.colOff) if marker else 112,
-            "y": marker.row * 28 + EMU_to_pixels(marker.rowOff) if marker else 28,
+            "x": x + EMU_to_pixels(marker.colOff) if marker else x,
+            "y": y + EMU_to_pixels(marker.rowOff) if marker else y,
             "width": max(16, min(4000, EMU_to_pixels(extent.cx) if extent else width)),
             "height": max(
                 16, min(4000, EMU_to_pixels(extent.cy) if extent else height)

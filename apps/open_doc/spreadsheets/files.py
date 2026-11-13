@@ -16,6 +16,12 @@ FUNCTIONS = {
     "MÉDIA": "AVERAGE",
     "MÍNIMO": "MIN",
     "MÁXIMO": "MAX",
+    "IF": "IF",
+    "SE": "IF",
+    "COUNT": "COUNT",
+    "COUNTA": "COUNTA",
+    "IFERROR": "IFERROR",
+    "SEERRO": "IFERROR",
     "SUM": "SUM",
     "AVERAGE": "AVERAGE",
     "MIN": "MIN",
@@ -25,18 +31,24 @@ FUNCTIONS = {
 
 def safe_formula(value):
     """Only carry arithmetic and supported built-in functions into Excel."""
-    if not re.fullmatch(r"[=0-9\s+*/().,:;!'_$\-A-Za-zÀ-ÿ]+", value):
+    pieces = re.split(r'("(?:[^"]|"")*")', value)
+    plain = "".join(pieces[::2])
+    if len(value) > 4000 or not re.fullmatch(
+        r"[=0-9\s+*/().,:;!'_$%<>\-A-Za-zÀ-ÿ]+", plain
+    ):
         return None
     if any(
         name.upper() not in FUNCTIONS
-        for name in re.findall(r"([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9_.]*)\s*\(", value)
+        for name in re.findall(r"([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9_.]*)\s*\(", plain)
     ):
         return None
-    return re.sub(
-        r"([A-Za-zÀ-ÿ]+)(?=\s*\()",
-        lambda match: FUNCTIONS[match[0].upper()],
-        value.replace(";", ","),
-    )
+    for i in range(0, len(pieces), 2):
+        pieces[i] = re.sub(
+            r"([A-Za-zÀ-ÿ]+)(?=\s*\()",
+            lambda match: FUNCTIONS[match[0].upper()],
+            pieces[i].replace(";", ","),
+        )
+    return "".join(pieces)
 
 
 def _rgb(color):
@@ -75,6 +87,10 @@ def _read_style(cell):
         style["color"] = color
     if fill.patternType == "solid" and (color := _rgb(fill.fgColor)):
         style["fill"] = color
+    if alignment.vertical in {"top", "center", "bottom"}:
+        style["valign"] = alignment.vertical
+    if cell.number_format != "General" and len(cell.number_format) <= 120:
+        style["number_format"] = cell.number_format
     return style
 
 
@@ -157,6 +173,9 @@ def read(path, *, media_directory=None):
                                 )
                     from .objects import import_cell_tools, import_objects
 
+                    from .layout import import_layout
+
+                    import_layout(source, sheet)
                     import_objects(source, sheet, media_directory)
                     import_cell_tools(source, sheet)
                     sheets.append(sheet)
@@ -304,12 +323,19 @@ def export(sheets, destination, fmt, sheet_index=0, *, media_directory=None):
                         cell.border = Border(
                             left=side, right=side, top=side, bottom=side
                         )
-                    if "align" in style or style.get("wrap"):
+                    if "number_format" in style:
+                        cell.number_format = style["number_format"]
+                    if "align" in style or "valign" in style or style.get("wrap"):
                         cell.alignment = Alignment(
-                            horizontal=style.get("align"), wrap_text=style.get("wrap")
+                            horizontal=style.get("align"),
+                            vertical=style.get("valign"),
+                            wrap_text=style.get("wrap"),
                         )
                 from .objects import export_cell_tools, export_objects
 
+                from .layout import export_layout
+
+                export_layout(sheet, output)
                 export_objects(sheet, output, media_directory)
                 export_cell_tools(sheet, output)
             book.save(temporary)

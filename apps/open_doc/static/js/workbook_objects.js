@@ -111,7 +111,7 @@
       if(snapshot().bookId!==start.bookId||snapshot().sheet!==start.sheet)return;
       remember(asset.media_id,asset.url);const scale=Math.min(1,360/asset.width,280/asset.height);
       const obj={id:id(),type:'image',name:file.name.slice(0,200),media_id:asset.media_id,
-        x:start.col*112,y:start.row*28,width:Math.max(16,asset.width*scale),height:Math.max(16,asset.height*scale)};
+        x:start.cellPosition?.(start.row,start.col).x??start.col*112,y:start.cellPosition?.(start.row,start.col).y??start.row*28,width:Math.max(16,asset.width*scale),height:Math.max(16,asset.height*scale)};
       selected=obj.id;apply([...snapshot().objects,obj]);
     }
     async function addChart(){
@@ -123,13 +123,13 @@
       if(snapshot().sheet!==s.sheet)return;
       const kind=host.querySelector('[data-book-chart-kind]').value;
       const obj={id:id(),type:'chart',name:name.slice(0,200),chart_kind:kind,range:range.slice(),
-        x:s.col*112,y:(range[2]+2)*28,width:560,height:320};
+        x:s.cellPosition?.(s.row,s.col).x??s.col*112,y:s.cellPosition?.(range[2]+2,s.col).y??(range[2]+2)*28,width:560,height:320};
       const current=snapshot();
       for(let pass=0;pass<=current.objects.length;pass++){
         const overlap=current.objects.find(other=>obj.x<other.x+other.width&&obj.x+obj.width>other.x&&obj.y<other.y+other.height&&obj.y+obj.height>other.y);
         if(!overlap)break;obj.y=overlap.y+overlap.height+24;
       }
-      obj.y=Math.min(280000,obj.y);selected=obj.id;apply([...current.objects,obj]);
+      obj.y=Math.min(20000000,obj.y);selected=obj.id;apply([...current.objects,obj]);
       viewport.scrollTop=Math.max(viewport.scrollTop,s.cellHeight+(obj.y+obj.height)*s.scale-viewport.clientHeight);
     }
     async function addShape(){
@@ -140,7 +140,7 @@
         if(!text||snapshot().sheet!==s.sheet)return;
       }
       await s.idle?.();if(snapshot().sheet!==s.sheet)return;
-      const obj={id:id(),type:'shape',name:kind==='text'?text.slice(0,200):'Forma',shape_kind:kind,text,fill:'#E8F0FE',color:'#174EA6',x:s.col*112,y:s.row*28,width:240,height:kind==='text'?80:140};
+      const obj={id:id(),type:'shape',name:kind==='text'?text.slice(0,200):'Forma',shape_kind:kind,text,fill:'#E8F0FE',color:'#174EA6',x:s.cellPosition?.(s.row,s.col).x??s.col*112,y:s.cellPosition?.(s.row,s.col).y??s.row*28,width:240,height:kind==='text'?80:140};
       selected=obj.id;apply([...snapshot().objects,obj]);
     }
     function sync(){
@@ -182,7 +182,7 @@
       const action=event.target.closest('[data-object-action]')?.dataset.objectAction;if(!action)return;
       const s=snapshot(),obj=s.objects.find(o=>o.id===selected);if(!obj)return;
       if(action==='remove'){apply(s.objects.filter(o=>o.id!==selected));selected=null;}
-      if(action==='duplicate'){const copy={...obj,id:id(),x:Math.min(11200,obj.x+24),y:Math.min(280000,obj.y+24)};selected=copy.id;apply([...s.objects,copy]);}
+      if(action==='duplicate'){const copy={...obj,id:id(),x:Math.min(200000,obj.x+24),y:Math.min(20000000,obj.y+24)};selected=copy.id;apply([...s.objects,copy]);}
       if(action==='edit'){
         const name=await dialog('Propriedades do objeto','Título ou descrição:',true,null,{label:'Descrição ',type:'text',initial:obj.name});
         if(name&&snapshot().sheet===s.sheet)updateObject(obj.id,{name:name.slice(0,200),...(obj.type==='chart'?{chart_kind:host.querySelector('[data-book-chart-kind]').value}:obj.type==='shape'?{text:name}:{})});
@@ -199,7 +199,7 @@
       if(!drag||drag.pointer!==event.pointerId)return;
       const dx=(event.clientX-drag.x)/drag.scale,dy=(event.clientY-drag.y)/drag.scale;
       drag.patch=drag.resize?{width:Math.max(16,Math.min(4000,drag.obj.width+dx)),height:Math.max(16,Math.min(4000,drag.obj.height+dy))}:
-        {x:Math.max(0,Math.min(11200,drag.obj.x+dx)),y:Math.max(0,Math.min(280000,drag.obj.y+dy))};
+        {x:Math.max(0,Math.min(200000,drag.obj.x+dx)),y:Math.max(0,Math.min(20000000,drag.obj.y+dy))};
       if(drag.resize&&drag.obj.type==='image'&&!event.shiftKey){
         const ratio=drag.obj.width/drag.obj.height;
         const factor=Math.max(16/Math.min(drag.obj.width,drag.obj.height),Math.min(4000/Math.max(drag.obj.width,drag.obj.height),Math.abs(dx)>=Math.abs(dy*ratio)?drag.patch.width/drag.obj.width:drag.patch.height/drag.obj.height));
@@ -215,7 +215,7 @@
       const obj=snapshot().objects.find(o=>o.id===selected);if(!obj)return;
       if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();event.stopPropagation();apply(snapshot().objects.filter(o=>o.id!==selected));selected=null;}
       const move={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key];
-      if(move){event.preventDefault();event.stopPropagation();const step=event.shiftKey?10:1;updateObject(obj.id,{x:Math.max(0,Math.min(11200,obj.x+move[0]*step)),y:Math.max(0,Math.min(280000,obj.y+move[1]*step))});}
+      if(move){event.preventDefault();event.stopPropagation();const step=event.shiftKey?10:1;updateObject(obj.id,{x:Math.max(0,Math.min(200000,obj.x+move[0]*step)),y:Math.max(0,Math.min(20000000,obj.y+move[1]*step))});}
     },{signal});
     viewport.addEventListener('pointerdown',event=>{if(!event.target.closest('[data-object-id]'))choose(null);},{signal});
     signal.addEventListener('abort',()=>{layer.remove();input.remove();cache.clear();},{once:true});

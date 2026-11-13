@@ -2,6 +2,7 @@
 
 import base64
 import json
+import os
 import sys
 from io import BytesIO
 from pathlib import Path
@@ -302,6 +303,198 @@ def main():
                 wait(window, "window.__sheetFixtureDone||window.__sheetFixtureError")
                 assert js("window.__sheetFixtureDone"), js("window.__sheetFixtureError")
                 capture(output, "packaged-flow-source")
+                # Anonymous layout fixture also allows a private, local-only reference.
+                from apps.open_doc.spreadsheets.files import read
+
+                compatibility = root / "layout-reference.xlsx"
+                export(
+                    [
+                        {
+                            "name": "Referência",
+                            "bold": ["1,0"],
+                            "cells": {
+                                "1,0": "Título mesclado de teste",
+                                "4,0": "Dia",
+                                "4,1": "Descrição",
+                                "5,0": "Segunda",
+                                "5,1": "Texto longo para verificar o ajuste de largura e a quebra automática de linhas.",
+                                "7,4": '=IF(COUNT(B8:D8)=0,"",AVERAGE(B8:D8))',
+                            },
+                            "styles": {
+                                "5,1": {
+                                    "wrap": True,
+                                    "valign": "center",
+                                    "family": "Arial",
+                                    "size": 11,
+                                }
+                            },
+                            "layout": {
+                                "columns": {
+                                    "0": 110,
+                                    "1": 236,
+                                    "2": 201,
+                                    "3": 222,
+                                    "4": 250,
+                                    "5": 264,
+                                },
+                                "rows": {"5": 133.33333333333334},
+                                "merges": [[1, 0, 1, 5]],
+                                "freeze": [5, 0],
+                                "gridlines": False,
+                            },
+                        }
+                    ],
+                    compatibility,
+                    "xlsx",
+                )
+                compatibility = Path(
+                    os.environ.get("OPEN_DOC_COMPAT_XLSX", compatibility)
+                )
+                expected = read(compatibility)
+                window.create_file_dialog = lambda *args, **kwargs: (
+                    str(compatibility),
+                )
+                js("OpenDocApp.action('workbook-import')")
+                wait(
+                    window,
+                    "document.querySelector('[data-book-tabs] button')?.textContent==="
+                    + json.dumps(expected[0]["name"]),
+                )
+                wait(
+                    window,
+                    "document.querySelector('[data-cell=\"1,0\"]')?.getAttribute('aria-colspan')==='6'",
+                )
+                old_width = js(
+                    "parseFloat(document.querySelector('[data-book-col=\"1\"]').style.width)"
+                )
+                old_height = js(
+                    "parseFloat(document.querySelector('[data-book-row=\"5\"]').style.height)"
+                )
+                assert abs(old_width - expected[0]["layout"]["columns"]["1"]) < 0.1
+                assert abs(old_height - expected[0]["layout"]["rows"]["5"]) < 0.1
+
+                def drag_size(scope, position, delta):
+                    js(
+                        """(() => {
+                      const grip=document.querySelector('[data-book-resize="%s"][data-position="%s"]');
+                      const rect=grip.getBoundingClientRect(),x=rect.x+rect.width/2,y=rect.y+rect.height/2;
+                      grip.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:91,clientX:x,clientY:y}));
+                      window.dispatchEvent(new PointerEvent('pointermove',{pointerId:91,clientX:x+%s,clientY:y+%s}));
+                      window.dispatchEvent(new PointerEvent('pointerup',{pointerId:91,clientX:x+%s,clientY:y+%s}));
+                    })()"""
+                        % (
+                            scope,
+                            position,
+                            delta if scope == "columns" else 0,
+                            delta if scope == "rows" else 0,
+                            delta if scope == "columns" else 0,
+                            delta if scope == "rows" else 0,
+                        )
+                    )
+
+                drag_size("columns", 1, 60)
+                wait(
+                    window,
+                    "Math.abs(parseFloat(document.querySelector('[data-book-col=\"1\"]').style.width)-%s)<.1"
+                    % (old_width + 60),
+                )
+                drag_size("rows", 5, 40)
+                wait(
+                    window,
+                    "Math.abs(parseFloat(document.querySelector('[data-book-row=\"5\"]').style.height)-%s)<.1"
+                    % (old_height + 40),
+                )
+                command("undo")
+                wait(
+                    window,
+                    "Math.abs(parseFloat(document.querySelector('[data-book-row=\"5\"]').style.height)-%s)<.1"
+                    % old_height,
+                )
+                command("redo")
+                # Double-click a divider, then size commands operate on the selection.
+                js(
+                    "document.querySelector('[data-book-resize=columns][data-position=\"1\"]').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))"
+                )
+                address("B6")
+                command("fit-row")
+                command("column-width")
+                confirm("300")
+                wait(
+                    window,
+                    "document.querySelector('[data-book-col=\"1\"]').style.width==='300px'",
+                )
+                command("row-height")
+                confirm("160")
+                wait(
+                    window,
+                    "document.querySelector('[data-book-row=\"5\"]').style.height==='160px'",
+                )
+                capture(output, "reference-resized")
+                # Frozen title rows remain visible after scrolling.
+                js("document.querySelector('[data-book-scroll]').scrollTop=500")
+                wait(
+                    window,
+                    "parseFloat(document.querySelector('[data-cell=\"1,0\"]').style.top)>500",
+                )
+                js("document.querySelector('[data-book-scroll]').scrollTop=0")
+                command("save")
+                wait(
+                    window,
+                    "document.querySelector('[data-book-status]').textContent==='Salvo neste dispositivo'",
+                )
+                roundtrip = output / "reference-roundtrip.xlsx"
+                window.create_file_dialog = lambda *args, **kwargs: (str(roundtrip),)
+                command("export")
+                wait(
+                    window,
+                    "document.querySelector('[data-book-status]').textContent.includes('Exportado')",
+                )
+                back = read(roundtrip)
+                assert len(back) == len(expected)
+                for original_sheet, saved_sheet in zip(expected, back):
+                    assert saved_sheet["cells"] == original_sheet["cells"]
+                    assert sorted(saved_sheet["layout"]["merges"]) == sorted(
+                        original_sheet["layout"]["merges"]
+                    )
+                    assert saved_sheet["layout"].get(
+                        "freeze", [0, 0]
+                    ) == original_sheet["layout"].get("freeze", [0, 0])
+                assert abs(back[0]["layout"]["columns"]["1"] - 300) < 0.000001
+                assert abs(back[0]["layout"]["rows"]["5"] - 160) < 0.000001
+                for sheet_index, original_sheet in enumerate(expected):
+                    js(
+                        "document.querySelectorAll('[data-book-tabs] button')[%s].click()"
+                        % sheet_index
+                    )
+                    wait(
+                        window,
+                        "document.querySelectorAll('[data-book-tabs] button')[%s].getAttribute('aria-pressed')==='true'"
+                        % sheet_index,
+                    )
+                    capture(output, "reference-tab-%s" % (sheet_index + 1))
+                    if original_sheet["cells"].get("7,4", "").startswith("=IF("):
+                        address("E8")
+                        wait(
+                            window,
+                            "document.querySelector('[data-cell=\"7,4\"]')?.textContent===''",
+                        )
+                        address("B8")
+                        js(
+                            "document.querySelector('[data-book-formula]').value='70';document.querySelector('[data-book-formula]').dispatchEvent(new Event('blur'))"
+                        )
+                        address("E8")
+                        wait(
+                            window,
+                            "document.querySelector('[data-cell=\"7,4\"]')?.textContent.startsWith('70')",
+                        )
+                        command("undo")
+                        wait(
+                            window,
+                            "document.querySelector('[data-cell=\"7,4\"]')?.textContent===''",
+                        )
+                print(
+                    "QT_WORKBOOK_GEOMETRY_DRAG_AUTOFIT_MERGE_ROUNDTRIP_OK", flush=True
+                )
                 print("QT_WORKBOOK_NATIVE_IMAGE_CHART_EDIT_EXPORT_OK", flush=True)
             except Exception as exc:
                 errors.append(exc)

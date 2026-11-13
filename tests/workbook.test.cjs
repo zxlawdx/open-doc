@@ -23,3 +23,11 @@ test('workbook formulas support arithmetic, ranges, absolute references and othe
   assert.equal(address('CV10000').join(','),'9999,99');
   assert.equal(address('CW10000'),null);
 });
+
+
+test('imported tracker IF COUNT and AVERAGE recalculate with lazy empty branches',()=>{
+ const sheet={name:'Tracker',cells:{'3,1':'74','3,3':'1.6','4,1':'=B4*D4','7,4':'=IF(COUNT(B8:D8)=0,"",AVERAGE(B8:D8))','8,4':'=IFERROR(1/0,"Sem valor")'}};
+ let calc=evaluate([sheet]);assert.equal(calc(0,4,1),118.4);assert.equal(calc(0,7,4),'');assert.equal(calc(0,8,4),'Sem valor');
+ sheet.cells['7,1']='70';sheet.cells['7,2']='72';sheet.cells['7,3']='0';calc=evaluate([sheet]);assert.equal(calc(0,7,4),142/3);
+ sheet.cells['0,0']='=IF(1=1,"texto, com; separador",1/0)';calc=evaluate([sheet]);assert.equal(calc(0,0,0),'texto, com; separador');
+});

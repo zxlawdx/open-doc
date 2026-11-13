@@ -76,6 +76,7 @@ def test_native_image_and_chart_export_reimport_preserve_data_and_position(
     media = media_directory(tmp_path)
     asset = store_image(media, image())
     data = sheet()
+    data["layout"] = {"columns": {"0": 200, "1": 250}, "rows": {"0": 80, "1": 50}}
     if kind == "scatter":
         data["cells"].update({"1,0": "1", "2,0": "2"})
     data["objects"] = [
@@ -183,6 +184,7 @@ def test_native_drawingml_shapes_and_text_roundtrip(tmp_path, kind):
     from zipfile import ZipFile
 
     data = sheet()
+    data["layout"] = {"columns": {"0": 200}, "rows": {"0": 80}}
     data["cell_tools"] = {"0,0": {"comment": "Comentário junto com formas"}}
     data["objects"] = [
         {

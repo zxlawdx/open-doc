@@ -40,12 +40,16 @@ def validate(sheets):
                     "pivot",
                     "objects",
                     "cell_tools",
+                    "layout",
                 }
             )
         ):
             raise ValueError("Aba inválida.")
         from .objects import validate_cell_tools, validate_objects
 
+        from .layout import validate_layout
+
+        validate_layout(sheet)
         validate_objects(sheet)
         validate_cell_tools(sheet)
         types = sheet.get("types", {"columns": {}, "cells": {}})
@@ -232,7 +236,11 @@ def validate(sheets):
                 not isinstance(style, dict)
                 or not style
                 or set(style)
-                - (STYLE_FLAGS | STYLE_COLORS | {"family", "size", "align"})
+                - (
+                    STYLE_FLAGS
+                    | STYLE_COLORS
+                    | {"family", "size", "align", "valign", "number_format"}
+                )
             ):
                 raise ValueError("Estilo de célula inválido.")
             for prop, value in style.items():
@@ -254,6 +262,13 @@ def validate(sheets):
                 raise ValueError("Tamanho de fonte inválido.")
             if "align" in style and style["align"] not in ("left", "center", "right"):
                 raise ValueError("Alinhamento inválido.")
+            if "valign" in style and style["valign"] not in ("top", "center", "bottom"):
+                raise ValueError("Alinhamento vertical inválido.")
+            if "number_format" in style and (
+                not isinstance(style["number_format"], str)
+                or len(style["number_format"]) > 120
+            ):
+                raise ValueError("Formato numérico inválido.")
         count += len(cells) + len(bold) + len(styles) + len(sheet.get("cell_tools", {}))
         if count > MAX_CELLS:
             raise ValueError("Limite de 50 mil valores e estilos por pasta.")
