@@ -364,7 +364,7 @@
     saveDocumentInBackground();
     await Promise.all([!workbook && loadResources([...gridResources,
       ['OpenDocWorkbookFormula','workbook_formula.js'],
-      ['OpenDocWorkbookPivotUI','workbook_pivot_ui.js'],['OpenDocWorkbook','workbook.js']
+      ['OpenDocWorkbookPivotUI','workbook_pivot_ui.js'],['OpenDocWorkbookObjects','workbook_objects.js'],['OpenDocWorkbook','workbook.js']
     ])]);
     if (!workbook) workbook = window.OpenDocWorkbook.create({host,request,dialog,signal,loadCodeEditors,settings,persist,onDirty:value=>moduleDirty('workbook',value)});
     const value = existing || (data ? await request('workbook',data) : await window.pywebview.api.import_workbook());
@@ -427,14 +427,16 @@
     if(previousFocus?.isConnected)previousFocus.focus();
     resolve?.(value);
   }
-  function dialog(title, text, input = false, selection = null) {
+  function dialog(title, text, input = false, selection = null, options = {}) {
     if (dialogResolver) closeDialog();
     editor.capture(); dialogFocus = document.activeElement;
     root.querySelector('[data-dialog-title]').textContent = title;
     const body = root.querySelector('[data-dialog-body]'); body.replaceChildren();
     const paragraph = document.createElement('p'); paragraph.textContent = text; body.append(paragraph);
     root.querySelector('[data-dialog-label]').hidden = !input;
-    const field = root.querySelector('[data-dialog-input]'); field.value = '';
+    const field = root.querySelector('[data-dialog-input]'); field.value = options.initial || '';
+    field.type = options.type || 'url';
+    root.querySelector('[data-dialog-label]').firstChild.textContent = options.label || 'Endereço ';
     if (selection) {
       const label = document.createElement('label'); label.textContent = 'Tema da interface';
       const select = document.createElement('select'); select.dataset.dialogSelect = '';

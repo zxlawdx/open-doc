@@ -258,6 +258,15 @@ def workbook(context=None):
         data = _data(context)
         store = get_context().workbooks
         command = data["operation"]
+        if command in {"image-add", "image-read"}:
+            from apps.open_doc.spreadsheets.objects import image_url, media_directory, store_image
+            book = store.get(data["id"])
+            directory = media_directory(get_context().config.root)
+            if command == "image-add":
+                return store_image(directory, data["data_url"], data.get("name", "Imagem"))
+            if not any(obj.get("media_id") == data["media_id"] for sheet in book["sheets"] for obj in sheet.get("objects", [])):
+                raise ValueError("A imagem não pertence à planilha.")
+            return image_url(directory, data["media_id"])
         if command == "query":
             from apps.open_doc.datasets.worksheet import WorksheetSnapshot
 

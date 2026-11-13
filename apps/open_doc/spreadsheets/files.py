@@ -11,18 +11,32 @@ from defusedxml.common import DefusedXmlException
 from .store import COLUMNS, FONT_FAMILIES, MAX_CELLS, ROWS, empty_sheet, validate
 
 FORMATS = ("xlsx", "csv", "tsv")
-FUNCTIONS = {"SOMA": "SUM", "MÉDIA": "AVERAGE", "MÍNIMO": "MIN", "MÁXIMO": "MAX",
-             "SUM": "SUM", "AVERAGE": "AVERAGE", "MIN": "MIN", "MAX": "MAX"}
+FUNCTIONS = {
+    "SOMA": "SUM",
+    "MÉDIA": "AVERAGE",
+    "MÍNIMO": "MIN",
+    "MÁXIMO": "MAX",
+    "SUM": "SUM",
+    "AVERAGE": "AVERAGE",
+    "MIN": "MIN",
+    "MAX": "MAX",
+}
 
 
 def safe_formula(value):
     """Only carry arithmetic and supported built-in functions into Excel."""
     if not re.fullmatch(r"[=0-9\s+*/().,:;!'_$\-A-Za-zÀ-ÿ]+", value):
         return None
-    if any(name.upper() not in FUNCTIONS for name in re.findall(r"([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9_.]*)\s*\(", value)):
+    if any(
+        name.upper() not in FUNCTIONS
+        for name in re.findall(r"([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9_.]*)\s*\(", value)
+    ):
         return None
-    return re.sub(r"([A-Za-zÀ-ÿ]+)(?=\s*\()", lambda match: FUNCTIONS[match[0].upper()],
-                  value.replace(";", ","))
+    return re.sub(
+        r"([A-Za-zÀ-ÿ]+)(?=\s*\()",
+        lambda match: FUNCTIONS[match[0].upper()],
+        value.replace(";", ","),
+    )
 
 
 def _rgb(color):
@@ -42,11 +56,18 @@ def _read_style(cell):
         style["family"] = font.name
     if font.sz and font.sz.is_integer() and 6 <= font.sz <= 96:
         style["size"] = int(font.sz)
-    for key, enabled in (("italic", font.italic), ("underline", font.underline), ("strike", font.strike),
-                         ("wrap", alignment.wrap_text)):
+    for key, enabled in (
+        ("italic", font.italic),
+        ("underline", font.underline),
+        ("strike", font.strike),
+        ("wrap", alignment.wrap_text),
+    ):
         if enabled:
             style[key] = True
-    if all(side is not None and side.style for side in (border.left, border.right, border.top, border.bottom)):
+    if all(
+        side is not None and side.style
+        for side in (border.left, border.right, border.top, border.bottom)
+    ):
         style["border"] = True
     if alignment.horizontal in {"left", "center", "right"}:
         style["align"] = alignment.horizontal
@@ -57,7 +78,7 @@ def _read_style(cell):
     return style
 
 
-def read(path):
+def read(path, *, media_directory=None):
     fmt = path.suffix.lower()[1:]
     if fmt not in FORMATS:
         raise ValueError("Escolha um arquivo XLSX, CSV ou TSV.")
@@ -67,13 +88,21 @@ def read(path):
         try:
             with ZipFile(path) as archive:
                 members = archive.infolist()
-                if len(members) > 500 or sum(item.file_size for item in members) > 40 * 1024 * 1024:
-                    raise ValueError("O conteúdo descompactado do XLSX ultrapassa os limites.")
+                if (
+                    len(members) > 500
+                    or sum(item.file_size for item in members) > 40 * 1024 * 1024
+                ):
+                    raise ValueError(
+                        "O conteúdo descompactado do XLSX ultrapassa os limites."
+                    )
             from openpyxl import DEFUSEDXML, load_workbook
+
             if not DEFUSEDXML:
-                raise ValueError("A proteção XML necessária à importação XLSX está indisponível.")
+                raise ValueError(
+                    "A proteção XML necessária à importação XLSX está indisponível."
+                )
             try:
-                book = load_workbook(path, read_only=True, keep_links=False)
+                book = load_workbook(path, read_only=False, keep_links=False)
             except ValueError as error:
                 raise ValueError("Arquivo XLSX inválido.") from error
             try:
@@ -85,7 +114,9 @@ def read(path):
                     sheet = empty_sheet(source.title)
                     for row, cells in enumerate(source.rows):
                         if row >= ROWS or len(cells) > COLUMNS:
-                            raise ValueError("Limite de 10 mil linhas e 100 colunas por aba.")
+                            raise ValueError(
+                                "Limite de 10 mil linhas e 100 colunas por aba."
+                            )
                         for col, cell in enumerate(cells):
                             key = f"{row},{col}"
                             value = cell.value
@@ -98,24 +129,46 @@ def read(path):
                                 sheet.setdefault("styles", {})[key] = style
                                 count += 1
                             if count > MAX_CELLS:
-                                raise ValueError("Limite de 50 mil valores e estilos por pasta.")
+                                raise ValueError(
+                                    "Limite de 50 mil valores e estilos por pasta."
+                                )
                             if value is None:
                                 continue
                             if cell.data_type == "f" and isinstance(value, str):
                                 sheet["cells"][key] = safe_formula(value) or "'" + value
                             elif cell.data_type == "f":
-                                raise ValueError("O arquivo contém fórmulas matriciais ainda incompatíveis.")
+                                raise ValueError(
+                                    "O arquivo contém fórmulas matriciais ainda incompatíveis."
+                                )
                             else:
                                 text = str(value)
-                                numeric_text = isinstance(value, str) and re.fullmatch(r"-?(?:0|[1-9]\d*)(?:\.\d+)?", text)
-                                sheet["cells"][key] = "'" + text if numeric_text or text.startswith(("=", "'")) else text
+                                numeric_text = isinstance(value, str) and re.fullmatch(
+                                    r"-?(?:0|[1-9]\d*)(?:\.\d+)?", text
+                                )
+                                sheet["cells"][key] = (
+                                    "'" + text
+                                    if numeric_text or text.startswith(("=", "'"))
+                                    else text
+                                )
                             count += 1
                             if count > MAX_CELLS:
-                                raise ValueError("Limite de 50 mil valores e estilos por pasta.")
+                                raise ValueError(
+                                    "Limite de 50 mil valores e estilos por pasta."
+                                )
+                    from .objects import import_cell_tools, import_objects
+
+                    import_objects(source, sheet, media_directory)
+                    import_cell_tools(source, sheet)
                     sheets.append(sheet)
             finally:
                 book.close()
-        except (BadZipFile, DefusedXmlException, KeyError, IndexError, TypeError) as error:
+        except (
+            BadZipFile,
+            DefusedXmlException,
+            KeyError,
+            IndexError,
+            TypeError,
+        ) as error:
             raise ValueError("Arquivo XLSX inválido.") from error
     else:
         sheet = empty_sheet()
@@ -128,15 +181,23 @@ def read(path):
                     delimiter = csv.Sniffer().sniff(sample, delimiters=",;").delimiter
                 except csv.Error:
                     pass
-            for row, values in enumerate(csv.reader(source, delimiter=delimiter, strict=True)):
+            for row, values in enumerate(
+                csv.reader(source, delimiter=delimiter, strict=True)
+            ):
                 if row >= ROWS or len(values) > COLUMNS:
                     raise ValueError("Limite de 10 mil linhas e 100 colunas por aba.")
                 for col, value in enumerate(values):
                     if value:
-                        sheet["cells"][f"{row},{col}"] = "'" + value if value.startswith(("=", "'")) else value
+                        sheet["cells"][f"{row},{col}"] = (
+                            "'" + value if value.startswith(("=", "'")) else value
+                        )
                 if len(sheet["cells"]) > MAX_CELLS:
                     raise ValueError("Limite de 50 mil valores e estilos por pasta.")
         sheets = [sheet]
+    if fmt == "xlsx":
+        from .drawingml import read_shapes
+
+        read_shapes(path, sheets)
     validate(sheets)
     return sheets
 
@@ -145,11 +206,17 @@ def literal(value):
     return value[1:] if value.startswith("'") else value
 
 
-def export(sheets, destination, fmt, sheet_index=0):
-    if fmt not in FORMATS or type(sheet_index) is not int or not 0 <= sheet_index < len(sheets):
+def export(sheets, destination, fmt, sheet_index=0, *, media_directory=None):
+    if (
+        fmt not in FORMATS
+        or type(sheet_index) is not int
+        or not 0 <= sheet_index < len(sheets)
+    ):
         raise ValueError("Formato ou aba de exportação inválido.")
     destination = Path(destination).with_suffix("." + fmt)
-    with NamedTemporaryFile(dir=destination.parent, suffix="." + fmt, delete=False) as handle:
+    with NamedTemporaryFile(
+        dir=destination.parent, suffix="." + fmt, delete=False
+    ) as handle:
         temporary = Path(handle.name)
     try:
         if fmt == "xlsx":
@@ -165,21 +232,28 @@ def export(sheets, destination, fmt, sheet_index=0):
                     cell = output.cell(row + 1, col + 1)
                     raw = sheet["cells"].get(key, "")
                     types = sheet.get("types") or {}
-                    kind = (types.get("cells") or {}).get(key,
-                        (types.get("columns") or {}).get(str(col), "auto"))
+                    kind = (types.get("cells") or {}).get(
+                        key, (types.get("columns") or {}).get(str(col), "auto")
+                    )
                     from apps.open_doc.datasets.store import typed_value
+
                     if kind == "text":
                         cell.value = literal(raw)
                         cell.data_type = "s"
                         continue
                     # Typed formatting changes XLSX cell semantics, but never mutates workbook source.
-                    if kind in {"integer", "decimal", "currency", "percent", "boolean"} and raw:
+                    if (
+                        kind in {"integer", "decimal", "currency", "percent", "boolean"}
+                        and raw
+                    ):
                         result = typed_value(literal(raw), kind)
                         if type(result) in {float, int}:
                             cell.value = result
                             cell.number_format = {
-                                "integer": "0", "decimal": "0.########",
-                                "currency": '"R$" #,##0.00', "percent": "0.00%",
+                                "integer": "0",
+                                "decimal": "0.########",
+                                "currency": '"R$" #,##0.00',
+                                "percent": "0.00%",
                                 "boolean": "General",
                             }[kind]
                             if kind == "boolean":
@@ -189,6 +263,7 @@ def export(sheets, destination, fmt, sheet_index=0):
                         result = typed_value(literal(raw), kind)
                         try:
                             from datetime import date
+
                             value = date.fromisoformat(result)
                         except (ValueError, TypeError):
                             pass
@@ -199,7 +274,10 @@ def export(sheets, destination, fmt, sheet_index=0):
                     formula = safe_formula(raw) if raw.startswith("=") else None
                     if formula:
                         cell.value = formula
-                    elif re.fullmatch(r"-?(?:0|[1-9]\d*)(?:\.\d+)?", raw) and len(raw) <= 15:
+                    elif (
+                        re.fullmatch(r"-?(?:0|[1-9]\d*)(?:\.\d+)?", raw)
+                        and len(raw) <= 15
+                    ):
                         cell.value = float(raw) if "." in raw else int(raw)
                     else:
                         cell.value = literal(raw)
@@ -210,19 +288,34 @@ def export(sheets, destination, fmt, sheet_index=0):
                     row, col = map(int, key.split(","))
                     cell = output.cell(row + 1, col + 1)
                     style = styles.get(key, {})
-                    cell.font = Font(name=style.get("family"), size=style.get("size"),
-                                     bold=key in bold, italic=style.get("italic", False),
-                                     underline="single" if style.get("underline") else None,
-                                     strike=style.get("strike", False),
-                                     color=style.get("color", "")[1:] or None)
+                    cell.font = Font(
+                        name=style.get("family"),
+                        size=style.get("size"),
+                        bold=key in bold,
+                        italic=style.get("italic", False),
+                        underline="single" if style.get("underline") else None,
+                        strike=style.get("strike", False),
+                        color=style.get("color", "")[1:] or None,
+                    )
                     if "fill" in style:
                         cell.fill = PatternFill("solid", fgColor=style["fill"][1:])
                     if style.get("border"):
                         side = Side(style="thin")
-                        cell.border = Border(left=side, right=side, top=side, bottom=side)
+                        cell.border = Border(
+                            left=side, right=side, top=side, bottom=side
+                        )
                     if "align" in style or style.get("wrap"):
-                        cell.alignment = Alignment(horizontal=style.get("align"), wrap_text=style.get("wrap"))
+                        cell.alignment = Alignment(
+                            horizontal=style.get("align"), wrap_text=style.get("wrap")
+                        )
+                from .objects import export_cell_tools, export_objects
+
+                export_objects(sheet, output, media_directory)
+                export_cell_tools(sheet, output)
             book.save(temporary)
+            from .drawingml import write_shapes
+
+            write_shapes(temporary, sheets)
         else:
             cells = sheets[sheet_index]["cells"]
             positions = [tuple(map(int, key.split(","))) for key in cells]
@@ -234,7 +327,9 @@ def export(sheets, destination, fmt, sheet_index=0):
                     values = []
                     for col in range(width):
                         value = literal(cells.get(f"{row},{col}", ""))
-                        risky = value.lstrip().startswith(("=", "+", "-", "@")) and not re.fullmatch(r"-\d+(?:\.\d+)?", value)
+                        risky = value.lstrip().startswith(
+                            ("=", "+", "-", "@")
+                        ) and not re.fullmatch(r"-\d+(?:\.\d+)?", value)
                         values.append("'" + value if risky else value)
                     writer.writerow(values)
         temporary.replace(destination)
@@ -259,7 +354,9 @@ def append_delimited(sheets, index, path):
     used = [tuple(map(int, key.split(","))) for key in cells]
     header_columns = sorted(col for row, col in used if row == 0)
     if not header_columns or header_columns != list(range(len(header_columns))):
-        raise ValueError("A linha 1 precisa ter um cabeçalho contínuo, começando em A1.")
+        raise ValueError(
+            "A linha 1 precisa ter um cabeçalho contínuo, começando em A1."
+        )
     columns = [literal(cells[f"0,{col}"]).strip() for col in header_columns]
     if any(not column for column in columns) or len(set(columns)) != len(columns):
         raise ValueError("O cabeçalho da planilha deve ter nomes preenchidos e únicos.")
@@ -268,7 +365,9 @@ def append_delimited(sheets, index, path):
     added = 0
     with delimited(path, "utf-8-sig", "auto") as (header, reader):
         if set(header) != set(columns):
-            raise ValueError("As colunas do arquivo não correspondem ao cabeçalho da aba.")
+            raise ValueError(
+                "As colunas do arquivo não correspondem ao cabeçalho da aba."
+            )
         positions = {name: column for column, name in enumerate(columns)}
         order = [positions[name] for name in header]
         for values in reader:
@@ -277,10 +376,14 @@ def append_delimited(sheets, index, path):
             if start + added >= ROWS:
                 raise ValueError("A aba ultrapassaria 10 mil linhas. Use a área Dados.")
             if len(values) != len(header):
-                raise ValueError(f"Registro até a linha {reader.line_num} com número de campos inválido.")
+                raise ValueError(
+                    f"Registro até a linha {reader.line_num} com número de campos inválido."
+                )
             for col, value in zip(order, values):
                 if value:
-                    entries[f"{start + added},{col}"] = "'" + value if value.startswith(("=", "'")) else value
+                    entries[f"{start + added},{col}"] = (
+                        "'" + value if value.startswith(("=", "'")) else value
+                    )
             added += 1
     result = list(sheets)
     result[index] = {**sheet, "cells": cells | entries}

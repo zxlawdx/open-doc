@@ -72,6 +72,30 @@
       <button type="button" data-book-command="delete-column" title="Excluir coluna em pasta sem fórmulas ou tabelas dinâmicas"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#column-remove"></use></svg>Excluir coluna</button>
       <small>Estrutura</small>
     </div>
+    <div class="workbook-tools" data-ribbon-group="insert" role="group" aria-label="Imagens e gráficos" hidden>
+      <button type="button" data-book-command="image"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#image"></use></svg>Imagem</button>
+      <select data-book-chart-kind aria-label="Tipo de gráfico"><option value="bar">Colunas</option><option value="hbar">Barras</option><option value="line">Linhas</option><option value="pie">Pizza</option><option value="area">Área</option><option value="scatter">Dispersão</option></select>
+      <button type="button" data-book-command="chart"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chart-bar"></use></svg>Gráfico da seleção</button>
+      <small>Imagens e gráficos</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="insert" role="group" aria-label="Formas e texto" hidden>
+      <select data-book-shape-kind aria-label="Tipo de forma"><option value="rect">Retângulo</option><option value="ellipse">Elipse</option><option value="triangle">Triângulo</option><option value="diamond">Losango</option><option value="line">Linha</option><option value="arrow">Seta</option><option value="text">Caixa de texto</option></select>
+      <button type="button" data-book-command="shape"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#shape-rectangle"></use></svg>Forma ou texto</button>
+      <small>Formas e texto</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="insert" role="group" aria-label="Minigráficos" hidden>
+      <select data-book-spark-kind aria-label="Tipo de minigráfico"><option value="line">Linha</option><option value="column">Colunas</option><option value="winloss">Ganhos e perdas</option></select>
+      <button type="button" data-book-command="sparkline"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#chart-bar"></use></svg>Minigráfico à direita</button>
+      <small>Minigráficos</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="insert" role="group" aria-label="Controles e notas" hidden>
+      <button type="button" data-book-command="checkbox"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#list-check"></use></svg>Caixa de seleção</button>
+      <button type="button" data-book-command="choices"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#list"></use></svg>Lista suspensa</button>
+      <button type="button" data-book-command="comment"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#comment"></use></svg>Comentário</button>
+      <button type="button" data-book-command="hyperlink"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#link"></use></svg>Link</button>
+      <button type="button" data-book-command="clear-tools"><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#eraser"></use></svg>Remover controle da célula</button>
+      <small>Controles e notas</small>
+    </div>
     <div class="workbook-tools" data-ribbon-group="insert layout" role="group" aria-label="Abas" hidden>
       <button type="button" data-book-command="add" title="Nova aba" ><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#add-circle"></use></svg>Nova aba</button>
       <button type="button" data-book-command="rename" title="Renomear aba" ><svg aria-hidden="true"><use href="{{ static('open_doc/icons.svg') }}#edit"></use></svg>Renomear aba</button>

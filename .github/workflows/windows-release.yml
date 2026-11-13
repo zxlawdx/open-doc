@@ -27,6 +27,9 @@ on:
       - "apps/open_doc/static/js/recovery.js"
       - "tools/stage_release_notices.py"
       - "tools/build_linux_deb.py"
+      - "apps/open_doc/spreadsheets/**"
+      - "apps/open_doc/static/js/workbook_objects.js"
+      - "tools/workbook_objects_fixture.mjs"
       - "requirements.txt"
       - "config/**"
 

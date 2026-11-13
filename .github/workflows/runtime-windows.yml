@@ -62,6 +62,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_workbook.py docs/images/workbook-mvp
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -u tools/qa_workbook_objects.py docs/images/workbook-objects
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_datasets.py docs/images/datasets
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -u tools/qa_template_previews.py docs/images/template-previews
@@ -155,6 +157,7 @@ jobs:
         run: |
           python -u tools/qa_appearance_zoom.py docs/images/appearance-zoom
           python -u tools/qa_workbook.py docs/images/workbook-mvp
+          python -u tools/qa_workbook_objects.py docs/images/workbook-objects
           python -u tools/qa_datasets.py docs/images/datasets
           python -u tools/qa_template_previews.py docs/images/template-previews
           python -u tools/qa_version_history.py
