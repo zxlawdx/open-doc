@@ -26,6 +26,7 @@
       if(obj.type==='math'&&changedNative('math_blocks'))return null;
       if(!source)return null;
       element={...source,bounds:{x:0,y:0,width:obj.width*presentation.slideSize.width,height:obj.height*presentation.slideSize.height},rotation:0};
+      if(obj.type==='image'){element.flipH=false;element.flipV=false;}
       const previous=obj.source_original||{},changed=key=>JSON.stringify(obj[key])!==JSON.stringify(previous[key]);
       if(source.text){
         element.text=JSON.parse(JSON.stringify(source.text));
