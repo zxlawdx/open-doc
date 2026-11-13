@@ -399,10 +399,10 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
        document.querySelector('[data-dialog-confirm]').click();
      })()`);
      for(let attempt=0;attempt<40;attempt++){
-       if(await evaluate("!!document.querySelector('.fixed-scroll .slide-native-table')"))break;
+       if(await evaluate("!!document.querySelector('.fixed-scroll .slide-object-table table')"))break;
        await pause(100);
      }
-     const cell='.fixed-scroll .slide-native-table tr:nth-child(2) td:nth-child(2)';
+     const cell='.fixed-scroll .slide-object-table table tr:nth-child(2) td:nth-child(2)';
      await click(cell);await click(cell);
      const result=await evaluate(`(()=>{
        const input=document.querySelector('.slide-table-cell-editor');
@@ -410,7 +410,7 @@ const destination=path.resolve(__dirname,'../docs/images/ink');
        const before=input.value;
        input.value='45,3';
        input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
-       const table=document.querySelector('.fixed-scroll .slide-native-table');
+       const table=document.querySelector('.fixed-scroll .slide-object-table table');
        const cell=table.rows[1].cells[1];
        return {before,after:cell.textContent,background:getComputedStyle(cell).backgroundColor};
      })()`);

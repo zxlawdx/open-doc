@@ -459,6 +459,24 @@ class SlideDeckExporter:
                    and original.get(key) != value}
         if not changed:
             return
+        if obj.get('type') == 'image' and hasattr(shape, '_pic'):
+            if 'asset_id' in changed:
+                asset = self.model['assets'][obj['asset_id']]
+                stream = BytesIO(base64.b64decode(asset['data'], validate=True))
+                if asset['mime'] == 'image/webp':
+                    with Image.open(stream) as picture:
+                        converted = BytesIO();picture.save(converted, format='PNG');converted.seek(0)
+                    stream = converted
+                _, relationship = shape.part.get_or_add_image_part(stream)
+                shape._pic.blipFill.blip.rEmbed = relationship
+            if changed & {'image_opacity', 'image_brightness', 'image_contrast', 'image_grayscale', 'image_tint'}:
+                from pptx.oxml.ns import qn
+                blip = shape._pic.blipFill.blip
+                for effect in list(blip):
+                    if effect.tag in {qn('a:'+name) for name in ('alphaModFix','lum','grayscl','duotone')}:
+                        blip.remove(effect)
+                export_image_effects(blip, obj)
+            changed -= {'asset_id','image_opacity','image_brightness','image_contrast','image_grayscale','image_tint'}
         if shape.has_chart:
             chart_options = {
                 "chart_type", "chart_title", "chart_subtitle", "chart_palette",
@@ -636,10 +654,11 @@ class SlideDeckExporter:
                 else:
                     leading = first.add_run()
                 leading.text = obj["text"]
+                from pptx.oxml.ns import qn
                 for paragraph_index, paragraph in enumerate(list(shape.text_frame.paragraphs)):
-                    for run_index, run in enumerate(list(paragraph.runs)):
-                        if paragraph_index != 0 or run_index != 0:
-                            run._r.getparent().remove(run._r)
+                    for child in list(paragraph._p):
+                        if child.tag != qn("a:pPr") and child is not leading._r:
+                            paragraph._p.remove(child)
                     if paragraph_index != 0:
                         paragraph._p.getparent().remove(paragraph._p)
         paragraph_fields = changed & {
@@ -696,43 +715,76 @@ class SlideDeckExporter:
     def _write_preserving_source(self):
         """Patch original slides instead of rebuilding theme/master/layouts.
 
-        Structural slide changes are rejected until reordering and slide
-        master inheritance are implemented without loss.
+        Reordering retains source slide IDs. Duplicates clone mutable related
+        parts while sharing immutable masters, layouts, themes and media.
         """
+        from .source_clone import SourceCloner
+        cloner = SourceCloner(self.presentation.part.package)
         surfaces = self.model["surfaces"]
-        if len(surfaces) != len(self.presentation.slides) or any(
-            surface.get("source_slide_index") != index
-            for index, surface in enumerate(surfaces)
-        ):
-            raise ValueError(
-                "A edição da estrutura dos slides externos ainda não preserva "
-                "todos os modelos originais; o arquivo não foi modificado."
-            )
-        for surface, slide in zip(surfaces, self.presentation.slides):
-            original_shapes = list(slide.shapes)
-            original_indices = set()
-            ordered_elements = []
+        originals = list(self.presentation.slides)
+        source_ids = list(self.presentation.slides._sldIdLst)
+        next_slide_id = max(int(entry.id) for entry in source_ids) + 1
+        original_shapes = [list(slide.shapes) for slide in originals]
+        selected, used = [], set()
+        for surface in surfaces:
+            source = surface.get("source_slide_index")
+            if source is None:
+                slide = self.presentation.slides.add_slide(self.presentation.slide_layouts[6])
+            elif type(source) is not int or not 0 <= source < len(originals):
+                raise ValueError("Referência ao slide original inválida.")
+            elif source in used:
+                slide = cloner.part(originals[source].part).slide
+            else:
+                slide = originals[source]
+                used.add(source)
+            selected.append(slide)
+        # Choose/clone all slides before touching any XML, so duplicates start
+        # from the unedited source rather than a previously modified sibling.
+        ids = self.presentation.slides._sldIdLst
+        for entry in list(ids):
+            ids.remove(entry)
+        retained = set()
+        for slide in selected:
+            rid = self.presentation.part.relate_to(slide.part,
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide")
+            retained.add(rid)
+            entry = ids.add_sldId(rid)
+            if slide in originals:
+                entry.id = source_ids[originals.index(slide)].id
+            else:
+                entry.id = next_slide_id
+                next_slide_id += 1
+        for entry in source_ids:
+            if entry.rId not in retained:
+                self.presentation.part.drop_rel(entry.rId)
+        for surface, slide in zip(surfaces, selected):
+            local_shapes = list(slide.shapes)
+            seen, ordered_elements = set(), []
             for obj in surface.get("elements", []):
                 if "source_shape_index" in obj:
                     index = obj["source_shape_index"]
-                    if (not isinstance(index, int) or
-                        index < 0 or index >= len(original_shapes) or
-                        index in original_indices or
+                    origin = obj.get("source_slide_index", surface.get("source_slide_index"))
+                    if (type(index) is not int or type(origin) is not int or
+                        not 0 <= origin < len(original_shapes) or
+                        not 0 <= index < len(original_shapes[origin]) or
                         not isinstance(obj.get("source_original"), dict)):
                         raise ValueError("Referência ao objeto original inválida.")
-                    original_indices.add(index)
-                    shape = original_shapes[index]
+                    if origin == surface.get("source_slide_index") and index not in seen:
+                        shape = local_shapes[index]
+                        seen.add(index)
+                    else:
+                        shape = cloner.shape(original_shapes[origin][index], slide)
                     self._patch_original_shape(shape, obj)
                 else:
                     shape = self._native_shape(slide, obj)
                 ordered_elements.append(shape._element)
             tree = slide.shapes._spTree
-            for old in original_shapes:
+            for old in local_shapes:
                 tree.remove(old._element)
             for element in ordered_elements:
                 if element.getparent() is tree:
                     tree.remove(element)
-                tree.append(element)
+                tree.insert_element_before(element, "p:extLst")
             background = surface.get("background", "#FFFFFF")
             gradient = surface.get("background_gradient")
             if (background != surface.get("source_background", background)
@@ -742,6 +794,9 @@ class SlideDeckExporter:
                 original_notes = slide.notes_slide.notes_text_frame.text
                 if surface["notes"] != original_notes:
                     slide.notes_slide.notes_text_frame.text = surface["notes"]
+            if (surface.get("transition") != surface.get("source_transition", "none") or
+                    surface.get("transition_speed", "med") != surface.get("source_transition_speed", "med")):
+                self._apply_transition(slide, surface)
             self._overlay(slide, surface)
 
     def write(self, destination):

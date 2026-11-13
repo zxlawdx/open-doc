@@ -97,10 +97,7 @@ def main():
             from unittest.mock import patch
 
             source = services().organizer.organize(ROOT / "tests/fixtures/visible.pptx")
-            # This smoke exercises the read-only fallback, not the native
-            # editor. Since tables/shapes gained editable support, the
-            # original sample may open natively. Add an intentionally
-            # unsupported auto-shape to test the fallback deterministically.
+            # A special shape must remain editable instead of disabling the deck.
             from pptx import Presentation
             from pptx.enum.shapes import MSO_SHAPE
             from pptx.util import Inches
@@ -119,6 +116,7 @@ def main():
                 note = services().fixed_documents.import_pptx(source)
             assert (
                 note["capabilities"]["preview"]
+                and note["capabilities"]["edit_slides"]
                 and note["capabilities"]["pptx_preview"]["backend"]
                 == "pptx-viewer-0.2.2"
             )

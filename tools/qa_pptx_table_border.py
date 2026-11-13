@@ -90,7 +90,7 @@ def main():
             note = services().fixed_documents.import_pptx(fixture)
             assert note["capabilities"]["edit_slides"]
             window.evaluate_js(f"OpenDocApp.editor().load({json.dumps(note)})")
-            editor = ".fixed-scroll .slide-native-table"
+            editor = ".fixed-scroll .slide-object-table table"
             wait(window, f"document.querySelector({json.dumps(editor)})")
             # Fix the viewport first, then reproduce the rounded object height
             # at which Qt used to crop the collapsed bottom border.
@@ -103,7 +103,7 @@ def main():
                 "Array.from(document.querySelectorAll('.slide-studio-toolbar button'))"
                 ".find(button=>button.textContent==='Apresentar').click()"
             )
-            presentation = ".slide-presentation-stage .slide-native-table"
+            presentation = ".slide-presentation-stage .slide-object-table table"
             wait(window, f"document.querySelector({json.dumps(presentation)})")
             check_border(
                 window, output, "pptx-table-presentation-bottom-border", presentation

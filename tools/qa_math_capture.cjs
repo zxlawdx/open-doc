@@ -29,7 +29,7 @@ const identifier=process.argv[4]||process.platform;
   'const slide=document.querySelector("[data-slide-editor=true] .fixed-surface");',
   'const rendered=Array.from(document.querySelectorAll(".fixed-document .fixed-scroll .fixed-surface canvas[data-render-complete=true]"))',
    '.find(c=>{const r=c.getBoundingClientRect();return r.width>80&&r.height>30});',
-  'const media='+JSON.stringify(kind)+'==="pptx" ? slide?.querySelector(".slide-object-image img") : ',
+  'const media='+JSON.stringify(kind)+'==="pptx" ? slide?.querySelector(".slide-object-image img, .slide-object-image svg image") : ',
   JSON.stringify(kind)+'==="docx" ? document.querySelector("[data-rich] [data-node-type=math]") : rendered;',
   'const rect=media?.getBoundingClientRect();',
   'return {title:document.querySelector("[data-title]")?.value||"",',

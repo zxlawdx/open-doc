@@ -101,6 +101,17 @@ try {
           if (!title || getComputedStyle(title).fontSize !== '40px' || getComputedStyle(title).color !== 'rgb(255, 255, 255)' || curves.length !== 1)
             throw Error('Packaged PPTX paragraph inheritance or wave geometry failed.');
         } finally {surface.remove(); pptx.destroy();}
+        await OpenDocApp.action('presentation-new');
+        const add=[...document.querySelectorAll('.fixed-controls button')].find(button=>button.textContent.trim()==='+ Slide');
+        if(!add)throw Error('Packaged slide studio is unavailable.');add.click();
+        const first=document.querySelector('.fixed-sidebar [data-thumbnail-index="0"]');first.click();
+        first.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));
+        if(!document.querySelector('.slide-active-canvas[data-page-index="1"]'))throw Error('Packaged thumbnail keyboard navigation failed.');
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'F5',bubbles:true,cancelable:true}));
+        const show=document.querySelector('.slide-presentation');if(!show)throw Error('Packaged slide presentation failed.');
+        show.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+        if(document.querySelector('.slide-presentation'))throw Error('Packaged presentation did not close.');
+        await OpenDocApp.editor().flush();
         await OpenDocApp.action('new');
         const editor = OpenDocApp.editor();
         if (!await editor.insertImage('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAMCAIAAADtbgqsAAAAGUlEQVR4nGNcoZTGQC5gIlvnqOZRzTTXDACIewFIN82hKgAAAABJRU5ErkJggg==', 'Packaged image QA')) throw Error('Image insertion failed.');

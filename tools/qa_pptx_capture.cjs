@@ -38,16 +38,16 @@ const destination = path.resolve(__dirname, '../docs/images/stabilization');
 
 
   fs.mkdirSync(destination,{recursive:true});
-  assert.ok((await evaluate("document.querySelectorAll('.pptx-content')[0].textContent")).includes('Teste Open Doc'));
+  assert.ok((await evaluate("document.querySelector('.fixed-scroll .slide-active-canvas').textContent")).includes('Teste Open Doc'));
   assert.ok(await evaluate("document.querySelector('.pptx-content image,.pptx-content img')!==null"));
   assert.equal(await evaluate("document.querySelectorAll('.fixed-scroll .fixed-surface').length"),1,
     'PPTX reader must show one physical slide');
   await click('.fixed-sidebar [data-thumbnail-index="1"]');
-  assert.ok((await evaluate("document.querySelector('.fixed-scroll .pptx-content')?.textContent||''")).includes('Célula 2/2'),
+  assert.ok((await evaluate("document.querySelector('.fixed-scroll .slide-active-canvas')?.textContent||''")).includes('Célula 2/2'),
     'Slide 2 must be reachable through its thumbnail, not by scrolling down');
   assert.equal(await evaluate("document.querySelectorAll('.fixed-scroll .fixed-surface').length"),1);
   await click('.fixed-sidebar [data-thumbnail-index="0"]');
-  assert.ok((await evaluate("document.querySelector('.fixed-scroll .pptx-content')?.textContent||''")).includes('Teste Open Doc'));
+  assert.ok((await evaluate("document.querySelector('.fixed-scroll .slide-active-canvas')?.textContent||''")).includes('Teste Open Doc'));
   assert.equal(await evaluate("document.querySelectorAll('.fixed-scroll .fixed-surface').length"),1);
   await click('[data-ink-mode=pen]');
   await evaluate(`(() => {const svg=document.querySelector('.fixed-surface .ink-overlay'),r=svg.getBoundingClientRect();svg.setPointerCapture=()=>{};for(const [type,x] of [['pointerdown',.1],['pointermove',.3],['pointerup',.5]])svg.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:8,pointerType:'pen',button:0,buttons:1,pressure:.6,clientX:r.left+r.width*x,clientY:r.top+r.height*.4}));})()`);

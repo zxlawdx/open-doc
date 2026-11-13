@@ -445,3 +445,16 @@ test('undo while a fixed-document save is pending persists the restored draft', 
  assert.equal(editor.snapshot().revision,3);
  assert.equal(editor.isClean(),true);
 });
+
+
+test('PPTX hydration resolves inherited fonts without replacing saved font edits',async t=>{
+ const dom=new JSDOM('<div></div>',{runScripts:'outside-only'}),w=dom.window;t.after(()=>w.close());
+ w.eval(source('pptx_renderer.js'));
+ w.OpenDocPptxVendor={loadPresentation:async()=>({slideSize:{width:100,height:100},slides:[{elements:[{id:'1',text:{paragraphs:[{runs:[{text:'Título',fontFamily:'Arial',fontSize:40,color:{hex:'#FFFFFF'}}]}]}}]}],cleanup(){}})};
+ const adapter=await w.OpenDocPptx.loadBytes(new Uint8Array([80,75,1,2]).buffer);
+ const edited={source_shape_id:'1',font_family:'Georgia',font_size_pt:36,color:'#123456',source_original:{font_family:'Arial',font_size_pt:30,color:'#FFFFFF'}};
+ const inherited={source_shape_id:'1',font_family:'Inter',font_size_pt:28,color:'#191C1E',source_original:{font_family:'Inter',font_size_pt:28,color:'#191C1E'}};
+ adapter.hydrate({surfaces:[{source_slide_index:0,elements:[edited,inherited]}]});
+ assert.equal(edited.font_family,'Georgia');assert.equal(edited.font_size_pt,36);assert.equal(edited.color,'#123456');
+ assert.equal(inherited.font_family,'Arial');assert.equal(inherited.font_size_pt,30);assert.equal(inherited.color,'#FFFFFF');
+});
