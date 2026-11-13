@@ -931,3 +931,21 @@ test('academic document profile updates every section and table text while keepi
  const profile={scope:'document',paragraph:{alignment:'justify',first_line_indent_pt:35},text:{font_family:'Times New Roman',font_size_pt:12},section:{margin_left_pt:85,margin_right_pt:57}};
  q.editor.applyProfile(profile);const after=q.editor.snapshot().content;assert.deepEqual(Array.from(after.sections,s=>s.margin_left_pt),[85,85]);assert.deepEqual(Array.from(after.sections,s=>s.id),['section-a','section-b']);assert.equal(after.blocks[1].rows[0].cells[0].blocks[0].children[0].style.font_family,'Times New Roman');assert.equal(after.blocks[0].id,'p1');assert.equal(after.blocks[0].style.alignment,'justify');q.editor.format('undo');assert.deepEqual(Array.from(q.editor.snapshot().content.sections,s=>s.margin_left_pt),[72,36]);q.editor.format('redo');assert.equal(q.editor.snapshot().content.sections[1].margin_left_pt,85);
 });
+
+test('drawing from continuous view creates real page overlays without changing document text',async t=>{
+ const s=await setup(t),before=JSON.stringify(s.editor.snapshot().content);
+ s.editor.pageView('continuous');
+ assert.equal(s.rich.querySelectorAll('.document-page').length,0);
+ s.click('[data-ink-mode=pen]');
+ assert.equal(s.root.dataset.pageMode,'pages');
+ assert.equal(s.root.dataset.inkMode,'pen');
+ assert.ok(s.rich.querySelector('.document-page > .ink-overlay'));
+ assert.equal(s.rich.querySelector('.ink-overlay').style.pointerEvents,'auto');
+ assert.equal(JSON.stringify(s.editor.snapshot().content),before);
+ s.editor.pageView('continuous');await new Promise(r=>setTimeout(r,10));
+ assert.equal(s.root.dataset.inkMode,'cursor');
+ s.click('[data-ink-mode=highlighter]');
+ assert.ok(s.rich.querySelector('.document-page > .ink-overlay'));
+ assert.equal(s.root.dataset.inkMode,'highlighter');
+ assert.equal(JSON.stringify(s.editor.snapshot().content),before);
+});

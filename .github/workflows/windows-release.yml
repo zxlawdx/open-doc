@@ -36,6 +36,7 @@ on:
       - "apps/open_doc/static/js/pdf_navigation.js"
       - "apps/open_doc/styles/pdf_navigation.css"
       - "tools/qa_pdf_navigation.py"
+      - "tools/qa_continuous_ink.py"
       - "apps/open_doc/spreadsheets/**"
       - "apps/open_doc/static/js/workbook_objects.js"
       - "tools/workbook_objects_fixture.mjs"

@@ -161,7 +161,25 @@
   refreshFonts();root.addEventListener('open-doc:fonts',refreshFonts,{signal});
   const fontSize=document.createElement('input');fontSize.type='number';fontSize.min='1';fontSize.max='512';fontSize.value='12';fontSize.dataset.inkFontSize='';fontSize.setAttribute('aria-label','Tamanho do texto reconhecido');bar.append(fontSize);
   root.querySelector('.toolbar')?.after(bar);
-  function setMode(value){if(active)cancel();mode=value;root.dataset.inkMode=mode;shapes.value=['rectangle','ellipse','line','arrow'].includes(mode)?mode:'';for(const control of [convertButton,availability,family,fontSize])control.hidden=mode!=='handwriting';handwritingDetails.hidden=capable||mode!=='handwriting';bar.querySelectorAll('[data-ink-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.inkMode===mode)));refresh();}
+  function setMode(value){
+   if(active)cancel();
+   const prepare=value!=='cursor'&&root.dataset.documentKind!=='fixed'&&root.dataset.pageMode==='continuous';
+   if(prepare){
+    // Continuous text has no physical page/ink surface. Prepare the existing
+    // paged layout instead of activating a tool that cannot receive input.
+    // This is a view change: the document model and its ink are not rewritten.
+    editor.pageView?.('pages');
+    if(root.dataset.pageMode==='continuous'){
+     value='cursor';status('Não foi possível preparar as páginas para desenho. O documento foi preservado.');
+    }else status('Área de desenho pronta: visualização com páginas ativada.');
+   }
+   mode=value;root.dataset.inkMode=mode;
+   shapes.value=['rectangle','ellipse','line','arrow'].includes(mode)?mode:'';
+   for(const control of [convertButton,availability,family,fontSize])control.hidden=mode!=='handwriting';
+   handwritingDetails.hidden=capable||mode!=='handwriting';
+   bar.querySelectorAll('[data-ink-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.inkMode===mode)));
+   refresh();
+  }
   function layers(){return editor.inkLayers?.() || [];}
   const rendered=new WeakMap();
   function commit(layer){
@@ -399,7 +417,7 @@
   root.addEventListener('open-doc:ink-changed',queue,{signal});
   root.addEventListener('open-doc:paper-zoom',queue,{signal});
   window.addEventListener('resize',queue,{signal});
-  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});const activity=new MutationObserver(()=>{for(const page of rasterPages.values())discardRaster(page);queue();});activity.observe(root,{attributes:true,attributeFilter:['data-home-view','data-document-kind','data-workbook-view','data-dataset-view']});signal.addEventListener('abort',()=>{observer.disconnect();activity.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
+  root.addEventListener('open-doc:layout',queue,{signal});root.addEventListener('open-doc:view-ready',queue,{signal});root.addEventListener('open-doc:content',queue,{signal});const observer=new MutationObserver(records=>{if(records.some(r=>Array.from(r.addedNodes).some(n=>n.nodeType===1 && (n.matches('.document-page,.fixed-surface') || n.querySelector('.document-page,.fixed-surface')))))queue();});observer.observe(root,{subtree:true,childList:true});const activity=new MutationObserver(()=>{if(mode!=='cursor'&&root.dataset.documentKind!=='fixed'&&root.dataset.pageMode==='continuous')setMode('cursor');for(const page of rasterPages.values())discardRaster(page);queue();});activity.observe(root,{attributes:true,attributeFilter:['data-home-view','data-document-kind','data-workbook-view','data-dataset-view','data-page-mode']});signal.addEventListener('abort',()=>{observer.disconnect();activity.disconnect();bar.remove();},{once:true});setMode('cursor');return {refresh,setMode};
  }
  window.OpenDocInk={create,simplify,path,shouldErase,eraseStrokes,erasePartialStroke};
 })();

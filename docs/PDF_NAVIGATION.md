@@ -46,3 +46,9 @@ As capturas versionadas abaixo mostram o PDF sintético de teste; o livro não �
 ![Índice hierárquico](images/pdf-navigation/outline-light.png)
 ![Índice no tema escuro](images/pdf-navigation/outline-dark.png)
 ![Miniaturas separadas](images/pdf-navigation/thumbnails.png)
+
+## Caneta em documentos no modo contínuo
+
+O fluxo contínuo remove as páginas físicas e, com elas, a superfície de tinta. Antes, a barra permitia ativar uma ferramenta sem nenhum destino para os eventos de desenho. Agora, selecionar Caneta, Marca-texto, Escrita, formas ou borrachas prepara automaticamente a visualização **Com páginas**. A mudança é somente visual: texto, objetos e coordenadas dos traços existentes são preservados. Escolher explicitamente Fluxo contínuo volta a Selecionar. PDFs mantêm suas próprias superfícies e independem dessa preferência do editor DOCX.
+
+Se a paginação falhar, a ferramenta permanece em Selecionar e informa o problema, preservando o documento. O teste `tools/qa_continuous_ink.py` usa entrada nativa do mouse pelo QtWebEngine, zoom de 140%, pressão sintética, forma, marca-texto, apagar, desfazer/refazer e salvar/reabrir. Ele não valida o driver de uma mesa física.

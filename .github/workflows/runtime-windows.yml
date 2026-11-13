@@ -58,6 +58,8 @@ jobs:
         run: python -u tools/qa_office_foundation.py
       - name: PDF browser-style outline and 1016-page navigation
         run: python -u tools/qa_pdf_navigation.py
+      - name: Continuous DOCX drawing surface and native Qt input
+        run: python -u tools/qa_continuous_ink.py
       - name: DOCX pen-to-keyboard responsiveness
         run: python -u tools/qa_docx_ink_typing.py
       - name: DOCX pen-to-module navigation
@@ -167,6 +169,8 @@ jobs:
         run: python -u tools/qa_office_foundation.py
       - name: PDF browser-style outline and 1016-page navigation
         run: python -u tools/qa_pdf_navigation.py
+      - name: Continuous DOCX drawing surface and native Qt input
+        run: python -u tools/qa_continuous_ink.py
       - name: DOCX pen-to-keyboard responsiveness
         run: python -u tools/qa_docx_ink_typing.py
       - name: DOCX pen-to-module navigation
