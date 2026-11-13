@@ -355,3 +355,9 @@
 .open-doc[data-compact-interface="true"] .dataset > .workbook-toolbar > * { flex: 0 0 auto; }
 
 @media print {.open-doc .rich-image {outline:none!important;} .open-doc .rich-image-resize {display:none!important;}}
+
+/* Browser-style PDF navigation retains its own sidebar width. */
+@media(max-width:860px){
+ .open-doc .fixed-document[data-pdf-navigation=true][data-annotation-pane=true]:not([data-slide-editor=true]){grid-template-columns:var(--pdf-sidebar-width,240px) minmax(0,1fr)}
+ .open-doc .fixed-document[data-pdf-navigation=true][data-pdf-sidebar=closed][data-annotation-pane=true]:not([data-slide-editor=true]){grid-template-columns:0 minmax(0,1fr)}
+}

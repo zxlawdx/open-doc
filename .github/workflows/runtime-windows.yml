@@ -43,7 +43,7 @@ jobs:
           python tools/check_runtime_assets.py
           exit $LASTEXITCODE
       - name: Clear historical screenshot fixtures before runtime capture
-        run: python -c "from pathlib import Path; folders=[Path('docs/images/stabilization'),Path('docs/images/ink'),Path('docs/images/history'),Path('docs/images/math')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
+        run: python -c "from pathlib import Path; folders=[Path('docs/images/pdf-navigation'),Path('docs/images/stabilization'),Path('docs/images/ink'),Path('docs/images/history'),Path('docs/images/math')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
       - name: Unit and architecture regressions
         shell: pwsh
         run: |
@@ -56,6 +56,8 @@ jobs:
           OPEN_DOC_STRESS_COUNTS: "300,1000,10000"
           OPEN_DOC_QA_OUTPUT: docs/images/office-foundation
         run: python -u tools/qa_office_foundation.py
+      - name: PDF browser-style outline and 1016-page navigation
+        run: python -u tools/qa_pdf_navigation.py
       - name: DOCX pen-to-keyboard responsiveness
         run: python -u tools/qa_docx_ink_typing.py
       - name: DOCX pen-to-module navigation
@@ -106,6 +108,7 @@ jobs:
         with:
           name: windows-qt-screenshots
           path: |
+            docs/images/pdf-navigation/
             docs/images/office-foundation/
             docs/images/pptx-compat/
             docs/images/pptx-import-edit/
@@ -152,7 +155,7 @@ jobs:
           test -d node_modules
           python tools/check_runtime_assets.py
       - name: Clear historical screenshot fixtures before runtime capture
-        run: python -c "from pathlib import Path; folders=[Path('docs/images/stabilization'),Path('docs/images/ink'),Path('docs/images/history'),Path('docs/images/math')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
+        run: python -c "from pathlib import Path; folders=[Path('docs/images/pdf-navigation'),Path('docs/images/stabilization'),Path('docs/images/ink'),Path('docs/images/history'),Path('docs/images/math')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
       - name: Unit and architecture regressions
         run: |
           python -m pytest -q
@@ -162,6 +165,8 @@ jobs:
           OPEN_DOC_STRESS_COUNTS: "300,1000,10000"
           OPEN_DOC_QA_OUTPUT: docs/images/office-foundation
         run: python -u tools/qa_office_foundation.py
+      - name: PDF browser-style outline and 1016-page navigation
+        run: python -u tools/qa_pdf_navigation.py
       - name: DOCX pen-to-keyboard responsiveness
         run: python -u tools/qa_docx_ink_typing.py
       - name: DOCX pen-to-module navigation
@@ -192,6 +197,7 @@ jobs:
         with:
           name: linux-qt-screenshots
           path: |
+            docs/images/pdf-navigation/
             docs/images/office-foundation/
             docs/images/pptx-compat/
             docs/images/pptx-import-edit/

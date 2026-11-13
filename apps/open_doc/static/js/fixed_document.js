@@ -15,7 +15,7 @@
   function pdfView(){
     if(!active || !pdf || !viewReady || !scroller.clientHeight)return null;
     const top=scroller.getBoundingClientRect().top;
-    const page=pageNodes.findIndex(node=>node.getBoundingClientRect().bottom>top);
+    const page=visiblePageIndex(top);
     if(page<0)return null;
     const bounds=pageNodes[page].getBoundingClientRect();
     return {page,offset:Math.max(0,Math.min(1,(top-bounds.top)/bounds.height)),
@@ -60,6 +60,7 @@
       texts();
     }
   });
+  const pdfNavigation=window.OpenDocPdfNavigation?.create({host,sidebar,controls,signal,navigate:destination,thumbnail:(index,button)=>thumbnail(index,button,epoch),status});
   const pageField=document.createElement('input');pageField.type='number';pageField.min='1';pageField.value='1';pageField.setAttribute('aria-label','Ir para página');
   function button(label,fn){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',()=>Promise.resolve(fn()).catch(e=>status(e.message)),{signal});controls.append(b);return b;}
   // Use the native slide selection, even when the user navigated with thumbnails.
@@ -78,6 +79,7 @@
     nextButton.disabled=!count||index>=count-1;
     pageField.value=count?String(index+1):'1';
     pageField.max=count||1;
+    if(note?.source_kind==='pdf'){root.querySelector('[data-position]').textContent='Página '+(count?index+1:0)+' de '+count;pdfNavigation?.setPage(index);}
   }
   button('Ajustar largura',()=>fit(false));button('Página inteira',()=>fit(true));
   const searchBox=document.createElement('div');searchBox.className='fixed-search';searchBox.setAttribute('role','search');
@@ -233,6 +235,7 @@
   function go(index){
     const total=model?.surfaces?.length||0;
     if(!total)return;
+    if(!Number.isInteger(index))return;
     index=Math.max(0,Math.min(total-1,index));
     syncPageNavigation(index);
     if(model?.editable_deck){
@@ -438,8 +441,54 @@
     }catch(error){if(canvas?.dataset.renderComplete!=='true')canvas?.remove();if(error.name!=='RenderingCancelledException' && generation===epoch)pageError(node,index,'canvas',error);}
     finally{rendering.delete(index);renderTasks.delete(index);if(page && !node.querySelector('canvas') && !searchingPages.has(index)){page.cleanup();if(renderedPages.get(index)===page)renderedPages.delete(index);}}
   }
-  function lazy(){if((!pdf && !pptx) || !active || (pptx && note?.source_kind==='pptx'))return;const viewport=scroller.getBoundingClientRect();let first=pageNodes.findIndex(n=>n.getBoundingClientRect().bottom>viewport.top);first=Math.max(0,first);syncPageNavigation(first);root.querySelector('[data-position]').textContent='Página '+(first+1)+' de '+pageNodes.length;for(let i=0;i<pageNodes.length;i++){if(Math.abs(i-first)<=2)render(i,epoch).catch(e=>status(e.message));else if(Math.abs(i-first)>4){renderTasks.get(i)?.cancel();pageNodes[i].querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content').forEach(n=>n.remove());if(!rendering.has(i) && !searchingPages.has(i) && renderedPages.has(i)){renderedPages.get(i).cleanup();renderedPages.delete(i);}}}}
-  async function destination(dest){if(typeof dest==='string')dest=await pdf.getDestination(dest);if(!dest)return;go(typeof dest[0]==='number'?dest[0]:await pdf.getPageIndex(dest[0]));}
+  function visiblePageIndex(top=scroller.getBoundingClientRect().top){
+    if(!pageNodes.length)return -1;
+    if(!scroller.clientHeight)return Math.max(0,Math.min(Number(pageField.value||1)-1,pageNodes.length-1));
+    let left=0,right=pageNodes.length;
+    while(left<right){const mid=(left+right)>>>1;if(pageNodes[mid].getBoundingClientRect().bottom>top)right=mid;else left=mid+1;}
+    return Math.min(left,pageNodes.length-1);
+  }
+  function lazy(){
+    if((!pdf && !pptx) || !active || (pptx && note?.source_kind==='pptx'))return;
+    const first=Math.max(0,visiblePageIndex());syncPageNavigation(first);
+    for(let i=Math.max(0,first-2);i<=Math.min(pageNodes.length-1,first+2);i++)render(i,epoch).catch(e=>status(e.message));
+    const resident=new Set([...renderTasks.keys(),...renderedPages.keys(),...rendering]);
+    for(const i of resident)if(Math.abs(i-first)>4){renderTasks.get(i)?.cancel();pageNodes[i]?.querySelectorAll('canvas,.textLayer,.pdf-links,.pptx-content').forEach(n=>n.remove());if(!rendering.has(i)&&!searchingPages.has(i)&&renderedPages.has(i)){renderedPages.get(i).cleanup();renderedPages.delete(i);}}
+  }
+  const destinations=new WeakMap();
+  async function explicitDestination(dest,source=pdf){
+    if(!source||!dest)return null;
+    if(typeof dest==='string')dest=await source.getDestination(dest);
+    return Array.isArray(dest)&&dest.length?dest:null;
+  }
+  async function destinationIndex(dest,source=pdf){
+    const value=await explicitDestination(dest,source);if(!value)return null;
+    let index;
+    if(Number.isInteger(value[0]))index=value[0];
+    else if(value[0]&&typeof value[0]==='object'){
+      let cache=destinations.get(source);if(!cache)destinations.set(source,cache=new Map());const key=JSON.stringify(value[0]);if(!cache.has(key))cache.set(key,source.getPageIndex(value[0]));index=await cache.get(key);
+    }
+    return Number.isInteger(index)&&index>=0&&index<source.numPages?index:null;
+  }
+  async function destination(dest){
+    const source=pdf,generation=epoch,value=await explicitDestination(dest,source);
+    if(!value)return;
+    const index=await destinationIndex(value,source);
+    if(generation!==epoch||source!==pdf||index===null)return;
+    go(index);
+    // PDF bookmarks may target a heading within a page, not merely its top.
+    const mode=value[1]?.name;
+    if(value.length>2 && ['XYZ','FitH','FitBH','FitR'].includes(mode)){
+      const page=await source.getPage(index+1);
+      if(generation!==epoch||source!==pdf)return;
+      const viewport=page.getViewport({scale:4/3*zoom}),top=mode==='FitR'?value[5]:mode==='XYZ'?value[3]:value[2];
+      if(Number.isFinite(top)){
+        const point=viewport.convertToViewportPoint?.(0,top),node=pageNodes[index];
+        if(point&&node)scroller.scrollTop+=node.getBoundingClientRect().top-scroller.getBoundingClientRect().top+point[1];
+      }
+      syncPageNavigation(index);lazy();
+    }
+  }
   async function find(){
     if(model?.editable_deck){
       const term=search.value.trim().toLocaleLowerCase();
@@ -481,6 +530,7 @@
     const generation=++searchEpoch,q=query.toLocaleLowerCase(),matches=[];
     const total=pdf.numPages;
     sidebar.querySelectorAll('[data-search-result]').forEach(node=>node.remove());
+    const resultsHost=pdfNavigation?.showResults()||sidebar;
     status('Pesquisando em '+total+' páginas…');
     // Search from both ends so a distant match is not withheld behind hundreds
     // of sequential PDF.js text extractions. Limit concurrent worker tasks.
@@ -521,8 +571,8 @@
           button.onclick=()=>{go(index);highlightSearch(index);};
           const successor=Array.from(sidebar.querySelectorAll('[data-search-result]'))
             .find(node=>Number(node.dataset.searchPage)>index);
-          if(successor)sidebar.insertBefore(button,successor);
-          else sidebar.append(button);
+          if(successor)resultsHost.insertBefore(button,successor);
+          else resultsHost.append(button);
           if(!navigated){navigated=true;go(index);highlightSearch(index);}
           status(matches.length+' páginas com resultados (pesquisando…).');
         }catch(error){
@@ -585,7 +635,7 @@
     root.dispatchEvent(new CustomEvent('open-doc:layout'));
   }
 
-  async function load(value,inheritedView=null){rememberPdfView();viewReady=false;slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';delete host.dataset.searchOpen;searchPreviousFocus=null;host.hidden=false;nativeTextButton.hidden=note.source_kind!=='pdf';nativeTextPanel.hidden=true;nativeEditMode=false;nativeEditButton.textContent='Editar PDF';nativeEditButton.setAttribute('aria-pressed','false');nativeEditButton.hidden=note.source_kind!=='pdf';pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';search.setAttribute('aria-label',search.placeholder);recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;zoom=1;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];syncPageNavigation(0);
+  async function load(value,inheritedView=null){rememberPdfView();pdfNavigation?.reset();viewReady=false;slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';delete host.dataset.searchOpen;searchPreviousFocus=null;host.hidden=false;nativeTextButton.hidden=note.source_kind!=='pdf';nativeTextPanel.hidden=true;nativeEditMode=false;nativeEditButton.textContent='Editar PDF';nativeEditButton.setAttribute('aria-pressed','false');nativeEditButton.hidden=note.source_kind!=='pdf';pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';search.setAttribute('aria-label',search.placeholder);recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;zoom=1;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];syncPageNavigation(0);
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
    if(note.source_kind==='pptx' && model.editable_deck){
      if(model.preserve_source){
@@ -648,10 +698,10 @@
      }
      return;
    }
-   for(const s of model.surfaces){const node=document.createElement('div');node.className='fixed-surface';node.dataset.pageIndex=s.index;node.dataset.widthPt=s.width_pt;node.dataset.heightPt=s.height_pt;node.style.width=s.width_pt*4/3+'px';node.style.height=s.height_pt*4/3+'px';scroller.append(node);pageNodes.push(node);const b=document.createElement('button');b.textContent='Página '+(s.index+1);b.dataset.thumbnailIndex=s.index;b.onclick=()=>go(s.index);sidebar.append(b);}
+   for(const s of model.surfaces){const node=document.createElement('div');node.className='fixed-surface';node.dataset.pageIndex=s.index;node.dataset.widthPt=s.width_pt;node.dataset.heightPt=s.height_pt;node.style.width=s.width_pt*4/3+'px';node.style.height=s.height_pt*4/3+'px';scroller.append(node);pageNodes.push(node);if(!pdfNavigation){const b=document.createElement('button');b.textContent='Página '+(s.index+1);b.dataset.thumbnailIndex=s.index;b.onclick=()=>go(s.index);sidebar.append(b);}}
    root.querySelector('[data-mode-label]').textContent=note.source_kind==='pdf'?'Leitor PDF':'Apresentação';root.querySelector('[data-count]').textContent=model.surfaces.length+' páginas';texts();root.dispatchEvent(new CustomEvent('open-doc:content'));
-   try{window.OpenDocPdf.GlobalWorkerOptions.workerSrc=asset('vendor/pdf.worker.bundle.js');const task=window.OpenDocPdf.getDocument({url:'/api/open_doc/artifact/content?id='+encodeURIComponent(note.id)+(note.source_kind==='pptx'?'&preview=1':''),httpHeaders:{'X-Open-Doc-Token':token},standardFontDataUrl:asset('../pdfjs/standard_fonts/'),cMapUrl:asset('../pdfjs/cmaps/'),cMapPacked:true,useSystemFonts:false,isEvalSupported:false,disableAutoFetch:true,disableStream:true});const loaded=await task.promise;if(generation!==epoch){loaded.destroy();return;}pdf=loaded;root.dataset.readerState='ready';console.info('Open Doc PDF carregado',{version:window.OpenDocPdf.version,id:note.id,pages:pdf.numPages});if(pdf.numPages!==model.surfaces.length)throw Error('Quantidade de páginas difere da origem.');const outline=await pdf.getOutline();if(generation!==epoch)return;function bookmarks(items,depth=0){for(const item of items || []){const b=document.createElement('button');b.textContent='  '.repeat(depth)+item.title;b.onclick=()=>destination(item.dest);sidebar.prepend(b);bookmarks(item.items,depth+1);}}bookmarks(outline);
-    thumbObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting && !entry.target.querySelector('canvas')){const index=Number(entry.target.dataset.thumbnailIndex);thumbnail(index,entry.target,generation).catch(()=>{});}},{root:sidebar,rootMargin:'100px'});sidebar.querySelectorAll('[data-thumbnail-index]').forEach(b=>thumbObserver.observe(b));const view=inheritedView||recentViews.get(note.id)||note.reader_view;
+   try{window.OpenDocPdf.GlobalWorkerOptions.workerSrc=asset('vendor/pdf.worker.bundle.js');const task=window.OpenDocPdf.getDocument({url:'/api/open_doc/artifact/content?id='+encodeURIComponent(note.id)+(note.source_kind==='pptx'?'&preview=1':''),httpHeaders:{'X-Open-Doc-Token':token},standardFontDataUrl:asset('../pdfjs/standard_fonts/'),cMapUrl:asset('../pdfjs/cmaps/'),cMapPacked:true,useSystemFonts:false,isEvalSupported:false,disableAutoFetch:true,disableStream:true});const loaded=await task.promise;if(generation!==epoch){loaded.destroy();return;}pdf=loaded;root.dataset.readerState='ready';console.info('Open Doc PDF carregado',{version:window.OpenDocPdf.version,id:note.id,pages:pdf.numPages});if(pdf.numPages!==model.surfaces.length)throw Error('Quantidade de páginas difere da origem.');let outline=null;try{outline=await pdf.getOutline();}catch(error){console.warn('Open Doc: índice PDF indisponível',error);status('PDF aberto; índice indisponível. Use as miniaturas.');}if(generation!==epoch)return;if(pdfNavigation)pdfNavigation.setDocument({outline,surfaces:model.surfaces,resolve:dest=>destinationIndex(dest,pdf)});
+    else{thumbObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting && !entry.target.querySelector('canvas')){const index=Number(entry.target.dataset.thumbnailIndex);thumbnail(index,entry.target,generation).catch(()=>{});}},{root:sidebar,rootMargin:'100px'});sidebar.querySelectorAll('[data-thumbnail-index]').forEach(b=>thumbObserver.observe(b));}const view=inheritedView||recentViews.get(note.id)||note.reader_view;
     if(view && pageNodes[view.page]){scale(view.zoom);restorePdfView(view);}
     else {scroller.scrollTop=0;scroller.scrollLeft=0;fit(false);}
     viewReady=true;
@@ -721,7 +771,7 @@
     if(!e.target.closest?.('input,textarea,select,[contenteditable=true]') && ['z','y'].includes(e.key.toLowerCase())){e.preventDefault();format(e.shiftKey || e.key==='y'?'redo':'undo');}},{signal});
   window.addEventListener('beforeunload',e=>{rememberPdfView();if(active && signature()!==saved){request('document/recovery',snapshot()).catch(()=>{});e.preventDefault();e.returnValue='';}},{signal});
   signal.addEventListener('abort',()=>{rememberPdfView();viewReady=false;clearTimeout(timer);clearTimeout(recoveryTimer);epoch++;thumbObserver?.disconnect();pdf?.destroy();pptx?.destroy();host.remove();},{once:true});
-  return {zoomValue:()=>Math.round(zoom*100),setZoom:value=>{if(active && !slidesEditor?.inlineEditing)scale(value/100);},insertTable:()=>slidesEditor?.insertTable(),load,flush,snapshot,inkLayers,setInkLayers,insertRecognized,format,export:exportDocument,isClean:()=>!note || signature()===saved,setLocked:v=>{locked=v;title.disabled=v;},setMode:()=>{},capture:()=>{},refresh:lazy,style:()=>{},textState:()=>({}),commandState:()=>false,pagination:()=>null,pageView:()=>{},copy:async()=>{await flush();const duplicate=await request('document/duplicate',{id:note.id});load(duplicate);return duplicate;},deactivate:()=>{rememberPdfView();viewReady=false;slidesEditor?.deactivate();active=false;epoch++;searchEpoch++;searchingPages.clear();clearTimeout(timer);clearTimeout(recoveryTimer);clearTimeout(searchTimer);thumbObserver?.disconnect();for(const task of renderTasks.values())task.cancel();renderTasks.clear();renderedPages.clear();rendering.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;pageNodes=[];scroller.replaceChildren();host.hidden=true;},find:focusSearch};
+  return {zoomValue:()=>Math.round(zoom*100),setZoom:value=>{if(active && !slidesEditor?.inlineEditing)scale(value/100);},insertTable:()=>slidesEditor?.insertTable(),load,flush,snapshot,inkLayers,setInkLayers,insertRecognized,format,export:exportDocument,isClean:()=>!note || signature()===saved,setLocked:v=>{locked=v;title.disabled=v;},setMode:()=>{},capture:()=>{},refresh:lazy,style:()=>{},textState:()=>({}),commandState:()=>false,pagination:()=>null,pageView:()=>{},copy:async()=>{await flush();const duplicate=await request('document/duplicate',{id:note.id});load(duplicate);return duplicate;},deactivate:()=>{rememberPdfView();pdfNavigation?.reset();viewReady=false;slidesEditor?.deactivate();active=false;epoch++;searchEpoch++;searchingPages.clear();clearTimeout(timer);clearTimeout(recoveryTimer);clearTimeout(searchTimer);thumbObserver?.disconnect();for(const task of renderTasks.values())task.cancel();renderTasks.clear();renderedPages.clear();rendering.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;pageNodes=[];scroller.replaceChildren();host.hidden=true;},find:focusSearch};
  }
  window.OpenDocFixedDocument={create};
 })();
