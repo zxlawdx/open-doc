@@ -36,7 +36,7 @@
     const [top,left,,right]=range;
     return Array.from({length:right-left+1},(_,i)=>{
       const c=left+i;
-      return {index:c,label:String(read(top,c)||"Coluna "+(c+1)).trim(),type:source.types?.columns?.[c]||"auto"};
+      return {index:c,label:String(read(top,c)??"").trim(),type:source.types?.columns?.[c]||"auto"};
     });
   }
   function check(range,config,fields) {
@@ -45,6 +45,9 @@
       range[0]>=range[2]||range[1]>range[3]||
       (range[2]-range[0]+1)*(range[3]-range[1]+1)>MAX_CELLS)
       throw Error("Intervalo inválido: inclua cabeçalho e até 50 mil células.");
+    const labels=fields.map(f=>f.label.toLocaleLowerCase("pt-BR"));
+    if(labels.some(label=>!label))throw Error("Cada coluna da fonte precisa de um cabeçalho.");
+    if(new Set(labels).size!==labels.length)throw Error("Use cabeçalhos únicos para identificar os campos.");
     if(!config||!Array.isArray(config.values)||!config.values.length)throw Error("Adicione pelo menos uma métrica em Valores.");
     const known=new Set(fields.map(f=>f.index));
     for(const field of [...(config.rows||[]),...(config.columns||[]),...config.values.map(v=>v.field),...(config.filters||[]).map(f=>f.field)])
@@ -78,12 +81,12 @@
     return build({source,sourceIndex,range,read,config});
   }
   const allowed=new Set(["sum","average","count","distinct","min","max","median","stdev","product"]);
-  function accumulator(){return {count:0,numeric:0,sum:0,product:1,min:Infinity,max:-Infinity,values:[],distinct:new Set()};}
+  function accumulator(){return {count:0,numeric:0,sum:0,product:1,min:Infinity,max:-Infinity,values:[],mean:0,m2:0,distinct:new Set()};}
   function add(a,value,operation,field) {
     if(blank(value))return;
     a.count++;
     const valueText=String(value);
-    a.distinct.add(valueText);
+    if(operation==="distinct")a.distinct.add(valueText);
     const n=number(value);
     if(!Number.isFinite(n)){
       if(["sum","average","min","max","median","stdev","product"].includes(operation))
@@ -91,7 +94,10 @@
       return;
     }
     a.numeric++;a.sum+=n;a.product*=n;a.min=Math.min(a.min,n);a.max=Math.max(a.max,n);
-    if(operation==="median"||operation==="stdev")a.values.push(n);
+    if(operation==="median")a.values.push(n);
+    if(operation==="stdev"){
+      const delta=n-a.mean;a.mean+=delta/a.numeric;a.m2+=delta*(n-a.mean);
+    }
   }
   function result(a,operation) {
     if(!a)return null;
@@ -108,14 +114,13 @@
       return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
     }
     if(operation==="stdev"){
-      if(a.values.length<2)return null;
-      const mean=a.sum/a.values.length;
-      return Math.sqrt(a.values.reduce((sum,v)=>sum+(v-mean)**2,0)/(a.values.length-1));
+      if(a.numeric<2)return null;
+      return Math.sqrt(Math.max(0,a.m2/(a.numeric-1)));
     }
     throw Error("Agregação não reconhecida: "+operation);
   }
   function build({source,sourceIndex=0,range,config,read}) {
-    read=read||((r,c)=>source.cells[key(r,c)]||"");
+    read=read||((r,c)=>source.cells[key(r,c)]??"");
     const fields=getFields(source,range,read);
     check(range,config,fields);
     const metrics=config.values.map(v=>{
@@ -136,7 +141,7 @@
     const useSubtotals=config.subtotals===true&&rowFields.length>1;
     let currentRow=range[0]+1,accepted=0;
     for(;currentRow<=range[2];currentRow++){
-      const present=fields.some(f=>!blank(source.cells[key(currentRow,f.index)]));
+      const present=fields.some(f=>!blank(read(currentRow,f.index)));
       if(!present)continue;
       if(filters.some(f=>{
         const value=String(read(currentRow,Number(f.field))??"");
@@ -229,7 +234,7 @@
         }
       }
       if(addTotals)for(let j=0;j<metrics.length;j++)
-        values.push(statText(rowStats.get(rk),metrics[j],j,rowStats.get(rk),null,allStats));
+        values.push(statText(rowStats.get(rk),metrics[j],j,rowStats.get(rk),allStats,allStats));
       values.forEach((v,c)=>write(position,c,v,c===0));
       dataRows.push(values);
     }
@@ -246,7 +251,7 @@
         for(const ck of columns)for(let i=0;i<metrics.length;i++)
           values.push(statText(subtotal.columns.get(ck),metrics[i],i,subtotal.total,colStats.get(ck),allStats));
         if(addTotals)for(let i=0;i<metrics.length;i++)
-          values.push(statText(subtotal.total,metrics[i],i,subtotal.total,null,allStats));
+          values.push(statText(subtotal.total,metrics[i],i,subtotal.total,allStats,allStats));
         summaryRows.push(dataRows.length);
         values.forEach((v,c)=>write(dataRows.length+1,c,v,true));
         dataRows.push(values);
@@ -256,8 +261,8 @@
       const last=dataRows.length+1,total=["Total geral"];
       summaryRows.push(dataRows.length);
       for(const ck of columns)for(let i=0;i<metrics.length;i++)
-        total.push(statText(colStats.get(ck),metrics[i],i,null,colStats.get(ck),allStats));
-      if(addTotals)for(let i=0;i<metrics.length;i++)total.push(statText(allStats,metrics[i],i,null,null,allStats));
+        total.push(statText(colStats.get(ck),metrics[i],i,allStats,colStats.get(ck),allStats));
+      if(addTotals)for(let i=0;i<metrics.length;i++)total.push(statText(allStats,metrics[i],i,allStats,allStats,allStats));
       total.forEach((v,c)=>write(last,c,v,true));
       dataRows.push(total);
     }

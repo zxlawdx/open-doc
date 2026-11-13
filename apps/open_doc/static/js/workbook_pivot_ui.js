@@ -66,7 +66,7 @@
       for(let r=bounds[0]+1;r<=bounds[2];r++){
         const v=String(read(r,columnIndex)??"");
         if(!found.has(v)){found.add(v);values.push(v);}
-        if(values.length===250)break;
+
       }
       return values;
     }
@@ -157,16 +157,12 @@
           if(zone==="filters"){
             const choices=document.createElement("div");choices.className="pivot-v2-filter-choices";
             const all=distinct(field);
-            for(const value of all.slice(0,40)){
+            for(const value of all){
               const entry=document.createElement("label");
               const checkbox=document.createElement("input");checkbox.type="checkbox";
               checkbox.dataset.pivotFilter=String(i);checkbox.value=value;
               checkbox.checked=!v.values.length||v.values.includes(value);
               entry.append(checkbox,document.createTextNode(value||"(vazio)"));choices.append(entry);
-            }
-            if(all.length>40){
-              const note=document.createElement("small");note.textContent="Primeiras 40 de "+all.length+" categorias";
-              choices.append(note);
             }
             chip.append(choices);
           }
@@ -396,6 +392,9 @@
         const i=Number(el.dataset.pivotFilter);
         const checks=[...panel.querySelectorAll('[data-pivot-filter="'+i+'"]')];
         const selected=checks.filter(input=>input.checked).map(input=>input.value);
+        if(selected.length>500&&selected.length!==checks.length){
+          el.checked=!el.checked;onReport("Selecione até 500 categorias ou mantenha todas incluídas.");return;
+        }
         settings.filters[i].values=selected.length===checks.length?[]:
           selected.length?selected:["__OPEN_DOC_NONE_SELECTED__"];
       }else if(el.matches("[data-pivot-totals]"))settings.totals=el.checked;
@@ -432,11 +431,15 @@
         else if(value.startsWith("move:")){
           const [from,i]=value.slice(5).split(":");
           if(!settings[from])return;
-          const item=settings[from].splice(Number(i),1)[0];
+          const item=settings[from][Number(i)];
           if(item===undefined)return;
           const field=typeof item==="number"?item:item.field;
-          if(from===zone){settings[zone].push(item);render();}
-          else{add(zone,field);}
+          const snapshot=clone(settings);
+          try{
+            settings[from].splice(Number(i),1);
+            if(from===zone){settings[zone].push(item);render();}
+            else add(zone,field);
+          }catch(error){settings=snapshot;render();throw error;}
         }
       }catch(error){onReport(error.message);}
     },{signal});

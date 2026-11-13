@@ -15,7 +15,7 @@
     workspace.ribbon(host,signal,tab=>{if(tab==="code"&&analysis.hidden)run("analysis");});
     const syncSplitter=workspace.splitter(analysis,signal,schedule);
     let sqlEditor, pythonEditor, notebook, analysisLoading, analysisBusy=false, lastSchema,lastSqlQuery=null,analysisGeneration=0;
-    const undo=[], redo=[];
+    const undo=[], redo=[], pivotExtents=new WeakMap();
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
     const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>book?.id,signal});
     const sheet=()=>book.sheets[index];
@@ -58,7 +58,7 @@
 
     });
     function controls() {
-      coord.value=column(col)+(row+1);
+      coord.value=anchor[0]===row&&anchor[1]===col?column(col)+(row+1):rangeAddress(bounds());
       if(document.activeElement!==formula) formula.value=raw();
       $("[data-book-command=undo]").disabled=!undo.length;
       $("[data-book-command=redo]").disabled=!redo.length;
@@ -90,11 +90,23 @@
         return cell;
       }
       const selection=bounds();
+      const pivot=sheet().pivot;
+      let extent=pivotExtents.get(sheet().cells);
+      if(pivot&&!extent){
+        extent=[-1,-1];
+        for(const id of Object.keys(sheet().cells)){
+          const [r,c]=id.split(",").map(Number);
+          extent[0]=Math.max(extent[0],r);extent[1]=Math.max(extent[1],c);
+        }
+        pivotExtents.set(sheet().cells,extent);
+      }
+      const [pivotBottom,pivotRight]=extent||[-1,-1];
       for(let r=firstRow;r<endRow;r++) {
         const line=document.createElement("div");
         line.setAttribute("role","row");
         line.setAttribute("aria-rowindex",String(r+1));
         const heading=item("book-heading",left,(r+1)*HEIGHT,GUTTER,r+1);
+        if(r>=selection[0]&&r<=selection[2])heading.classList.add("book-heading-selected");
         heading.dataset.bookRow=String(r);heading.setAttribute("role","rowheader");
         line.append(heading);
         for(let c=firstCol;c<endCol;c++) {
@@ -104,6 +116,14 @@
           if(!formatted.valid){cell.classList.add("book-type-error");
             cell.title="Valor incompatível com "+kind+" · original: "+(sheet().cells[id]||"");}
           else if(kind!=="auto")cell.title="Tipo: "+kind+" · original: "+(sheet().cells[id]||"");
+          if(pivot&&r<=pivotBottom&&c<=pivotRight){
+            cell.classList.add("book-pivot-cell");cell.title=formatted.text;
+            if(r===0)cell.classList.add("book-pivot-header");
+            else if(bold.has(key(r,1)))cell.classList.add("book-pivot-total");
+            if(c===0)cell.classList.add("book-pivot-label");
+            if(r===pivotBottom)cell.classList.add("book-pivot-bottom");
+            if(c===pivotRight)cell.classList.add("book-pivot-right");
+          }
           cell.dataset.cell=id;
           cell.setAttribute("role","gridcell");
           cell.setAttribute("aria-colindex",String(c+1));
@@ -134,6 +154,8 @@
       }
       for(let c=firstCol;c<endCol;c++){
         const heading=item("book-heading",GUTTER+c*WIDTH,top,WIDTH,column(c));
+        if(c>=selection[1]&&c<=selection[3])heading.classList.add("book-heading-selected");
+        heading.setAttribute("role","columnheader");
         heading.dataset.bookCol=String(c);
         const kind=sheet().types?.columns?.[String(c)]||"auto";
         if(kind!=="auto"){heading.classList.add("book-typed");
@@ -147,6 +169,7 @@
     function schedule() {if(frame===undefined)frame=requestAnimationFrame(draw);}
     function update(recalculate=true) {
       if(recalculate){
+        pivotExtents.delete(sheet().cells);
         calc=evaluate(book.sheets);updateSchema();analysisGeneration++;
         if(lastSqlQuery){
           lastSqlQuery=null;$("[data-book-query-results]").replaceChildren();
@@ -178,7 +201,7 @@
       }));
     }
     function choose(next) {
-      index=next;
+      index=next;lastClick=null;
       viewport.scrollTop=0;viewport.scrollLeft=0;
       select(0,0);update();
       $("[data-book-query-results]").replaceChildren();lastSqlQuery=null;
@@ -596,8 +619,13 @@
       const rowHeading=event.target.closest("[data-book-row]"),colHeading=event.target.closest("[data-book-col]");
       if(rowHeading||colHeading){
         finishInline();commit();
-        if(rowHeading){const r=Number(rowHeading.dataset.bookRow);select(r,0);select(r,COLS-1,true);}
-        else {const c=Number(colHeading.dataset.bookCol);select(0,c);select(ROWS-1,c,true);}
+        if(rowHeading){
+          const r=Number(rowHeading.dataset.bookRow),start=event.shiftKey?anchor[0]:r;
+          select(start,0);select(r,COLS-1,true);
+        }else{
+          const c=Number(colHeading.dataset.bookCol),start=event.shiftKey?anchor[1]:c;
+          select(0,start);select(ROWS-1,c,true);
+        }
         viewport.focus();
       }
       if(cell){
@@ -677,9 +705,12 @@
     },{signal});
     coord.addEventListener("keydown",event=>{
       if(event.key!=="Enter")return;
-      const target=address(coord.value.trim());
-      if(!target)return report("Endereço inválido.");
-      select(...target,false,true);viewport.focus();
+      lastClick=null;finishInline();commit();
+      const targets=coord.value.trim().split(":").map(address);
+      if(targets.length>2||targets.some(target=>!target))return report("Endereço ou intervalo inválido.");
+      select(...targets[0],false,true);
+      if(targets[1])select(...targets[1],true,true);
+      viewport.focus();
     },{signal});
     viewport.addEventListener("contextmenu",event=>{
       const cell=event.target.closest("[data-cell]"),heading=event.target.closest("[data-book-col]");
@@ -700,6 +731,7 @@
     },{signal});
     viewport.addEventListener("keydown",event=>{
       if(event.isComposing||pending||importing)return;
+      lastClick=null;
       if(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")){
         event.preventDefault();typesUI.open({event,row,col,header:false});return;
       }
@@ -707,6 +739,21 @@
         Enter:[event.shiftKey?-1:1,0],Tab:[0,event.shiftKey?-1:1]}[event.key];
       if(event.ctrlKey||event.metaKey){
         const name=event.key.toLowerCase();
+        if(name==="a"){event.preventDefault();select(0,0);select(ROWS-1,COLS-1,true);return;}
+        if(move&&event.key.startsWith("Arrow")){
+          event.preventDefault();
+          const [dr,dc]=move;
+          const occupied=(r,c)=>Boolean(sheet().cells[key(r,c)]);
+          let r=row,c=col;
+          const inside=(r,c)=>r>=0&&r<ROWS&&c>=0&&c<COLS;
+          const contiguous=inside(r+dr,c+dc)&&occupied(r,c)&&occupied(r+dr,c+dc);
+          while(inside(r+dr,c+dc)){
+            r+=dr;c+=dc;
+            if(contiguous){if(!inside(r+dr,c+dc)||!occupied(r+dr,c+dc))break;}
+            else if(occupied(r,c))break;
+          }
+          select(r,c,event.shiftKey,true);return;
+        }
         if(name==="f"){event.preventDefault();run("find");}
         if(name==="z"||name==="y"){event.preventDefault();run(name==="y"||event.shiftKey?"redo":"undo");}
         return;
