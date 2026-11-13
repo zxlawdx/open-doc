@@ -1,6 +1,7 @@
 // Verify a packaged desktop process by inspecting its actual Qt WebEngine page.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:net";
+import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -14,9 +15,15 @@ await new Promise((done, reject) => {
 });
 const { port } = server.address();
 await new Promise(done => server.close(done));
+const launchEnv={...process.env,QTWEBENGINE_REMOTE_DEBUGGING:String(port)};
+if(process.env.OPEN_DOC_SMOKE_DEFAULT_LINUX==='1'){
+  for(const name of ['QT_QPA_PLATFORM','QT_XCB_GL_INTEGRATION','QT_OPENGL',
+    'QT_QUICK_BACKEND','LIBGL_ALWAYS_SOFTWARE','QTWEBENGINE_CHROMIUM_FLAGS',
+    'QTWEBENGINE_DISABLE_SANDBOX','VELA_HARDWARE_ACCELERATION','VELA_LINUX_COMPATIBILITY','LD_PRELOAD'])delete launchEnv[name];
+}
 const child = spawn(binary, [], {
   cwd: dirname(binary),
-  env: { ...process.env, QTWEBENGINE_REMOTE_DEBUGGING: String(port) },
+  env: launchEnv,
   stdio: "inherit",
 });
 let startError;
@@ -131,6 +138,35 @@ try {
   console.log(`OPEN_DOC_FROZEN_PPTX_COMPAT_OK ${binary}`);
   console.log(`OPEN_DOC_FROZEN_DOCX_IMAGE_OK ${binary} ${imageCheck.media}`);
   console.log(`OPEN_DOC_FROZEN_UI_OK ${binary}`);
+  if(process.env.OPEN_DOC_NATIVE_PIXELS==='1'){
+    const run=(command,args)=>{
+      const result=spawnSync(command,args,{encoding:'utf8',timeout:10000});
+      if(result.error||result.status!==0)throw Error(`${command}: ${result.error||result.stderr}`);
+      return result.stdout.trim();
+    };
+    const ids=run('xdotool',['search','--onlyvisible','--name','Open Doc|Open-Doc']).split(/\s+/);
+    const directory=resolve(process.env.OPEN_DOC_NATIVE_OUTPUT||'artifacts');mkdirSync(directory,{recursive:true});
+    for(const id of ids)run('import',['-window',id,resolve(directory,`ui-window-${id}.png`)]);
+    ws.close();ws=new WebSocket(debuggerUrl);
+    await new Promise((done,reject)=>{
+      const timer=setTimeout(()=>reject(Error('Native paint marker timed out.')),5000);
+      ws.onerror=()=>{clearTimeout(timer);reject(Error('Native paint CDP connection failed.'));};
+      ws.onopen=()=>ws.send(JSON.stringify({id:3,method:'Runtime.evaluate',params:{
+        expression:`(()=>{const marker=document.createElement('div');marker.style.cssText='position:fixed;left:0;right:0;top:0;bottom:0;z-index:2147483647;background:rgb(22,199,132)';document.body.append(marker);return true;})()`,returnByValue:true}}));
+      ws.onmessage=event=>{const response=JSON.parse(event.data);if(response.id!==3)return;
+        clearTimeout(timer);if(response.error||response.result?.exceptionDetails)reject(Error(JSON.stringify(response)));else done();};
+    });
+    await delay(1000);
+    let painted=false;
+    for(const id of ids){
+      const file=resolve(directory,`native-window-${id}.png`);
+      run('import',['-window',id,file]);
+      const raw=run('convert',[file,'-gravity','center','-crop','1x1+0+0','-depth','8','txt:-']);
+      if(/\(22,199,132(?:,255)?\)/.test(raw)){painted=true;break;}
+    }
+    if(!painted)throw Error('DOM loaded but native X11 window did not paint the expected pixels.');
+    console.log(`OPEN_DOC_FROZEN_NATIVE_PIXELS_OK ${binary}`);
+  }
 } finally {
   ws?.close();
   child.kill();
