@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -17,7 +18,6 @@ from ..readers.pdf.security import validated_pdf
 from ..readers.pptx.preview import convert_to_pdf, libreoffice_executable
 from ..readers.pptx.service import PresentationService
 from .document_service import RevisionConflict
-from .export_service import safe_stem
 
 
 class FixedDocumentService:
@@ -88,6 +88,8 @@ class FixedDocumentService:
             ).fetchone()
         if not row:
             raise ValueError("Documento fixo não encontrado.")
+        if self._upgrade_imported_pptx(row, recovery):
+            return self.get(identifier)
         note = {
             k: v
             for k, v in dict(row).items()
@@ -131,6 +133,43 @@ class FixedDocumentService:
             },
         }
         return note
+
+    def _upgrade_imported_pptx(self, row, recovery):
+        """Promote legacy preview documents while preserving their annotations."""
+        if row['source_kind'] != 'pptx':
+            return False
+        original = load(row['content_json'])
+        if original.get('editable_deck'):
+            return False
+        source = self.config.root / row['source_path']
+        if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(self.config.root) or hashlib.sha256(source.read_bytes()).hexdigest() != row['source_sha256']:
+            return False
+        from ..readers.pptx.native_importer import read_editable_deck
+        imported = read_editable_deck(source)
+        if imported is None or len(imported['surfaces']) != len(original['surfaces']):
+            return False
+        def upgrade(previous):
+            content = deepcopy(previous)
+            content.update(deepcopy(imported))
+            for before, after in zip(previous['surfaces'], content['surfaces']):
+                for key in ('strokes', 'text_overlays', 'semantic_blocks'):
+                    if key in before:
+                        after[key] = deepcopy(before[key])
+            return serialize(content)
+        updated = upgrade(original)
+        recovered = upgrade(load(recovery['content_json'])) if recovery else None
+        with self.documents._lock, self.documents._connect() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            current = connection.execute('SELECT * FROM fixed_documents WHERE id=?', (row['id'],)).fetchone()
+            if current['revision'] != row['revision']:
+                return True
+            self.documents.history.ensure_baseline(connection, current)
+            connection.execute('UPDATE fixed_documents SET content_json=?,revision=revision+1,updated_at=? WHERE id=?', (updated, datetime.now(timezone.utc).isoformat(), row['id']))
+            if recovery:
+                connection.execute('UPDATE fixed_recovery SET content_json=?,revision=? WHERE id=?', (recovered, row['revision']+1, row['id']))
+            saved = connection.execute('SELECT * FROM fixed_documents WHERE id=?', (row['id'],)).fetchone()
+            self.documents.history.capture(connection, saved, 'automatic')
+        return True
 
     def save_pdf_view(self, identifier, view):
         identifier = str(UUID(identifier))

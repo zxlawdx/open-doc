@@ -81,7 +81,7 @@ def main():
             for deck_index, source in enumerate(inputs):
                 digest = hashlib.sha256(source.read_bytes()).hexdigest()
                 imported = services().documents.import_path(source)["document"]
-                assert not imported["capabilities"]["edit_slides"]
+                assert imported["capabilities"]["edit_slides"]
                 window.evaluate_js(
                     "OpenDocApp.editor().load("
                     + json.dumps(imported)
@@ -96,7 +96,7 @@ def main():
                     (output / f"deck-{deck_index+1}-dom.json").write_text(
                         json.dumps(
                             window.evaluate_js("""(() => {
-                      const surface=document.querySelector('.fixed-scroll .pptx-content');
+                      const surface=document.querySelector('.slide-active-canvas');
                       return [...surface.querySelectorAll('span')].filter(n=>n.style.fontSize).slice(0,8).map(n=>({html:n.outerHTML,font:getComputedStyle(n).fontFamily}));
                     })()"""),
                             indent=2,
@@ -109,13 +109,13 @@ def main():
                     )
                     wait(
                         window,
-                        f"Boolean(document.querySelector('.fixed-scroll .pptx-content[data-slide-index=\"{index}\"] svg'))",
+                        f"Boolean(document.querySelector('.slide-active-canvas[data-page-index=\"{index}\"] svg'))",
                     )
                     sleep(0.08)
                     if not args.presentations:
                         detail = window.evaluate_js(
                             """(() => {
-                          const surface=document.querySelector('.fixed-scroll .pptx-content');
+                          const surface=document.querySelector('.slide-active-canvas');
                           const span=[...surface.querySelectorAll('span')].find(n=>n.textContent==='TÍTULO DE TESTE'&&n.style.fontSize);
                           return {color:getComputedStyle(span).color,size:parseFloat(getComputedStyle(span).fontSize),bold:getComputedStyle(span).fontWeight,
                             waves:[...surface.querySelectorAll('path')].filter(p=>(p.getAttribute('d')||'').includes(' C ')).length};})()"""

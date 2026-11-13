@@ -554,19 +554,29 @@ def test_supported_third_party_pptx_imports_as_editable(tmp_path):
     assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
 
 
-def test_unsupported_third_party_pptx_stays_read_only_without_data_loss(tmp_path):
+def test_external_geometry_is_editable_and_preserved_without_data_loss(tmp_path):
     from pptx import Presentation
     from pptx.enum.shapes import MSO_SHAPE
     deck = Presentation()
     slide = deck.slides.add_slide(deck.slide_layouts[6])
-    # The editable model does not support this freeform geometry.
+    # The generic source object preserves geometry beyond the native subset.
     slide.shapes.add_shape(MSO_SHAPE.DONUT, 100000, 100000, 500000, 350000)
     source = tmp_path / "unsupported-template.pptx"
     deck.save(source)
     ctx = configure(Config(tmp_path))
     imported = ctx.fixed_documents.import_pptx(source)
-    assert imported["content"].get("editable_deck") is not True
-    assert imported["capabilities"]["edit_slides"] is False
+    assert imported["content"]["editable_deck"] is True
+    assert imported["capabilities"]["edit_slides"] is True
+    model = deepcopy(imported["content"])
+    element = model["surfaces"][0]["elements"][0]
+    assert element["type"] == "source"
+    element["x"] = .25
+    saved = ctx.fixed_documents.save(imported["id"], imported["title"], model, imported["revision"])
+    target = tmp_path / "moved-donut.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", target)
+    moved = Presentation(target).slides[0].shapes[0]
+    assert moved.auto_shape_type == MSO_SHAPE.DONUT
+    assert abs(moved.left / deck.slide_width - .25) < 1e-6
     assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
 
 
@@ -673,7 +683,7 @@ def test_external_template_preserves_theme_masters_and_unedited_rich_text(tmp_pa
     assert after.slides[0].shapes[1].text_frame.paragraphs[0].runs[1].font.bold is True
 
 
-def test_external_template_refuses_unsupported_slide_structure_without_exporting(tmp_path):
+def test_external_template_duplicate_preserves_source_and_master(tmp_path):
     from pptx import Presentation
     deck = Presentation()
     deck.slides.add_slide(deck.slide_layouts[6])
@@ -686,10 +696,12 @@ def test_external_template_refuses_unsupported_slide_structure_without_exporting
     model["surfaces"].append(deepcopy(model["surfaces"][0]))
     model["surfaces"][1]["index"] = 1
     saved = ctx.fixed_documents.save(imported["id"], imported["title"], model, imported["revision"])
-    target = tmp_path / "do-not-corrupt.pptx"
-    with pytest.raises(ValueError, match="estrutura dos slides externos"):
-        ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", target)
-    assert not target.exists()
+    target = tmp_path / "duplicated.pptx"
+    ctx.fixed_documents.export(imported["id"], saved["revision"], "pptx", target)
+    result = Presentation(target)
+    assert len(result.slides) == 2
+    assert len({entry.id for entry in result.slides._sldIdLst}) == 2
+    assert result.slide_masters[0]._element.xml == deck.slide_masters[0]._element.xml
     assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
 
 
@@ -859,3 +871,66 @@ def test_36_slide_dark_template_imports_with_thin_rules_and_inherited_51pt_title
     assert after.slides[1].shapes[2].text == deck.slides[1].shapes[2].text
     assert after.slides[0].shapes[2].text_frame.paragraphs[0].font.size.pt == 51
     assert ctx.fixed_documents.source(imported["id"]).read_bytes() == source.read_bytes()
+
+
+def test_imported_repeated_images_share_asset_without_losing_objects(tmp_path):
+    from io import BytesIO
+    from PIL import Image
+    from pptx.util import Inches
+
+    image = BytesIO()
+    Image.new("RGB", (40, 30), "green").save(image, format="PNG")
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    for index in range(20):
+        slide.shapes.add_picture(BytesIO(image.getvalue()), Inches(index % 5),
+                                 Inches(index // 5), width=Inches(.5))
+    source = tmp_path / "repeated-images.pptx"
+    deck.save(source)
+    ctx = configure(Config(tmp_path))
+    note = ctx.fixed_documents.import_pptx(source)
+    assert note["capabilities"]["edit_slides"] is True
+    model = note["content"]
+    assert len(model["assets"]) == 1
+    assert len(model["surfaces"][0]["elements"]) == 20
+    assert len({obj["asset_id"] for obj in model["surfaces"][0]["elements"]}) == 1
+    target = tmp_path / "repeated-export.pptx"
+    ctx.fixed_documents.export(note["id"], note["revision"], "pptx", target)
+    exported = Presentation(target)
+    assert len(exported.slides[0].shapes) == 20
+    assert all(shape.image.blob == image.getvalue() for shape in exported.slides[0].shapes)
+    assert ctx.fixed_documents.source(note["id"]).read_bytes() == source.read_bytes()
+
+
+def test_legacy_readonly_import_is_upgraded_once_with_recovery_and_original_preserved(tmp_path):
+    from pptx.util import Inches
+    from apps.open_doc.fixed_document.serialization import serialize
+    ctx = configure(Config(tmp_path))
+    deck=Presentation();slide=deck.slides.add_slide(deck.slide_layouts[6])
+    slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text='Texto original'
+    source=tmp_path/'legacy.pptx';deck.save(source)
+    note=ctx.fixed_documents.import_pptx(source)
+    readonly=deepcopy(note['content'])
+    for key in ('editable_deck','preserve_source','assets'):
+        readonly.pop(key,None)
+    overlay={'id':'legacy-note','text':'Nota preservada','font_family':'Arial','font_size_pt':16,'color':'#152637','x':.2,'y':.4,'width':.6,'height':.1,'confidence':.9}
+    for surface in readonly['surfaces']:
+        surface.pop('elements',None)
+        surface['text_overlays']=[overlay]
+    recovery=deepcopy(readonly);recovery['surfaces'][0]['text_overlays'][0]['text']='Recuperação preservada'
+    with ctx.fixed_documents.documents._connect() as c:
+        c.execute('UPDATE fixed_documents SET content_json=? WHERE id=?',(serialize(readonly),note['id']))
+        c.execute('INSERT OR REPLACE INTO fixed_recovery VALUES (?,?,?,?)',(note['id'],note['title'],serialize(recovery),note['revision']))
+    upgraded=ctx.fixed_documents.get(note['id'])
+    assert upgraded['capabilities']['edit_slides'] is True
+    assert upgraded['content']['preserve_source'] is True
+    assert upgraded['content']['surfaces'][0]['text_overlays'][0]['text']=='Nota preservada'
+    assert upgraded['recovery']['content']['surfaces'][0]['text_overlays'][0]['text']=='Recuperação preservada'
+    assert upgraded['recovery']['revision']==upgraded['revision']
+    assert upgraded['revision']==note['revision']+1
+    assert ctx.fixed_documents.get(note['id'])['revision']==upgraded['revision']
+    assert ctx.fixed_documents.source(note['id']).read_bytes()==source.read_bytes()
+    edited=deepcopy(upgraded['content']);edited['surfaces'][0]['elements'][0]['text']='Agora editável'
+    saved=ctx.fixed_documents.save(note['id'],note['title'],edited,upgraded['revision'])
+    target=tmp_path/'legacy-edited.pptx';ctx.fixed_documents.export(note['id'],saved['revision'],'pptx',target)
+    assert Presentation(target).slides[0].shapes[0].text=='Agora editável'

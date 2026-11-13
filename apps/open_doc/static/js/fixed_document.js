@@ -44,7 +44,7 @@
   }
   const semantic=window.OpenDocSemanticAnnotations?.create({host,root,scroller,sidebar,signal,getModel:()=>model,getPage:index=>renderedPages.get(index),getZoom:()=>zoom,go,status,update:items=>{model=clone(model);model.annotations=items;changed();}});
   const slidesEditor=window.OpenDocSlidesEditor?.create({
-    host,root,controls,scroller,sidebar,signal,tableDialog,mathDialog,getModel:()=>model,getZoom:()=>zoom,status,
+    host,root,controls,scroller,sidebar,signal,tableDialog,mathDialog,getModel:()=>model,getZoom:()=>zoom,status,getSourceRenderer:()=>pptx,
     update:next=>{model=next;changed();},go,undo:()=>format('undo'),redo:()=>format('redo'),
     exportSlide:async index=>{
       if(!model?.editable_deck)throw Error('Abra uma apresentação editável.');
@@ -588,6 +588,11 @@
   async function load(value,inheritedView=null){rememberPdfView();viewReady=false;slidesEditor?.deactivate();thumbObserver?.disconnect();const generation=++epoch;searchEpoch++;for(const t of renderTasks.values())t.cancel();renderTasks.clear();rendering.clear();renderedPages.clear();pdf?.destroy();pdf=null;pptx?.destroy();pptx=null;note=clone(value);const local=window.OpenDocRecovery.read(note.id);if(local && local.content?.source_sha256===note.content.source_sha256 && local.revision>=note.revision && JSON.stringify(local.content)!==JSON.stringify(note.content))note.recovery=local;model=clone(note.content);saved=JSON.stringify([note.title,model]);title.value=note.title;active=true;root.dataset.readerState='loading';delete host.dataset.searchOpen;searchPreviousFocus=null;host.hidden=false;nativeTextButton.hidden=note.source_kind!=='pdf';nativeTextPanel.hidden=true;nativeEditMode=false;nativeEditButton.textContent='Editar PDF';nativeEditButton.setAttribute('aria-pressed','false');nativeEditButton.hidden=note.source_kind!=='pdf';pptxButton.hidden=note.source_kind!=='pptx';pdfButton.hidden=note.source_kind==='pptx';noteButton.hidden=note.source_kind!=='pdf';extractButton.hidden=note.source_kind!=='pdf';semantic?.setNoteMode(false);search.placeholder=note.source_kind==='pptx'?'Localizar nos slides':'Localizar no PDF';search.setAttribute('aria-label',search.placeholder);recover.hidden=!note.recovery;history.reset(snapshot());slideFitMode=null;zoom=1;pptxPreviewIndex=0;delete host.dataset.pptxPreview;scroller.replaceChildren();sidebar.replaceChildren();semantic?.reset();pageNodes=[];syncPageNavigation(0);
    if(!note.capabilities.preview){const message=document.createElement('p');message.textContent='O leitor deste formato não está disponível. O arquivo original foi preservado.';scroller.append(message);return;}
    if(note.source_kind==='pptx' && model.editable_deck){
+     if(model.preserve_source){
+       const loaded=await window.OpenDocPptx.load(note.id,token);
+       if(generation!==epoch){loaded.destroy();return;}
+       pptx=loaded;pptx.hydrate?.(model);saved=JSON.stringify([note.title,model]);history.reset(snapshot());
+     }
      root.dataset.readerState='ready';
      root.querySelector('[data-mode-label]').textContent='Apresentação';
      slidesEditor?.load();

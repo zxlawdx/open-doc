@@ -215,8 +215,7 @@
       return next;
     }
     _requireEditableSlideStructure(){
-      if(this.getModel().preserve_source)
-        throw Error("Slides de apresentações externas ainda não podem ser inseridos, duplicados, removidos ou reordenados sem comprometer layouts originais.");
+      // Imported decks retain native parts and relationships during structural edits.
     }
     applyTransitionToAll(index){
       const slides=this.getModel().surfaces;
@@ -450,8 +449,8 @@
   }
 
   class SlideStudio {
-    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize,tableDialog,mathDialog}){
-      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize,tableDialog,mathDialog});
+    constructor({host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize,tableDialog,mathDialog,getSourceRenderer}){
+      Object.assign(this,{host,root,controls,scroller,sidebar,signal,getModel,update,status,getZoom,go,undo,redo,onRender,exportSlide,onViewportResize,tableDialog,mathDialog,getSourceRenderer});
       this.commands=new SlideDeckCommands(getModel,(next,change)=>{
         update(next);
         if(!change||!this._renderObjectChange(change))this.render();
@@ -922,10 +921,10 @@
           return;
         }
         if(thumbnail&&this.sidebar.contains(thumbnail)&&
-           ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)
+           ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","PageUp","PageDown","Home","End"].includes(event.key)
            &&!event.ctrlKey&&!event.metaKey&&!event.altKey){
-          const direction=(event.key==="ArrowUp"||event.key==="ArrowLeft")?-1:1;
-          const next=clamp(this.current+direction,0,this.getModel().surfaces.length-1);
+          const direction=["ArrowUp","ArrowLeft","PageUp"].includes(event.key)?-1:1;
+          const next=event.key==="Home"?0:event.key==="End"?this.getModel().surfaces.length-1:clamp(this.current+direction,0,this.getModel().surfaces.length-1);
           event.preventDefault();event.stopPropagation();
           if(next!==this.current)this.go(next);
           this.sidebar.querySelector('[data-thumbnail-index="'+next+'"]')?.focus();
@@ -1405,6 +1404,27 @@
       node.dataset.slideElement=obj.id;node.dataset.kind=obj.type;
       if(!thumb&&this.selectedIds.has(obj.id)&&index===this.current)node.dataset.selected="true";
       this._styleObject(node,obj,index,thumb);
+      const source=this.getSourceRenderer?.();
+      if(source&&obj.source_shape_id){
+        const holder=document.createElement('div');holder.className='slide-source-visual';
+        Object.assign(holder.style,{position:'absolute',left:'0',right:'0',top:'0',bottom:'0',pointerEvents:'none',overflow:'visible'});
+        const frame=source.renderObject(obj.source_slide_index??this.getModel().surfaces[index].source_slide_index,obj,holder);
+        if(frame){
+          frame.style.position='absolute';Object.assign(frame.style,{left:'0',right:'0',top:'0',bottom:'0'});frame.style.overflow='visible';
+          const svg=frame.querySelector('svg');if(svg)Object.assign(svg.style,{width:'100%',height:'100%',overflow:'visible'});
+          node.style.height=(thumb?obj.height*100+'%':obj.height*this.getModel().surfaces[index].height_pt*4/3*this.getZoom()+'px');
+          node.style.minHeight='';node.style.padding='0';node.append(holder);
+          if(obj.type==='table'&&!thumb){
+            holder.style.pointerEvents='auto';
+            for(const cell of holder.querySelectorAll('td')){
+              cell.dataset.slideTableCell='true';cell.style.position='relative';
+              if(!cell.firstElementChild)cell.append(document.createElement('span'));
+            }
+          }
+          if(!thumb&&this.selected===obj.id&&index===this.current)this._addHandles(node,obj.type,obj);
+          return node;
+        }
+      }
       const vector=this.shapeRenderer.create(obj);
       if(vector)node.append(vector);
       if(obj.type==="chart"){
@@ -1637,7 +1657,7 @@
         button.dataset.thumbnailIndex=String(index);
         button.setAttribute("aria-current",String(index===this.current));
         button.setAttribute("aria-label","Ir para slide "+(index+1));
-        button.onclick=()=>this.go(index);
+        button.onclick=()=>{this.go(index);button.focus({preventScroll:true});};
         return;
       }
       button.replaceChildren();
@@ -1653,6 +1673,11 @@
         aspectRatio:String(surface.width_pt)+"/"+String(surface.height_pt)});
       preview.style.backgroundColor=surface.background||"#FFFFFF";
       preview.style.backgroundImage=cssGradient(surface.background_gradient);
+      const source=this.getSourceRenderer?.();
+      if(source&&surface.source_slide_index!==undefined){
+        source.renderBackground(surface.source_slide_index,preview);
+        const svg=preview.querySelector('svg');if(svg)Object.assign(svg.style,{width:'100%',height:'100%'});
+      }
       for(const obj of surface.elements||[])preview.append(this._makeObject(obj,index,true));
       const title=document.createElement("span");
       title.textContent="Slide "+(index+1);
@@ -1660,7 +1685,7 @@
       button.dataset.thumbnailIndex=String(index);
       button.setAttribute("aria-label","Ir para slide "+(index+1));
       button.setAttribute("aria-current",String(index===this.current));
-      button.onclick=()=>this.go(index);
+      button.onclick=()=>{this.go(index);button.focus({preventScroll:true});};
     }
     _buildSurface(index){
       const slide=this.getModel().surfaces[index];
@@ -1684,6 +1709,11 @@
         backgroundColor:slide.background||"#FFFFFF",
         backgroundImage:cssGradient(slide.background_gradient)
       });
+      const source=this.getSourceRenderer?.();
+      if(source&&slide.source_slide_index!==undefined){
+        source.renderBackground(slide.source_slide_index,background);
+        const svg=background.querySelector('svg');if(svg)Object.assign(svg.style,{width:'100%',height:'100%'});
+      }
       surface.append(background);
       for(const obj of slide.elements||[])surface.append(this._makeObject(obj,index));
       return surface;

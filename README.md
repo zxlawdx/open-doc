@@ -323,3 +323,18 @@ Use **Inserir → Imagem…** ou o botão de imagem na barra. São aceitos PNG, 
 Clique na imagem para selecioná-la. Arraste para posicionar livremente na página ou levá-la a outra página; a imagem fica à frente do texto. A alça no canto inferior direito redimensiona proporcionalmente. Setas movem, Alt + setas redimensionam e Shift aumenta o passo para 10 pontos. Delete/Backspace excluem. Cada gesto pode ser desfeito e refeito com Ctrl+Z/Ctrl+Y.
 
 As imagens ficam separadas dos snapshots de texto e são deduplicadas por conteúdo. Salvar, reabrir e exportar DOCX preserva os objetos nativos `wp:anchor`, suas coordenadas, dimensões e mídia. O PDF simplificado continua tendo as limitações de fidelidade descritas pelo diálogo de exportação.
+
+
+### Editar apresentações importadas
+
+PPTX importados abrem no editor de slides com seleção e edição de objetos,
+edição de textos e tabelas, histórico e exportação para PPTX. Objetos especiais
+mantêm sua representação original e suas partes OOXML; isso preserva recursos
+que o editor ainda não tem um painel próprio para configurar. Não significa
+paridade integral com todas as funções do PowerPoint.
+
+Arquivos já importados no modo antigo são convertidos ao abrir, preservando o
+original, as anotações e a recuperação. Clique numa miniatura e use as setas,
+Page Up/Down ou Home/End para navegar. No slide, as setas movem o objeto
+selecionado. Use **Apresentar**, **F5** (desde o início), **Shift+F5** (slide atual)
+e **Esc** para encerrar a apresentação.

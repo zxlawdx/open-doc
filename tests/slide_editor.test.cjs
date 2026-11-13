@@ -29,7 +29,7 @@ function setup(t, options={}){
  const editor=w.OpenDocSlidesEditor.create({root,host,controls,scroller,sidebar,signal:abort.signal,
    getModel:()=>model,update:value=>{model=value;versions.push(JSON.stringify(value));},
    status:()=>{},getZoom:()=>options.zoom??1,go:index=>{selected=index;editor.goTo(index);},
-   undo:()=>{},redo:()=>{},onRender:()=>{},onViewportResize:options.onViewportResize,exportSlide:options.exportSlide,tableDialog:options.tableDialog,mathDialog:options.mathDialog});
+   undo:()=>{},redo:()=>{},onRender:()=>{},onViewportResize:options.onViewportResize,exportSlide:options.exportSlide,tableDialog:options.tableDialog,mathDialog:options.mathDialog,getSourceRenderer:options.getSourceRenderer});
  editor.load();
  return {w,root,host,controls,scroller,sidebar,editor,model:()=>model,versions,selected:()=>selected};
 }
@@ -1092,16 +1092,22 @@ test('unchanged thumbnails keep their DOM identity on object edits',t=>{
  assert.notEqual(q.sidebar.querySelector('[data-thumbnail-index="1"] .slide-thumb-preview'),b);
 });
 
-test('imported external PPTX rejects unsafe slide-level structural changes before model mutation',t=>{
+test('imported external PPTX supports slide structure changes with source references',t=>{
  const q=setup(t);
  q.model().preserve_source=true;
- const before=JSON.stringify(q.model());
+ q.model().surfaces[0].source_slide_index=0;
  const commands=q.editor.commands;
- for(const action of [
-   ()=>commands.insert(0),()=>commands.duplicate(0),
-   ()=>commands.remove(0),()=>commands.move(0,1)
- ])assert.throws(action,/apresentações externas/);
- assert.equal(JSON.stringify(q.model()),before);
+ commands.duplicate(0);
+ assert.equal(q.model().surfaces.length,2);
+ assert.equal(q.model().surfaces[1].source_slide_index,0);
+ commands.insert(1);
+ assert.equal(q.model().surfaces.length,3);
+ assert.equal(q.model().surfaces[2].source_slide_index,undefined);
+ commands.move(2,-1);
+ assert.equal(q.model().surfaces[1].source_slide_index,undefined);
+ commands.remove(1);
+ assert.equal(q.model().surfaces.length,2);
+ assert.equal(q.model().preserve_source,true);
 });
 
 test('new native equations adapt their initial ink color to dark/light slide backgrounds',t=>{
@@ -1703,4 +1709,41 @@ test('line starts horizontal and either endpoint can cross the other',t=>{
  assert.ok(Math.abs(model().x-.15)<1e-9);
  assert.equal(model().width,0);
  assert.equal(line().querySelectorAll('[data-line-end]').length,2);
+});
+
+
+test('source-rendered imported tables expose editable cells and keep source metadata',t=>{
+ const source={renderBackground:()=>null,renderObject:(index,obj,holder)=>{
+   const frame=holder.ownerDocument.createElement('div');
+   const table=holder.ownerDocument.createElement('table');
+   for(const row of obj.table_cells){const tr=table.insertRow();for(const value of row){
+     const td=tr.insertCell(),span=holder.ownerDocument.createElement('span');span.textContent=value;td.append(span);
+   }}
+   frame.append(table);holder.append(frame);return frame;
+ }};
+ const q=setup(t,{getSourceRenderer:()=>source});
+ q.editor.commands.insertObject(0,'table');
+ const obj=q.model().surfaces[0].elements[0];
+ obj.source_shape_id='42';obj.source_slide_index=0;obj.source_shape_index=0;
+ q.editor.render();
+ const cell=q.scroller.querySelector('table.rows')||q.scroller.querySelector('td');
+ assert.equal(cell.dataset.slideTableCell,'true');
+ cell.dispatchEvent(new q.w.MouseEvent('dblclick',{bubbles:true}));
+ const input=q.scroller.querySelector('.slide-table-cell-editor');
+ assert.ok(input);input.value='Cabeçalho editado';
+ input.dispatchEvent(new q.w.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+ assert.equal(q.model().surfaces[0].elements[0].table_cells[0][0],'Cabeçalho editado');
+ assert.equal(q.model().surfaces[0].elements[0].source_shape_id,'42');
+ assert.equal(q.scroller.querySelector('td').textContent,'Cabeçalho editado');
+});
+
+
+test('clicking a thumbnail keeps arrow and page navigation focused in the sidebar',t=>{
+ const q=setup(t);clickLabel(q.controls,'+ Slide');clickLabel(q.controls,'+ Slide');
+ q.sidebar.querySelector('[data-thumbnail-index="0"]').click();
+ assert.equal(q.w.document.activeElement.dataset.thumbnailIndex,'0');
+ for(const [key,expected]of [['ArrowRight',1],['ArrowDown',2],['Home',0],['End',2],['PageUp',1],['PageDown',2]]){
+  q.w.document.activeElement.dispatchEvent(new q.w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
+  assert.equal(q.editor.current,expected);assert.equal(q.w.document.activeElement.dataset.thumbnailIndex,String(expected));
+ }
 });

@@ -1,12 +1,12 @@
-"""Strict native-OOXML importer for the *editable* Open Doc slide subset.
+"""Import editable slide objects while retaining the original OOXML package.
 
-The original imported PPTX remains intact on disk.  A deck that includes
-unknown constructs stays in the read-only preview instead of silently losing
-shapes/animations when exported from the editable model.
+Objects beyond the native subset keep source references for faithful rendering
+and preservation on export. Reused images share one asset in the editing model.
 """
 from __future__ import annotations
 
 import base64
+from hashlib import sha256
 from copy import deepcopy
 from uuid import uuid4
 
@@ -68,15 +68,15 @@ def _fill_color(fill, default: str) -> str:
 
 
 def _coordinates(shape, width: int, height: int) -> dict:
-    x = max(0.0, min(1.0, shape.left / width))
-    y = max(0.0, min(1.0, shape.top / height))
+    x = (shape.left or 0) / width
+    y = (shape.top or 0) / height
     minimum = 0 if shape.shape_type == MSO_SHAPE_TYPE.LINE else .00001
-    w = max(minimum, min(1.0 - x, shape.width / width))
-    h = max(minimum, min(1.0 - y, shape.height / height))
+    w = max(minimum, (shape.width if shape.width is not None else 1) / width)
+    h = max(minimum, (shape.height if shape.height is not None else 1) / height)
     if not (w or h):
         raise ValueError("Objeto sem dimensões geométricas válidas.")
     return dict(x=round(x, 7), y=round(y, 7),
-                width=round(min(w, 1-x), 7), height=round(min(h, 1-y), 7))
+                width=round(w, 7), height=round(h, 7))
 
 
 def _transition(slide) -> tuple[str, str]:
@@ -105,15 +105,16 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
                 color="#191C1E", fill="#DAE2FD", stroke="#004AC6",
                 font_family="Inter", font_size_pt=28, stroke_width=1.5,
                 rotation=round(float(shape.rotation or 0), 4), text="")
-    if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+    if shape.shape_type == MSO_SHAPE_TYPE.PICTURE or (shape.is_placeholder and hasattr(shape, "image")):
         mime = shape.image.content_type
         if mime not in {"image/png", "image/jpeg"}:
             raise ValueError("Formato de imagem não suportado na edição.")
         payload = shape.image.blob
         if len(payload) > 4 * 1024 * 1024:
             raise ValueError("Imagem muito grande para edição.")
-        asset_id = str(uuid4())
-        assets[asset_id] = {"mime": mime, "data": base64.b64encode(payload).decode("ascii")}
+        asset_id = "image-" + sha256(payload).hexdigest()
+        if asset_id not in assets:
+            assets[asset_id] = {"mime": mime, "data": base64.b64encode(payload).decode("ascii")}
         base.update(import_image_effects(shape._pic.blipFill.blip))
         base.update(type="image", asset_id=asset_id,
                     crop_left=shape.crop_left, crop_right=shape.crop_right,
@@ -205,12 +206,13 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
             elif data.show_value:
                 base["chart_data_labels"]="value"
     else:
-        if shape.shape_type == MSO_SHAPE_TYPE.TEXT_BOX:
+        if shape.shape_type == MSO_SHAPE_TYPE.TEXT_BOX or (shape.is_placeholder and shape.has_text_frame):
             kind = "text"
         elif shape.shape_type == MSO_SHAPE_TYPE.LINE:
             kind = "line"
         elif shape.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE:
-            kind = _SHAPES.get(shape.auto_shape_type)
+            geometry = shape._element.spPr.find(qn("a:prstGeom"))
+            kind = "line" if geometry is not None and geometry.get("prst") == "line" else _SHAPES.get(shape.auto_shape_type)
         else:
             kind = None
         if kind is None:
@@ -326,14 +328,13 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
 
 
 def read_editable_deck(path) -> dict | None:
-    """Convert supported decks, including externally created PPTX presentations.
+    """Build editable objects and source references without rewriting the source.
 
-    Never silently remove unknown shapes, groups, or animations. A presentation
-    requiring unsupported features remains a read-only preview; the source
-    is retained unchanged for future conversion support.
+    Unknown shapes and animation trees remain in the original OOXML package.
+    Invalid packages still fail validation at the import boundary.
     """
     deck = Presentation(path)
-    if not 1 <= len(deck.slides) <= 200:
+    if not 1 <= len(deck.slides) <= 10000:
         return None
     width, height = deck.slide_width, deck.slide_height
     if width <= 0 or height <= 0:
@@ -342,10 +343,11 @@ def read_editable_deck(path) -> dict | None:
     assets = {}
     try:
         for index, slide in enumerate(deck.slides):
-            # The editable model does not yet preserve object animation trees.
-            if slide._element.find(_NS + "timing") is not None:
-                return None
-            effect, speed = _transition(slide)
+            # Unchanged animation trees are retained in the source package.
+            try:
+                effect, speed = _transition(slide)
+            except ValueError:
+                effect, speed = "source", "med"
             gradient = read_gradient(slide.background.fill)
             color = gradient["start"] if gradient else _fill_color(slide.background.fill, "#FFFFFF")
             notes = ""
@@ -354,14 +356,26 @@ def read_editable_deck(path) -> dict | None:
             surface = dict(index=index, source_slide_index=index, preview_kind="pptx-native",
                            width_pt=width / 12700, height_pt=height / 12700,
                            strokes=[], text_overlays=[], background=color,
-                           source_background=color, notes=notes, transition=effect, transition_speed=speed,
+                           source_background=color, notes=notes, transition=effect, transition_speed=speed, source_transition=effect, source_transition_speed=speed,
                            elements=[])
             if gradient:
                 surface.update(background_gradient=gradient, source_background_gradient=gradient)
-            if len(slide.shapes) > 500:
+            if len(slide.shapes) > 20000:
                 return None
             for source_index, shape in enumerate(slide.shapes):
-                element = _shape_element(shape, width, height, assets)
+                try:
+                    element = _shape_element(shape, width, height, assets)
+                except (AttributeError, KeyError, TypeError, ValueError, IndexError, OverflowError):
+                    # Keep the native OOXML object. Unsupported geometry does
+                    # not disable editing of this object or the whole deck.
+                    element = dict(id=str(uuid4()), name=str(shape.name or "Objeto")[:80],
+                                   type="source", **_coordinates(shape, width, height),
+                                   text=shape.text_frame.text if shape.has_text_frame else "",
+                                   color="#191C1E", fill="#DAE2FD", stroke="#004AC6",
+                                   font_family="Inter",font_size_pt=28,stroke_width=1.5,
+                                   rotation=round(float(shape.rotation or 0),4))
+                element["source_slide_index"] = index
+                element["source_shape_id"] = str(shape.shape_id)
                 element["source_shape_index"] = source_index
                 element["source_original"] = deepcopy(element)
                 surface["elements"].append(element)

@@ -17,8 +17,8 @@ from ..ink.validation import number
 from ..readers.pptx.native_math import validate_math_blocks
 
 HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
-MAX_SLIDES = 200
-MAX_ELEMENTS = 500
+MAX_SLIDES = 10000
+MAX_ELEMENTS = 20000
 
 
 class SlideModelValidator:
@@ -94,7 +94,7 @@ class SlideModelValidator:
             self._color(slide.get("background", "#FFFFFF"), "fundo do slide")
             self._gradient(slide.get("background_gradient"))
             effect=slide.get("transition", "none")
-            if effect not in ("none","fade","push-left","push-right","wipe-left","wipe-right"):
+            if effect not in ("source","none","fade","push-left","push-right","wipe-left","wipe-right"):
                 raise ValueError("Transição de slide inválida.")
             speed=slide.get("transition_speed", "med")
             if speed not in ("slow","med","fast"):
@@ -109,11 +109,12 @@ class SlideModelValidator:
     def validate_element(self, element: dict, ids: set[str], assets=None) -> None:
         if not isinstance(element, Mapping):
             raise ValueError("Elemento de slide inválido.")
+        external = "source_shape_index" in element
         uid = element.get("id")
         if not isinstance(uid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", uid) or uid in ids:
             raise ValueError("Identificador de elemento inválido ou duplicado.")
         ids.add(uid)
-        if not isinstance(element.get("type"), str) or element["type"] not in {"text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image", "chart", "table", "chevron", "hexagon", "pentagon", "parallelogram", "star", "cloud", "math"}:
+        if not isinstance(element.get("type"), str) or element["type"] not in {"source", "text", "rect", "ellipse", "round_rect", "line", "arrow", "triangle", "diamond", "image", "chart", "table", "chevron", "hexagon", "pentagon", "parallelogram", "star", "cloud", "math"}:
             raise ValueError("Tipo de elemento não suportado.")
         if element.get("text_runs") is not None:
             text_runs = element["text_runs"]
@@ -260,25 +261,26 @@ class SlideModelValidator:
             number(element.get("image_contrast", 0), -100, 100)
             if not isinstance(element.get("image_grayscale", False), bool):
                 raise ValueError("Escala de cinza inválida.")
-            crop = {key: number(element.get(key, 0), 0, .95)
+            crop = {key: number(element.get(key, 0), -100 if external else 0, .95)
                     for key in ("crop_left", "crop_right", "crop_top", "crop_bottom")}
             if (crop["crop_left"] + crop["crop_right"] > .9500001 or
                 crop["crop_top"] + crop["crop_bottom"] > .9500001):
                 raise ValueError("O recorte não pode eliminar toda a imagem.")
-        x = number(element.get("x"), 0, 1)
-        y = number(element.get("y"), 0, 1)
+        external = "source_shape_index" in element
+        x = number(element.get("x"), -100 if external else 0, 100 if external else 1)
+        y = number(element.get("y"), -100 if external else 0, 100 if external else 1)
         # Imported design templates can have hairline rules and fine stripes.
         # Do not reject the entire deck solely because a native shape is thin.
         is_line = element["type"] == "line"
         minimum = 0 if is_line else .00001
-        w = number(element.get("width"), minimum, 1)
-        h = number(element.get("height"), minimum, 1)
+        w = number(element.get("width"), minimum, 100 if external else 1)
+        h = number(element.get("height"), minimum, 100 if external else 1)
         if is_line and (not (w or h) or any(
             field in element and type(element[field]) is not bool
             for field in ("line_flip_h", "line_flip_v")
         )):
             raise ValueError("Pontas da linha inválidas.")
-        if x + w > 1.000001 or y + h > 1.000001:
+        if not external and (x + w > 1.000001 or y + h > 1.000001):
             raise ValueError("O elemento ultrapassa os limites do slide.")
         self._color(element.get("color", "#191C1E"), "texto")
         self._color(element.get("fill", "#DAE2FD"), "preenchimento")
