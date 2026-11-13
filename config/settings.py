@@ -3,9 +3,15 @@
 import os
 
 from apps.open_doc.document_model.validate import MAX_MODEL_JSON_BYTES
-from apps.open_doc.services.preferences_service import APP_TITLE, WINDOW_HEIGHT, WINDOW_WIDTH
+from apps.open_doc.services.preferences_service import (
+    APP_TITLE,
+    WINDOW_HEIGHT,
+    WINDOW_WIDTH,
+)
 
 APP_VERSION = os.getenv("OPEN_DOC_BUILD_VERSION", "1.0.1")
+# Apply the Mint-tested compatibility profile only to this frozen application.
+LINUX_WEBENGINE_COMPATIBILITY = True
 
 ENTRY_ROUTE = "/"
 LAYOUT = {"sidebar": False, "topbar": False, "theme": "dark"}
