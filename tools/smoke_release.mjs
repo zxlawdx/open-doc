@@ -152,7 +152,7 @@ try {
       const timer=setTimeout(()=>reject(Error('Native paint marker timed out.')),5000);
       ws.onerror=()=>{clearTimeout(timer);reject(Error('Native paint CDP connection failed.'));};
       ws.onopen=()=>ws.send(JSON.stringify({id:3,method:'Runtime.evaluate',params:{
-        expression:`(()=>{const marker=document.createElement('div');marker.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgb(22,199,132)';document.body.append(marker);return true;})()`,returnByValue:true}}));
+        expression:`(()=>{const marker=document.createElement('div');marker.style.cssText='position:fixed;left:0;right:0;top:0;bottom:0;z-index:2147483647;background:rgb(22,199,132)';document.body.append(marker);return true;})()`,returnByValue:true}}));
       ws.onmessage=event=>{const response=JSON.parse(event.data);if(response.id!==3)return;
         clearTimeout(timer);if(response.error||response.result?.exceptionDetails)reject(Error(JSON.stringify(response)));else done();};
     });
