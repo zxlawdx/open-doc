@@ -19,6 +19,25 @@
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
     const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>book?.id,signal});
     const sheet=()=>book.sheets[index];
+    const geometryCache=new WeakMap();let sizeDrag=null;
+    function geometry(){
+      const target=sheet(),layout=sizeDrag?.sheet===target?sizeDrag.preview:target.layout||null;
+      let cached=geometryCache.get(target);if(cached?.layout===layout&&cached.zoom===zoom)return cached;
+      const scale=zoom/100,rows=[0],columns=[0],merged=new Map();
+      for(let r=0;r<ROWS;r++)rows.push(rows[r]+(layout?.rows?.[r]??28)*scale);
+      for(let c=0;c<COLS;c++)columns.push(columns[c]+(layout?.columns?.[c]??112)*scale);
+      for(const rng of layout?.merges||[])for(let r=rng[0];r<=rng[2];r++)for(let c=rng[1];c<=rng[3];c++)merged.set(key(r,c),rng);
+      cached={layout,zoom,rows,columns,merged,freeze:layout?.freeze||[0,0]};geometryCache.set(target,cached);return cached;
+    }
+    function locate(offsets,pixel){let lo=0,hi=offsets.length-1;while(lo<hi){const mid=(lo+hi+1)>>1;if(offsets[mid]<=pixel)lo=mid;else hi=mid-1;}return Math.min(offsets.length-2,lo);}
+    function gridSize(){const g=geometry();space.style.width=GUTTER+g.columns[COLS]+"px";space.style.height=HEIGHT+g.rows[ROWS]+"px";}
+    function cellBox(r,c){const g=geometry(),rng=g.merged.get(key(r,c))||[r,c,r,c];return {x:GUTTER+g.columns[rng[1]]+(rng[1]<g.freeze[1]?viewport.scrollLeft:0),y:HEIGHT+g.rows[rng[0]]+(rng[0]<g.freeze[0]?viewport.scrollTop:0),width:g.columns[rng[3]+1]-g.columns[rng[1]],height:g.rows[rng[2]+1]-g.rows[rng[0]]};}
+    function displayValue(value,kind,style){
+      const result=typesUI.show(value,kind);if(kind!=="auto"||typeof value!=="number"||!style?.number_format)return result;
+      const fmt=style.number_format,match=/0\.(0+)/.exec(fmt),digits=Math.min(10,match?match[1].length:0);
+      if(/[0#]/.test(fmt)&&!/[dmyh]/i.test(fmt))result.text=new Intl.NumberFormat('pt-BR',{minimumFractionDigits:digits,maximumFractionDigits:digits,useGrouping:fmt.includes(','),...(fmt.includes('%')?{style:'percent'}:{})}).format(value);
+      return result;
+    }
     const raw=()=>sheet().cells[key(row,col)] || "";
     const native=()=>window.pywebview.api;
     const notifyDirty=value=>onDirty?onDirty(value):native().set_dirty?.(value);
@@ -58,7 +77,7 @@
 
     });
     const drawings=window.OpenDocWorkbookObjects.create({host,viewport,signal,request,dialog,report,
-      getState:()=>({sheet:sheet(),bookId:book.id,index,row,col,bounds:bounds(),calc,scale:WIDTH/112,gutter:GUTTER,cellHeight:HEIGHT,busy:Boolean(pending||importing),idle:async()=>{if(pending)await pending;}}),
+      getState:()=>({sheet:sheet(),bookId:book.id,index,row,col,bounds:bounds(),calc,scale:WIDTH/112,gutter:GUTTER,cellHeight:HEIGHT,cellPosition:(r,c)=>{const g=geometry();return {x:g.columns[c]/(zoom/100),y:g.rows[r]/(zoom/100)};},busy:Boolean(pending||importing),idle:async()=>{if(pending)await pending;}}),
       change:(target,before,after)=>change(()=>{if(before===undefined)delete target.objects;else target.objects=before;},()=>{target.objects=after;})});
     function controls() {
       coord.value=anchor[0]===row&&anchor[1]===col?column(col)+(row+1):rangeAddress(bounds());
@@ -81,9 +100,14 @@
       if (!book || host.hidden) return;
       drawings.sync();
       const left=viewport.scrollLeft, top=viewport.scrollTop;
-      const firstRow=Math.max(0,Math.floor(top/HEIGHT)), firstCol=Math.max(0,Math.floor(left/WIDTH));
-      const endRow=Math.min(ROWS,firstRow+Math.ceil(viewport.clientHeight/HEIGHT)+1);
-      const endCol=Math.min(COLS,firstCol+Math.ceil(viewport.clientWidth/WIDTH)+1);
+      const g=geometry();gridSize();
+      const firstRow=locate(g.rows,Math.max(0,top)),firstCol=locate(g.columns,Math.max(0,left));
+      const endRow=Math.min(ROWS,locate(g.rows,top+viewport.clientHeight)+2),endCol=Math.min(COLS,locate(g.columns,left+viewport.clientWidth)+2);
+      const visibleRows=new Set(),visibleCols=new Set();
+      for(let r=firstRow;r<endRow;r++)visibleRows.add(r);for(let r=0;r<g.freeze[0];r++)if(g.rows[r]<viewport.clientHeight)visibleRows.add(r);
+      for(let c=firstCol;c<endCol;c++)visibleCols.add(c);for(let c=0;c<g.freeze[1];c++)if(g.columns[c]<viewport.clientWidth)visibleCols.add(c);
+      for(const rng of g.layout?.merges||[])if(rng[2]>=firstRow&&rng[0]<endRow&&rng[3]>=firstCol&&rng[1]<endCol){visibleRows.add(rng[0]);visibleCols.add(rng[1]);}
+      space.classList.toggle('book-no-gridlines',g.layout?.gridlines===false);
       const bold=new Set(sheet().bold);
       const fragment=document.createDocumentFragment();
       function item(className,x,y,w,text) {
@@ -105,18 +129,22 @@
         pivotExtents.set(sheet().cells,extent);
       }
       const [pivotBottom,pivotRight]=extent||[-1,-1];
-      for(let r=firstRow;r<endRow;r++) {
+      for(const r of [...visibleRows].sort((a,b)=>a-b)) {
         const line=document.createElement("div");
         line.setAttribute("role","row");
         line.setAttribute("aria-rowindex",String(r+1));
-        const heading=item("book-heading",left,(r+1)*HEIGHT,GUTTER,r+1);
+        const heading=item("book-heading",left,HEIGHT+g.rows[r]+(r<g.freeze[0]?top:0),GUTTER,r+1);
+        heading.style.height=g.rows[r+1]-g.rows[r]+"px";if(r<g.freeze[0])heading.style.zIndex="10";
         if(r>=selection[0]&&r<=selection[2])heading.classList.add("book-heading-selected");
         heading.dataset.bookRow=String(r);heading.setAttribute("role","rowheader");
-        line.append(heading);
-        for(let c=firstCol;c<endCol;c++) {
+        addResizeHandle(heading,"rows",r);line.append(heading);
+        for(const c of [...visibleCols].sort((a,b)=>a-b)) {
+          const merged=g.merged.get(key(r,c));if(merged&&(merged[0]!==r||merged[1]!==c))continue;
           const id=key(r,c);
-          const kind=typesUI.typeFor(sheet(),r,c),formatted=typesUI.show(calc(index,r,c),kind);
-          const cell=item("book-cell",GUTTER+c*WIDTH,(r+1)*HEIGHT,WIDTH,formatted.text);
+          const kind=typesUI.typeFor(sheet(),r,c),formatted=displayValue(calc(index,r,c),kind,sheet().styles?.[id]);
+          const box=cellBox(r,c),cell=item("book-cell",box.x,box.y,box.width,formatted.text);cell.style.height=box.height+"px";
+          if(merged){cell.setAttribute('aria-colspan',String(merged[3]-c+1));cell.setAttribute('aria-rowspan',String(merged[2]-r+1));}
+          if(r<g.freeze[0]||c<g.freeze[1]){cell.classList.add('book-frozen');cell.style.zIndex=r<g.freeze[0]&&c<g.freeze[1]?'7':'6';}
           if(!formatted.valid){cell.classList.add("book-type-error");
             cell.title="Valor incompatível com "+kind+" · original: "+(sheet().cells[id]||"");}
           else if(kind!=="auto")cell.title="Tipo: "+kind+" · original: "+(sheet().cells[id]||"");
@@ -143,6 +171,7 @@
               cell.style.backgroundColor=style.fill||"var(--color-paper)";
             }
             cell.style.textAlign=style.align||"";
+            if(style.valign){cell.style.display='flex';cell.style.alignItems={top:'flex-start',center:'center',bottom:'flex-end'}[style.valign];cell.style.justifyContent={left:'flex-start',center:'center',right:'flex-end'}[style.align]||'flex-start';}
             if(style.border)cell.classList.add("book-bordered");
             if(style.wrap)cell.classList.add("book-wrapped");
           }
@@ -167,8 +196,9 @@
         }
         fragment.append(line);
       }
-      for(let c=firstCol;c<endCol;c++){
-        const heading=item("book-heading",GUTTER+c*WIDTH,top,WIDTH,column(c));
+      for(const c of [...visibleCols].sort((a,b)=>a-b)){
+        const heading=item("book-heading",GUTTER+g.columns[c]+(c<g.freeze[1]?left:0),top,g.columns[c+1]-g.columns[c],column(c));
+        if(c<g.freeze[1])heading.style.zIndex="10";
         if(c>=selection[1]&&c<=selection[3])heading.classList.add("book-heading-selected");
         heading.setAttribute("role","columnheader");
         heading.dataset.bookCol=String(c);
@@ -176,9 +206,9 @@
         if(kind!=="auto"){heading.classList.add("book-typed");
           heading.textContent+=" · "+(typesUI.symbols[kind]||kind);
           heading.title="Tipo da coluna: "+kind;}
-        fragment.append(heading);
+        addResizeHandle(heading,"columns",c);fragment.append(heading);
       }
-      fragment.append(item("book-heading book-corner",left,top,GUTTER,""));
+      const corner=item("book-heading book-corner",left,top,GUTTER,"");corner.style.zIndex="12";fragment.append(corner);
       space.replaceChildren(fragment);
     }
     function schedule() {if(frame===undefined)frame=requestAnimationFrame(draw);}
@@ -191,22 +221,24 @@
           $("[data-book-command=sql-to-sheet]").disabled=true;
         }
       }
-      controls();schedule();
+      gridSize();controls();schedule();
     }
     function select(r,c,extend=false,reveal=false) {
       row=Math.min(ROWS-1,Math.max(0,r));col=Math.min(COLS-1,Math.max(0,c));
+      const merged=geometry().merged.get(key(row,col));if(!extend&&merged){row=merged[0];col=merged[1];}
       if(!extend)anchor=[row,col];
       if(reveal) {
-        const y=(row+1)*HEIGHT, x=GUTTER+col*WIDTH;
+        const {y,x,width:cellWidth,height:cellHeight}=cellBox(row,col);
         if(y<viewport.scrollTop+HEIGHT)viewport.scrollTop=y-HEIGHT;
-        else if(y+HEIGHT>viewport.scrollTop+viewport.clientHeight)viewport.scrollTop=y+HEIGHT-viewport.clientHeight;
+        else if(y+cellHeight>viewport.scrollTop+viewport.clientHeight)viewport.scrollTop=y+cellHeight-viewport.clientHeight;
         if(x<viewport.scrollLeft+GUTTER)viewport.scrollLeft=x-GUTTER;
-        else if(x+WIDTH>viewport.scrollLeft+viewport.clientWidth)viewport.scrollLeft=x+WIDTH-viewport.clientWidth;
+        else if(x+cellWidth>viewport.scrollLeft+viewport.clientWidth)viewport.scrollLeft=x+cellWidth-viewport.clientWidth;
       }
       formula.value=raw();update(false);
     }
     function bounds() {
-      return [Math.min(row,anchor[0]),Math.min(col,anchor[1]),Math.max(row,anchor[0]),Math.max(col,anchor[1])];
+      const range=[Math.min(row,anchor[0]),Math.min(col,anchor[1]),Math.max(row,anchor[0]),Math.max(col,anchor[1])];
+      for(const rng of sheet().layout?.merges||[])if(rng[0]<=range[2]&&rng[2]>=range[0]&&rng[1]<=range[3]&&rng[3]>=range[1]){range[0]=Math.min(range[0],rng[0]);range[1]=Math.min(range[1],rng[1]);range[2]=Math.max(range[2],rng[2]);range[3]=Math.max(range[3],rng[3]);}return range;
     }
     function renderTabs() {
       tabs.replaceChildren(...book.sheets.map(({name},i)=>{
@@ -216,7 +248,7 @@
       }));
     }
     function choose(next) {
-      index=next;lastClick=null;
+      index=next;gridSize();lastClick=null;
       viewport.scrollTop=0;viewport.scrollLeft=0;
       select(0,0);update();
       $("[data-book-query-results]").replaceChildren();lastSqlQuery=null;
@@ -260,9 +292,7 @@
       notifyDirty(dirty);
     }
     function positionInline() {
-      inline.style.left=GUTTER+col*WIDTH+"px";
-      inline.style.top=(row+1)*HEIGHT+"px";
-      inline.style.width=WIDTH+"px";
+      const box=cellBox(row,col);inline.style.left=box.x+"px";inline.style.top=box.y+"px";inline.style.width=box.width+"px";inline.style.height=box.height+"px";
     }
     function resizeGrid(value) {
       const scale=value/100;
@@ -270,8 +300,7 @@
       WIDTH=Math.round(112*scale);HEIGHT=Math.round(28*scale);GUTTER=Math.round(52*scale);
       viewport.style.setProperty("--book-cell-height",HEIGHT+"px");
       viewport.style.setProperty("--book-grid-font",Math.round(13*scale)+"px");
-      space.style.width=GUTTER+COLS*WIDTH+"px";
-      space.style.height=(ROWS+1)*HEIGHT+"px";
+      gridSize();
       viewport.scrollLeft=left*WIDTH;
       viewport.scrollTop=top*HEIGHT;
       if(!inline.hidden)positionInline();
@@ -455,7 +484,7 @@
     function load(value) {
       inline.hidden=true;pivotUI.close();
       $("[data-book-command=pivot]").setAttribute("aria-expanded","false");
-      book=value;title.value=value.title;
+      book=value;index=0;title.value=value.title;
       undo.length=0;redo.length=0;dirty=false;notifyDirty(false);
       resizeGrid(zoom);renderTabs();choose(0);report("Salvo neste dispositivo");
     }
@@ -605,6 +634,13 @@
           ()=>{book.sheets.push(next);renderTabs();choose(book.sheets.length-1);});
         report("Resultado SQL enviado à aba "+nameSheet+(result.limited?" (100 linhas de prévia).":"."));return;
       }
+      if(['column-width','row-height','fit-column','fit-row'].includes(name)){
+        const scope=name.includes('column')?'columns':'rows',rng=bounds(),start=scope==='columns'?rng[1]:rng[0],end=scope==='columns'?rng[3]:rng[2];
+        if(name.startsWith('fit-')){autoFit(scope,start,end);return;}
+        const value=await dialog(scope==='columns'?'Largura da coluna':'Altura da linha','Tamanho em pixels (16 a 2000):',true,null,{label:'Pixels',type:'number',initial:String(sheet().layout?.[scope]?.[start]??(scope==='columns'?112:28))});
+        if(value===null||value==='')return;const size=Number(value);if(!Number.isFinite(size)||size<16||size>2000)throw Error('Use um tamanho entre 16 e 2000 pixels.');
+        setSizes(scope,Object.fromEntries(Array.from({length:end-start+1},(_,i)=>[start+i,size])));return;
+      }
       if(name==="close-pivot")return togglePivot(false);
       if(name==="pivot-fields")return pivotUI.reload();
       if(name==="pivot-create"||name==="pivot-refresh")return createPivot();
@@ -671,7 +707,7 @@
     }
     const run=name=>command(name).catch(error=>report(error.message));
     host.addEventListener("click",event=>{
-      if(importing)return;
+      if(importing||event.target.closest("[data-book-resize]"))return;
       const command=event.target.closest("[data-book-command]");
       const tab=event.target.closest("[data-index]");
       const cell=event.target.closest("[data-cell]");
@@ -704,6 +740,48 @@
         }
       }
     },{signal});
+    function setSizes(scope,sizes){
+      const target=sheet(),before=target.layout,after={...before,[scope]:{...before?.[scope],...sizes}};
+      change(()=>target.layout=before,()=>target.layout=after);report('Tamanho ajustado. Ctrl+Z para desfazer.');
+    }
+    function addResizeHandle(heading,scope,position){
+      const grip=document.createElement('span');grip.dataset.bookResize=scope;grip.dataset.position=position;grip.className='book-resize-handle '+(scope==='columns'?'book-resize-column':'book-resize-row');
+      grip.title='Arraste para redimensionar. Duplo clique para ajustar aos dados.';grip.setAttribute('aria-label',scope==='columns'?'Redimensionar coluna '+column(position):'Redimensionar linha '+(position+1));heading.append(grip);
+    }
+    const measureCanvas=document.createElement('canvas');
+    function autoFit(scope,start,end){
+      const context=measureCanvas.getContext('2d'),g=geometry(),sizes={},entries=Object.keys(sheet().cells),bold=new Set(sheet().bold);
+      if(!context)throw Error('Medição de texto indisponível.');
+      for(let position=start;position<=end;position++)sizes[position]=scope==='columns'?40:28;
+      for(const id of entries){
+        const [r,c]=id.split(',').map(Number),position=scope==='columns'?c:r;if(position<start||position>end)continue;
+        const merge=g.merged.get(id);if(merge&&(merge[0]!==r||merge[1]!==c||scope==='columns'&&merge[3]>c||scope==='rows'&&merge[2]>r))continue;
+        const style=sheet().styles?.[id]||{},fontSize=(style.size||10)*4/3;
+        context.font=(style.italic?'italic ':'')+(bold.has(id)?'bold ':'')+fontSize+'px '+(style.family||'Arial');
+        const text=displayValue(calc(index,r,c),typesUI.typeFor(sheet(),r,c),style).text,lines=String(text).split('\n');
+        let size;
+        if(scope==='columns')size=Math.max(...lines.map(line=>context.measureText(line).width))+18;
+        else{const width=(g.columns[(merge?.[3]??c)+1]-g.columns[c])/(zoom/100)-14;const count=lines.reduce((sum,line)=>sum+(style.wrap?wrappedLines(line,width,context):1),0);size=count*fontSize*1.25+10;}
+        sizes[position]=Math.min(2000,Math.max(sizes[position],Math.ceil(size)));
+      }
+      setSizes(scope,sizes);
+    }
+    function wrappedLines(text,width,context){let count=1,line='';for(const word of text.split(/(\s+)/)){const next=line+word;if(line&&context.measureText(next).width>width){count++;line=word.trimStart();}else line=next;if(context.measureText(line).width>width){const extra=Math.ceil(context.measureText(line).width/Math.max(1,width));count+=extra-1;line='';}}return count;}
+    viewport.addEventListener('pointerdown',event=>{
+      const grip=event.target.closest('[data-book-resize]');if(!grip||event.button!==0||pending||importing)return;
+      event.preventDefault();event.stopPropagation();finishInline();commit();
+      const scope=grip.dataset.bookResize,position=Number(grip.dataset.position),target=sheet();
+      sizeDrag={sheet:target,scope,position,pointer:event.pointerId,start:scope==='columns'?event.clientX:event.clientY,size:target.layout?.[scope]?.[position]??(scope==='columns'?112:28),before:target.layout,preview:target.layout||{}};
+      document.body.style.cursor=scope==='columns'?'col-resize':'row-resize';
+    },{signal});
+    window.addEventListener('pointermove',event=>{
+      if(!sizeDrag||event.pointerId!==sizeDrag.pointer)return;
+      const d=sizeDrag,delta=((d.scope==='columns'?event.clientX:event.clientY)-d.start)/(zoom/100);
+      d.next=Math.min(2000,Math.max(16,d.size+delta));d.preview={...d.before,[d.scope]:{...d.before?.[d.scope],[d.position]:d.next}};gridSize();schedule();
+    },{signal});
+    function finishSize(event){if(!sizeDrag||event.pointerId!==sizeDrag.pointer)return;const d=sizeDrag;sizeDrag=null;document.body.style.cursor='';if(event.type!=='pointercancel'&&d.next!==undefined)setSizes(d.scope,{[d.position]:d.next});else{gridSize();schedule();}}
+    window.addEventListener('pointerup',finishSize,{signal});window.addEventListener('pointercancel',finishSize,{signal});
+    viewport.addEventListener('dblclick',event=>{const grip=event.target.closest('[data-book-resize]');if(!grip)return;event.preventDefault();event.stopPropagation();if(pending||importing)return;try{autoFit(grip.dataset.bookResize,Number(grip.dataset.position),Number(grip.dataset.position));}catch(error){report(error.message);}},{signal});
     let drag=null,skipClick=false;
     viewport.addEventListener("pointerdown",event=>{
       const cell=event.target.closest("[data-cell]");
@@ -839,7 +917,7 @@
       const target=sheet(),position=isColumn?col:row,limit=isColumn?COLS:ROWS;
       // Moving a reference without migrating its formula or pivot metadata could
       // silently change a result. Allow this operation on plain workbooks only.
-      if(book.sheets.some(item=>item.pivot||item.objects?.some(obj=>obj.type==='chart')||Object.values(item.cell_tools||{}).some(tool=>tool.sparkline)||Object.values(item.cells).some(value=>value.startsWith("="))))
+      if(book.sheets.some(item=>item.layout?.merges?.length||item.layout?.freeze?.some(Boolean)||item.pivot||item.objects?.some(obj=>obj.type==='chart')||Object.values(item.cell_tools||{}).some(tool=>tool.sparkline)||Object.values(item.cells).some(value=>value.startsWith("="))))
         throw Error("A estrutura só pode ser alterada em pastas sem fórmulas e sem tabelas dinâmicas.");
       const move=index=>{
         if(index<position)return index;
@@ -856,8 +934,9 @@
         const next=addressOf(id);
         return next===null?[]:[[next,value]];
       }));
-      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types,cell_tools:target.cell_tools};
+      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types,cell_tools:target.cell_tools,layout:target.layout};
       const after={
+        layout:target.layout&&{...target.layout,[isColumn?"columns":"rows"]:remap(target.layout[isColumn?"columns":"rows"],id=>move(Number(id)))},
         cells:remap(target.cells,cellAddress),
         bold:target.bold.map(cellAddress).filter(id=>id!==null),
         styles:target.styles&&remap(target.styles,cellAddress),

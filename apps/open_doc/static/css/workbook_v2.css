@@ -490,3 +490,13 @@
 .open-doc .book-cell>a {color:var(--color-primary);text-decoration:underline}
 
 .open-doc .book-cell>svg[aria-label^=Minigráfico] {display:block;width:100%;height:100%}
+
+/* Variable geometry; handles stay on headings so selection and resizing do not conflict. */
+.open-doc .book-resize-handle {position:absolute;display:block;z-index:3;touch-action:none;user-select:none}
+.open-doc .book-resize-column {right:0;top:0;width:7px;height:100%;cursor:col-resize}
+.open-doc .book-resize-row {left:0;bottom:0;width:100%;height:7px;cursor:row-resize}
+.open-doc .book-resize-handle:hover {background:var(--color-primary);opacity:.5}
+.open-doc .book-cell.book-frozen {background:var(--color-paper)}
+.open-doc .book-no-gridlines .book-cell {border-color:transparent}
+.open-doc .book-cell.book-wrapped {white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.25}
+.open-doc .workbook .book-inline-editor {min-width:16px}

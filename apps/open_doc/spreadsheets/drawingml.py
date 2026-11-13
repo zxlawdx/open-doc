@@ -209,8 +209,9 @@ def write_shapes(path, sheets):
             for obj in shapes:
                 anchor = element(drawing, D, "oneCellAnchor")
                 start = element(anchor, D, "from")
-                col, x = divmod(obj["x"], 112)
-                row, y = divmod(obj["y"], 28)
+                from .layout import cell_anchor
+
+                col, row, x, y = cell_anchor(source, obj["x"], obj["y"])
                 for key, value in (
                     ("col", int(col)),
                     ("colOff", round(x * 9525)),
@@ -397,6 +398,9 @@ def read_shapes(path, sheets):
                     ink = shape.find(
                         ".//{" + A + "}rPr/{" + A + "}solidFill/{" + A + "}srgbClr"
                     )
+                from .layout import cell_position
+
+                base_x, base_y = cell_position(target, value("row"), value("col"))
                 obj = {
                     "id": uuid4().hex,
                     "type": "shape",
@@ -405,8 +409,8 @@ def read_shapes(path, sheets):
                     "text": "\n".join(texts),
                     "fill": color("solidFill", "#E8F0FE"),
                     "color": "#" + ink.get("val") if ink is not None else "#174EA6",
-                    "x": value("col") * 112 + value("colOff") / 9525,
-                    "y": value("row") * 28 + value("rowOff") / 9525,
+                    "x": base_x + value("colOff") / 9525,
+                    "y": base_y + value("rowOff") / 9525,
                     "width": int(extent.get("cx")) / 9525,
                     "height": int(extent.get("cy")) / 9525,
                 }
