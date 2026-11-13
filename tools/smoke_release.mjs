@@ -5,6 +5,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
+import {workbookObjectsSmoke} from "./workbook_objects_fixture.mjs";
 import {pptxCompatibilityFixture} from "./pptx_compat_fixture.mjs";
 const pptxBytes = Array.from(pptxCompatibilityFixture());
 const binary = resolve(process.argv[2]);
@@ -138,6 +139,16 @@ try {
   console.log(`OPEN_DOC_FROZEN_PPTX_COMPAT_OK ${binary}`);
   console.log(`OPEN_DOC_FROZEN_DOCX_IMAGE_OK ${binary} ${imageCheck.media}`);
   console.log(`OPEN_DOC_FROZEN_UI_OK ${binary}`);
+  ws.close();ws=new WebSocket(debuggerUrl);
+  const worksheetCheck=await new Promise((done,reject)=>{
+    const timer=setTimeout(()=>reject(Error('Packaged worksheet objects timed out.')),30000);
+    ws.onerror=()=>{clearTimeout(timer);reject(Error('Worksheet objects CDP failed.'));};
+    ws.onopen=()=>ws.send(JSON.stringify({id:4,method:'Runtime.evaluate',params:{awaitPromise:true,returnByValue:true,expression:`(${workbookObjectsSmoke.toString()})()`}}));
+    ws.onmessage=event=>{const message=JSON.parse(event.data);if(message.id!==4)return;clearTimeout(timer);
+      if(message.error||message.result?.exceptionDetails)reject(Error(JSON.stringify(message.error||message.result.exceptionDetails)));else done(message.result?.result?.value);};
+  });
+  if(!worksheetCheck?.ok)throw Error('Packaged worksheet objects failed.');
+  console.log(`OPEN_DOC_FROZEN_WORKBOOK_OBJECTS_OK ${binary}`);
   if(process.env.OPEN_DOC_NATIVE_PIXELS==='1'){
     const run=(command,args)=>{
       const result=spawnSync(command,args,{encoding:'utf8',timeout:10000});
