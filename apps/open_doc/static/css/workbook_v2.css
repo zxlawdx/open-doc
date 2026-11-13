@@ -468,3 +468,25 @@
 .open-doc .pivot-tutorial {margin:12px 14px 0;padding:12px 16px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-panel);font-size:13px;line-height:1.6}
 .open-doc .pivot-tutorial summary {cursor:pointer;font-weight:700;color:var(--color-primary)}
 .open-doc .pivot-tutorial li {margin:6px 0}
+
+.open-doc .workbook-drawings {position:absolute;left:0;top:0;width:0;height:0;z-index:4;pointer-events:none}
+.open-doc .workbook-drawing {position:absolute;pointer-events:auto;outline:1px solid var(--color-border);background:var(--color-panel);color:var(--color-text-primary);touch-action:none}
+.open-doc .workbook-drawing[data-selected=true] {outline:2px solid var(--color-primary);z-index:2}
+.open-doc .workbook-drawing-content {width:100%;height:100%;overflow:hidden}
+.open-doc .workbook-drawing-content>img {display:block;width:100%;height:100%;object-fit:contain;user-select:none}
+.open-doc .workbook-drawing-content>svg {display:block;width:100%;height:100%}
+.open-doc .workbook-drawing-tools {display:none;position:absolute;bottom:100%;left:0;background:var(--color-panel);border:1px solid var(--color-border);white-space:nowrap}
+.open-doc .workbook-drawing[data-selected=true] .workbook-drawing-tools {display:flex}
+.open-doc .workbook-drawing-tools button {padding:4px 8px;font-size:12px}
+.open-doc .workbook-drawing-resize {display:none;position:absolute;right:-5px;bottom:-5px;width:12px;height:12px;padding:0;background:var(--color-primary);border:2px solid var(--color-panel);cursor:nwse-resize}
+.open-doc .workbook-drawing[data-selected=true] .workbook-drawing-resize {display:block}
+
+.open-doc .workbook-scroll .book-heading {z-index:8}
+.open-doc .workbook-scroll .book-corner {z-index:9}
+
+.open-doc .book-cell.book-commented::after {content:"";position:absolute;right:0;top:0;border-top:7px solid var(--color-primary);border-left:7px solid transparent}
+.open-doc .book-cell>input[type=checkbox] {width:16px;height:16px;margin:4px;accent-color:var(--color-primary)}
+.open-doc .book-cell>select {width:100%;height:100%;border:0;border-radius:0;background:transparent;color:inherit;padding:0}
+.open-doc .book-cell>a {color:var(--color-primary);text-decoration:underline}
+
+.open-doc .book-cell>svg[aria-label^=Minigráfico] {display:block;width:100%;height:100%}

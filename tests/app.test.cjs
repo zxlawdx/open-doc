@@ -298,7 +298,7 @@ test('module resources load concurrently, reuse shared scripts and allow direct 
     'grid_workspace.js':'OpenDocGridWorkspace','workbook_formula.js':'OpenDocWorkbookFormula',
     'workbook_pivot.js':'OpenDocWorkbookPivot','workbook_pivot_ui.js':'OpenDocWorkbookPivotUI',
     'workbook_types.js':'OpenDocWorkbookTypes','python_packages.js':'OpenDocPythonPackages',
-    'workbook.js':'OpenDocWorkbook','datasets.js':'OpenDocDatasets',
+    'workbook.js':'OpenDocWorkbook','datasets.js':'OpenDocDatasets','workbook_objects.js':'OpenDocWorkbookObjects',
     'code-editor.bundle.js':'OpenDocCodeVendor','code_editor.js':'OpenDocCodeEditor',
     'code_notebook.js':'OpenDocCodeNotebook'
   };
@@ -315,7 +315,7 @@ test('module resources load concurrently, reuse shared scripts and allow direct 
   };
   const filesBefore=requests.filter(r=>r.url.endsWith('/files')).length;
   const opening=w.OpenDocApp.action('workbook-new');
-  assert.equal(pending.length,7,'independent resources start together');
+  assert.equal(pending.length,8,'independent resources start together');
   pending.splice(0).forEach(resolve=>resolve());await opening;
   assert.equal(root.dataset.workbookView,'true');assert.equal(loads,1);
   assert.equal(requests.filter(r=>r.url.endsWith('/files')).length,filesBefore,
@@ -341,7 +341,7 @@ test('a slow DOCX save cannot block spreadsheets or let a late document steal th
  source.value='Cálculos pendentes';source.dispatchEvent(new w.Event('input',{bubbles:true}));editor.refresh();
  editor.flush=()=>new Promise(resolve=>{releaseSave=resolve;});
  w.OpenDocGridWorkspace={};w.OpenDocWorkbookFormula={};w.OpenDocWorkbookPivot={};
- w.OpenDocWorkbookPivotUI={};w.OpenDocWorkbookTypes={};w.OpenDocPythonPackages={};
+ w.OpenDocWorkbookPivotUI={};w.OpenDocWorkbookObjects={};w.OpenDocWorkbookTypes={};w.OpenDocPythonPackages={};
  w.OpenDocWorkbook={create:options=>{
   return {load:()=>options.onDirty(false),save:async()=>{},value:()=>100};
  }};

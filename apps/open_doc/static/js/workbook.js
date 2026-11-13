@@ -57,6 +57,9 @@
       }
 
     });
+    const drawings=window.OpenDocWorkbookObjects.create({host,viewport,signal,request,dialog,report,
+      getState:()=>({sheet:sheet(),bookId:book.id,index,row,col,bounds:bounds(),calc,scale:WIDTH/112,gutter:GUTTER,cellHeight:HEIGHT}),
+      change:(target,before,after)=>change(()=>{if(before===undefined)delete target.objects;else target.objects=before;},()=>{target.objects=after;})});
     function controls() {
       coord.value=anchor[0]===row&&anchor[1]===col?column(col)+(row+1):rangeAddress(bounds());
       if(document.activeElement!==formula) formula.value=raw();
@@ -76,6 +79,7 @@
     function draw() {
       frame=undefined;
       if (!book || host.hidden) return;
+      drawings.sync();
       const left=viewport.scrollLeft, top=viewport.scrollTop;
       const firstRow=Math.max(0,Math.floor(top/HEIGHT)), firstCol=Math.max(0,Math.floor(left/WIDTH));
       const endRow=Math.min(ROWS,firstRow+Math.ceil(viewport.clientHeight/HEIGHT)+1);
@@ -147,6 +151,17 @@
           if(r>=selection[0]&&r<=selection[2]&&c>=selection[1]&&c<=selection[3]){
             cell.classList.add("selected");
             cell.setAttribute("aria-selected","true");
+          }
+          const tool=sheet().cell_tools?.[id];
+          if(tool){
+            if(tool.comment){cell.classList.add('book-commented');cell.title=(cell.title||formatted.text)+' — '+tool.comment;}
+            if(tool.hyperlink){const link=document.createElement('a');link.href=tool.hyperlink;link.target='_blank';link.rel='noopener noreferrer';link.textContent=formatted.text||tool.hyperlink;cell.replaceChildren(link);}
+            if(tool.checkbox){const input=document.createElement('input');input.type='checkbox';input.dataset.bookCheckbox=id;input.checked=['true','1','sim'].includes(String(calc(index,r,c)).toLowerCase());input.setAttribute('aria-label','Marcar '+column(c)+(r+1));cell.replaceChildren(input);}
+            if(tool.sparkline)cell.replaceChildren(window.OpenDocWorkbookObjects.sparklineSvg(tool.sparkline,{calc,index}));
+            if(tool.choices){const select=document.createElement('select');select.dataset.bookChoice=id;select.setAttribute('aria-label','Opções de '+column(c)+(r+1));
+              const current=String(calc(index,r,c));
+              for(const value of [...new Set(['',...tool.choices,...(tool.choices.includes(current)?[]:[current])])]){const option=document.createElement('option');option.value=value;option.textContent=value;select.append(option);}
+              select.value=current;cell.replaceChildren(select);}
           }
           line.append(cell);
         }
@@ -464,8 +479,54 @@
         for(const input of controls)input.disabled=false;
       }
     }
+    function insertSparklines(){
+      const target=sheet(),[top,left,bottom,right]=bounds();
+      if(top===bottom&&left===right||right+1>=COLS)throw Error('Selecione ao menos dois valores e deixe uma coluna livre à direita.');
+      const before=target.cell_tools,after={...before},kind=$('[data-book-spark-kind]').value;
+      const groups=left===right?[[top,left,bottom,right]]:Array.from({length:bottom-top+1},(_,i)=>[top+i,left,top+i,right]);
+      for(const range of groups){const id=key(range[0],right+1);
+        if(target.cells[id]||before?.[id]?.checkbox||before?.[id]?.choices||before?.[id]?.hyperlink)throw Error('As células à direita precisam estar vazias, sem outro controle.');
+        after[id]={...before?.[id],sparkline:{kind,range}};
+      }
+      change(()=>{if(before===undefined)delete target.cell_tools;else target.cell_tools=before;},()=>{target.cell_tools=after;});
+      select(top,right+1,false,true);
+    }
+    async function configureCellTools(name){
+      const target=sheet(),ids=rectangle().flat(),before=target.cell_tools,after={...before};
+      if(name==='clear-tools'){
+        for(const id of ids)delete after[id];
+        change(()=>{if(before===undefined)delete target.cell_tools;else target.cell_tools=before;},()=>{target.cell_tools=after;});return;
+      }
+      let value;
+      if(name==='checkbox')value=!ids.every(id=>before?.[id]?.checkbox);
+      else{
+        const labels={choices:'Opções separadas por ponto e vírgula',comment:'Comentário',hyperlink:'Endereço HTTP, HTTPS ou mailto'};
+        const current=before?.[ids[0]]?.[name];
+        value=await dialog(labels[name],name==='choices'?'Exemplo: Pendente; Em andamento; Concluído. Esvazie para remover.':'Esvazie o campo para remover.',true,null,{label:labels[name]+' ',type:'text',initial:Array.isArray(current)?current.join('; '):current||''});
+        if(value===null||value===false||target!==sheet())return;
+        if(name==='choices'&&value){value=value.split(';').map(v=>v.trim()).filter(Boolean);
+          if(!value.length||value.length>50||new Set(value).size!==value.length||value.some(v=>/[",\r\n]/.test(v))||value.join(',').length>250)throw Error('Use até 50 opções únicas sem vírgulas ou aspas, com até 250 caracteres no total.');}
+        if(name==='hyperlink'&&value){const url=new URL(value);if(!['http:','https:','mailto:'].includes(url.protocol))throw Error('Use HTTP, HTTPS ou mailto.');}
+        if(name==='comment'&&value.length>4000)throw Error('Comentário deve ter até 4.000 caracteres.');
+      }
+      const oldCells=target.cells,newCells={...oldCells};
+      for(const id of ids){
+        const entry={...before?.[id]};
+        if(value&&(!Array.isArray(value)||value.length))entry[name]=value;else delete entry[name];
+        if(name==='checkbox'&&value){
+          if(oldCells[id]&&!['true','false','1','0','sim','não'].includes(oldCells[id].toLowerCase()))throw Error('Caixas de seleção exigem células vazias ou valores booleanos.');
+          delete entry.choices;delete entry.sparkline;if(!oldCells[id])newCells[id]='FALSE';
+        }
+        if(name==='choices'&&value){delete entry.checkbox;delete entry.sparkline;}
+        if(Object.keys(entry).length)after[id]=entry;else delete after[id];
+      }
+      change(()=>{if(before===undefined)delete target.cell_tools;else target.cell_tools=before;target.cells=oldCells;},()=>{target.cell_tools=after;target.cells=newCells;});
+    }
     async function command(name) {
       if(!book||pending||importing)return;
+      if(name==='sparkline')return insertSparklines();
+      if(['checkbox','choices','comment','hyperlink','clear-tools'].includes(name))return configureCellTools(name);
+      if(name==="image"||name==="chart"||name==="shape")return drawings.command(name);
       if(name==="save") return save();
       if(name==="add-tab"||name==="rename-tab")return command(name.slice(0,-4));
       if(["copy","cut","paste","paste-values"].includes(name))return transfer(name);
@@ -628,6 +689,7 @@
         }
         viewport.focus();
       }
+      if(event.target.matches('[data-book-checkbox],[data-book-choice]'))return;
       if(cell){
         if(skipClick){skipClick=false;return;}
         finishInline();
@@ -677,6 +739,12 @@
         }
         editInline();
       }
+    },{signal});
+    host.addEventListener('change',event=>{
+      const field=event.target,id=field.dataset.bookCheckbox||field.dataset.bookChoice;
+      if(!id||pending||importing)return;
+      const value=field.dataset.bookCheckbox?(field.checked?'TRUE':'FALSE'):field.value;
+      select(...id.split(',').map(Number));applyCells([[id,value]]);
     },{signal});
     inline.addEventListener("blur",()=>finishInline(),{signal});
     inline.addEventListener("input",()=>notifyDirty(true),{signal});
@@ -730,7 +798,7 @@
       typesUI.open({event,row:r,col:c,header:!!heading,rowHeader:!!rowHeading});
     },{signal});
     viewport.addEventListener("keydown",event=>{
-      if(event.isComposing||pending||importing)return;
+      if(event.isComposing||pending||importing||event.target.matches('[data-book-checkbox],[data-book-choice]'))return;
       lastClick=null;
       if(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")){
         event.preventDefault();typesUI.open({event,row,col,header:false});return;
@@ -771,7 +839,7 @@
       const target=sheet(),position=isColumn?col:row,limit=isColumn?COLS:ROWS;
       // Moving a reference without migrating its formula or pivot metadata could
       // silently change a result. Allow this operation on plain workbooks only.
-      if(book.sheets.some(item=>item.pivot||Object.values(item.cells).some(value=>value.startsWith("="))))
+      if(book.sheets.some(item=>item.pivot||item.objects?.some(obj=>obj.type==='chart')||Object.values(item.cell_tools||{}).some(tool=>tool.sparkline)||Object.values(item.cells).some(value=>value.startsWith("="))))
         throw Error("A estrutura só pode ser alterada em pastas sem fórmulas e sem tabelas dinâmicas.");
       const move=index=>{
         if(index<position)return index;
@@ -788,11 +856,12 @@
         const next=addressOf(id);
         return next===null?[]:[[next,value]];
       }));
-      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types};
+      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types,cell_tools:target.cell_tools};
       const after={
         cells:remap(target.cells,cellAddress),
         bold:target.bold.map(cellAddress).filter(id=>id!==null),
         styles:target.styles&&remap(target.styles,cellAddress),
+        cell_tools:target.cell_tools&&remap(target.cell_tools,cellAddress),
         types:target.types&&{cells:remap(target.types.cells,cellAddress),
           columns:isColumn?remap(target.types.columns,id=>move(Number(id))):target.types.columns},
       };
