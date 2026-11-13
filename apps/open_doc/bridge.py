@@ -285,7 +285,8 @@ class OpenDocBridge(BaseBridge):
             return {"cancelled": True}
         try:
             source = Path(paths[0])
-            return get_context().workbooks.create(source.stem, read(source), imported=True)
+            from apps.open_doc.spreadsheets.objects import media_directory
+            return get_context().workbooks.create(source.stem, read(source, media_directory=media_directory(get_context().config.root)), imported=True)
         except (ValueError, OSError, csv.Error) as error:
             return {"error": str(error)}
         except Exception:
@@ -328,7 +329,9 @@ class OpenDocBridge(BaseBridge):
             )
             if not paths:
                 return {"cancelled": True}
-            return export(book["sheets"], paths if isinstance(paths, str) else paths[0], fmt, sheet_index)
+            from apps.open_doc.spreadsheets.objects import media_directory
+            return export(book["sheets"], paths if isinstance(paths, str) else paths[0], fmt, sheet_index,
+                          media_directory=media_directory(get_context().config.root))
         except (ValueError, OSError) as error:
             return {"error": str(error)}
 
