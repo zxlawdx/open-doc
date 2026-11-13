@@ -459,6 +459,24 @@ class SlideDeckExporter:
                    and original.get(key) != value}
         if not changed:
             return
+        if obj.get('type') == 'image' and hasattr(shape, '_pic'):
+            if 'asset_id' in changed:
+                asset = self.model['assets'][obj['asset_id']]
+                stream = BytesIO(base64.b64decode(asset['data'], validate=True))
+                if asset['mime'] == 'image/webp':
+                    with Image.open(stream) as picture:
+                        converted = BytesIO();picture.save(converted, format='PNG');converted.seek(0)
+                    stream = converted
+                _, relationship = shape.part.get_or_add_image_part(stream)
+                shape._pic.blipFill.blip.rEmbed = relationship
+            if changed & {'image_opacity', 'image_brightness', 'image_contrast', 'image_grayscale', 'image_tint'}:
+                from pptx.oxml.ns import qn
+                blip = shape._pic.blipFill.blip
+                for effect in list(blip):
+                    if effect.tag in {qn('a:'+name) for name in ('alphaModFix','lum','grayscl','duotone')}:
+                        blip.remove(effect)
+                export_image_effects(blip, obj)
+            changed -= {'asset_id','image_opacity','image_brightness','image_contrast','image_grayscale','image_tint'}
         if shape.has_chart:
             chart_options = {
                 "chart_type", "chart_title", "chart_subtitle", "chart_palette",

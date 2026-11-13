@@ -22,7 +22,7 @@
       const obj=mode.object,source=findElement(index,obj.source_shape_id);
       const before=obj.source_original||{},changedNative=key=>JSON.stringify(obj[key])!==JSON.stringify(before[key]);
       if(obj.type==='chart'&&Object.keys(obj).some(key=>key.startsWith('chart_')&&changedNative(key)))return null;
-      if(obj.type==='image'&&['asset_id','crop_left','crop_right','crop_top','crop_bottom','flip_h','flip_v','image_brightness','image_contrast','image_grayscale'].some(changedNative))return null;
+      if(obj.type==='image'&&['asset_id','crop_left','crop_right','crop_top','crop_bottom','flip_h','flip_v','image_brightness','image_contrast','image_grayscale','image_opacity','image_tint'].some(changedNative))return null;
       if(obj.type==='math'&&changedNative('math_blocks'))return null;
       if(!source)return null;
       element={...source,bounds:{x:0,y:0,width:obj.width*presentation.slideSize.width,height:obj.height*presentation.slideSize.height},rotation:0};
@@ -84,7 +84,8 @@
       if(!run)continue;
       for(const [key,name] of Object.entries(fields))if(run[name]!==undefined){
         const value=key==='color'?run[name].hex:key==='font_size_pt'?Math.max(6,Math.min(144,run[name]*3/4)):run[name];
-        obj[key]=value;if(obj.source_original)obj.source_original[key]=value;
+        if(!obj.source_original||JSON.stringify(obj[key])===JSON.stringify(obj.source_original[key]))obj[key]=value;
+        if(obj.source_original)obj.source_original[key]=value;
       }
     }
   }

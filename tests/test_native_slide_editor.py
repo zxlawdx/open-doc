@@ -934,3 +934,22 @@ def test_legacy_readonly_import_is_upgraded_once_with_recovery_and_original_pres
     saved=ctx.fixed_documents.save(note['id'],note['title'],edited,upgraded['revision'])
     target=tmp_path/'legacy-edited.pptx';ctx.fixed_documents.export(note['id'],saved['revision'],'pptx',target)
     assert Presentation(target).slides[0].shapes[0].text=='Agora editável'
+
+
+def test_imported_picture_replacement_and_adjustments_survive_export(tmp_path):
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    from pptx.util import Inches
+    def photo(color):
+        stream=BytesIO();Image.new('RGB',(40,30),color).save(stream,format='PNG');return stream.getvalue()
+    deck=Presentation();slide=deck.slides.add_slide(deck.slide_layouts[6]);slide.shapes.add_picture(BytesIO(photo('green')),Inches(1),Inches(1))
+    source=tmp_path/'picture.pptx';deck.save(source);ctx=configure(Config(tmp_path));note=ctx.fixed_documents.import_pptx(source)
+    content=deepcopy(note['content']);obj=content['surfaces'][0]['elements'][0];replacement=photo('red')
+    content['assets']['replacement']={'mime':'image/png','data':base64.b64encode(replacement).decode()}
+    obj.update(asset_id='replacement',image_grayscale=True,image_opacity=50,crop_left=.1)
+    saved=ctx.fixed_documents.save(note['id'],note['title'],content,note['revision']);target=tmp_path/'replaced.pptx'
+    ctx.fixed_documents.export(note['id'],saved['revision'],'pptx',target)
+    picture=Presentation(target).slides[0].shapes[0];assert picture.image.blob==replacement;assert picture.crop_left==pytest.approx(.1)
+    from apps.open_doc.readers.pptx.image_effects import import_image_effects
+    assert import_image_effects(picture._pic.blipFill.blip)=={'image_opacity':50,'image_grayscale':True}
