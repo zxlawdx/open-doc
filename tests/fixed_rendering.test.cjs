@@ -4,7 +4,7 @@ function html(){return fs.readFileSync(path.join(rootDir,'apps/open_doc/template
 test('a text layer error never removes the completed PDF canvas',async t=>{
  const dom=new JSDOM(html(),{runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('[data-app]'),abort=new w.AbortController();t.after(()=>{abort.abort();w.close();});w.console.error=()=>{};w.HTMLCanvasElement.prototype.getContext=()=>({});w.IntersectionObserver=class{observe(){}disconnect(){}};w.eval(source('compat.js'));w.eval(source('document_model.js'));w.eval(source('history.js'));w.eval(source('recovery.js'));w.pywebview={api:{set_dirty:async()=>{}}};
  const page={getViewport:()=>({width:400,height:500,scale:1}),render:()=>({promise:Promise.resolve(),cancel(){}}),getTextContent:async()=>({items:[]}),getAnnotations:async()=>[],cleanup:()=>true},pdf={numPages:1,getPage:async()=>page,getOutline:async()=>[],destroy(){}};
- w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',getDocument:()=>({promise:Promise.resolve(pdf)}),TextLayer:class{constructor(){throw Error('text failure');}}};w.eval(source('fixed_document.js'));const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',asset:s=>'http://localhost/'+s,request:async()=>({}),status:()=>{}});await editor.load({id:'p',title:'PDF',revision:1,source_kind:'pdf',capabilities:{preview:true},content:{source_kind:'pdf',surfaces:[{index:0,width_pt:300,height_pt:400,strokes:[],text_overlays:[]}]}});await new Promise(r=>setTimeout(r,30));assert.ok(root.querySelector('canvas[data-render-complete=true]'));assert.match(root.querySelector('.fixed-page-error').textContent,/text failure/);
+ w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',getDocument:()=>({promise:Promise.resolve(pdf)}),TextLayer:class{constructor(){throw Error('text failure');}}};w.eval(source('pdf_navigation.js'));w.eval(source('fixed_document.js'));const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',asset:s=>'http://localhost/'+s,request:async()=>({}),status:()=>{}});await editor.load({id:'p',title:'PDF',revision:1,source_kind:'pdf',capabilities:{preview:true},content:{source_kind:'pdf',surfaces:[{index:0,width_pt:300,height_pt:400,strokes:[],text_overlays:[]}]}});await new Promise(r=>setTimeout(r,30));assert.ok(root.querySelector('canvas[data-render-complete=true]'));assert.match(root.querySelector('.fixed-page-error').textContent,/text failure/);
 });
 test('PPTX adapter preserves local images and strips active/external content',async t=>{
  const dom=new JSDOM('<div id="slide"></div>',{runScripts:'outside-only'}),w=dom.window;t.after(()=>w.close());w.eval(source('vendor/purify.js'));w.eval(source('pptx_renderer.js'));let cleaned=false;w.fetch=async()=>({ok:true,arrayBuffer:async()=>new Uint8Array([80,75,1,2]).buffer});w.OpenDocPptxVendor={loadPresentation:async()=>({slides:[{text:'Teste Open Doc'}],cleanup:()=>{cleaned=true;}}),renderSlideToElement:(p,i,node)=>{node.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect x="10" y="10" width="80" height="30"/><foreignObject x="0" y="0" width="100" height="50"><div xmlns="http://www.w3.org/1999/xhtml">Teste Open Doc</div></foreignObject><image href="blob:local-image"/><a href="javascript:alert(1)">link</a></svg>';}};
@@ -44,7 +44,7 @@ test('PDF search returns a distant page incrementally with bounded workers and c
  // Reproduce the real Open Doc runtime: the PPTX editor is also loaded
  // while viewing a PDF. The inactive slide editor must not inspect PDF elements.
  w.eval(source('slide_editor.js'));
- w.eval(source('fixed_document.js'));
+ w.eval(source('pdf_navigation.js'));w.eval(source('fixed_document.js'));
  const statuses=[];
  const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
    asset:s=>'http://localhost/'+s,request:async()=>({}),status:s=>statuses.push(s)});
@@ -114,7 +114,7 @@ test('PDF page extraction UI validates inclusive range and invokes the native br
  w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',
    getDocument:()=>({promise:Promise.resolve(pdf)}),
    TextLayer:class{render(){return Promise.resolve();}}};
- w.eval(source('fixed_document.js'));
+ w.eval(source('pdf_navigation.js'));w.eval(source('fixed_document.js'));
  const editor=w.OpenDocFixedDocument.create({
    root,signal:abort.signal,token:'t',asset:s=>'http://localhost/'+s,
    request:async()=>({}),status:s=>statuses.push(s)
@@ -160,7 +160,7 @@ test('PDF Ctrl+F marks text occurrences without losing the current document',asy
    TextLayer:class{constructor({container}){this.container=container;}
      render(){for(const value of ['Porto','Velho']){const span=w.document.createElement('span');
        span.textContent=value;this.container.append(span);}return Promise.resolve();}}};
- w.eval(source('fixed_document.js'));
+ w.eval(source('pdf_navigation.js'));w.eval(source('fixed_document.js'));
  const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
    asset:s=>'http://localhost/'+s,request:async()=>({}),status:()=>{}});
  await editor.load({id:'search-mark-test',title:'PDF',revision:1,source_kind:'pdf',
@@ -195,7 +195,7 @@ test('PDF search tolerates missing getTextContent items instead of throwing map 
  w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',
    getDocument:()=>({promise:Promise.resolve({numPages:1,getPage:async()=>page,getOutline:async()=>[],destroy(){}})}),
    TextLayer:class{render(){return Promise.resolve();}}};
- w.eval(source('fixed_document.js'));
+ w.eval(source('pdf_navigation.js'));w.eval(source('fixed_document.js'));
  const messages=[];
  const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',asset:s=>'http://localhost/'+s,
    request:async()=>({}),status:value=>messages.push(value)});
@@ -218,7 +218,7 @@ test('editable PPTX Ctrl+F finds and selects actual slide text instead of a miss
  w.IntersectionObserver=class{observe(){}disconnect(){}};
  w.pywebview={api:{set_dirty:async()=>{}}};
  for(const file of ['compat.js','document_model.js','history.js','recovery.js',
-   'slide_charts.js','slide_editor.js','fixed_document.js'])w.eval(source(file));
+   'slide_charts.js','slide_editor.js','pdf_navigation.js','fixed_document.js'])w.eval(source(file));
  const statuses=[];
  const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
    asset:src=>'http://localhost/'+src,request:async()=>({}),status:s=>statuses.push(s)});
@@ -250,7 +250,7 @@ test('fixed document adapter keeps all PPTX slides in the model but only one edi
  w.IntersectionObserver=class{observe(){}disconnect(){}};
  w.pywebview={api:{set_dirty:async()=>{}}};
  for(const file of ['compat.js','document_model.js','history.js','recovery.js',
-   'slide_charts.js','slide_editor.js','fixed_document.js'])w.eval(source(file));
+   'slide_charts.js','slide_editor.js','pdf_navigation.js','fixed_document.js'])w.eval(source(file));
  const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
    asset:src=>'http://localhost/'+src,request:async()=>({}),status:()=>{}});
  t.after(()=>editor.deactivate());
@@ -292,7 +292,7 @@ test('read-only imported PPTX with three slides never stacks sheets under active
  w.IntersectionObserver=class{observe(){}disconnect(){}};
  w.pywebview={api:{set_dirty:async()=>{}}};
  for(const file of ['compat.js','document_model.js','history.js','recovery.js',
-   'slide_charts.js','slide_editor.js','fixed_document.js'])w.eval(source(file));
+   'slide_charts.js','slide_editor.js','pdf_navigation.js','fixed_document.js'])w.eval(source(file));
  w.OpenDocPptx={load:async()=>({
    count:3,destroy(){},render(index,node){
      const marker=w.document.createElement('div');
@@ -370,7 +370,7 @@ test('PDF inline editor sends a real native replacement command and respects Sav
        span.textContent='Relatorio de atividade';this.container.append(span);return Promise.resolve();}
    }
  };
- w.eval(source('fixed_document.js'));
+ w.eval(source('pdf_navigation.js'));w.eval(source('fixed_document.js'));
  const errors=[];
  const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',
    asset:s=>'http://localhost/'+s,request:async()=>({}),status:s=>errors.push(s)});
@@ -457,4 +457,27 @@ test('PPTX hydration resolves inherited fonts without replacing saved font edits
  adapter.hydrate({surfaces:[{source_slide_index:0,elements:[edited,inherited]}]});
  assert.equal(edited.font_family,'Georgia');assert.equal(edited.font_size_pt,36);assert.equal(edited.color,'#123456');
  assert.equal(inherited.font_family,'Arial');assert.equal(inherited.font_size_pt,30);assert.equal(inherited.color,'#FFFFFF');
+});
+
+async function navigationHarness(t,{count=1,outline=async()=>[]}={}){
+ const dom=new JSDOM(html(),{runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('[data-app]'),abort=new w.AbortController();
+ t.after(()=>{abort.abort();w.close();});w.console.warn=()=>{};w.console.error=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};
+ w.HTMLCanvasElement.prototype.getContext=()=>({});w.IntersectionObserver=class{observe(){}disconnect(){}};
+ for(const name of ['compat.js','document_model.js','history.js','recovery.js','pdf_navigation.js','fixed_document.js'])w.eval(source(name));
+ const page={getViewport:()=>({width:400,height:500,scale:1}),render:()=>({promise:Promise.resolve(),cancel(){}}),getTextContent:async()=>({items:[]}),getAnnotations:async()=>[],cleanup(){}};
+ const pdf={numPages:count,getPage:async()=>page,getOutline:outline,destroy(){}};
+ w.OpenDocPdf={GlobalWorkerOptions:{},version:'test',getDocument:()=>({promise:Promise.resolve(pdf)}),TextLayer:class{render(){return Promise.resolve();}}};
+ w.pywebview={api:{set_dirty:async()=>{}}};const editor=w.OpenDocFixedDocument.create({root,signal:abort.signal,token:'t',asset:s=>'http://localhost/'+s,request:async()=>({}),status:()=>{}});
+ await editor.load({id:'navigation-regression',title:'PDF',revision:1,source_kind:'pdf',capabilities:{preview:true},content:{source_kind:'pdf',surfaces:Array.from({length:count},(_,index)=>({index,width_pt:300,height_pt:400,strokes:[],text_overlays:[]}))}});
+ await new Promise(resolve=>setTimeout(resolve,10));return{w,root,editor};
+}
+test('malformed outline metadata falls back to thumbnails without losing the PDF canvas',async t=>{
+ const q=await navigationHarness(t,{outline:async()=>{throw Error('broken outline');}});
+ assert.equal(q.root.dataset.readerState,'ready');assert.ok(q.root.querySelector('.fixed-surface canvas[data-render-complete=true]'));assert.equal(q.root.querySelector('[data-pdf-nav-tab=outline]').disabled,true);assert.equal(q.root.querySelector('.fixed-load-error'),null);
+});
+test('PDF page tracking uses binary search and does not scan all 1016 page rectangles',async t=>{
+ const q=await navigationHarness(t,{count:1016}),scroller=q.root.querySelector('.fixed-scroll');let reads=0;
+ Object.defineProperty(scroller,'clientHeight',{value:600,configurable:true});scroller.getBoundingClientRect=()=>({top:20,bottom:620});
+ q.root.querySelectorAll('.fixed-surface').forEach((node,index)=>{node.getBoundingClientRect=()=>{reads++;return{top:index*1000-973000+20,bottom:(index+1)*1000-973000+20};};});
+ q.editor.refresh();assert.ok(reads<=12,'binary lookup should be logarithmic: '+reads);assert.equal(q.root.querySelector('[data-position]').textContent,'Página 974 de 1016');assert.equal(q.root.querySelector('.fixed-controls input[type=number]').value,'974');
 });

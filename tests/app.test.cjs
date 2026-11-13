@@ -31,7 +31,7 @@ async function mount(t, brokenNavigation = false, startInLibrary = false, system
       options?.body ? {...JSON.parse(options.body), revision:2} : library;
     return {ok:true,json:async()=>data};
   };
-  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','fixed_document.js','document_kinds.js','ink_engine.js','office_workspace.js','ink.js', 'design_system.js', 'menus.js', 'theme.js', 'paper_layout.js', 'zoom.js', 'navigation.js']) {
+  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','pdf_navigation.js','fixed_document.js','document_kinds.js','ink_engine.js','office_workspace.js','ink.js', 'design_system.js', 'menus.js', 'theme.js', 'paper_layout.js', 'zoom.js', 'navigation.js']) {
     w.eval(fs.readFileSync(path.join(base, 'apps/open_doc/static/js', file), 'utf8'));
   }
   if (brokenNavigation) {

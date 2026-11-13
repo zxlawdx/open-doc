@@ -31,6 +31,7 @@ STYLE_ORDER = (
     "ink.css",
     "semantic_annotations.css",
     "office_workspace.css",
+    "pdf_navigation.css",
     "states.css",
     "oficio_design.css",
     "slide_editor.css",
