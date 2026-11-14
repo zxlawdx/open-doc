@@ -167,3 +167,24 @@ def test_reference_page_preserves_numbers_and_bounds_native_values(tmp_path):
         assert len(result["rows"][0]["text"]) == 513
     finally:
         app.close()
+
+
+def test_workbook_kernel_preserves_dataset_csv_contract(tmp_path):
+    require_kernel_transport()
+    from config.wsgi import create_app
+    from config.composition import get_context
+    from shared.services.preferences_service import Config
+
+    app = create_app(Config(tmp_path))
+    try:
+        ctx = get_context()
+        book = ctx.workbooks.create()
+        identifier = book['id']
+        assert not ctx.notebooks.open_workbook(identifier, ['value'], [[10], [20]])['returncode']
+        code = "import csv\nwith DATASET_CSV.open(newline='') as stream:\n    print(sum(1 for row in csv.DictReader(stream)))"
+        assert ctx.notebooks.execute(identifier, code)['output'].strip() == '2'
+        # A restarted kernel reopens the immutable snapshot, retaining the public variable.
+        ctx.kernels.stop(identifier)
+        assert ctx.notebooks.execute(identifier, code)['output'].strip() == '2'
+    finally:
+        app.close()

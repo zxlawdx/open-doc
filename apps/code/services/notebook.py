@@ -63,7 +63,10 @@ class NotebookService:
             )
             loaded = self.context.kernels.execute(
                 identifier,
-                "import pandas as pd\ndf = pd." + reader + "(" + repr(str(path)) + ")",
+                "import pandas as pd\nfrom pathlib import Path\n"
+                + ("DATASET_CSV" if reader == "read_csv" else "DATASET_PARQUET")
+                + " = Path(" + repr(str(path)) + ")\ndf = pd." + reader
+                + "(" + repr(str(path)) + ")",
             )
             if loaded.get("returncode"):
                 return loaded
@@ -196,7 +199,9 @@ class NotebookService:
         )
         result = self.context.kernels.execute(
             identifier,
-            "import pandas as pd\ndf = pd."
+            "import pandas as pd\nfrom pathlib import Path\n"
+            + ("DATASET_CSV" if reader == "read_csv" else "DATASET_PARQUET")
+            + " = Path(" + repr(str(path)) + ")\ndf = pd."
             + reader
             + "("
             + repr(str(path))
