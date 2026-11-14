@@ -805,7 +805,7 @@
     if (bootstrap.start_in_library) libraryRoute();
     else showView(false);
     window.OpenDocOfficeWorkspace.create({root,editor,signal,formats:bootstrap.formats||[],profiles:bootstrap.academic_profiles||[],action,status,dialog});
-    await auxiliary('sessão e abas','OpenDocWorkspace','workspace.js',module=>module.create({root,request,signal,status,
+    const workspaceSession = await auxiliary('sessão e abas','OpenDocWorkspace','workspace.js',module=>module.create({root,request,signal,status,
       snapshot:()=>{
         if(root.dataset.datasetView==='true'&&datasets?.id?.())return {app:'data',id:datasets.id(),title:datasets.title()||'Dados'};
         if(root.dataset.workbookView==='true'&&workbook?.id?.())return {app:'spreadsheets',id:workbook.id(),title:workbook.title?.()||'Planilha'};
@@ -820,6 +820,7 @@
         if(tab.app==='spreadsheets'){await openWorkbook({operation:'open',id:tab.id});return;}
         editor.load(await request('document/open',{id:tab.id}));showView(false);
       })}));
+    await workspaceSession?.loaded;
     installTooltips();
     if (bootstrap.startup_error) status(bootstrap.startup_error);
     root.dataset.ready = 'true';

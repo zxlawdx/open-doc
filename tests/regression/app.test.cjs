@@ -21,6 +21,9 @@ async function mount(t, brokenNavigation = false, startInLibrary = false, system
   const requests = [];
   w.fetch = async (url, options) => {
     requests.push({url: String(url), body: options?.body});
+    if(String(url).endsWith("/workspace") && JSON.parse(options?.body||"{}").operation==="load"){
+      await new Promise(resolve=>setTimeout(resolve,25));w.__workspaceRestored=true;
+    }
     const library = {
       documents: [note], files: [],
       templates: [
@@ -57,6 +60,7 @@ async function mount(t, brokenNavigation = false, startInLibrary = false, system
   w.eval(fs.readFileSync(path.join(base, 'apps/home/static/js/app.js'), 'utf8'));
   for (let i = 0; i < 50 && root.dataset.ready !== 'true'; i++) await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(root.dataset.ready, 'true');
+  assert.equal(w.__workspaceRestored,true,'ready waits for asynchronous workspace restoration');
   t.after(() => { w.OpenDocApp.destroy(); w.close(); });
   const click = selector => {
     const element = root.querySelector(selector); assert.ok(element, selector);
