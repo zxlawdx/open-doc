@@ -81,7 +81,7 @@ def test_csv_dataframe_publish_undo_redo_and_reference_sheet(tmp_path):
         assert book["sheets"][0]["external_resource"]["resource_id"]
         context["json"] = {"operation": "resource-page", "id": book["id"], "offset": 0}
         page = workbook(context)
-        assert page["rows"][0]["value"] == "20"
+        assert page["rows"][0]["value"] == 20
     finally:
         app.close()
 
