@@ -180,7 +180,7 @@ def test_workbook_kernel_preserves_dataset_csv_contract(tmp_path):
         ctx = get_context()
         book = ctx.workbooks.create()
         identifier = book['id']
-        assert not ctx.notebooks.open_workbook(identifier, ['value'], [[10], [20]])['returncode']
+        assert not ctx.notebooks.open_workbook(identifier, ['value'], [['10'], ['20']])['returncode']
         code = "import csv\nwith DATASET_CSV.open(newline='') as stream:\n    print(sum(1 for row in csv.DictReader(stream)))"
         assert ctx.notebooks.execute(identifier, code)['output'].strip() == '2'
         # A restarted kernel reopens the immutable snapshot, retaining the public variable.
