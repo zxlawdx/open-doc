@@ -127,6 +127,24 @@ instalador (run 43577991539), depois de corrigidos os handles padrão herdados d
 processo windowed. Logs de inicialização e relatórios JSON são preservados mesmo
 em erro. A aprovação do head final continua dependendo do CI correspondente.
 
+`qt-data-scale-linux.json` registra a janela Qt real, antes da otimização do encoder:
+
+| Registros | Importação + renderização | Linhas no DOM |
+| --- | --- | --- |
+| 1 mil | 57.93 ms | 50 |
+| 10 mil | 75.36 ms | 50 |
+| 100 mil | 522.23 ms | 50 |
+| 1 milhão | 3647.48 ms | 50 |
+
+A inicialização de `create_app` até a janela pronta levou ~946 ms nesse teste,
+excluindo os imports anteriores do processo. Em 1M, o heartbeat permaneceu ativo
+(227 ticks, maior intervalo ~31.32 ms). A paginação medida (~60 ms) inclui polling
+de 50 ms e a chamada pywebview; não é uma medição isolada de paint. O RSS quente
+foi ~312.62 MiB no processo Python/Qt e ~471.08 MiB somados nos filhos Qt; somar
+RSS pode contar páginas compartilhadas mais de uma vez. Não há baseline GUI
+comparável. O step de escala passou; o job encontrou depois a falha de redo após
+remontagem, cuja ordem de restauração foi corrigida e está sujeita à nova execução.
+
 Complexidades: importação e exportação percorrem O(n) linhas, com lotes limitados;
 SQLite adiciona o custo de seus índices. Página SQLite usa a chave composta de
 linhas, O(log n + p); consultas dependem do plano (LIMIT pode parar cedo,
