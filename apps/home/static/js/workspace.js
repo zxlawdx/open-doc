@@ -11,7 +11,15 @@
         button.type=close.type='button';button.textContent=tab.title;button.setAttribute('aria-current',String(tab.id===active));
         button.onclick=()=>activate(tab).catch(error=>status(error.message));
         close.textContent='×';close.setAttribute('aria-label','Fechar '+tab.title);
-        close.onclick=()=>{if(root.dataset.globalDirty==='true'){status('Salve as alterações antes de fechar a aba.');return;}tabs=tabs.filter(item=>item!==tab);render();persist();};
+        close.onclick=async()=>{
+          if(root.dataset.globalDirty==='true'){status('Salve as alterações antes de fechar a aba.');return;}
+          const previous=tabs,wasActive=tab.id===active;tabs=tabs.filter(item=>item!==tab);
+          if(wasActive){
+            const next=tabs[tabs.length-1];active=next?.id;
+            try{await activate(next||null);}catch(error){tabs=previous;active=tab.id;render();status(error.message);return;}
+          }
+          render();persist();
+        };
         entry.append(button,close);bar.append(entry);
       }
     }

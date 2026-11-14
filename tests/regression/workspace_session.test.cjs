@@ -15,6 +15,9 @@ test('workspace restores active tab, publishes with revision and protects unsave
  assert.equal(root.querySelector('button[aria-current="true"]').textContent,'Próximo','dataset completion updates the active tab without changing view attributes');
  assert.equal(requests.find(value=>value.operation==='save').expected_revision,3);
  assert.equal(root.querySelectorAll('.workspace-global-tabs span').length,2);
+ root.querySelector('[aria-label="Fechar Próximo"]').click();await wait(10);
+ assert.equal(activated.at(-1),'old','closing the active tab activates the previous file');
+ assert.equal(root.querySelectorAll('.workspace-global-tabs span').length,1);
 });
 test('session conflict preserves local tab and reloads remote revision',async t=>{
  const dom=new JSDOM('<main><nav class="menubar"></nav></main>',{runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('main');

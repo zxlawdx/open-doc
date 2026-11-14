@@ -815,6 +815,7 @@
       },activate:tab=>operateModule(async()=>{
         if(root.dataset.workbookView==='true')await workbook.save();
         await editor.flush();
+        if(!tab){libraryRoute();return;}
         if(tab.app==='data'){await openDatasets();await datasets.activate(tab.id);return;}
         if(tab.app==='spreadsheets'){await openWorkbook({operation:'open',id:tab.id});return;}
         editor.load(await request('document/open',{id:tab.id}));showView(false);

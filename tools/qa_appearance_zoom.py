@@ -60,9 +60,12 @@ def exercise(window, output, reopen):
     wait(window, "document.querySelector('[data-app]')?.dataset.ready === 'true'")
     report(window)
     if reopen:
+        # The modular workspace restores the last active dataset, not a fresh shell.
+        wait(window, "!document.querySelector('[data-dataset]').hidden")
+        wait(window, "document.querySelector('.workspace-global-tabs button[aria-current=true]')?.textContent === 'appearance-qa'")
         zoom(120)
         assert js("document.querySelector('[data-app]').dataset.theme") == "dark"
-        capture(output, "central-reaberta")
+        capture(output, "sessao-reaberta")
         return
 
     keyboard = Keyboard(window)
