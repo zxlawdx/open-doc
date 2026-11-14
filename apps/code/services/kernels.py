@@ -3,6 +3,7 @@
 import json
 import os
 import queue
+import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -46,7 +47,9 @@ class KernelSessions:
             if self._closed:
                 raise RuntimeError("Sessões Python encerradas.")
             if project in self._sessions:
-                return self._sessions[project]
+                if self._sessions[project].manager.is_alive():
+                    return self._sessions[project]
+                self.stop(project)
             if len(self._sessions) >= self.max_sessions:
                 raise ValueError("Encerre uma sessão Python antes de abrir outra.")
             executable = environments.interpreter(project) or external_python()
@@ -87,16 +90,23 @@ class KernelSessions:
                     else str(Path(directory.name) / "connection")
                 ),
             )
+            startup_log = Path(directory.name) / "startup.log"
             try:
-                with external_dll_search():
-                    manager.start_kernel(cwd=directory.name, env=child_environment())
+                # Windowed frozen apps have no valid inherited standard handles.
+                with startup_log.open("wb") as errors, external_dll_search():
+                    manager.start_kernel(
+                        cwd=directory.name, env=child_environment(),
+                        stdout=subprocess.DEVNULL, stderr=errors,
+                    )
                 client = manager.blocking_client()
                 client.start_channels()
                 client.wait_for_ready(timeout=30)
-            except BaseException:
+            except BaseException as error:
                 manager.shutdown_kernel(now=True)
+                with startup_log.open("rb") as errors:
+                    details = errors.read(16384).decode("utf-8", errors="replace")
                 directory.cleanup()
-                raise
+                raise RuntimeError("Não foi possível iniciar o kernel: " + str(error) + "\n" + details) from error
             session = Session(manager, client, directory)
             self._sessions[project] = session
             return session
