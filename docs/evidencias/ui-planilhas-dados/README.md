@@ -26,7 +26,7 @@ Escala emulada pelo protocolo de depuração do QtWebEngine em [125%](depois-piv
 - `workbook_pivot_ui.js` usa `showModal()`. `workbook_pivot.js` calcula subtotais opcionais para o primeiro campo de Linhas quando há pelo menos dois agrupamentos. Métricas são calculadas sobre os registros originais, inclusive para médias e contagens.
 - `datasets.js`, `datasets/store.py` e `code_editor.js` reaproveitam a paginação, o CodeMirror e os serviços SQL/Python. Filtros de igualdade usam a mesma conversão de tipo do SQLite. Ordenação, frequências, vazios e valores únicos geram consultas de leitura. O histórico de scripts é por projeto na sessão.
 - `app.js` e `design_system.js` corrigem a Central e a navegação para abrir ou criar uma planilha a partir do editor.
-- `tests/workbook_pivot_v2.test.cjs` compara cinco agregações com reduções independentes de arrays em 5, 100 e 9.999 registros, mais o cabeçalho para a maior faixa. Os testes Python incluem ingestão paginada de 1,1 milhão de registros no modo Dados e ida e volta de estilos em XLSX.
+- `tests/regression/workbook_pivot_v2.test.cjs` compara cinco agregações com reduções independentes de arrays em 5, 100 e 9.999 registros, mais o cabeçalho para a maior faixa. Os testes Python incluem ingestão paginada de 1,1 milhão de registros no modo Dados e ida e volta de estilos em XLSX.
 - `tools/qa_workbook.py` e `tools/qa_datasets.py` executam o Open Doc real, verificam ações e produzem as capturas. Os testes do diálogo verificam centralização, hit testing das ações, acesso às zonas por rolagem, foco, cancelamento e criação de resultado.
 
 ## Resultado local

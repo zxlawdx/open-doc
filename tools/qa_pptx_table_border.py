@@ -13,9 +13,9 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches
 
-from apps.open_doc.readers.pptx.table_style import write_table_style
-from apps.open_doc.services.container import services
-from apps.open_doc.services.preferences_service import Config
+from apps.presentations.services.table_style import write_table_style
+from config.composition import services
+from shared.services.preferences_service import Config
 from config.wsgi import create_app
 
 

@@ -41,8 +41,15 @@ def remember(db, identifier, operation, before, after):
     return True
 
 
-def apply_patch(db, identifier, patch):
+def apply_patch(db, identifier, patch, apply_resource=None):
     """Apply only stored changes and never replace unrelated rows or cell overrides."""
+    if "resource" in patch:
+        if apply_resource is None:
+            raise ValueError("Serviço de recursos indisponível para restaurar esta publicação.")
+        apply_resource(db, identifier, patch)
+        db.executemany("INSERT INTO dataset_field_types VALUES(?,?,?,?,?)",
+                       [(identifier, *row) for row in patch.get("field_types", [])])
+        return
     values = patch.get("values", [])
     types = patch.get("types", [])
     if not isinstance(values, list) or not isinstance(types, list):
@@ -81,7 +88,7 @@ def apply_patch(db, identifier, patch):
             )
 
 
-def traverse(db, identifier, redo=False):
+def traverse(db, identifier, redo=False, apply_resource=None):
     chosen = db.execute(
         "SELECT id, operation, before_json, after_json FROM dataset_edit_history "
         "WHERE dataset_id=? AND undone=? ORDER BY id "
@@ -91,7 +98,7 @@ def traverse(db, identifier, redo=False):
     if chosen is None:
         return {"changed": False, "message": "Nada para refazer." if redo else "Nada para desfazer."}
     patch = json.loads(chosen["after_json" if redo else "before_json"])
-    apply_patch(db, identifier, patch)
+    apply_patch(db, identifier, patch, apply_resource=apply_resource)
     db.execute(
         "UPDATE dataset_edit_history SET undone=? WHERE id=? AND dataset_id=?",
         (0 if redo else 1, chosen["id"], identifier),

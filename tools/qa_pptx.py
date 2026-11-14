@@ -17,9 +17,9 @@ os.environ.setdefault("QTWEBENGINE_REMOTE_DEBUGGING", "9234")
 import webview
 from fpdf import FPDF
 from config.wsgi import create_app
-from apps.open_doc.services.container import services
-from apps.open_doc.services.preferences_service import Config
-from apps.open_doc.ink.handwriting import Recognition
+from config.composition import services
+from shared.services.preferences_service import Config
+from shared.services.ink.handwriting import Recognition
 
 
 class FakeRecognizer:

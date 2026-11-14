@@ -17,7 +17,7 @@ from pptx import Presentation
 from pptx.util import Inches
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.xmlchemy import OxmlElement
-import apps.open_doc.services.fixed_document_service as fixed_service
+import shared.services.fixed_document_service as fixed_service
 
 
 def fixture(path):

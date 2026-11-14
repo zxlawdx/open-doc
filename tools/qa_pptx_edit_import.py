@@ -11,7 +11,7 @@ from qa_stabilization import Config, create_app, services, wait, webview
 from qa_docx_list import capture
 from qa_runtime import Keyboard
 from pptx import Presentation
-from apps.open_doc.readers.pptx.exporter import export_pptx
+from apps.presentations.services.exporter import export_pptx
 
 output=Path(sys.argv[1]).resolve();output.mkdir(parents=True,exist_ok=True)
 inputs=[Path(p).resolve() for p in sys.argv[2:]]

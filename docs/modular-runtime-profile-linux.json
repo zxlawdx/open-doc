@@ -1,0 +1,47 @@
+{
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "scope": "backend; tracemalloc and cProfile enabled; warm process imports",
+  "results": [
+    {
+      "records": 1000,
+      "startup_backend_ms": 430.2572870001313,
+      "import_ms": 30.62619599950267,
+      "page_ms": 0.718452999535657,
+      "query_ms": 0.7104899996193126,
+      "snapshot_ms": 696.776914000111,
+      "python_peak_bytes": 25874437,
+      "cpu_profile_import": "         12136 function calls (12135 primitive calls) in 0.031 seconds\n\n   Ordered by: cumulative time\n   List reduced from 79 to 15 due to restriction <15>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.012    0.012    0.031    0.031 store.py:69(import_files)\n     1001    0.001    0.000    0.011    0.000 __init__.py:183(dumps)\n     1001    0.001    0.000    0.010    0.000 encoder.py:183(encode)\n     1001    0.008    0.000    0.008    0.000 encoder.py:205(iterencode)\n     4008    0.004    0.000    0.004    0.000 {built-in method builtins.len}\n     1000    0.002    0.000    0.002    0.000 {method 'append' of 'list' objects}\n      5/4    0.000    0.000    0.001    0.000 {built-in method builtins.next}\n        2    0.000    0.000    0.001    0.000 store.py:22(connect)\n        2    0.001    0.000    0.001    0.000 {method 'executemany' of 'sqlite3.Connection' objects}\n        2    0.000    0.000    0.001    0.000 contextlib.py:141(__exit__)\n        1    0.000    0.000    0.000    0.000 {method 'clear' of 'list' objects}\n     1002    0.000    0.000    0.000    0.000 {method 'join' of 'str' objects}\n        1    0.000    0.000    0.000    0.000 {method '__exit__' of 'sqlite3.Connection' objects}\n        2    0.000    0.000    0.000    0.000 contextlib.py:132(__enter__)\n        5    0.000    0.000    0.000    0.000 {method 'execute' of 'sqlite3.Connection' objects}\n\n\n"
+    },
+    {
+      "records": 10000,
+      "startup_backend_ms": 20.83352800036664,
+      "import_ms": 282.05734499988466,
+      "page_ms": 0.9045099996001227,
+      "query_ms": 0.8002550002856879,
+      "snapshot_ms": 77.88601999982347,
+      "python_peak_bytes": 1273442,
+      "cpu_profile_import": "         120187 function calls (120186 primitive calls) in 0.282 seconds\n\n   Ordered by: cumulative time\n   List reduced from 79 to 15 due to restriction <15>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    0.114    0.114    0.282    0.282 store.py:69(import_files)\n    10001    0.015    0.000    0.105    0.000 __init__.py:183(dumps)\n    10001    0.010    0.000    0.090    0.000 encoder.py:183(encode)\n    10001    0.074    0.000    0.074    0.000 encoder.py:205(iterencode)\n    40008    0.037    0.000    0.037    0.000 {built-in method builtins.len}\n    10000    0.017    0.000    0.017    0.000 {method 'append' of 'list' objects}\n       11    0.006    0.001    0.006    0.001 {method 'executemany' of 'sqlite3.Connection' objects}\n    10002    0.004    0.000    0.004    0.000 {method 'join' of 'str' objects}\n       10    0.001    0.000    0.001    0.000 {method 'clear' of 'list' objects}\n    20007    0.001    0.000    0.001    0.000 {built-in method builtins.isinstance}\n    10001    0.001    0.000    0.001    0.000 encoder.py:105(__init__)\n      5/4    0.000    0.000    0.001    0.000 {built-in method builtins.next}\n        2    0.000    0.000    0.001    0.000 store.py:22(connect)\n        2    0.000    0.000    0.001    0.000 contextlib.py:141(__exit__)\n        1    0.000    0.000    0.000    0.000 {method '__exit__' of 'sqlite3.Connection' objects}\n\n\n"
+    },
+    {
+      "records": 100000,
+      "startup_backend_ms": 14.881233000778593,
+      "import_ms": 2858.625311999276,
+      "page_ms": 0.8002539998415159,
+      "query_ms": 0.7282870001290576,
+      "snapshot_ms": 773.0590279998069,
+      "python_peak_bytes": 2147576,
+      "cpu_profile_import": "         1200781 function calls (1200780 primitive calls) in 2.859 seconds\n\n   Ordered by: cumulative time\n   List reduced from 79 to 15 due to restriction <15>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1    1.137    1.137    2.858    2.858 store.py:69(import_files)\n   100001    0.148    0.000    1.072    0.000 __init__.py:183(dumps)\n   100001    0.102    0.000    0.913    0.000 encoder.py:183(encode)\n   100001    0.761    0.000    0.761    0.000 encoder.py:205(iterencode)\n   400008    0.370    0.000    0.370    0.000 {built-in method builtins.len}\n   100000    0.169    0.000    0.169    0.000 {method 'append' of 'list' objects}\n      101    0.074    0.001    0.074    0.001 {method 'executemany' of 'sqlite3.Connection' objects}\n   100002    0.035    0.000    0.035    0.000 {method 'join' of 'str' objects}\n      100    0.018    0.000    0.018    0.000 {method 'clear' of 'list' objects}\n      5/4    0.000    0.000    0.017    0.004 {built-in method builtins.next}\n        2    0.000    0.000    0.016    0.008 store.py:22(connect)\n        2    0.000    0.000    0.016    0.008 contextlib.py:141(__exit__)\n        1    0.016    0.016    0.016    0.016 {method '__exit__' of 'sqlite3.Connection' objects}\n   200007    0.015    0.000    0.015    0.000 {built-in method builtins.isinstance}\n   100001    0.012    0.000    0.012    0.000 encoder.py:105(__init__)\n\n\n"
+    },
+    {
+      "records": 1000000,
+      "startup_backend_ms": 16.998183999930916,
+      "import_ms": 28531.58303700002,
+      "page_ms": 1.1818829998446745,
+      "query_ms": 0.8636089996798546,
+      "snapshot_ms": 7887.673223000093,
+      "python_peak_bytes": 2148837,
+      "cpu_profile_import": "         12007378 function calls (12007377 primitive calls) in 28.531 seconds\n\n   Ordered by: cumulative time\n   List reduced from 79 to 15 due to restriction <15>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n        1   11.231   11.231   28.531   28.531 store.py:69(import_files)\n  1000001    1.477    0.000   10.645    0.000 __init__.py:183(dumps)\n  1000001    1.028    0.000    9.055    0.000 encoder.py:183(encode)\n  1000001    7.530    0.000    7.530    0.000 encoder.py:205(iterencode)\n  4000008    3.683    0.000    3.683    0.000 {built-in method builtins.len}\n  1000000    1.695    0.000    1.695    0.000 {method 'append' of 'list' objects}\n     1001    0.829    0.001    0.829    0.001 {method 'executemany' of 'sqlite3.Connection' objects}\n  1000002    0.357    0.000    0.357    0.000 {method 'join' of 'str' objects}\n     1000    0.227    0.000    0.227    0.000 {method 'clear' of 'list' objects}\n      5/4    0.000    0.000    0.213    0.053 {built-in method builtins.next}\n        2    0.000    0.000    0.213    0.107 store.py:22(connect)\n        2    0.000    0.000    0.213    0.107 contextlib.py:141(__exit__)\n        1    0.210    0.210    0.210    0.210 {method '__exit__' of 'sqlite3.Connection' objects}\n  2000007    0.139    0.000    0.139    0.000 {built-in method builtins.isinstance}\n  1000001    0.113    0.000    0.113    0.000 encoder.py:105(__init__)\n\n\n"
+    }
+  ]
+}

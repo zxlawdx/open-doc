@@ -8,14 +8,14 @@ import sys
 from subprocess import SubprocessError
 from threading import Lock
 from pathlib import Path
-from apps.open_doc.services.preferences_service import PROJECT_ROOT
+from shared.services.preferences_service import PROJECT_ROOT
 from typing import Any
 
 from vela.core.bridge import BaseBridge
 
-from apps.open_doc.application.context import get_context
-from apps.open_doc.services.export_service import ExportError
-from apps.open_doc.services.document_service import RevisionConflict
+from config.composition import get_context
+from apps.documents.services.export_service import ExportError
+from shared.contracts.errors import RevisionConflict
 
 LOGGER = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class OpenDocBridge(BaseBridge):
         import sys
         import vela
 
-        asset_path = PROJECT_ROOT / "apps" / "open_doc" / "static" / "js" / "slide_editor.js"
+        asset_path = PROJECT_ROOT / "apps" / "presentations" / "static" / "js" / "slide_editor.js"
         try:
             digest = hashlib.sha256(asset_path.read_bytes()).hexdigest()
         except OSError:
@@ -122,7 +122,7 @@ class OpenDocBridge(BaseBridge):
             return {"error": "Não foi possível ler o workspace."}
 
     def default_apps(self, extension: str | None = None) -> dict[str, Any]:
-        from apps.open_doc.services import file_associations
+        from shared.services import file_associations
 
         executable = file_associations.installed_executable()
         if executable is None:
@@ -170,13 +170,13 @@ class OpenDocBridge(BaseBridge):
         paths = self._window.create_file_dialog(
             webview.FileDialog.OPEN, allow_multiple=True,
             directory=default_import_directory(),
-            file_types=("Dados tabulares (*.csv;*.tsv)",),
+            file_types=("Dados tabulares (*.csv;*.tsv;*.xlsx;*.parquet)",),
         )
         if not paths:
             return {"cancelled": True}
         try:
-            return get_context().datasets.import_files(
-                paths, identifier, encoding=encoding, delimiter=delimiter
+            return get_context().data_tools.import_files(
+                get_context().datasets, paths, identifier, encoding=encoding, delimiter=delimiter
             )
         except (ValueError, OSError) as error:
             return {"error": str(error)}
@@ -187,18 +187,18 @@ class OpenDocBridge(BaseBridge):
     def export_dataset(self, identifier, title):
         import sqlite3
         import webview
-        from apps.open_doc.services.export_service import safe_stem
+        from apps.documents.services.export_service import safe_stem
 
         if self._window is None:
             return {"error": "Janela indisponível."}
         try:
             paths = self._window.create_file_dialog(
                 webview.FileDialog.SAVE, save_filename=f"{safe_stem(title)}.csv",
-                file_types=("Dados CSV (*.csv)",),
+                file_types=("Dados CSV (*.csv)","Excel (*.xlsx)","Parquet (*.parquet)"),
             )
             if not paths:
                 return {"cancelled": True}
-            return get_context().data_tools.export_csv(get_context().datasets, identifier, paths if isinstance(paths, str) else paths[0])
+            return get_context().data_tools.export_file(get_context().datasets, identifier, paths if isinstance(paths, str) else paths[0])
         except (ValueError, OSError, sqlite3.Error) as error:
             return {"error": str(error)}
 
@@ -268,7 +268,7 @@ class OpenDocBridge(BaseBridge):
     def import_workbook(self):
         import csv
         import webview
-        from apps.open_doc.spreadsheets.files import read
+        from apps.spreadsheets.services.files import read
 
         if self._window is None:
             return {"error": "Janela indisponível."}
@@ -281,7 +281,7 @@ class OpenDocBridge(BaseBridge):
             return {"cancelled": True}
         try:
             source = Path(paths[0])
-            from apps.open_doc.spreadsheets.objects import media_directory
+            from apps.spreadsheets.services.objects import media_directory
             return get_context().workbooks.create(source.stem, read(source, media_directory=media_directory(get_context().config.root)), imported=True)
         except (ValueError, OSError, csv.Error) as error:
             return {"error": str(error)}
@@ -292,14 +292,14 @@ class OpenDocBridge(BaseBridge):
     def append_workbook_csv(self, sheets, index):
         import csv
         import webview
-        from apps.open_doc.spreadsheets.files import append_delimited
+        from apps.spreadsheets.services.files import append_delimited
 
         if self._window is None:
             return {"error": "Janela indisponível."}
         paths = self._window.create_file_dialog(
             webview.FileDialog.OPEN, allow_multiple=False,
             directory=default_import_directory(),
-            file_types=("Dados tabulares (*.csv;*.tsv)",),
+            file_types=("Dados tabulares (*.csv;*.tsv;*.xlsx;*.parquet)",),
         )
         if not paths:
             return {"cancelled": True}
@@ -310,8 +310,8 @@ class OpenDocBridge(BaseBridge):
 
     def export_workbook(self, identifier, revision, fmt, sheet_index):
         import webview
-        from apps.open_doc.spreadsheets.files import FORMATS, export
-        from apps.open_doc.services.export_service import safe_stem
+        from apps.spreadsheets.services.files import FORMATS, export
+        from apps.documents.services.export_service import safe_stem
 
         if self._window is None or fmt not in FORMATS:
             return {"error": "Janela ou formato indisponível."}
@@ -325,7 +325,7 @@ class OpenDocBridge(BaseBridge):
             )
             if not paths:
                 return {"cancelled": True}
-            from apps.open_doc.spreadsheets.objects import media_directory
+            from apps.spreadsheets.services.objects import media_directory
             return export(book["sheets"], paths if isinstance(paths, str) else paths[0], fmt, sheet_index,
                           media_directory=media_directory(get_context().config.root))
         except (ValueError, OSError) as error:
@@ -374,7 +374,7 @@ class OpenDocBridge(BaseBridge):
         """Export a new PDF with actual content edits; the source stays immutable."""
         import webview
 
-        from apps.open_doc.readers.pdf.native_edit_engine import (
+        from apps.pdf.services.native_edit_engine import (
             NativePdfEditSession,
             PdfEditOperation,
             UnsupportedPdfEdit,
@@ -428,7 +428,7 @@ class OpenDocBridge(BaseBridge):
     def edit_pdf_native(self, document_id, revision, operation):
         """Native save dialog for a REAL content-stream edit (not annotations)."""
         import webview
-        from apps.open_doc.readers.pdf.native_edit import PdfNativeEditError
+        from apps.pdf.services.native_edit import PdfNativeEditError
 
         if self._window is None:
             return {"error": "Janela indisponível."}

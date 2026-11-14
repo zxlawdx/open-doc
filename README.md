@@ -112,8 +112,8 @@ Xtst, NSS, X11, xkbcommon, EGL e áudio. Para atualizar um clone na branch
 `main`, execute `git pull --ff-only origin main` e repita a instalação das
 dependências e o `collectstatic` antes de abrir o aplicativo. Em clones anteriores
 à separação do CSS, o primeiro pull pode exigir guardar uma alteração já
-existente em `apps/open_doc/static/css/main.css` usando `git stash push --
-apps/open_doc/static/css/main.css`. Nas versões seguintes, compilar o CSS
+existente em `apps/home/static/css/main.css` usando `git stash push --
+apps/home/static/css/main.css`. Nas versões seguintes, compilar o CSS
 não deve modificar esse arquivo rastreado.
 
 ### Executar sem Node.js (computador corporativo)
@@ -255,7 +255,7 @@ OpenDoc inteiro. A API é local e exige token para alterações.
 
 ## Arquitetura Vela
 
-`config/wsgi.py` é o composition entrypoint: configura um `ApplicationContext` e então monta o `VelaApp`. `apps/open_doc/application/document_application.py` é a facade de casos de uso compartilhada por HTTP e WebView; `api.py` cuida apenas da boundary HTTP e `bridge.py` dos diálogos/capacidades nativas. Regras de documento ficam fora dessas boundaries.
+`config/wsgi.py` é o composition entrypoint: configura um `ApplicationContext` e então monta o `VelaApp`. `shared/services/document_application.py` é a facade de casos de uso compartilhada por HTTP e WebView; `api.py` cuida apenas da boundary HTTP e `bridge.py` dos diálogos/capacidades nativas. Regras de documento ficam fora dessas boundaries.
 
 A estrutura segue `presentation -> application -> domain -> infrastructure`. O domínio não importa Vela/Bottle/WebView; política de filesystem fica em `infrastructure/workspace.py`. O Vela fixado pelo projeto honra `API.max_body_size` nativamente, então não há mais mutação de `Bottle.BaseRequest` no Open Doc.
 
@@ -270,7 +270,7 @@ python -m pytest -q
 npm test
 python tools/audit_css.py
 python -m black --check --line-length 88 apps config tools tests main.py manage.py launcher.py
-node --check apps/open_doc/static/js/app.js
+node --check apps/home/static/js/app.js
 python manage.py runapp
 ```
 
@@ -289,7 +289,7 @@ registra o estado anterior.
 
 ## Styles
 
-Os fontes em `apps/open_doc/styles` separam tokens, layout, componentes, conteúdo,
+Os fontes em `apps/home/styles` separam tokens, layout, componentes, conteúdo,
 estados e política responsiva. Edite esses fontes e rode `python manage.py collectstatic`.
 O hook `tools.build_css:main` recompila Tailwind e combina o bundle com os estilos escritos à mão antes da coleta. O CSS de execução `runtime.css` é gerado localmente e ignorado pelo Git, evitando que `collectstatic` bloqueie o próximo `git pull`. O `main.css` versionado permanece somente como base Tailwind para o preparo offline; não o edite diretamente.
 A toolbar usa grupos e scroll horizontal nas janelas menores; as páginas preservam

@@ -9,7 +9,7 @@ from qa_workbook import capture_viewports
 
 import webview
 
-from apps.open_doc.services.preferences_service import Config
+from shared.services.preferences_service import Config
 from config.wsgi import create_app
 
 

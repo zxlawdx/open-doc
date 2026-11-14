@@ -63,6 +63,9 @@ class ResourceWorkspace:
             resource_id=self.SESSION_ID,
             expected_revision=expected_revision or None,
             media_type="application/json",
+            pin_owner="workspace_tabs",
+            pins=[tab["resource"] for tab in tabs if tab.get("resource")],
         )
+        self.runtime.resources.prune(self.SESSION_ID, keep_last=10)
         self.runtime.events.emit("workspace:session-published", snapshot.to_dict())
         return snapshot.to_dict()

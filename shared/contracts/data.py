@@ -8,6 +8,8 @@ from typing import Callable
 class DataTools:
     worksheet: Callable
     export_csv: Callable
+    import_files: Callable
+    export_file: Callable
 
 
 @dataclass(frozen=True)

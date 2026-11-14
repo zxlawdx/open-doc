@@ -371,7 +371,7 @@ class Datasets:
             db.execute("BEGIN IMMEDIATE")
             self.get(db, identifier)
             from . import history
-            return history.traverse(db, identifier, redo)
+            return history.traverse(db, identifier, redo, apply_resource=getattr(self, "_apply_resource", None))
 
     def history(self, identifier, limit=25):
         with self.connect() as db:

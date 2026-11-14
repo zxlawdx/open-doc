@@ -4,6 +4,8 @@ import logging
 import secrets
 from typing import Any, Callable, Mapping
 from vela.core.http import Response
+from shared.contracts.errors import RevisionConflict
+from vela.resources import RevisionConflict as ResourceRevisionConflict
 from shared.contracts.workspace import workspace as get_context
 
 BAD_REQUEST, FORBIDDEN, SERVER_ERROR = 400, 403, 500
@@ -36,6 +38,8 @@ def _data(context: dict[str, Any] | None) -> dict[str, Any]:
 def _handle(operation: Callable[[], dict[str, Any]]) -> dict[str, Any] | Response:
     try:
         return operation()
+    except (RevisionConflict, ResourceRevisionConflict) as exc:
+        return Response({"error": str(exc), "conflict": True}, status=409)
     except PermissionError as exc:
         return Response({"error": str(exc)}, status=FORBIDDEN)
     except (ValueError, KeyError, TypeError) as exc:

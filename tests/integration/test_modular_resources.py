@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from apps.open_doc.services.preferences_service import Config
+from shared.services.preferences_service import Config
 from config.wsgi import create_app
 from config.composition import get_context
 from vela.resources import RevisionConflict
@@ -15,7 +15,7 @@ def test_registered_data_routes_native_exchange_and_durable_workspace(tmp_path):
     config = Config(tmp_path)
     app = create_app(config)
     try:
-        assert {entry.name for entry in app.apps} == {"open_doc", "data", "code"}
+        assert {entry.name for entry in app.apps} == {"home", "documents", "spreadsheets", "presentations", "pdf", "data", "code", "templates"}
         ctx = get_context()
         source = tmp_path / "source.csv"
         source.write_text("number,value\n1,10\n2,20\n")

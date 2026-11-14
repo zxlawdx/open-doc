@@ -2,8 +2,8 @@
 
 import os
 
-from apps.open_doc.document_model.validate import MAX_MODEL_JSON_BYTES
-from apps.open_doc.services.preferences_service import (
+from shared.contracts.document_model.validate import MAX_MODEL_JSON_BYTES
+from shared.services.preferences_service import (
     APP_TITLE,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
@@ -36,3 +36,6 @@ ASSETS = {
     # with Open Doc's handwritten style modules before files are collected.
     "tailwind": False,
 }
+
+# Blob quota and pin-aware retention are enforced by the native Vela service.
+RESOURCE_LIMITS = {"max_store_bytes": 10 * 1024**3, "retention_versions": 20}

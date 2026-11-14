@@ -33,7 +33,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item apps/open_doc/static/js/vendor/pdf.bundle.js -ErrorAction SilentlyContinue
+          Remove-Item apps/home/static/js/vendor/pdf.bundle.js -ErrorAction SilentlyContinue
           if (Test-Path node_modules) { throw "node_modules must not exist before collectstatic bootstrap" }
           python manage.py collectstatic --yes
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

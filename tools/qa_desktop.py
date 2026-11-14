@@ -23,8 +23,8 @@ os.environ.setdefault("QT_API", "pyqt5")
 os.environ.setdefault("QTWEBENGINE_REMOTE_DEBUGGING", "9234")
 
 import webview
-from apps.open_doc.services.preferences_service import Config
-from apps.open_doc.services.container import services
+from shared.services.preferences_service import Config
+from config.composition import services
 from config.wsgi import create_app
 
 FIXTURE = (
@@ -371,7 +371,7 @@ def native_type(window: Any, text: str) -> None:
 def verify_rich_document(window: Any, source: Path) -> None:
     """Real app/bridge/API; only replace the file-picker choice in this QA."""
     from docx import Document
-    from apps.open_doc.services.document_service import Editor
+    from apps.documents.services.document_service import Editor
 
     def click(selector):
         window.evaluate_js(

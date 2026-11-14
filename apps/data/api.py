@@ -45,11 +45,14 @@ def dataset(context=None):
             return store.undo(data["id"])
         if data["operation"] == "redo":
             return store.undo(data["id"], redo=True)
-        if data["operation"] in {"python-env-status", "python-env-install"}:
+        if data["operation"] in {"python-env-status", "python-env-install", "python-env-remove"}:
             manager = get_context().code_tools.environments(get_context().config.root)
             if data["operation"] == "python-env-status":
                 return manager.status(data["id"])
-            result = manager.install(
+            if get_context().notebooks is not None:
+                get_context().notebooks.stop(data["id"])
+            action = manager.remove if data["operation"] == "python-env-remove" else manager.install
+            result = action(
                 data["id"], data["packages"], confirm=data.get("confirm") is True
             )
             get_context().code_tools.clear_analysis_cache()

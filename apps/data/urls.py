@@ -1,1 +1,1 @@
-"""Data HTTP routes are declared in api.py for native Vela registration."""
+"""Routes are registered through the native Vela manifest."""

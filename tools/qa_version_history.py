@@ -17,8 +17,8 @@ os.environ.setdefault("QTWEBENGINE_REMOTE_DEBUGGING", "9240")
 
 import webview
 
-from apps.open_doc.application.context import get_context
-from apps.open_doc.services.preferences_service import Config
+from config.composition import get_context
+from shared.services.preferences_service import Config
 from config.wsgi import create_app
 
 

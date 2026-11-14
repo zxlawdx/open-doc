@@ -11,8 +11,8 @@ REFERENCE = re.compile(r"var\(\s*(--[\w-]+)")
 
 
 def audit(root: Path = ROOT) -> list[str]:
-    sources = list((root / "apps/open_doc/styles").glob("*.css"))
-    scripts = list((root / "apps/open_doc/static/js").glob("*.js"))
+    sources = list((root / "apps/home/styles").glob("*.css"))
+    scripts = list((root / "apps/home/static/js").glob("*.js"))
     text = {
         file: COMMENT.sub("", file.read_text(encoding="utf-8"))
         for file in sources + scripts

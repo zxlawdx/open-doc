@@ -8,7 +8,7 @@ from time import sleep
 
 from qa_stabilization import Config, create_app, services, wait, webview
 
-from apps.open_doc.office.academic import document
+from shared.services.office.academic import document
 
 OUT = Path(
     os.environ.get("OPEN_DOC_QA_OUTPUT", "docs/images/office-foundation")

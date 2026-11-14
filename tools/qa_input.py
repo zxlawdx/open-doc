@@ -14,8 +14,8 @@ os.environ.setdefault("PYWEBVIEW_GUI", "qt")
 os.environ.setdefault("QT_API", "pyqt5")
 import webview
 from config.wsgi import create_app
-from apps.open_doc.services.container import services
-from apps.open_doc.services.preferences_service import Config
+from config.composition import services
+from shared.services.preferences_service import Config
 from qa_runtime import Keyboard, report
 from docx import Document
 import subprocess

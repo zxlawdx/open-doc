@@ -4,6 +4,7 @@ No automatic package installation. A project-specific virtualenv lives under
 the configured Open Doc workspace and never modifies system Python.
 Installed Python packages remain user-trusted code, not a security sandbox.
 """
+
 import importlib.metadata
 import re
 import subprocess
@@ -34,7 +35,9 @@ class PythonEnvironments:
 
     def interpreter(self, project):
         folder = self.path(project)
-        candidate = folder / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+        candidate = folder / (
+            "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
+        )
         return candidate if candidate.is_file() else None
 
     def status(self, project):
@@ -51,43 +54,112 @@ class PythonEnvironments:
         try:
             result = run_external(
                 [str(python), "-I", "-c", script],
-                capture_output=True, text=True, timeout=15, check=True,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=True,
             )
             import json
+
             packages = json.loads(result.stdout)
         except (subprocess.SubprocessError, ValueError) as error:
-            raise ValueError("Não foi possível listar os pacotes deste ambiente.") from error
+            raise ValueError(
+                "Não foi possível listar os pacotes deste ambiente."
+            ) from error
         return {"initialized": True, "packages": packages, "python": str(python)}
 
     def install(self, project, packages, *, confirm=False):
         if confirm is not True:
             raise ValueError("A instalação exige confirmação explícita do usuário.")
-        if (not isinstance(packages, list) or not 1 <= len(packages) <= MAX_PACKAGES
-                or any(not isinstance(item, str) or len(item) > 120
-                       or not PACKAGE.fullmatch(item) for item in packages)):
-            raise ValueError("Informe até cinco pacotes PyPI válidos. URLs e opções de pip não são aceitas.")
+        if (
+            not isinstance(packages, list)
+            or not 1 <= len(packages) <= MAX_PACKAGES
+            or any(
+                not isinstance(item, str)
+                or len(item) > 120
+                or not PACKAGE.fullmatch(item)
+                for item in packages
+            )
+        ):
+            raise ValueError(
+                "Informe até cinco pacotes PyPI válidos. URLs e opções de pip não são aceitas."
+            )
         python = self.interpreter(project)
         if python is None:
             folder = self.path(project)
             folder.parent.mkdir(parents=True, exist_ok=True)
             if getattr(sys, "frozen", False):
-                run_external([str(external_python()), "-I", "-m", "venv", str(folder)],
-                             check=True, capture_output=True, text=True, timeout=120)
+                run_external(
+                    [str(external_python()), "-I", "-m", "venv", str(folder)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
             else:
                 venv.EnvBuilder(with_pip=True, clear=False).create(folder)
             python = self.interpreter(project)
         if python is None:
-            raise ValueError("Não foi possível criar o ambiente Python isolado do projeto.")
+            raise ValueError(
+                "Não foi possível criar o ambiente Python isolado do projeto."
+            )
         try:
             process = run_external(
-                [str(python), "-m", "pip", "install", "--disable-pip-version-check",
-                 "--no-input", "--only-binary=:all:", *packages],
-                capture_output=True, text=True, timeout=180,
+                [
+                    str(python),
+                    "-m",
+                    "pip",
+                    "install",
+                    "--disable-pip-version-check",
+                    "--no-input",
+                    "--only-binary=:all:",
+                    *packages,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=180,
                 cwd=self.root,
             )
         except subprocess.TimeoutExpired as error:
             raise ValueError("Instalação encerrada após três minutos.") from error
         log = (process.stdout + "\n" + process.stderr)[-MAX_LOG:]
         if process.returncode:
-            raise ValueError("pip retornou código "+str(process.returncode)+":\n"+log[-3000:])
+            raise ValueError(
+                "pip retornou código " + str(process.returncode) + ":\n" + log[-3000:]
+            )
         return {"installed": packages, "log": log, "environment": str(python)}
+
+    def remove(self, project, packages, *, confirm=False):
+        if confirm is not True:
+            raise ValueError("A remoção exige confirmação explícita do usuário.")
+        if (
+            not isinstance(packages, list)
+            or not 1 <= len(packages) <= MAX_PACKAGES
+            or any(
+                not isinstance(name, str)
+                or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,119}", name)
+                for name in packages
+            )
+        ):
+            raise ValueError("Informe até cinco nomes de pacotes válidos.")
+        executable = self.interpreter(project)
+        if executable is None:
+            raise ValueError("Este projeto ainda não possui ambiente Python.")
+        result = run_external(
+            [
+                str(executable),
+                "-m",
+                "pip",
+                "uninstall",
+                "--yes",
+                "--disable-pip-version-check",
+                *packages,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        log = (result.stdout + "\n" + result.stderr)[-MAX_LOG:]
+        if result.returncode:
+            raise ValueError("Não foi possível remover as bibliotecas: " + log[-3000:])
+        return {"removed": packages, "log": log}
