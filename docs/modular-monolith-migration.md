@@ -95,7 +95,15 @@ Os JSONs de benchmark/profile ficam nesta pasta. `data-baseline-comparable-linux
 e `data-after-comparable-linux` executam o mesmo benchmark na revisão bd572de e
 na migração, usando o mesmo Vela. Para 1M registros, importação foi 13.611 →
 13.616 s, snapshot CSV 8.779 → 8.748 s e pico Python ~2.11 MB: paridade, sem
-alegação de ganho estatístico. São diagnósticos únicos com tracemalloc ligado.
+alegação de ganho estatístico para a migração. São diagnósticos únicos com tracemalloc ligado.
+
+Uma otimização posterior reutiliza a configuração do encoder JSON em cada
+importação, preservando o mesmo formato e as mesmas transações. Em três amostras
+antes/depois de 1M registros, a mediana de importação caiu de 13.755 s para
+12.421 s (~9.69%). O snapshot continuou com 15,333,345 bytes; memória e tempo
+de snapshot ficaram próximos. As amostras estão em
+`data-encoder-optimization-linux.json`. Isso é uma medição local dessa operação,
+não uma estimativa de ganho global ou estatisticamente generalizável.
 
 `modular-runtime-profile-linux.json` inclui cProfile e medições de 1k/10k/100k/1M.
 No caso de 1M, página backend ~1.18 ms, consulta limitada ~0.86 ms e snapshot
@@ -114,8 +122,10 @@ job encontrou depois uma regressão de DATASET_CSV em Planilhas, corrigida nos
 commits seguintes; o JSON não representa aprovação de toda a suíte.
 
 O build Linux de 7017f3c passou pelo teste de notebook congelado, portable e
-instalador Debian (run 43577326240). O kernel do pacote Windows ainda está sob
-validação; logs de inicialização e relatórios JSON são preservados mesmo em erro.
+instalador Debian (run 43577326240). O pacote Windows de 367941b também passou pelo fluxo de notebook, portable e
+instalador (run 43577991539), depois de corrigidos os handles padrão herdados do
+processo windowed. Logs de inicialização e relatórios JSON são preservados mesmo
+em erro. A aprovação do head final continua dependendo do CI correspondente.
 
 Complexidades: importação e exportação percorrem O(n) linhas, com lotes limitados;
 SQLite adiciona o custo de seus índices. Página SQLite usa a chave composta de

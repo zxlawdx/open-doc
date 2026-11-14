@@ -79,6 +79,8 @@ class Datasets:
                 dataset = self.get(db, identifier)
                 columns, count = json.loads(dataset["columns_json"]), dataset["row_count"]
             initial = count
+            # Reuse encoder configuration instead of constructing it per row.
+            encode_row = json.JSONEncoder(ensure_ascii=False, separators=(",", ":")).encode
             for path in paths:
                 try:
                     with delimited(path, encoding, delimiter) as (header, reader):
@@ -98,9 +100,7 @@ class Datasets:
                             if len(row) != len(columns):
                                 raise ValueError(f"{path.name}: registro até a linha {reader.line_num} tem {len(row)} campos; esperado {len(columns)}.")
                             count += 1
-                            values = json.dumps(
-                                [row[index] for index in order], ensure_ascii=False, separators=(",", ":")
-                            )
+                            values = encode_row([row[index] for index in order])
                             batch.append((identifier, count, values))
                             buffered += len(values)
                             if len(batch) >= BATCH_SIZE or buffered >= 1024 * 1024:
