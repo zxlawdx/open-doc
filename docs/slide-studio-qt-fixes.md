@@ -34,8 +34,8 @@ python manage.py runapp
 
 ## Evidências automatizadas
 
-- `tests/slide_editor.test.cjs` — SVGs, modelo, propriedades e eventos.
-- `tests/test_native_slide_editor.py` — validação, persistência e OOXML.
+- `tests/regression/slide_editor.test.cjs` — SVGs, modelo, propriedades e eventos.
+- `tests/regression/test_native_slide_editor.py` — validação, persistência e OOXML.
 - `tools/qa_ink.py` + `tools/qa_slide_capture.cjs` — captura no Qt real, `getBoundingClientRect`, hit-test e amostragem de pixels.
 - Workflows `linux-qt` e `windows-qt` guardam artefatos em `docs/images/ink`.
 

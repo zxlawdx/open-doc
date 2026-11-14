@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-const here=dirname(fileURLToPath(import.meta.url)),root=resolve(here,'..'),out=join(root,'apps','open_doc','static','js','vendor'),require=createRequire(import.meta.url);
+const here=dirname(fileURLToPath(import.meta.url)),root=resolve(here,'..'),out=join(root,'apps','home','static','js','vendor'),require=createRequire(import.meta.url);
 const dependencies=['esbuild','core-js','pdfjs-dist','perfect-freehand','pptx-viewer','fflate','codemirror','@codemirror/lang-python','@codemirror/lang-sql'];
 await mkdir(out,{recursive:true});const marker=join(out,'.build-failed');await writeFile(marker,'Build incompleto: execute npm run build:vendor.\n');
 try{for(const name of dependencies)require.resolve(name);}catch(error){console.error('Dependência de vendor ausente. Execute npm ci.\n'+error.message);process.exit(1);}
@@ -140,7 +140,7 @@ try{
  const source_hash=hash(Buffer.concat([await readFile(fileURLToPath(import.meta.url)),Buffer.from('\0'),await readFile(join(root,'package-lock.json'))]));
  const build_hash=hash(JSON.stringify({source_hash,files}));let previous={};try{previous=JSON.parse(await readFile(join(out,'vendor-manifest.json'),'utf8'));}catch{}
  const manifest={versions,target:'chrome83',source_hash,files,build_hash,built_at:previous.build_hash===build_hash?previous.built_at:new Date().toISOString()};
- for(const name of ['standard_fonts','cmaps'])await cp(join(root,'node_modules','pdfjs-dist',name),join(root,'apps','open_doc','static','pdfjs',name),{recursive:true});
+ for(const name of ['standard_fonts','cmaps'])await cp(join(root,'node_modules','pdfjs-dist',name),join(root,'apps','home','static','pdfjs',name),{recursive:true});
  for(const name of ['pdfjs-dist','perfect-freehand','core-js','pptx-viewer','fflate'])await cp(join(root,'node_modules',name,'LICENSE'),join(temporary,name+'-LICENSE.txt'));
  const lock=JSON.parse(await readFile(join(root,'package-lock.json'),'utf8'));
  const codeLicenses=[];

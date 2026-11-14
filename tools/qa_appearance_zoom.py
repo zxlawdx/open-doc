@@ -13,8 +13,8 @@ from qa_runtime import Keyboard, report
 import webview
 from fpdf import FPDF
 
-from apps.open_doc.services.container import services
-from apps.open_doc.services.preferences_service import Config
+from config.composition import get_context as services
+from shared.services.preferences_service import Config
 from config.wsgi import create_app
 
 
@@ -60,9 +60,12 @@ def exercise(window, output, reopen):
     wait(window, "document.querySelector('[data-app]')?.dataset.ready === 'true'")
     report(window)
     if reopen:
+        # The modular workspace restores the last active dataset, not a fresh shell.
+        wait(window, "!document.querySelector('[data-dataset]').hidden")
+        wait(window, "document.querySelector('.workspace-global-tabs button[aria-current=true]')?.textContent === 'appearance-qa'")
         zoom(120)
         assert js("document.querySelector('[data-app]').dataset.theme") == "dark"
-        capture(output, "central-reaberta")
+        capture(output, "sessao-reaberta")
         return
 
     keyboard = Keyboard(window)

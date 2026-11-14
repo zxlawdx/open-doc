@@ -9,7 +9,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "test": "node --test tests/*.test.cjs",
+    "test": "node --test tests/regression/*.test.cjs",
     "build:vendor": "node tools/build_vendor_js.mjs",
     "build": "python manage.py collectstatic --yes"
   },

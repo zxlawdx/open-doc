@@ -167,6 +167,8 @@ def verify_pages(window, services, wait_for):
     )
     time.sleep(0.3)
     # Import a genuinely new family through the native bridge; picker alone is stubbed.
+    import sys
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tests/regression"))
     from test_native_services import make_font
     import webview
 

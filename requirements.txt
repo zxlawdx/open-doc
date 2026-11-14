@@ -1,5 +1,5 @@
 # Runtime Vela fixado no commit inspecionado.
-vela-framework @ git+https://github.com/zxlawdx/Vela-framework.git@20c837ba4ef8a926cf6a3152116c9d9a51457513
+vela-framework @ git+https://github.com/zxlawdx/Vela-framework.git@48e0b912bff1a8cd61ef77fb348cb2ab11a9dcce
 bottle==0.13.4
 pywebview==6.2.1
 PyQt5>=5.15.11,<6
@@ -28,3 +28,8 @@ defusedxml==0.7.1
 
 # Python static completions for the integrated editor (MIT).
 jedi==0.19.2
+
+# Native table interchange and persistent project notebook transport.
+pandas>=2.2,<3
+pyarrow>=18,<27
+jupyter_client>=8.6,<9

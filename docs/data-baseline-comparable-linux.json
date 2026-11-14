@@ -1,0 +1,33 @@
+{
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "results": [
+    {
+      "records": 1000,
+      "legacy_import_ms": 14.623951999965357,
+      "native_snapshot_ms": 11.358998000105203,
+      "python_peak_bytes": 1269051,
+      "snapshot_bytes": 9345
+    },
+    {
+      "records": 10000,
+      "legacy_import_ms": 137.8934410004149,
+      "native_snapshot_ms": 87.24227600032464,
+      "python_peak_bytes": 1175773,
+      "snapshot_bytes": 113345
+    },
+    {
+      "records": 100000,
+      "legacy_import_ms": 1379.7308610000982,
+      "native_snapshot_ms": 865.3912829995534,
+      "python_peak_bytes": 2110296,
+      "snapshot_bytes": 1333345
+    },
+    {
+      "records": 1000000,
+      "legacy_import_ms": 13610.808064000594,
+      "native_snapshot_ms": 8779.251137999381,
+      "python_peak_bytes": 2110157,
+      "snapshot_bytes": 15333345
+    }
+  ]
+}

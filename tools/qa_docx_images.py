@@ -13,8 +13,8 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from apps.open_doc.services.container import services
-from apps.open_doc.services.preferences_service import Config
+from config.composition import get_context as services
+from shared.services.preferences_service import Config
 from config.wsgi import create_app
 from qa_docx_list import capture
 from qa_runtime import Keyboard, report

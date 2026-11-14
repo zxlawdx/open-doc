@@ -8,8 +8,8 @@ Esta pasta segue a arquitetura documentada do **Vela Framework**: o comando `bui
 | `assets/icons/open-doc.icns` | Ícone **macOS** |
 | `assets/icons/open-doc.png` | Ícone de origem, exportação Linux, branding |
 | `assets/branding/` | Materiais aprovados: marca, paleta e guia visual |
-| `apps/open_doc/static/icons.svg` | Sprite da interface; símbolo `#file-text` é o ícone **atual** do cabeçalho |
-| `apps/open_doc/static/brand/` | Logos SVG e ilustrações utilizadas pela **interface web** |
+| `apps/home/static/icons.svg` | Sprite da interface; símbolo `#file-text` é o ícone **atual** do cabeçalho |
+| `apps/home/static/brand/` | Logos SVG e ilustrações utilizadas pela **interface web** |
 
 ### Ativar uma logo oficial
 
@@ -27,7 +27,7 @@ Para a interface, use o static resolver: `{{ static('open_doc/brand/open-doc-log
 
 ### Ícone atual
 
-O cabeçalho usa o símbolo `#file-text` de `apps/open_doc/static/icons.svg`,
+O cabeçalho usa o símbolo `#file-text` de `apps/home/static/icons.svg`,
 com fundo azul e bordas arredondadas. O arquivo
 [`icone-atual-open-doc.svg`](branding/icone-atual-open-doc.svg) reproduz
 essa marca para o executável e o instalador. O build converte o SVG em um

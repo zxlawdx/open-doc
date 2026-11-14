@@ -17,6 +17,6 @@ Os modelos de fábrica ficam em um catálogo Python, empacotado com o app. O mes
 
 ## Verificação
 
-`tests/app.test.cjs` cobre navegação, filtragem, prévia, cancelamento e criação. `tests/test_template_catalog.py` exercita o endpoint autenticado, cria duas cópias de cada modelo e verifica os arquivos nativos exportados. `tests/test_file_associations.py` verifica que os formatos associados ainda abrem diretamente no editor.
+`tests/regression/app.test.cjs` cobre navegação, filtragem, prévia, cancelamento e criação. `tests/regression/test_template_catalog.py` exercita o endpoint autenticado, cria duas cópias de cada modelo e verifica os arquivos nativos exportados. `tests/integration/test_file_associations.py` verifica que os formatos associados ainda abrem diretamente no editor.
 
 `python tools/qa_template_center.py docs/images/template-center` abre a Central em QtWebEngine e cria cópias em todos os editores. Capturas da [Central](images/template-center/central.png), dos [modelos DOCX](images/template-center/templates-docx.png), dos [modelos PPTX](images/template-center/templates-pptx.png) e dos [modelos PDF](images/template-center/templates-pdf.png).

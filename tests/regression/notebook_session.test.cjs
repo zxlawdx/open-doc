@@ -1,0 +1,20 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+const source=fs.readFileSync(require('./asset_path.cjs')('code_notebook.js'),'utf8');
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+test('notebook executes cell languages, keeps project drafts and persists source',async t=>{
+ const dom=new JSDOM('<section><aside><h2 class="workbook-sidebar-title">Código</h2></aside></section>',{runScripts:'outside-only'}),w=dom.window,panel=w.document.querySelector('aside'),signal=new w.AbortController();
+ let project='first';const executions=[],requests=[];
+ t.after(()=>{signal.abort();w.close();});
+ w.OpenDocGridWorkspace={icon:()=>w.document.createElement('i')};
+ w.OpenDocCodeEditor={create:({field})=>({value:()=>field.value,focus:()=>{},lock:()=>{},remember:()=>{},columns:()=>{}})};
+ w.eval(source);
+ const api=w.OpenDocCodeNotebook.create({panel,signal:signal.signal,project:()=>project,onLayout:()=>{},request:async(path,data)=>{requests.push(data);return {cells:[]};},execute:async(language,code)=>{executions.push([language,code]);return {output:'42',returncode:0};}});
+ await wait(0);
+ const click=label=>[...panel.querySelectorAll('button')].find(button=>button.textContent===label).click();
+ click('Python');panel.querySelector('[data-code-cell=python] textarea').value='answer=41';click('Executar');await wait(0);
+ assert.deepEqual(executions,[['python','answer=41']]);assert.match(panel.textContent,/42/);
+ project='second';api.activate();project='first';api.activate();
+ assert.equal(panel.querySelector('[data-code-cell=python] textarea').value,'answer=41');
+ panel.querySelector('textarea').dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await wait(450);
+ assert.ok(requests.some(item=>item.operation==='save-cells'&&item.cells[0]?.source==='answer=41'));
+});

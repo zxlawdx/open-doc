@@ -12,11 +12,11 @@ templates, servidor HTTP e `CommandRunner` da versão fixada do Vela. `main.py`,
 
 | Antes | Agora |
 |---|---|
-| `app/editor.py` | `apps/open_doc/services/document_service.py` |
-| `app/runtime.py` | `apps/open_doc/services/container.py` |
+| `app/editor.py` | `apps/documents/services/document_service.py` |
+| `app/runtime.py` | `config/composition.py` |
 | `app/config.py`, `app/workspace.py` | services de preferências/workspace |
 | `app/router.py` | `apps/open_doc/api.py` e pacote `views/` |
-| `app/importers/docx` | `apps/open_doc/parsers/docx` |
+| `app/importers/docx` | `apps/documents/services/parsers` |
 | `app/document_model`, `app/exporters` | mesmos módulos dentro de `apps/open_doc` |
 | `ui/templates`, `ui/static`, `ui/styles` | templates/static/styles do app |
 | `tools/sync_frontend.py` | removido |

@@ -25,7 +25,7 @@ A lógica foi comparada com o [PDFOutlineViewer do Mozilla PDF.js 4.10.38](https
 
 ```bash
 python manage.py collectstatic --yes
-node --test tests/pdf_navigation.test.cjs tests/fixed_rendering.test.cjs
+node --test tests/regression/pdf_navigation.test.cjs tests/regression/fixed_rendering.test.cjs
 python tools/qa_pdf_navigation.py
 ```
 
