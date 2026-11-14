@@ -508,6 +508,7 @@
       resizeGrid(zoom);renderTabs();choose(0);report("Salvo neste dispositivo");
       if(linkedPanel)linkedPanel.hidden=true;viewport.hidden=false;
       if(book.sheets[0].external_resource)linkedPage().catch(error=>report(error.message));
+      host.dispatchEvent(new CustomEvent("open-doc:workspace",{bubbles:true}));
     }
     async function save() {
       if(importing)throw Error("Aguarde a importação terminar.");
@@ -1109,7 +1110,7 @@
       }catch(error){report(error.message);}
     },{signal});
     signal.addEventListener("abort",()=>cancelAnimationFrame(frame),{once:true});
-    return {load,save,report,id:()=>book.id,value:()=>zoom,set(value){
+    return {load,save,report,id:()=>book.id,title:()=>title.value,value:()=>zoom,set(value){
       zoom=value;
       resizeGrid(value);
       persist({workbook_zoom:value}).catch(error=>report(error.message));

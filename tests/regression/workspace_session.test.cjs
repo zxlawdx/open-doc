@@ -11,7 +11,8 @@ test('workspace restores active tab, publishes with revision and protects unsave
  await api.loaded;assert.deepEqual(activated,['old']);
  root.dataset.globalDirty='true';root.querySelector('[aria-label="Fechar Anterior"]').click();
  assert.equal(root.querySelectorAll('.workspace-global-tabs span').length,1);assert.match(messages.at(-1),/Salve/);
- root.dataset.globalDirty='false';api.capture();await wait(350);
+ root.dataset.globalDirty='false';root.dispatchEvent(new w.CustomEvent('open-doc:workspace'));await wait(350);
+ assert.equal(root.querySelector('button[aria-current="true"]').textContent,'Próximo','dataset completion updates the active tab without changing view attributes');
  assert.equal(requests.find(value=>value.operation==='save').expected_revision,3);
  assert.equal(root.querySelectorAll('.workspace-global-tabs span').length,2);
 });

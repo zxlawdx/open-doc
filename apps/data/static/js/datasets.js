@@ -181,6 +181,7 @@
       current=result;row=nextRow;column=nextColumn;querying=false;lastQuery=null;
       rowInput.value=row+1;columnInput.value=column+1;
       draw(result);
+      host.dispatchEvent(new CustomEvent("open-doc:workspace",{bubbles:true}));
       const number=value=>value.toLocaleString("pt-BR");
       status.textContent=number(result.row_count)+" linhas · "+number(result.column_count)+" colunas · "+
         number(result.source_count)+" arquivos · linhas exibidas "+number(result.rows.length ? row+1 : 0)+"–"+number(row+result.rows.length);

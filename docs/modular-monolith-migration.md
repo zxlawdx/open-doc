@@ -42,7 +42,7 @@ não o tamanho de bases SQLite, ambientes Python ou arquivos de usuário.
 2. Abra Ferramentas/Código e use o preset para instalar Pandas, Arrow, ipykernel e
    DuckDB no ambiente do projeto. A instalação continua sendo uma ação explícita.
 3. Use **Abrir como DataFrame**. `df` contém a tabela, isolada do original.
-4. Execute células Python e SQL (`SELECT ... FROM df`), ou edite células Markdown.
+4. Execute células Python e SQL (`SELECT ... FROM df`; `dados` continua disponível por compatibilidade), ou edite células Markdown.
    Células do mesmo projeto compartilham kernel; projetos distintos têm processos
    separados. Saídas incluem texto, tabelas HTML sanitizadas e PNG/JPEG limitados.
 5. Use **Publicar df na tabela**. O recurso recebe uma nova revisão, e a adoção na
@@ -84,7 +84,7 @@ sistemas; não é executado durante a abertura normal do programa.
 
 ## Evidências e limites de validação
 
-Execução local Linux: 410 testes Python aprovados e 317 frontend aprovados. Dois
+Execução local Linux: 410 testes Python aprovados e 317 frontend aprovados. Três
 casos Jupyter são ignorados somente quando uma tentativa real de bind retorna
 EPERM/EACCES: este executor bloqueia sockets TCP/IPC do Jupyter. Outros dois casos
 já eram ignorados. Os testes de roundtrip/adopção/desfazer executaram Pandas e
@@ -105,6 +105,17 @@ de alocações Python); as seguintes ficaram em ~2.15 MB. Inicialização backen
 nesse processo foi ~430 ms; instâncias posteriores com imports quentes ~15–21 ms.
 Isso não é tempo de abertura da janela Qt. Renderização e navegação reais usam os
 QA nativos e artefatos do CI.
+
+`qt-navigation-linux.json` registra a navegação Qt real da revisão 7017f3c: primeira
+Planilha ~84.95 ms, seguintes ~32.91–36.12 ms; Dados ~162.33 ms. O teste passou
+com 3,237,149 bytes de tinta e salvamento pendente, sem serialização de tinta na
+thread principal. É uma execução isolada, sem baseline GUI comparável. O mesmo
+job encontrou depois uma regressão de DATASET_CSV em Planilhas, corrigida nos
+commits seguintes; o JSON não representa aprovação de toda a suíte.
+
+O build Linux de 7017f3c passou pelo teste de notebook congelado, portable e
+instalador Debian (run 43577326240). O kernel do pacote Windows ainda está sob
+validação; logs de inicialização e relatórios JSON são preservados mesmo em erro.
 
 Complexidades: importação e exportação percorrem O(n) linhas, com lotes limitados;
 SQLite adiciona o custo de seus índices. Página SQLite usa a chave composta de

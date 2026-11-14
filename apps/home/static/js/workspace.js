@@ -34,6 +34,7 @@
       if(found<0)tabs.push(tab);else tabs[found]=tab;
       if(tabs.length>50)tabs.shift();render();clearTimeout(timer);timer=setTimeout(persist,300);
     }
+    root.addEventListener('open-doc:workspace',capture,{signal});
     const observer=new MutationObserver(capture);observer.observe(root,{attributes:true,attributeFilter:['data-home-view','data-workbook-view','data-dataset-view','data-document-kind']});
     root.addEventListener('open-doc:content',()=>{clearTimeout(timer);timer=setTimeout(capture,1000);},{signal});
     const loaded=request('workspace',{operation:'load'}).then(async state=>{

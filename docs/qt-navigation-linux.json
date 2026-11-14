@@ -1,0 +1,96 @@
+{
+  "requests": [
+    {
+      "url": "workbook",
+      "ms": 14.009999999984757
+    },
+    {
+      "url": "dataset",
+      "ms": 20.135000000038872
+    },
+    {
+      "url": "workbook",
+      "ms": 6.005000000016025
+    },
+    {
+      "url": "document/save",
+      "ms": 534.8349999999868
+    },
+    {
+      "url": "document/new",
+      "ms": 8.215000000006967
+    },
+    {
+      "url": "workbook",
+      "ms": 9.324999999989814
+    }
+  ],
+  "actions": [
+    {
+      "name": "workbook-new",
+      "ms": 84.94500000000471,
+      "workbook": "true",
+      "dataset": "false",
+      "home": "true"
+    },
+    {
+      "name": "datasets",
+      "ms": 162.32500000000982,
+      "workbook": "false",
+      "dataset": "true",
+      "home": "true"
+    },
+    {
+      "name": "workbook-new",
+      "ms": 32.91499999994585,
+      "workbook": "true",
+      "dataset": "false",
+      "home": "true"
+    },
+    {
+      "name": "home",
+      "ms": 21.700000000009823,
+      "workbook": "false",
+      "dataset": "false",
+      "home": "true"
+    },
+    {
+      "name": "new",
+      "ms": 197.57000000004155,
+      "workbook": "false",
+      "dataset": "false",
+      "home": "false"
+    },
+    {
+      "name": "home",
+      "ms": 15.235000000018317,
+      "workbook": "false",
+      "dataset": "false",
+      "home": "true"
+    },
+    {
+      "name": "workbook-new",
+      "ms": 36.12499999996999,
+      "workbook": "true",
+      "dataset": "false",
+      "home": "true"
+    },
+    {
+      "name": "home",
+      "ms": 19.83500000000049,
+      "workbook": "false",
+      "dataset": "false",
+      "home": "true"
+    }
+  ],
+  "mainThreadInkEncodes": 0,
+  "inkBytes": 3237149,
+  "navigatedWhileSavePending": true,
+  "source": {
+    "commit": "7017f3c46a1a2d5eccbe8082dc46b5885d57aaf5",
+    "workflow": "https://github.com/zxlawdx/open-doc/actions/runs/43577326231",
+    "job": 132394309262,
+    "platform": "Linux QtWebEngine",
+    "scope": "navigation test passed; later workbook QA failed; single measured run, no comparable GUI baseline"
+  }
+}
