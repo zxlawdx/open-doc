@@ -1,0 +1,155 @@
+<section class="workbook dataset" data-dataset hidden aria-label="Área de dados">
+  <nav class="workbook-ribbon-tabs" aria-label="Guias da faixa de opções">
+    <button type="button" data-ribbon-tab="import" aria-pressed="true">Importação</button>
+    <button type="button" data-ribbon-tab="transform" aria-pressed="false">Transformação</button>
+    <button type="button" data-ribbon-tab="clean" aria-pressed="false">Limpeza</button>
+    <button type="button" data-ribbon-tab="filter" aria-pressed="false">Filtros</button>
+    <button type="button" data-ribbon-tab="types" aria-pressed="false">Tipos</button>
+    <button type="button" data-ribbon-tab="analysis" aria-pressed="false">Análise</button>
+    <button type="button" data-ribbon-tab="sql" aria-pressed="false">SQL</button>
+    <button type="button" data-ribbon-tab="python" aria-pressed="false">Python</button>
+    <button type="button" data-ribbon-tab="export" aria-pressed="false">Exportação</button>
+  </nav>
+  <div class="workbook-ribbon-shell">
+    <div class="workbook-toolbar workbook-ribbon" aria-label="Ferramentas">
+    <div class="workbook-tools" data-ribbon-group="import transform clean filter types analysis sql python export" role="group" aria-label="Fonte">
+      <select data-dataset-list aria-label="Dataset"></select>
+      <small>Fonte</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="import" role="group" aria-label="CSV / TSV">
+      <button type="button" data-dataset-command="new" title="Importar arquivos" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#folder-open"></use></svg>Importar arquivos</button>
+      <button type="button" data-dataset-command="append" title="Acrescentar arquivos" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#file-plus"></use></svg>Acrescentar arquivos</button>
+      <label>Codificação <select data-dataset-encoding><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
+      <label>Separador <select data-dataset-delimiter><option value="auto">Automático</option><option value=",">Vírgula</option><option value=";">Ponto e vírgula</option><option value="&#9;">Tabulação</option><option value="|">Barra vertical</option></select></label>
+      <small>CSV / TSV</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="transform clean types" role="group" aria-label="Histórico" hidden>
+      <button type="button" data-dataset-command="undo" title="Desfazer (Ctrl+Z)" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#undo"></use></svg>Desfazer</button>
+      <button type="button" data-dataset-command="redo" title="Refazer (Ctrl+Y)" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#redo"></use></svg>Refazer</button>
+      <button type="button" data-dataset-command="history" title="Histórico" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#clock"></use></svg>Histórico</button>
+      <small>Histórico</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="transform types" role="group" aria-label="Esquema" hidden>
+      <button type="button" data-dataset-command="types" title="Tipos e conversão" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#cell-types"></use></svg>Tipos e conversão</button>
+      <small>Esquema</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="clean" role="group" aria-label="Consultas de limpeza" hidden>
+      <button type="button" data-dataset-command="nulls" title="Localizar vazios" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#filter"></use></svg>Localizar vazios</button>
+      <button type="button" data-dataset-command="distinct" title="Listar valores únicos" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#duplicate"></use></svg>Listar valores únicos</button>
+      <small>Consultas de limpeza</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="filter" role="group" aria-label="Consultas de seleção" hidden>
+      <button type="button" data-dataset-command="filter" title="Filtrar valor" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#filter"></use></svg>Filtrar valor</button>
+      <button type="button" data-dataset-command="sort-asc" title="Ordenar A–Z" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#arrow-up"></use></svg>Ordenar A–Z</button>
+      <button type="button" data-dataset-command="sort-desc" title="Ordenar Z–A" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#arrow-down"></use></svg>Ordenar Z–A</button>
+      <small>Consultas de seleção</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="analysis" role="group" aria-label="Estatísticas" hidden>
+      <button type="button" data-dataset-command="counts" title="Frequências" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#chart-bar"></use></svg>Frequências</button>
+      <button type="button" data-dataset-command="tools" title="Painel de código" aria-controls="dataset-tools" aria-expanded="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#sidebar"></use></svg>Painel de código</button>
+      <small>Estatísticas</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="sql" role="group" aria-label="SQLite" hidden>
+      <button type="button" data-dataset-command="show-sql" title="Abrir editor SQL" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#terminal"></use></svg>Abrir editor SQL</button>
+      <small>SQLite</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="python" role="group" aria-label="Python local" hidden>
+      <button type="button" data-dataset-command="show-python" title="Abrir editor Python" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#code"></use></svg>Abrir editor Python</button>
+      <small>Python local</small>
+    </div>
+    <div class="workbook-tools" data-ribbon-group="export" role="group" aria-label="Arquivo" hidden>
+      <button type="button" data-dataset-command="export" title="Exportar CSV" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#download"></use></svg>Exportar CSV</button>
+      <small>Arquivo</small>
+    </div>
+    </div>
+    <button type="button" data-ribbon-overflow hidden title="Mostrar todos os comandos" aria-label="Mostrar todos os comandos" aria-expanded="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#more"></use></svg></button>
+  </div>
+  <div class="workbook-toolbar" data-dataset-pagination>
+    <button type="button" data-dataset-command="previous"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#chevron-left"></use></svg>Linhas anteriores</button>
+    <button type="button" data-dataset-command="next"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#chevron-right"></use></svg>Próximas linhas</button>
+    <label>Linha <input data-dataset-row inputmode="numeric" size="8" value="1"></label>
+    <label>Coluna <input data-dataset-column inputmode="numeric" size="5" value="1"></label>
+    <button type="button" data-dataset-command="go"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#search"></use></svg>Ir para posição</button>
+  </div>
+  <div class="workbook-body dataset-body" data-code-split>
+  <div class="workbook-scroll" tabindex="0" aria-label="Prévia do dataset">
+    <div class="dataset-empty" data-dataset-empty hidden>
+      <strong>Importe seus dados</strong>
+      <p>Abra um CSV ou TSV com cabeçalhos para visualizar, consultar e analisar os registros.</p>
+      <button type="button" data-dataset-command="new"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#folder-open"></use></svg>Importar CSV ou TSV</button>
+    </div>
+    <table data-dataset-table></table>
+  </div>
+  <div class="code-splitter" role="separator" aria-label="Largura do painel de código" aria-orientation="vertical" aria-controls="dataset-tools" tabindex="0" hidden></div>
+  <aside class="workbook-sidebar" id="dataset-tools" data-dataset-tools hidden aria-label="SQL e Python">
+    <div class="workbook-sidebar-title"><strong>SQL e Python</strong><button type="button" data-dataset-command="close-tools" title="Recolher" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#chevron-right"></use></svg>Recolher</button></div>
+  <div class="workbook-toolbar" data-dataset-query hidden>
+    <label>SQL <textarea data-dataset-sql aria-label="Editor SQL" rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
+    <button type="button" data-dataset-command="query"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#play"></use></svg>Executar SQL</button>
+    <button type="button" data-dataset-command="sql-to-workbook" title="Criar planilha editável a partir dos resultados SQL" disabled><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#file-plus"></use></svg>Enviar à planilha</button>
+    <button type="button" data-dataset-command="reset"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#table"></use></svg>Voltar à prévia</button>
+  </div>
+  <details class="dataset-python" data-dataset-python hidden>
+    <summary><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#code"></use></svg>Python local</summary>
+    <label for="dataset-python-code">Script Python · Ctrl+Enter para executar</label>
+    <textarea id="dataset-python-code" data-dataset-code aria-label="Editor Python" rows="7" maxlength="24000" spellcheck="false">import csv
+
+with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
+    linhas = csv.DictReader(arquivo)
+    print("Colunas:", linhas.fieldnames)
+    print("Total de registros:", sum(1 for _ in linhas))</textarea>
+    <output data-dataset-signature aria-live="polite"></output>
+    <button type="button" data-dataset-command="python"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#play"></use></svg>Executar Python</button>
+    <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
+    <section class="python-packages" data-python-packages aria-label="Bibliotecas Python do projeto">
+      <button type="button" data-python-env-command="toggle"
+        title="Gerenciar pacotes em ambiente virtual exclusivo desta planilha ou dataset">
+        <svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#code"></use></svg>Bibliotecas Python
+      </button>
+      <div data-python-env-body hidden>
+        <p>Instalação opcional por projeto em um venv separado. Pacotes PyPI executam código de terceiros
+          com permissões da sua conta; não constituem isolamento de segurança.</p>
+        <label>Pacotes (separe por vírgulas, até 5)
+          <input data-python-env-names placeholder="pandas, numpy" maxlength="500">
+        </label>
+        <label class="python-packages-consent">
+          <input type="checkbox" data-python-env-agree>
+          Autorizo instalar esses pacotes de terceiros no ambiente do projeto.
+        </label>
+        <button type="button" data-python-env-command="install"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#download"></use></svg>Instalar no projeto</button>
+        <output data-python-env-status role="status" aria-live="polite"></output>
+        <details><summary>Pacotes instalados e log</summary>
+          <ul data-python-env-installed></ul><pre data-python-env-log></pre>
+        </details>
+        <small>Google Colab: integração remota ainda não disponível; nenhum acesso ou execução externa é simulado.</small>
+      </div>
+    </section>
+
+  </details>
+  </aside>
+  </div>
+  <p data-dataset-status role="status" aria-live="polite"></p>
+  <div data-dataset-conversion class="dataset-conversion-dialog" hidden role="dialog"
+       aria-modal="true" aria-labelledby="dataset-conversion-title">
+    <section class="dataset-conversion-content">
+      <header><strong id="dataset-conversion-title">Prévia da conversão</strong>
+        <button type="button" data-dataset-command="cancel-conversion" aria-label="Cancelar conversão">×</button></header>
+      <p data-conversion-summary>Verificando valores...</p>
+      <div data-conversion-samples class="dataset-conversion-samples"></div>
+      <label class="dataset-conversion-keep">
+        <input type="checkbox" data-conversion-keep-invalid>
+        Preservar valores incompatíveis sem alteração (eles continuarão sinalizados)
+      </label>
+      <footer>
+        <button type="button" data-dataset-command="cancel-conversion"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#close"></use></svg>Cancelar</button>
+        <button type="button" data-dataset-command="confirm-conversion"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#cell-types"></use></svg>Confirmar conversão</button>
+      </footer>
+    </section>
+  </div>
+  <aside data-dataset-history class="dataset-history" hidden aria-label="Histórico persistente">
+    <div class="workbook-sidebar-title"><strong>Histórico de dados</strong>
+      <button type="button" data-dataset-command="close-history"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#close"></use></svg>Fechar</button></div>
+    <p>Alterações de valores, tipos e conversões; as versões persistem após reiniciar.</p>
+    <ol data-dataset-history-list></ol>
+  </aside>
+</section>

@@ -65,6 +65,9 @@ def test_csv_dataframe_publish_undo_redo_and_reference_sheet(tmp_path):
             "returncode"
         ]
         assert ctx.datasets.cell(identifier, 1, 1)["value"] == "10"
+        queried = ctx.notebooks.execute(identifier, "SELECT SUM(value) AS total FROM dados", "sql")
+        assert queried["returncode"] == 0
+        assert "60" in str(queried)
         published = ctx.notebooks.publish(identifier)
         assert published["resource"]["revision"] == 2
         assert ctx.datasets.cell(identifier, 1, 1)["value"] == "20"

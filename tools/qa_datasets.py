@@ -191,6 +191,36 @@ def main():
                 wait(window, "document.querySelector('[data-workbook]').hidden===false")
                 wait(window, "document.querySelector('[data-cell=\"1,0\"]')?.textContent==='009'")
                 capture(output, "sql-to-workbook")
+                # Exercise the public notebook controls, publication and native reference sheet.
+                js("document.querySelector('[data-action=datasets]').click()")
+                wait(window, "!document.querySelector('[data-dataset]').hidden")
+                js("document.querySelector('[data-dataset-command=reset]').click()")
+                wait(window, "document.querySelector('[data-dataset-command=reset]').disabled")
+                js("""(() => {
+                  const tools=document.querySelector('[data-dataset-tools]');
+                  [...tools.children].find(node=>node.textContent==='Abrir como DataFrame').click();
+                })()""")
+                wait(window, "document.querySelector('[data-dataset-output]').textContent.includes('DataFrame pronto')")
+                js("""(() => {
+                  const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
+                  notebook.querySelector('button[title="Python"]').click();
+                  const cell=notebook.querySelector('[data-code-cell=python]:last-child');
+                  const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+                  editor.dispatch({changes:{from:0,to:editor.state.doc.length,
+                    insert:"df['qa_published'] = 42\\nprint('isolated-frame-ready')"}});
+                  cell.querySelector('button[title="Executar"]').click();
+                })()""")
+                wait(window, "[...document.querySelectorAll('.code-notebook-output')].some(n=>n.textContent.includes('isolated-frame-ready'))")
+                assert not js("document.querySelector('[data-dataset-table]').textContent.includes('qa_published')"), "Unpublished edits leaked into table"
+                js("[...document.querySelector('[data-dataset-tools]').children].find(n=>n.textContent==='Publicar df na tabela').click()")
+                wait(window, "document.querySelector('[data-dataset-status]').textContent.includes('Transformação publicada')")
+                assert js("document.querySelector('[data-dataset-table]').textContent.includes('qa_published')")
+                capture(output, "notebook-published-table")
+                js("[...document.querySelector('[data-dataset-tools]').children].find(n=>n.textContent==='Abrir em Planilhas por referência').click()")
+                wait(window, "document.querySelector('.linked-resource-sheet')?.textContent.includes('qa_published')")
+                assert js("document.querySelector('.linked-resource-sheet td:last-child')?.textContent==='42'")
+                capture(output, "notebook-reference-sheet")
+                print("QT_CSV_DATAFRAME_NOTEBOOK_PUBLICATION_REFERENCE_SHEET_OK", flush=True)
                 print("QT_DATASET_SQL_TO_WORKBOOK_OK", flush=True)
                 print("QT_DATASET_INLINE_TYPES_UNDO_REDO_OK", flush=True)
                 print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_COMPLETION_OK", flush=True)

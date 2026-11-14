@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {JSDOM}=require('jsdom');const base=path.resolve(__dirname,'../..');
 const url='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 async function setup(t){
- const html=fs.readFileSync(path.join(base,'apps/home/templates/base.html'),'utf8').replace(/{{ (menus|toolbar|sidebar|editor|home|workbook) }}/g,(_,n)=>fs.readFileSync(require('./template_path.cjs')(n),'utf8'));
+ const html=fs.readFileSync(path.join(base,'apps/home/templates/base.html'),'utf8').replace(/{{ (menus|toolbar|sidebar|editor|home|workbook|data) }}/g,(_,n)=>fs.readFileSync(require('./template_path.cjs')(n),'utf8'));
  const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('[data-app]');
  w.HTMLCanvasElement.prototype.getContext=()=>({});w.IntersectionObserver=class{observe(){}disconnect(){}};
  for(const f of ['compat.js','vendor/marked.js','vendor/purify.js','vendor/turndown.js','document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js','history.js','recovery.js','pagination.js','logical_transactions.js','editor.js'])w.eval(fs.readFileSync(require('./asset_path.cjs')(f),'utf8'));

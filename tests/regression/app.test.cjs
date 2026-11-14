@@ -7,7 +7,7 @@ const {JSDOM} = require('jsdom');
 const base = path.resolve(__dirname, '../..');
 async function mount(t, brokenNavigation = false, startInLibrary = false, systemTheme = false) {
   const template = fs.readFileSync(path.join(base, 'apps/home/templates/base.html'), 'utf8')
-    .replace(/{{ (menus|toolbar|sidebar|editor|home|workbook) }}/g, (_, name) => fs.readFileSync(require('./template_path.cjs')(name), 'utf8'));
+    .replace(/{{ (menus|toolbar|sidebar|editor|home|workbook|data) }}/g, (_, name) => fs.readFileSync(require('./template_path.cjs')(name), 'utf8'));
   const dom = new JSDOM(template, {url: 'http://localhost', runScripts: 'outside-only'});
   const w = dom.window, root = w.document.querySelector('[data-app]');
   w.eval(fs.readFileSync(require('./asset_path.cjs')('workspace.js'),'utf8'));

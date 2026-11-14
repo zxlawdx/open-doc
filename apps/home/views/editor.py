@@ -23,7 +23,7 @@ def workspace_view(params: dict[str, Any]) -> str:
     router = params["router"]
     context = {
         name: _render_partial(name, router)
-        for name in ("sidebar", "editor", "menus", "toolbar", "home", "workbook")
+        for name in ("sidebar", "editor", "menus", "toolbar", "home", "workbook", "data")
     }
     return render_template(
         str(PROJECT_ROOT / "apps/home/templates/base.html"),
