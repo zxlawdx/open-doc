@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from apps.open_doc.datasets.conversion import canonical
-from apps.open_doc.datasets.store import Datasets
+from apps.data.services.conversion import canonical
+from apps.data.services.store import Datasets
 
 
 @pytest.fixture()

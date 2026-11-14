@@ -2,7 +2,7 @@ from io import StringIO
 
 import pytest
 
-from apps.open_doc.datasets.worksheet import WorksheetSnapshot
+from apps.data.services.worksheet import WorksheetSnapshot
 
 
 def test_worksheet_snapshot_supports_sql_and_csv():

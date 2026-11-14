@@ -34,7 +34,7 @@ def analyze(code, line, column, operation, project=None):
     with _analysis_lock:
         executable = sys.executable
         if project:
-            from apps.open_doc.application.context import get_context
+            from shared.contracts.workspace import workspace as get_context
             from .python_envs import PythonEnvironments
             chosen = PythonEnvironments(get_context().config.root).interpreter(project)
             if chosen is not None:

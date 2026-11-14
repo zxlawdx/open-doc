@@ -2,8 +2,8 @@ import csv
 
 import pytest
 
-from apps.open_doc.datasets import python_runner
-from apps.open_doc.datasets.store import Datasets
+from apps.code.services import python_runner
+from apps.data.services.store import Datasets
 
 
 @pytest.fixture

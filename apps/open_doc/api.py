@@ -9,6 +9,7 @@ from typing import Any, Callable, Mapping
 from uuid import uuid4
 
 from vela.api import api
+from vela.resources import RevisionConflict as ResourceRevisionConflict
 from vela.core.http import Request, Response
 
 from apps.open_doc.application.context import get_context
@@ -54,7 +55,7 @@ def _handle(operation: Callable[[], dict[str, Any]]) -> dict[str, Any] | Respons
         return operation()
     except PermissionError as exc:
         return Response({"error": str(exc)}, status=FORBIDDEN)
-    except RevisionConflict as exc:
+    except (RevisionConflict, ResourceRevisionConflict) as exc:
         return Response(
             {"error": str(exc), "conflict": True},
             status=CONFLICT,
@@ -268,14 +269,12 @@ def workbook(context=None):
                 raise ValueError("A imagem não pertence à planilha.")
             return image_url(directory, data["media_id"])
         if command == "query":
-            from apps.open_doc.datasets.worksheet import WorksheetSnapshot
 
-            return WorksheetSnapshot(data["columns"], data["rows"]).query(data["sql"])
+            return get_context().data_tools.worksheet(data["columns"], data["rows"]).query(data["sql"])
         if command == "from-query":
-            from apps.open_doc.datasets.worksheet import WorksheetSnapshot
             from apps.open_doc.spreadsheets.store import empty_sheet
 
-            data_sheet = WorksheetSnapshot(data["columns"], data["rows"])
+            data_sheet = get_context().data_tools.worksheet(data["columns"], data["rows"])
             new_sheet = empty_sheet("Resultados SQL")
             for col, name in enumerate(data_sheet.columns):
                 new_sheet["cells"][f"0,{col}"] = name
@@ -304,62 +303,6 @@ def workbook(context=None):
     return _handle(operation)
 
 
-@api.post("/open_doc/dataset")
-def dataset(context=None):
-    def operation():
-        data = _data(context)
-        store = get_context().datasets
-        if data["operation"] == "list":
-            return {"datasets": store.list()}
-        if data["operation"] == "page":
-            return store.page(data["id"], data["row"], data["column"])
-        if data["operation"] == "columns":
-            return {"columns": store.columns(data["id"])}
-        if data["operation"] in {"cell", "filter-literal"}:
-            return store.cell(data["id"], data["row"], data["column"],
-                              for_query=data["operation"] == "filter-literal")
-        if data["operation"] == "edit":
-            return store.edit_cell(data["id"], data["row"], data["column"], data["value"])
-        if data["operation"] == "type":
-            return store.set_type(
-                data["id"], data["scope"], data["column"], data["kind"],
-                data.get("row"), data.get("last_row"), data.get("last_column"),
-            )
-        if data["operation"] == "history":
-            return store.history(data["id"])
-        if data["operation"] == "undo":
-            return store.undo(data["id"])
-        if data["operation"] == "redo":
-            return store.undo(data["id"], redo=True)
-        if data["operation"] in {"python-env-status", "python-env-install"}:
-            from apps.open_doc.datasets.python_envs import PythonEnvironments
-            manager = PythonEnvironments(get_context().config.root)
-            if data["operation"] == "python-env-status":
-                return manager.status(data["id"])
-            result = manager.install(data["id"], data["packages"],
-                                     confirm=data.get("confirm") is True)
-            from apps.open_doc.datasets.python_analysis import environment
-            environment.cache_clear()
-            return result
-        if data["operation"] == "conversion-preview":
-            return store.conversion_preview(
-                data["id"], data["scope"], data["column"], data["kind"],
-                data.get("row"), data.get("last_row"), data.get("last_column"),
-            )
-        if data["operation"] == "conversion-commit":
-            return store.conversion_commit(
-                data["id"], data["scope"], data["column"], data["kind"],
-                data["token"], data.get("row"), data.get("last_row"),
-                data.get("last_column"), on_invalid=data.get("on_invalid", "abort"),
-                confirm=data.get("confirm", False),
-            )
-        if data["operation"] == "query":
-            return store.query(data["id"], data["sql"])
-        raise ValueError("Operação de dataset inválida.")
-
-    return _handle(operation)
-
-
 @api.post("/open_doc/template/preview")
 def template_preview(context=None):
     return _handle(lambda: get_context().templates.preview(_data(context)["id"]))
@@ -374,13 +317,17 @@ def template_save(context=None):
     return _handle(operation)
 
 
-@api.post("/open_doc/dataset/python-analysis")
-def dataset_python_analysis(context=None):
-    from apps.open_doc.datasets.python_analysis import analyze
 
+
+@api.post("/open_doc/workspace")
+def workspace_session(context=None):
     def operation():
         data = _data(context)
-        return analyze(data["code"], data["line"], data["column"], data["operation"],
-                       data.get("project"))
-
+        workspace = get_context().resource_workspace
+        if data.get("operation") == "load":
+            return workspace.load()
+        if data.get("operation") == "save":
+            return workspace.save(expected_revision=data["expected_revision"],
+                                  tabs=data["tabs"], settings=data["settings"], modules=data["modules"])
+        raise ValueError("Operação de sessão inválida.")
     return _handle(operation)

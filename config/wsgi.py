@@ -9,15 +9,19 @@ from pathlib import Path
 from vela.core.app import VelaApp
 
 from apps.open_doc.app import OPEN_DOC_APP
+from apps.data.app import DATA_APP
+from apps.code.app import CODE_APP
 from apps.open_doc.application.context import configure
-from apps.open_doc.bridge import OpenDocBridge
+from config.bridge import OpenDocBridge
 from apps.open_doc.services.preferences_service import Config
 
 LOGGER = logging.getLogger(__name__)
 
 
 def create_app(
-    workspace: Config | None = None, *, startup_path: Path | None = None,
+    workspace: Config | None = None,
+    *,
+    startup_path: Path | None = None,
     start_in_library: bool | None = None,
 ) -> VelaApp:
     """Configure application dependencies, then build the Vela runtime."""
@@ -26,7 +30,9 @@ def create_app(
     manifest = check()
     context = configure(workspace)
     context.assets = manifest
-    context.start_in_library = workspace is None if start_in_library is None else start_in_library
+    context.start_in_library = (
+        workspace is None if start_in_library is None else start_in_library
+    )
     LOGGER.info(
         "Open Doc vendors: %s (%s)", manifest["versions"], manifest["build_hash"]
     )
@@ -43,8 +49,19 @@ def create_app(
                 "Verifique o formato e as permissões de leitura."
             )
 
-    application = VelaApp(settings_module="config.settings", bridge_class=OpenDocBridge)
+    application = VelaApp(
+        settings_module="config.settings",
+        bridge_class=OpenDocBridge,
+        resource_directory=context.config.root / ".veladata" / "resources",
+    )
     application.register_app(OPEN_DOC_APP)
+    application.register_app(DATA_APP)
+    application.register_app(CODE_APP)
+    from shared.services.workspace import ResourceWorkspace
+    from apps.data.services.exchange import DatasetExchange
+
+    context.resource_workspace = ResourceWorkspace(application)
+    context.dataset_exchange = DatasetExchange(application, context.datasets)
     return application
 
 

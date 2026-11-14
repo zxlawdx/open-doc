@@ -1,6 +1,6 @@
 import pytest
 
-from apps.open_doc.datasets.store import Datasets
+from apps.data.services.store import Datasets
 from apps.open_doc.spreadsheets.files import append_delimited
 
 

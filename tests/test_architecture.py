@@ -48,7 +48,7 @@ def test_application_does_not_depend_on_webview_or_bottle():
 
 
 def test_bridge_delegates_document_rules_to_application_facade():
-    text = (APP / "bridge.py").read_text(encoding="utf-8")
+    text = (ROOT / "config" / "bridge.py").read_text(encoding="utf-8")
     assert "services().editor" not in text
     assert "services().fixed_documents" not in text
     assert "import_docx" not in text
@@ -95,7 +95,7 @@ def test_workspace_context_is_published_only_after_services_initialize(
     import pytest
 
     from apps.open_doc.application.context import configure, get_context
-    from apps.open_doc.datasets.store import Datasets
+    from apps.data.services.store import Datasets
     from apps.open_doc.services.preferences_service import Config
 
     active = configure(Config(tmp_path / "active"))

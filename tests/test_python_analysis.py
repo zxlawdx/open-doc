@@ -1,4 +1,4 @@
-from apps.open_doc.datasets.python_analysis import analyze
+from apps.code.services.python_analysis import analyze
 
 
 def labels(code, line, column):

@@ -11,6 +11,7 @@ import sys
 import venv
 from pathlib import Path
 from uuid import UUID
+from .local_runtime import external_python, run_external
 
 PACKAGE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_.-]*(?:\[[A-Za-z0-9_,.-]+\])?"
@@ -48,7 +49,7 @@ class PythonEnvironments:
             "key=lambda d:d['name'].casefold())))"
         )
         try:
-            result = subprocess.run(
+            result = run_external(
                 [str(python), "-I", "-c", script],
                 capture_output=True, text=True, timeout=15, check=True,
             )
@@ -69,12 +70,16 @@ class PythonEnvironments:
         if python is None:
             folder = self.path(project)
             folder.parent.mkdir(parents=True, exist_ok=True)
-            venv.EnvBuilder(with_pip=True, clear=False).create(folder)
+            if getattr(sys, "frozen", False):
+                run_external([str(external_python()), "-I", "-m", "venv", str(folder)],
+                             check=True, capture_output=True, text=True, timeout=120)
+            else:
+                venv.EnvBuilder(with_pip=True, clear=False).create(folder)
             python = self.interpreter(project)
         if python is None:
             raise ValueError("Não foi possível criar o ambiente Python isolado do projeto.")
         try:
-            process = subprocess.run(
+            process = run_external(
                 [str(python), "-m", "pip", "install", "--disable-pip-version-check",
                  "--no-input", "--only-binary=:all:", *packages],
                 capture_output=True, text=True, timeout=180,

@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from apps.open_doc.datasets.python_envs import PythonEnvironments
+from apps.code.services.python_envs import PythonEnvironments
 
 
 def test_project_environment_never_installs_without_explicit_consent(tmp_path, monkeypatch):
@@ -26,7 +26,7 @@ def test_project_environment_never_installs_without_explicit_consent(tmp_path, m
 
 def test_installer_uses_project_venv_bounded_wheel_pip_and_reports_installed(tmp_path, monkeypatch):
     import sys
-    from apps.open_doc.datasets import python_envs
+    from apps.code.services import python_envs
 
     service = PythonEnvironments(tmp_path)
     project = str(uuid4())
@@ -44,7 +44,7 @@ def test_installer_uses_project_venv_bounded_wheel_pip_and_reports_installed(tmp
         return SimpleNamespace(returncode=0, stdout="Successfully installed pandas", stderr="")
 
     monkeypatch.setattr(python_envs.venv.EnvBuilder, "create", fake_venv)
-    monkeypatch.setattr(python_envs.subprocess, "run", fake_run)
+    monkeypatch.setattr(python_envs, "run_external", fake_run)
     result = service.install(project, ["pandas==2.2"], confirm=True)
     assert result["installed"] == ["pandas==2.2"]
     assert "--no-input" in called[0][0]

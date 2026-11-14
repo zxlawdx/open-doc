@@ -254,7 +254,7 @@ def export(sheets, destination, fmt, sheet_index=0, *, media_directory=None):
                     kind = (types.get("cells") or {}).get(
                         key, (types.get("columns") or {}).get(str(col), "auto")
                     )
-                    from apps.open_doc.datasets.store import typed_value
+                    from shared.utils.tabular import typed_value
 
                     if kind == "text":
                         cell.value = literal(raw)
@@ -366,7 +366,7 @@ def export(sheets, destination, fmt, sheet_index=0, *, media_directory=None):
 
 def append_delimited(sheets, index, path):
     """Prepare a bounded append to the current sheet without mutating the draft."""
-    from apps.open_doc.datasets.store import delimited
+    from shared.utils.tabular import delimited
 
     validate(sheets)
     if type(index) is not int or not 0 <= index < len(sheets):

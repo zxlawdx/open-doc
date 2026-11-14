@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from time import monotonic, sleep
+from .local_runtime import child_environment, external_python, popen_external
 
 MAX_CODE = 24000
 MAX_OUTPUT = 65536
@@ -33,9 +34,7 @@ def export_csv(store, identifier, destination):
 def run_python(store, identifier, code, *, project_root=None, project_key=None):
     if not isinstance(code, str) or not code.strip() or len(code) > MAX_CODE:
         raise ValueError("Informe um script Python de até 24 mil caracteres.")
-    if getattr(sys, "frozen", False):
-        raise ValueError("O Python local está disponível ao iniciar o Open Doc pelo interpretador.")
-    executable = sys.executable
+    executable = str(external_python())
     if project_root is not None and project_key is not None:
         from .python_envs import PythonEnvironments
         selected = PythonEnvironments(project_root).interpreter(project_key)
@@ -51,9 +50,10 @@ def run_python(store, identifier, code, *, project_root=None, project_key=None):
         bootstrap = ("import runpy, sys; from pathlib import Path; "
                      "runpy.run_path(sys.argv[1], init_globals={'DATASET_CSV': Path(sys.argv[2])}, run_name='__main__')")
         with output.open("wb") as log:
-            with subprocess.Popen(
+            with popen_external(
                 [executable, "-I", "-B", "-u", "-X", "utf8", "-c", bootstrap, str(script), str(dataset)],
                 cwd=root, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                env=child_environment(),
             ) as process:
                 deadline = monotonic() + TIMEOUT
                 stopped = None
