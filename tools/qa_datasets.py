@@ -194,6 +194,7 @@ def main():
                 # Exercise the public notebook controls, publication and native reference sheet.
                 js("document.querySelector('[data-action=datasets]').click()")
                 wait(window, "!document.querySelector('[data-dataset]').hidden")
+                wait(window, "[...document.querySelector('[data-dataset-tools]').children].some(n=>n.textContent==='Abrir como DataFrame' && !n.disabled)")
                 js("document.querySelector('[data-dataset-command=reset]').click()")
                 wait(window, "document.querySelector('[data-dataset-command=reset]').disabled")
                 js("""(() => {
@@ -225,6 +226,7 @@ def main():
                 print("QT_DATASET_INLINE_TYPES_UNDO_REDO_OK", flush=True)
                 print("QT_DATASET_IMPORT_APPEND_QUERY_EXPORT_PYTHON_COMPLETION_OK", flush=True)
             except Exception as error:
+                print("QT_DATASET_FAILURE_STATE", window.evaluate_js("({status:document.querySelector('[data-dataset-status]')?.textContent,output:document.querySelector('[data-dataset-output]')?.textContent})"), flush=True)
                 errors.append(error)
             finally:
                 window.create_file_dialog = picker
