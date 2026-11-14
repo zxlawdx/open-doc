@@ -14,6 +14,8 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 sys.path.insert(0,str(ROOT/"tests"))
+sys.path.insert(0,str(ROOT/"tests/regression"))
+sys.path.insert(0,str(ROOT/"tests/unit"))
 os.chdir(ROOT)
 os.environ.setdefault("PYWEBVIEW_GUI","qt")
 os.environ.setdefault("QT_API","pyqt5")
@@ -25,7 +27,7 @@ from docx import Document
 from docx.shared import Inches as DocInches
 from config.wsgi import create_app
 from shared.services.preferences_service import Config
-from config.composition import services
+from config.composition import get_context as services
 from test_math_differential_cross_formats import examples,_math_png,_pptx_fixture
 from shared.services.native_math import build_word_omath
 

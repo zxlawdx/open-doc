@@ -119,3 +119,48 @@ def test_real_xlsx_parquet_interchange_and_publication_history(tmp_path):
             assert destination.is_file()
     finally:
         app.close()
+
+
+def test_reference_page_preserves_numbers_and_bounds_native_values(tmp_path):
+    import pandas as pd
+    from config.wsgi import create_app
+    from config.composition import get_context
+    from shared.services.preferences_service import Config
+    from apps.spreadsheets.api import workbook
+
+    app = create_app(Config(tmp_path))
+    try:
+        ctx = get_context()
+        frame = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2026-01-01"]),
+                "number": [float("inf")],
+                "text": ["x" * 700],
+            }
+        )
+        snap = ctx.dataset_exchange.runtime.tabular.publish_pandas(frame)
+        book = ctx.workbooks.create(
+            "Native values",
+            [
+                {
+                    "name": "Dados",
+                    "cells": {},
+                    "bold": [],
+                    "external_resource": {
+                        "resource_id": snap.resource_id,
+                        "revision": snap.revision,
+                    },
+                }
+            ],
+        )
+        result = workbook(
+            {
+                "headers": {"X-Open-Doc-Token": ctx.token},
+                "json": {"operation": "resource-page", "id": book["id"]},
+            }
+        )
+        assert result["rows"][0]["number"] is None
+        assert result["rows"][0]["date"].startswith("2026-01-01")
+        assert len(result["rows"][0]["text"]) == 513
+    finally:
+        app.close()

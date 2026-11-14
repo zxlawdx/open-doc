@@ -67,6 +67,10 @@ decodificados; não é uma promessa de zero-copy.
 
 ## Python empacotado
 
+O build preserva também os metadados de entry points de `jupyter_client` via
+`BUILD_COPY_METADATA`; sem eles, o provisionador do kernel não é resolvido
+corretamente no executável congelado.
+
 O executável congelado nunca é usado como interpretador. O aplicativo seleciona o
 Python externo/venv do projeto, remove variáveis de runtime embutido e restaura a
 busca de DLLs Windows imediatamente depois de criar o processo. Isso evita que o
@@ -80,7 +84,7 @@ sistemas; não é executado durante a abertura normal do programa.
 
 ## Evidências e limites de validação
 
-Execução local Linux: 409 testes Python aprovados e 314 frontend aprovados. Dois
+Execução local Linux: 410 testes Python aprovados e 317 frontend aprovados. Dois
 casos Jupyter são ignorados somente quando uma tentativa real de bind retorna
 EPERM/EACCES: este executor bloqueia sockets TCP/IPC do Jupyter. Outros dois casos
 já eram ignorados. Os testes de roundtrip/adopção/desfazer executaram Pandas e

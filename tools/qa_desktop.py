@@ -24,7 +24,7 @@ os.environ.setdefault("QTWEBENGINE_REMOTE_DEBUGGING", "9234")
 
 import webview
 from shared.services.preferences_service import Config
-from config.composition import services
+from config.composition import get_context as services
 from config.wsgi import create_app
 
 FIXTURE = (
@@ -597,6 +597,8 @@ def run_qa() -> None:
             print("NATIVE_SELECTION_BOLD_ITALIC_UNDO_REDO_OK", flush=True)
             verify_controls(window)
             sys.path.insert(0, str(ROOT / "tests"))
+            sys.path.insert(0, str(ROOT / "tests/regression"))
+            sys.path.insert(0, str(ROOT / "tests/unit"))
             from docx_fixtures import fixture_docx
 
             verify_rich_document(

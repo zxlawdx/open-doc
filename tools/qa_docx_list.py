@@ -11,7 +11,7 @@ from qa_version_history import wait
 
 import webview
 
-from config.composition import services
+from config.composition import get_context as services
 from shared.services.preferences_service import Config
 from config.wsgi import create_app
 from qa_runtime import Keyboard, report

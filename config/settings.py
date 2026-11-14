@@ -39,3 +39,5 @@ ASSETS = {
 
 # Blob quota and pin-aware retention are enforced by the native Vela service.
 RESOURCE_LIMITS = {"max_store_bytes": 10 * 1024**3, "retention_versions": 20}
+# Jupyter provisioners are discovered through distribution entry points.
+BUILD_COPY_METADATA = ("jupyter_client",)

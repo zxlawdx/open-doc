@@ -810,7 +810,7 @@
         if(root.dataset.datasetView==='true'&&datasets?.id?.())return {app:'data',id:datasets.id(),title:datasets.title()||'Dados'};
         if(root.dataset.workbookView==='true'&&workbook?.id?.())return {app:'spreadsheets',id:workbook.id(),title:'Planilha'};
         if(root.dataset.homeView==='true')return null;
-        const note=editor.snapshot();if(!note?.id)return null;
+        const note=editor.identity?.()||editor.snapshot();if(!note?.id)return null;
         return {app:note.source_kind==='pdf'?'pdf':note.source_kind==='pptx'?'presentations':'documents',id:note.id,title:note.title||'Documento'};
       },activate:tab=>operateModule(async()=>{
         if(root.dataset.workbookView==='true')await workbook.save();

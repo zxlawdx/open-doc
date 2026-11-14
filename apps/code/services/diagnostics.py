@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 
 
@@ -74,6 +75,7 @@ def self_test():
     except BaseException as error:
         report["success"] = False
         report["error"] = repr(error)
+        report["traceback"] = traceback.format_exc()
     finally:
         if app is not None:
             app.close()

@@ -13,7 +13,7 @@ from qa_runtime import Keyboard, report
 import webview
 from fpdf import FPDF
 
-from config.composition import services
+from config.composition import get_context as services
 from shared.services.preferences_service import Config
 from config.wsgi import create_app
 

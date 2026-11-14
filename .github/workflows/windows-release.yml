@@ -100,6 +100,12 @@ jobs:
           $process = Start-Process -FilePath (Resolve-Path 'dist/Open-Doc/Open-Doc.exe') -ArgumentList '--vela-project-test' -Wait -PassThru
           if ($process.ExitCode -ne 0) { Get-Content $env:OPEN_DOC_NOTEBOOK_SMOKE_REPORT; throw 'Packaged notebook failed.' }
           if (-not (Get-Content $env:OPEN_DOC_NOTEBOOK_SMOKE_REPORT -Raw | ConvertFrom-Json).success) { throw 'Missing notebook evidence.' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-notebook-runtime
+          path: artifacts/notebook-windows.json
+          if-no-files-found: warn
       - name: Compile branded installer
         shell: pwsh
         run: |
