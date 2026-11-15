@@ -41,3 +41,12 @@ test('content-only updates preserve tab focus and do not republish an unchanged 
  assert.equal(root.querySelector('[aria-current=true]'),tab);assert.equal(w.document.activeElement,tab);assert.equal(requests.filter(r=>r.operation==='save').length,0);
  title='Renomeado';api.capture();await wait(350);assert.equal(requests.filter(r=>r.operation==='save').length,1);assert.equal(root.querySelector('[aria-current=true]').textContent,title);
 });
+
+test('editing immediately after opening a file cannot cancel the active-file checkpoint',async t=>{
+ const dom=new JSDOM('<main><nav class="menubar"></nav></main>',{runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('main'),abort=new w.AbortController(),saved=[];let id='first';
+ t.after(()=>{abort.abort();w.close();});w.eval(source);
+ const api=w.OpenDocWorkspace.create({root,signal:abort.signal,snapshot:()=>({app:'documents',id,title:id}),activate:async()=>{},status:()=>{},request:async(path,data)=>{if(data.operation==='load')return {revision:1,tabs:[{app:'documents',id,title:id}],settings:{active:id}};saved.push(data);return {revision:2};}});
+ await api.loaded;id='second';api.capture();root.dispatchEvent(new w.CustomEvent('open-doc:content'));await wait(400);
+ assert.equal(saved.length,1);assert.equal(saved[0].settings.active,'second');
+ await wait(1050);assert.equal(saved.length,1,'content-only capture must not append a redundant revision');
+});

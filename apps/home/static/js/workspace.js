@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   function create({root,request,signal,snapshot,activate,status}) {
-    let revision=0,tabs=[],modules={},chain=Promise.resolve(),timer,ready=false,active;
+    let revision=0,tabs=[],modules={},chain=Promise.resolve(),timer,captureTimer,ready=false,active;
     const bar=document.createElement('nav');bar.className='workspace-global-tabs';bar.setAttribute('aria-label','Arquivos abertos');
     root.querySelector('.menubar')?.after(bar);
     function render(){
@@ -47,12 +47,12 @@
     }
     root.addEventListener('open-doc:workspace',capture,{signal});
     const observer=new MutationObserver(capture);observer.observe(root,{attributes:true,attributeFilter:['data-home-view','data-workbook-view','data-dataset-view','data-document-kind']});
-    root.addEventListener('open-doc:content',()=>{clearTimeout(timer);timer=setTimeout(capture,1000);},{signal});
+    root.addEventListener('open-doc:content',()=>{clearTimeout(captureTimer);captureTimer=setTimeout(capture,1000);},{signal});
     const loaded=request('workspace',{operation:'load'}).then(async state=>{
       revision=state.revision||0;tabs=state.tabs||[];modules=state.modules||{};active=state.settings?.active;ready=true;render();
       const previous=tabs.find(tab=>tab.id===active);if(previous)await activate(previous);else capture();
     }).catch(error=>{ready=true;status('Não foi possível recuperar a sessão: '+error.message);});
-    signal.addEventListener('abort',()=>{observer.disconnect();clearTimeout(timer);bar.remove();},{once:true});
+    signal.addEventListener('abort',()=>{observer.disconnect();clearTimeout(timer);clearTimeout(captureTimer);bar.remove();},{once:true});
     return {loaded,capture};
   }
   window.OpenDocWorkspace={create};
