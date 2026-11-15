@@ -247,6 +247,10 @@ def exercise(window, output, reopen):
     capture_module("dados")
     set_zoom(120)
     wait(window, "document.querySelector('[data-app]').dataset.theme === 'dark'")
+    # UI changes optimistically; forced test teardown must wait for durable writes.
+    wait(window, "document.querySelector('[data-app]').dataset.preferencesSaving === 'false'")
+    saved = services().config.load_settings()
+    assert saved['interface_zoom'] == 120 and saved['theme'] == 'dark', saved
 
 
 def run(output, workspace, reopen):

@@ -248,6 +248,33 @@ test('global zoom separates Central and document, and handles keyboard variants 
   assert.deepEqual(persisted.slice(-2), [{interface_zoom: 110}, {zoom: 90}]);
 });
 
+test('pending preferences protect closing until durable acknowledgement and retain failed keys', async t => {
+  const {w, root, click} = await mount(t, false, true);
+  await w.OpenDocApp.flushPreferences();
+  const original = w.fetch, pending = [];
+  w.fetch = async (url, options) => {
+    if (!String(url).endsWith('/settings')) return original(url, options);
+    return new Promise(resolve => pending.push(resolve));
+  };
+  click('[data-zoom-step="10"]');
+  click('[data-zoom-step="10"]');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(root.dataset.preferencesSaving, 'true');
+  assert.equal(root.dataset.globalDirty, 'true');
+  pending.shift()({ok: true, json: async () => ({ok:true})});
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(root.dataset.preferencesSaving, 'true', 'second write still pending');
+  pending.shift()({ok: false, json: async () => ({error:'disk full'})});
+  await w.OpenDocApp.flushPreferences();
+  assert.equal(root.dataset.preferencesSaving, 'false');
+  assert.equal(root.dataset.globalDirty, 'true', 'failed preference remains unsaved');
+  click('[data-zoom-step="10"]');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  pending.shift()({ok: true, json: async () => ({ok:true})});
+  await w.OpenDocApp.flushPreferences();
+  assert.equal(root.dataset.globalDirty, 'false', 'same key acknowledged after retry');
+});
+
 test('appearance can be changed in Central and responds to the system preference', async t => {
   const {w, root, click, requests, media} = await mount(t, false, true, true);
   click('.header-actions [data-action=theme]');

@@ -19,6 +19,8 @@
   let backgroundSave, navigationEpoch=0, moduleChain=Promise.resolve(), modulePending=0;
   const currentNavigation=ticket=>ticket===undefined || ticket===navigationEpoch;
   let settings = {}, preferenceChain = Promise.resolve();
+  let pendingPreferences = 0;
+  const failedPreferences = new Set();
   let dialogResolver = null, dialogFocus = null, noticeTimer;
   let lastStatus = '';
   const failures = [];
@@ -111,8 +113,18 @@
     return result;
   }
   function persist(partial) {
+    pendingPreferences++;
+    root.dataset.preferencesSaving = 'true';
+    moduleDirty('preferences', true);
     const task = preferenceChain.then(async () => {
       await request('settings', {settings: partial}); settings = {...settings, ...partial};
+      Object.keys(partial).forEach(key => failedPreferences.delete(key));
+    }).catch(error => {
+      Object.keys(partial).forEach(key => failedPreferences.add(key));
+      throw error;
+    }).finally(() => {
+      root.dataset.preferencesSaving = String(--pendingPreferences > 0);
+      moduleDirty('preferences', pendingPreferences > 0 || failedPreferences.size > 0);
     });
     preferenceChain = task.catch(() => {}); return task;
   }
@@ -682,10 +694,11 @@
       if (dialogResolver) closeDialog();
     },
     action, showHome: () => action('home'), editor: () => editor,
-    failures, theme: () => theme, layout: () => layout, refresh, status
+    failures, theme: () => theme, layout: () => layout, refresh, status,
+    flushPreferences: () => preferenceChain
   };
   window.OpenDocApp = page;
-  window.VelaPage = {beforeUnmount: () => page.destroy()};
+  window.VelaPage = {beforeUnmount: async () => { await preferenceChain; page.destroy(); }};
 
   async function mount() {
     for (const [global, file] of [

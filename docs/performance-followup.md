@@ -46,6 +46,11 @@ continuam sendo a validação de renderização, desenho e navegação reais.
 - Canais de um cliente Jupyter parcialmente iniciado são fechados antes da
   limpeza. Falhas de limpeza não substituem a causa original.
 - Workers preservam o código e a indicação de repetição de erros do serviço.
+- Preferências pendentes ou com falha mantêm a proteção de fechamento. O hook
+  oficial de desmontagem aguarda a fila existente; o QA de reinicialização só
+  encerra forçadamente a janela depois da confirmação durável de tema e zoom.
+- O debounce de conteúdo usa temporizador separado do checkpoint da aba ativa,
+  evitando cancelar a recuperação de sessão ao editar logo após abrir um arquivo.
 - A reconstrução da release exige os quatro pacotes e seus SHA-256. O fluxo
   substitui assets com `--clobber`, preservando a release existente durante os
   uploads, e só muda a tag após completar os uploads. A API GitHub não oferece
