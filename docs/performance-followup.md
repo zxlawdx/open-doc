@@ -51,6 +51,10 @@ continuam sendo a validação de renderização, desenho e navegação reais.
   encerra forçadamente a janela depois da confirmação durável de tema e zoom.
 - O debounce de conteúdo usa temporizador separado do checkpoint da aba ativa,
   evitando cancelar a recuperação de sessão ao editar logo após abrir um arquivo.
+- Falhas ao reler uma sessão após conflito não deixam a fila de gravação
+  permanentemente rejeitada. A barra oferece "Tentar salvar sessão", mantém as
+  abas locais e permite repetir a gravação sem recarregar os editores. O teste
+  reproduz conflito seguido de falha de leitura, recuperação e gravação posterior.
 - A reconstrução da release exige os quatro pacotes e seus SHA-256. O fluxo
   substitui assets com `--clobber`, preservando a release existente durante os
   uploads, e só muda a tag após completar os uploads. A API GitHub não oferece

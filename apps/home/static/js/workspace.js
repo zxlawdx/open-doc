@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   function create({root,request,signal,snapshot,activate,status}) {
-    let revision=0,tabs=[],modules={},chain=Promise.resolve(),timer,captureTimer,ready=false,active;
+    let revision=0,tabs=[],modules={},chain=Promise.resolve(),timer,captureTimer,ready=false,active,saveFailed=false;
     const bar=document.createElement('nav');bar.className='workspace-global-tabs';bar.setAttribute('aria-label','Arquivos abertos');
     root.querySelector('.menubar')?.after(bar);
     function render(){
@@ -22,16 +22,24 @@
         };
         entry.append(button,close);bar.append(entry);
       }
+      if(saveFailed){
+        const retry=document.createElement('button');retry.type='button';retry.dataset.workspaceRetry='';retry.textContent='Tentar salvar sessão';
+        retry.onclick=()=>{retry.disabled=true;persist();};bar.append(retry);
+      }
     }
     function persist(){
       if(!ready)return;
       const state={tabs:[...tabs],settings:{active},modules:{...modules}};
       chain=chain.then(async()=>{
-        try{const saved=await request('workspace',{operation:'save',expected_revision:revision,...state});revision=saved.revision;}
+        try{const saved=await request('workspace',{operation:'save',expected_revision:revision,...state});revision=saved.revision;if(saveFailed){saveFailed=false;render();}}
         catch(error){
           if(error.conflict){const latest=await request('workspace',{operation:'load'});revision=latest.revision;tabs=[...new Map([...(latest.tabs||[]),...tabs].map(tab=>[tab.app+':'+tab.id,tab])).values()];render();}
-          status('Sessão não salva: '+error.message);
+          throw error;
         }
+      }).catch(error=>{
+        // Recovery I/O can fail too. Always settle the queue so later writes
+        // and explicit retries remain possible without reloading the editor.
+        saveFailed=true;render();status('Sessão não salva: '+error.message);
       });
     }
     function capture(){

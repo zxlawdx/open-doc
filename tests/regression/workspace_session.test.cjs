@@ -42,6 +42,25 @@ test('content-only updates preserve tab focus and do not republish an unchanged 
  title='Renomeado';api.capture();await wait(350);assert.equal(requests.filter(r=>r.operation==='save').length,1);assert.equal(root.querySelector('[aria-current=true]').textContent,title);
 });
 
+test('failed conflict recovery offers retry and cannot poison later session writes',async t=>{
+ const dom=new JSDOM('<main><nav class="menubar"></nav></main>',{runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('main'),abort=new w.AbortController(),messages=[],writes=[];
+ let title='Original',loads=0,fail=true;
+ t.after(()=>{abort.abort();w.close();});w.eval(source);
+ const api=w.OpenDocWorkspace.create({root,signal:abort.signal,snapshot:()=>({app:'documents',id:'one',title}),activate:async()=>{},status:message=>messages.push(message),request:async(path,data)=>{
+  if(data.operation==='load'){if(++loads>1&&fail)throw Error('leitura indisponível');return {revision:7,tabs:[{app:'documents',id:'one',title}],settings:{active:'one'}};}
+  writes.push(data);if(fail){const error=Error('conflito');error.conflict=true;throw error;}return {revision:8};
+ }});
+ await api.loaded;title='Alterado';api.capture();await wait(350);
+ assert.match(messages.at(-1),/Sessão não salva.*leitura indisponível/);
+ assert.match(root.querySelector('.workspace-global-tabs').textContent,/Alterado/);
+ const retry=root.querySelector('[data-workspace-retry]');assert.ok(retry);
+ fail=false;retry.click();await wait(20);
+ assert.equal(writes.length,2);assert.equal(writes[1].tabs[0].title,'Alterado');assert.equal(writes[1].expected_revision,7);
+ assert.equal(root.querySelector('[data-workspace-retry]'),null);
+ title='Próximo';api.capture();await wait(350);
+ assert.equal(writes.length,3);assert.equal(writes[2].expected_revision,8);
+});
+
 test('editing immediately after opening a file cannot cancel the active-file checkpoint',async t=>{
  const dom=new JSDOM('<main><nav class="menubar"></nav></main>',{runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('main'),abort=new w.AbortController(),saved=[];let id='first';
  t.after(()=>{abort.abort();w.close();});w.eval(source);
