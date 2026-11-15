@@ -31,3 +31,13 @@ test('session conflict preserves local tab and reloads remote revision',async t=
  assert.match(root.querySelector('.workspace-global-tabs').textContent,/Local/);assert.match(root.querySelector('.workspace-global-tabs').textContent,/Remoto/);
  assert.match(messages.at(-1),/Sessão não salva/);
 });
+
+test('content-only updates preserve tab focus and do not republish an unchanged session',async t=>{
+ const dom=new JSDOM('<main><nav class="menubar"></nav></main>',{runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('main'),abort=new w.AbortController(),requests=[];let title='Documento';
+ t.after(()=>{abort.abort();w.close();});w.eval(source);
+ const api=w.OpenDocWorkspace.create({root,signal:abort.signal,snapshot:()=>({app:'documents',id:'one',title}),activate:async()=>{},status:()=>{},request:async(path,data)=>{requests.push(data);return data.operation==='load'?{revision:1,tabs:[{app:'documents',id:'one',title}],settings:{active:'one'}}:{revision:2};}});
+ await api.loaded;const tab=root.querySelector('[aria-current=true]');tab.focus();
+ for(let i=0;i<100;i++)api.capture();await wait(350);
+ assert.equal(root.querySelector('[aria-current=true]'),tab);assert.equal(w.document.activeElement,tab);assert.equal(requests.filter(r=>r.operation==='save').length,0);
+ title='Renomeado';api.capture();await wait(350);assert.equal(requests.filter(r=>r.operation==='save').length,1);assert.equal(root.querySelector('[aria-current=true]').textContent,title);
+});

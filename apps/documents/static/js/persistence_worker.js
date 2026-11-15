@@ -37,13 +37,13 @@ async function handle(message) {
   });
   let value;
   try {value=await response.json();}
-  catch {throw Error('Falha no servidor (HTTP '+response.status+'). Seu texto foi mantido.');}
-  if(!response.ok || value.error){const error=Error(value.error || 'Não foi possível concluir a operação.');error.conflict=Boolean(value.conflict);throw error;}
+  catch {throw Error('Falha no servidor (HTTP '+response.status+'). Não foi possível concluir a operação.');}
+  if(!response.ok || value.error){const error=Error(value.error || 'Não foi possível concluir a operação.');error.conflict=Boolean(value.conflict);error.code=value.code;error.retryable=Boolean(value.retryable);throw error;}
   return value;
 }
 self.onmessage=event=>{
   const message=event.data;
   handle(message).then(value=>self.postMessage({id:message.id,value}),
-    error=>self.postMessage({id:message.id,error:error.message,conflict:Boolean(error.conflict)}));
+    error=>self.postMessage({id:message.id,error:error.message,conflict:Boolean(error.conflict),code:error.code,retryable:Boolean(error.retryable)}));
 };
 self.postMessage({ready:true});

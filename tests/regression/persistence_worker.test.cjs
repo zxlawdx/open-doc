@@ -87,3 +87,9 @@ test('large ink crosses the interface in bounded chunks; worker assembles concur
  assert.equal(bodies.length,2);for(const body of bodies){assert.equal(body.content.ink_layers[0].strokes.length,2049);assert.equal(body.content.ink_layers[0].strokes[2048].id,body.id+'-2048');}
  assert.ok(sizes.every(size=>size<=256));assert.equal(vm.runInContext('stagedInk.size',contexts[0]),0);
 });
+
+test('kernel startup errors retain service identity instead of claiming a failed save',async()=>{
+ const messages=[],context=vm.createContext({self:{postMessage:m=>messages.push(m)},JSON,Error,fetch:async()=>({ok:false,status:503,json:async()=>({error:'Não foi possível iniciar o kernel Python.',code:'kernel_startup_failed',retryable:true})})});
+ vm.runInContext(source('persistence_worker.js'),context);context.self.onmessage({data:{id:9,op:'request',data:{path:'notebook',snapshot:{operation:'open'}}}});
+ await new Promise(r=>setImmediate(r));assert.equal(messages[1].code,'kernel_startup_failed');assert.equal(messages[1].retryable,true);assert.match(messages[1].error,/kernel Python/);assert.doesNotMatch(messages[1].error,/gravar/);
+});

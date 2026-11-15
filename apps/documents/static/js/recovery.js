@@ -43,7 +43,7 @@
       const message=event.data;
       if(message.ready){finish(true);return;}
       const task=pending.get(message.id);if(!task)return;pending.delete(message.id);
-      if(message.error){const error=Error(message.error);error.conflict=Boolean(message.conflict);task.reject(error);}
+      if(message.error){const error=Error(message.error);error.conflict=Boolean(message.conflict);error.code=message.code;error.retryable=Boolean(message.retryable);task.reject(error);}
       else task.resolve({handled:true,value:message.value});
     };
     worker.onerror=fail;

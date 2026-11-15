@@ -412,23 +412,26 @@ class Datasets:
                     "WHERE dataset_id=? AND scope='column'", (identifier,),
                 )
             }
-            typed_indices = {
+            cell_indices = {
                 item[0] for item in db.execute(
-                    "SELECT DISTINCT column_number FROM dataset_field_types WHERE dataset_id=?", (identifier,),
+                    "SELECT DISTINCT column_number FROM dataset_field_types WHERE dataset_id=? AND scope='cell'", (identifier,),
                 )
             }
             db.create_function("od_typed", 2, typed_value, deterministic=True)
             fields = []
             for index, name in enumerate(names):
                 value = f"json_extract(values_json, '$[{index}]')"
-                if index in typed_indices:
-                    override = (
-                        "(SELECT kind FROM main.dataset_field_types AS override "
-                        f"WHERE override.dataset_id='{identifier}' AND override.scope='cell' "
-                        f"AND override.row_number=dataset_rows.number AND override.column_number={index})"
-                    )
+                if index in typed_columns or index in cell_indices:
                     default = typed_columns.get(index, "auto")
-                    value = f"od_typed({value},COALESCE({override},'{default}'))"
+                    kind = f"'{default}'"
+                    if index in cell_indices:
+                        override = (
+                            "(SELECT kind FROM main.dataset_field_types AS override "
+                            f"WHERE override.dataset_id='{identifier}' AND override.scope='cell' "
+                            f"AND override.row_number=dataset_rows.number AND override.column_number={index})"
+                        )
+                        kind = f"COALESCE({override},'{default}')"
+                    value = f"od_typed({value},{kind})"
                 fields.append(f"{value} AS {quote(name)}")
             fields = ", ".join(fields)
             private_view = "_dataset_" + uuid4().hex
@@ -491,6 +494,10 @@ class Datasets:
                 "SELECT number,values_json FROM dataset_rows WHERE dataset_id=? ORDER BY number",
                 (identifier,),
             )
+            if not column_types and not cell_types:
+                # No conversion is required; keep csv's native writer hot path.
+                writer.writerows(json.loads(encoded) for _, encoded in rows)
+                return dataset["row_count"]
             count = 0
             for number, encoded in rows:
                 values = json.loads(encoded)

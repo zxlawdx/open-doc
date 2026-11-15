@@ -37,9 +37,12 @@
     function capture(){
       if(!ready)return;
       const tab=snapshot();if(!tab?.id)return;
-      active=tab.id;
       const found=tabs.findIndex(item=>item.app===tab.app&&item.id===tab.id);
-      if(found<0)tabs.push(tab);else tabs[found]=tab;
+      // Editor contents are persisted by their owner. Unchanged identity must
+      // not rebuild tab DOM, lose focus, or publish another session version.
+      if(found>=0&&active===tab.id&&tabs[found].title===tab.title)return;
+      active=tab.id;
+      if(found<0)tabs.push(tab);else tabs[found]={...tabs[found],...tab};
       if(tabs.length>50)tabs.shift();render();clearTimeout(timer);timer=setTimeout(persist,300);
     }
     root.addEventListener('open-doc:workspace',capture,{signal});

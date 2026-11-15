@@ -4,7 +4,7 @@ import logging
 import secrets
 from typing import Any, Callable, Mapping
 from vela.core.http import Response
-from shared.contracts.errors import RevisionConflict
+from shared.contracts.errors import RevisionConflict, ServiceUnavailable
 from vela.resources import RevisionConflict as ResourceRevisionConflict
 from shared.contracts.workspace import workspace as get_context
 
@@ -40,6 +40,11 @@ def _handle(operation: Callable[[], dict[str, Any]]) -> dict[str, Any] | Respons
         return operation()
     except (RevisionConflict, ResourceRevisionConflict) as exc:
         return Response({"error": str(exc), "conflict": True}, status=409)
+    except ServiceUnavailable as exc:
+        LOGGER.exception("Serviço Open Doc indisponível: %s", exc.code)
+        return Response(
+            {"error": str(exc), "code": exc.code, "retryable": True}, status=503
+        )
     except PermissionError as exc:
         return Response({"error": str(exc)}, status=FORBIDDEN)
     except (ValueError, KeyError, TypeError) as exc:
@@ -47,6 +52,6 @@ def _handle(operation: Callable[[], dict[str, Any]]) -> dict[str, Any] | Respons
     except Exception:
         LOGGER.exception("Falha na operação Open Doc")
         return Response(
-            {"error": "Não foi possível gravar os dados. Seu texto foi mantido."},
+            {"error": "Não foi possível concluir a operação. Consulte o log e tente novamente."},
             status=SERVER_ERROR,
         )

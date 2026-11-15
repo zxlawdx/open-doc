@@ -1,6 +1,7 @@
 """Persistent per-project Jupyter kernels using the selected external Python."""
 
 import json
+import logging
 import os
 import queue
 import subprocess
@@ -17,6 +18,9 @@ from .local_runtime import (
     run_external,
 )
 from .python_envs import PythonEnvironments
+from shared.contracts.errors import ServiceUnavailable
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -91,6 +95,7 @@ class KernelSessions:
                 ),
             )
             startup_log = Path(directory.name) / "startup.log"
+            client = None
             try:
                 # Windowed frozen apps have no valid inherited standard handles.
                 with startup_log.open("wb") as errors, external_dll_search():
@@ -102,11 +107,31 @@ class KernelSessions:
                 client.start_channels()
                 client.wait_for_ready(timeout=30)
             except BaseException as error:
-                manager.shutdown_kernel(now=True)
-                with startup_log.open("rb") as errors:
-                    details = errors.read(16384).decode("utf-8", errors="replace")
-                directory.cleanup()
-                raise RuntimeError("Não foi possível iniciar o kernel: " + str(error) + "\n" + details) from error
+                # Cleanup failures must not replace the original startup diagnosis.
+                for cleanup in ([client.stop_channels] if client is not None else []) + [
+                    lambda: manager.shutdown_kernel(now=True)
+                ]:
+                    try:
+                        cleanup()
+                    except Exception:
+                        LOGGER.exception("Kernel startup cleanup failed")
+                try:
+                    with startup_log.open("rb") as errors:
+                        details = errors.read(16384).decode("utf-8", errors="replace")
+                except OSError:
+                    details = "Startup log unavailable"
+                try:
+                    directory.cleanup()
+                except OSError:
+                    LOGGER.exception("Kernel temporary directory cleanup failed")
+                if not isinstance(error, Exception):
+                    raise
+                LOGGER.error("Kernel startup failed: %s\n%s", error, details)
+                raise ServiceUnavailable(
+                    "Não foi possível iniciar o kernel Python. Verifique o interpretador, "
+                    "as bibliotecas do projeto e as permissões; consulte o log para detalhes.",
+                    code="kernel_startup_failed",
+                ) from error
             session = Session(manager, client, directory)
             self._sessions[project] = session
             return session

@@ -103,10 +103,10 @@
     }
     const response = await fetch('/api/open_doc/' + path, options);
     let result;
-    try { result = await response.json(); } catch { console.error('Open Doc: resposta inválida',path,response.status); throw Error('Falha no servidor (HTTP '+response.status+'). Seu texto foi mantido.'); }
+    try { result = await response.json(); } catch { console.error('Open Doc: resposta inválida',path,response.status); throw Error('Falha no servidor (HTTP '+response.status+'). Não foi possível concluir a operação.'); }
     if (!response.ok || result.error) {
       const error = Error(result.error || 'Não foi possível concluir a operação.');
-      error.conflict = Boolean(result.conflict); throw error;
+      error.conflict = Boolean(result.conflict); error.code=result.code; error.retryable=Boolean(result.retryable); throw error;
     }
     return result;
   }

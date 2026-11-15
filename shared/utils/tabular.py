@@ -36,11 +36,10 @@ def delimited(path, encoding, delimiter):
 
 def typed_value(value, kind):
     """Adapt a *copy* of explicitly typed data for read-only SQL, without changing source."""
-    from decimal import Decimal, InvalidOperation
-    from datetime import date
-
     if value is None or kind in {"auto", "text"}:
         return value
+    from decimal import Decimal, InvalidOperation
+    from datetime import date
     if kind == "boolean":
         token = str(value).strip().casefold()
         if token in {"sim", "true", "1", "verdadeiro"}:

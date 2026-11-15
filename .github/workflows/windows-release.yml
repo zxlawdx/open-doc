@@ -309,6 +309,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: open-doc-windows-x64
@@ -325,14 +326,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          test -f packages/Open-Doc-1.0.1-Windows-x64-Setup.exe
-          test -f packages/Open-Doc-1.0.1-Linux-x64.tar.gz
-          test -f packages/Open-Doc-1.0.1-Linux-amd64.deb
-          # Only the explicitly requested tag is replaced, after successful builds.
-          gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[] | select(.tag_name == "v1.0.1") | .id' | while read -r id; do
-            gh api --method DELETE "repos/$GH_REPO/releases/$id"
-          done
-          tag_sha=$(gh api --method POST "repos/$GH_REPO/git/tags" -f tag=v1.0.1 -f message="Open Doc v1.0.1: correção de inicialização Linux e melhorias de planilhas" -f object="$GITHUB_SHA" -f type=commit --jq .sha)
+          python tools/verify_release_assets.py packages --version 1.0.1
+          # Keep the published release and its notes until every replacement asset uploads.
+          if ! gh release view v1.0.1 >/dev/null 2>&1; then
+            gh release create v1.0.1 --draft --target "$GITHUB_SHA" --title "Open Doc v1.0.1" --notes-file docs/release-v1.0.1.md
+          fi
+          gh release upload v1.0.1 packages/* --clobber
+          tag_sha=$(gh api --method POST "repos/$GH_REPO/git/tags" -f tag=v1.0.1 -f message="Open Doc v1.0.1: aplicações modulares, notebooks e melhorias medidas" -f object="$GITHUB_SHA" -f type=commit --jq .sha)
           if gh api "repos/$GH_REPO/git/ref/tags/v1.0.1" >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/v1.0.1" -f sha="$tag_sha" -F force=true
           else
@@ -345,8 +345,12 @@ jobs:
         run: |
           tag="$GITHUB_REF_NAME"
           if [[ "$GITHUB_REF_NAME" == release/rebuild-v1.0.1 ]]; then tag=v1.0.1; fi
-          gh release create "$tag" packages/* --verify-tag \
-            --title "Open Doc $tag" --generate-notes
+          if [[ "$GITHUB_REF_NAME" == release/rebuild-v1.0.1 ]]; then
+            printf '\nCommit dos pacotes: `%s`.\n' "$GITHUB_SHA" >> docs/release-v1.0.1.md
+            gh release edit "$tag" --draft=false --title "Open Doc $tag" --notes-file docs/release-v1.0.1.md
+          else
+            gh release create "$tag" packages/* --verify-tag --title "Open Doc $tag" --generate-notes
+          fi
 
 
   publish-linux-backfill:

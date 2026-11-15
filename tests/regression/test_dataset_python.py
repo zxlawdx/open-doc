@@ -50,3 +50,19 @@ def test_python_limits_runtime_and_output(dataset, monkeypatch):
     result = python_runner.run_python(store, identifier, 'print("x" * 100000)')
     assert result["stopped"] == "output"
     assert len(result["output"]) == python_runner.MAX_OUTPUT
+
+
+def test_analysis_csv_preserves_untyped_bytes_and_typed_cell_precedence(tmp_path, dataset):
+    import io
+    store, identifier = dataset
+    raw, analysis = io.StringIO(newline=''), io.StringIO(newline='')
+    store.write_csv(identifier, raw)
+    store.write_analysis_csv(identifier, analysis)
+    assert raw.getvalue() == analysis.getvalue()
+    store.set_type(identifier, 'column', 0, 'integer')
+    assert store.query(identifier, 'SELECT id FROM dados')['rows'] == [['1']]
+    store.set_type(identifier, 'cell', 0, 'text', row=1)
+    assert store.query(identifier, 'SELECT id FROM dados')['rows'] == [['001']]
+    typed = io.StringIO(newline='')
+    store.write_analysis_csv(identifier, typed)
+    assert next(csv.DictReader(io.StringIO(typed.getvalue())))['id'] == '001'
