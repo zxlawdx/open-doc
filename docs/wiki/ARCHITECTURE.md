@@ -65,7 +65,7 @@ Pacotes DOCX preservados e mídia associada ficam em:
 
 ## Frontend e estilos
 
-Os estilos-fonte vivem em `apps/open_doc/styles/` e são organizados por responsabilidade, incluindo tokens, layout, componentes, conteúdo, estados e política responsiva.
+Os estilos-fonte vivem em `apps/home/styles/` e são organizados por responsabilidade, incluindo tokens, layout, componentes, conteúdo, estados e política responsiva.
 
 O CSS final é gerado pelo pipeline do projeto. `collectstatic` é o coletor oficial de assets.
 

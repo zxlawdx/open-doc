@@ -1,0 +1,21 @@
+         4701968 function calls (4701964 primitive calls) in 1.578 seconds
+
+   Ordered by: cumulative time
+   List reduced from 290 to 15 due to restriction <15>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.021    0.021    1.578    1.578 benchmark_hot_paths.py:13(measure)
+        2    0.102    0.051    0.763    0.381 {method 'writerows' of '_csv.writer' objects}
+   200004    0.097    0.000    0.462    0.000 __init__.py:299(loads)
+        1    0.098    0.098    0.427    0.427 store.py:69(import_files)
+        1    0.000    0.000    0.384    0.384 store.py:477(write_analysis_csv)
+        1    0.000    0.000    0.380    0.380 store.py:511(write_csv)
+       32    0.061    0.002    0.338    0.011 {method 'execute' of 'sqlite3.Connection' objects}
+        1    0.000    0.000    0.337    0.337 store.py:386(query)
+   200004    0.154    0.000    0.325    0.000 decoder.py:333(decode)
+   100001    0.077    0.000    0.307    0.000 store.py:499(<genexpr>)
+   100001    0.070    0.000    0.302    0.000 store.py:522(<genexpr>)
+   100000    0.196    0.000    0.277    0.000 tabular.py:37(typed_value)
+   100003    0.059    0.000    0.167    0.000 encoder.py:183(encode)
+      102    0.097    0.001    0.097    0.001 {method 'executemany' of 'sqlite3.Connection' objects}
+   100003    0.084    0.000    0.084    0.000 encoder.py:205(iterencode)

@@ -33,7 +33,7 @@ observer é liberado ao desmontar a página.
 ## Ícones e operação offline
 
 Todos os ícones ficam no sprite SVG local
-`apps/open_doc/static/icons.svg`. A tipografia Inter vem dos assets locais.
+`apps/home/static/icons.svg`. A tipografia Inter vem dos assets locais.
 Não existe importação de Google Fonts, CDN Tailwind ou scripts remotos.
 
 A geração das classes de CSS de apresentação está em
@@ -59,7 +59,7 @@ suporte no processo offline.
 - Nunca modificar `VelaApp`, `startproject`, `config/wsgi.py` ou o roteamento
   para aplicar o tema.
 - Utilizar HTML semântico, ARIA, navegação por teclado e `:focus-visible`.
-- Testar filtro/pesquisa e modo página/fluxo em `tests/design_system.test.cjs`.
+- Testar filtro/pesquisa e modo página/fluxo em `tests/regression/design_system.test.cjs`.
 - Sempre executar as suítes JS/Python e smoke Qt em Windows e Linux.
 
 ## Funcionalidades ainda fora deste redesenho

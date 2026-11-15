@@ -1,0 +1,55 @@
+{
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "baseline_commit": "482fa31b35725ec2a0b10fed446a43cfa6251399",
+  "change": "reuse one JSONEncoder per import; same UTF-8 JSON format, batches and transactions",
+  "scope": "three sequential samples each, same executor, tracemalloc enabled; not a statistical overall application speedup",
+  "before": [
+    {
+      "records": 1000000,
+      "legacy_import_ms": 14409.96336399985,
+      "native_snapshot_ms": 8867.308488001072,
+      "python_peak_bytes": 2317972,
+      "snapshot_bytes": 15333345
+    },
+    {
+      "records": 1000000,
+      "legacy_import_ms": 13633.439524001005,
+      "native_snapshot_ms": 8686.73760099955,
+      "python_peak_bytes": 2111048,
+      "snapshot_bytes": 15333345
+    },
+    {
+      "records": 1000000,
+      "legacy_import_ms": 13754.706214998805,
+      "native_snapshot_ms": 8760.29841899981,
+      "python_peak_bytes": 2110312,
+      "snapshot_bytes": 15333345
+    }
+  ],
+  "after": [
+    {
+      "records": 1000000,
+      "legacy_import_ms": 12803.82169800032,
+      "native_snapshot_ms": 8695.38940199891,
+      "python_peak_bytes": 2308877,
+      "snapshot_bytes": 15333345
+    },
+    {
+      "records": 1000000,
+      "legacy_import_ms": 12421.317230000568,
+      "native_snapshot_ms": 8755.566787000134,
+      "python_peak_bytes": 2111048,
+      "snapshot_bytes": 15333345
+    },
+    {
+      "records": 1000000,
+      "legacy_import_ms": 12409.502393000366,
+      "native_snapshot_ms": 8561.32610700115,
+      "python_peak_bytes": 2110312,
+      "snapshot_bytes": 15333345
+    }
+  ],
+  "median_import_before_ms": 13754.706214998805,
+  "median_import_after_ms": 12421.317230000568,
+  "median_reduction_percent": 9.694056449887999
+}

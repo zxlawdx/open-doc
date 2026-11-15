@@ -1,0 +1,251 @@
+{
+  "baseline_commit": "84f7f8988ec7f08570c86f807129c7cd937a6968",
+  "before": {
+    "python": "3.12.14",
+    "implementation": "CPython",
+    "scope": "same executor, sequential samples; no tracing, no statistical global speed claim",
+    "samples": [
+      {
+        "records": 1000,
+        "import_ms": 3.6032430000432214,
+        "raw_csv_ms": 1.7617559999507648,
+        "analysis_csv_ms": 2.6182080000580754,
+        "typed_sum_ms": 2.4051670000062586
+      },
+      {
+        "records": 1000,
+        "import_ms": 2.2730170001068473,
+        "raw_csv_ms": 1.687845000105881,
+        "analysis_csv_ms": 2.6181480000104784,
+        "typed_sum_ms": 1.9359489999715151
+      },
+      {
+        "records": 1000,
+        "import_ms": 2.217774000200734,
+        "raw_csv_ms": 1.6089670000383194,
+        "analysis_csv_ms": 2.6988600000095175,
+        "typed_sum_ms": 1.9216680000226916
+      },
+      {
+        "records": 10000,
+        "import_ms": 23.15512400014086,
+        "raw_csv_ms": 14.499653000029866,
+        "analysis_csv_ms": 24.473000999932992,
+        "typed_sum_ms": 16.143060999866066
+      },
+      {
+        "records": 10000,
+        "import_ms": 20.415512999989005,
+        "raw_csv_ms": 15.00048799994147,
+        "analysis_csv_ms": 24.133969000104116,
+        "typed_sum_ms": 16.37183599996206
+      },
+      {
+        "records": 10000,
+        "import_ms": 19.87759200005712,
+        "raw_csv_ms": 14.965174000053594,
+        "analysis_csv_ms": 24.328614000069138,
+        "typed_sum_ms": 16.38501599995834
+      },
+      {
+        "records": 100000,
+        "import_ms": 239.66668399998525,
+        "raw_csv_ms": 147.5276250000661,
+        "analysis_csv_ms": 245.40353400016102,
+        "typed_sum_ms": 159.77927899984934
+      },
+      {
+        "records": 100000,
+        "import_ms": 210.05903099990064,
+        "raw_csv_ms": 151.61080200005017,
+        "analysis_csv_ms": 244.79638799994063,
+        "typed_sum_ms": 159.45298699989507
+      },
+      {
+        "records": 100000,
+        "import_ms": 208.02478300015537,
+        "raw_csv_ms": 147.1962559999156,
+        "analysis_csv_ms": 257.84866899994086,
+        "typed_sum_ms": 157.86840700002358
+      },
+      {
+        "records": 1000000,
+        "import_ms": 2510.2058909999414,
+        "raw_csv_ms": 1509.9507620000168,
+        "analysis_csv_ms": 2501.5447839998615,
+        "typed_sum_ms": 1620.7026990000486
+      },
+      {
+        "records": 1000000,
+        "import_ms": 2336.5738879999753,
+        "raw_csv_ms": 1505.4448189998766,
+        "analysis_csv_ms": 2490.8208470001227,
+        "typed_sum_ms": 1611.253110000007
+      },
+      {
+        "records": 1000000,
+        "import_ms": 2241.2048260000574,
+        "raw_csv_ms": 1467.1063599998888,
+        "analysis_csv_ms": 2502.467734999982,
+        "typed_sum_ms": 1588.772414999994
+      }
+    ],
+    "medians": {
+      "1000": {
+        "import_ms": 2.2730170001068473,
+        "raw_csv_ms": 1.687845000105881,
+        "analysis_csv_ms": 2.6182080000580754,
+        "typed_sum_ms": 1.9359489999715151
+      },
+      "10000": {
+        "import_ms": 20.415512999989005,
+        "raw_csv_ms": 14.965174000053594,
+        "analysis_csv_ms": 24.328614000069138,
+        "typed_sum_ms": 16.37183599996206
+      },
+      "100000": {
+        "import_ms": 210.05903099990064,
+        "raw_csv_ms": 147.5276250000661,
+        "analysis_csv_ms": 245.40353400016102,
+        "typed_sum_ms": 159.45298699989507
+      },
+      "1000000": {
+        "import_ms": 2336.5738879999753,
+        "raw_csv_ms": 1505.4448189998766,
+        "analysis_csv_ms": 2501.5447839998615,
+        "typed_sum_ms": 1611.253110000007
+      }
+    }
+  },
+  "after": {
+    "python": "3.12.14",
+    "implementation": "CPython",
+    "scope": "same executor, sequential samples; no tracing, no statistical global speed claim",
+    "samples": [
+      {
+        "records": 1000,
+        "import_ms": 2.634862999912002,
+        "raw_csv_ms": 1.8189529998835496,
+        "analysis_csv_ms": 1.751951999949597,
+        "typed_sum_ms": 1.8094479999035684
+      },
+      {
+        "records": 1000,
+        "import_ms": 2.465667999786092,
+        "raw_csv_ms": 1.908467000021119,
+        "analysis_csv_ms": 1.8833799999811163,
+        "typed_sum_ms": 1.8063339998661831
+      },
+      {
+        "records": 1000,
+        "import_ms": 2.2980459998507285,
+        "raw_csv_ms": 1.7635289998452208,
+        "analysis_csv_ms": 1.7619269999613607,
+        "typed_sum_ms": 1.810559999967154
+      },
+      {
+        "records": 10000,
+        "import_ms": 22.949825999830864,
+        "raw_csv_ms": 14.71625999988646,
+        "analysis_csv_ms": 15.60849599991343,
+        "typed_sum_ms": 14.487786000017877
+      },
+      {
+        "records": 10000,
+        "import_ms": 20.57943099998738,
+        "raw_csv_ms": 15.381622999939282,
+        "analysis_csv_ms": 16.30394499989052,
+        "typed_sum_ms": 14.331599999877653
+      },
+      {
+        "records": 10000,
+        "import_ms": 20.157635000032315,
+        "raw_csv_ms": 14.710881999917547,
+        "analysis_csv_ms": 16.229591999945114,
+        "typed_sum_ms": 14.527275000091322
+      },
+      {
+        "records": 100000,
+        "import_ms": 240.42378899980577,
+        "raw_csv_ms": 158.11157200005255,
+        "analysis_csv_ms": 163.59160599995448,
+        "typed_sum_ms": 141.43984299994372
+      },
+      {
+        "records": 100000,
+        "import_ms": 208.5404929998731,
+        "raw_csv_ms": 151.52911700010918,
+        "analysis_csv_ms": 157.46780199992827,
+        "typed_sum_ms": 141.30305699995915
+      },
+      {
+        "records": 100000,
+        "import_ms": 207.259281000006,
+        "raw_csv_ms": 148.91696900008355,
+        "analysis_csv_ms": 158.03140200000598,
+        "typed_sum_ms": 141.3547350000499
+      },
+      {
+        "records": 1000000,
+        "import_ms": 2462.501518999943,
+        "raw_csv_ms": 1516.1526009999307,
+        "analysis_csv_ms": 1619.3490069999825,
+        "typed_sum_ms": 1416.4598030001798
+      },
+      {
+        "records": 1000000,
+        "import_ms": 2301.5715070000624,
+        "raw_csv_ms": 1489.5610639998722,
+        "analysis_csv_ms": 1554.9044550000417,
+        "typed_sum_ms": 1399.1479569999683
+      },
+      {
+        "records": 1000000,
+        "import_ms": 2246.824439999955,
+        "raw_csv_ms": 1528.2782290000796,
+        "analysis_csv_ms": 1583.2706899998357,
+        "typed_sum_ms": 1411.8968509999377
+      }
+    ],
+    "medians": {
+      "1000": {
+        "import_ms": 2.465667999786092,
+        "raw_csv_ms": 1.8189529998835496,
+        "analysis_csv_ms": 1.7619269999613607,
+        "typed_sum_ms": 1.8094479999035684
+      },
+      "10000": {
+        "import_ms": 20.57943099998738,
+        "raw_csv_ms": 14.71625999988646,
+        "analysis_csv_ms": 16.229591999945114,
+        "typed_sum_ms": 14.487786000017877
+      },
+      "100000": {
+        "import_ms": 208.5404929998731,
+        "raw_csv_ms": 151.52911700010918,
+        "analysis_csv_ms": 158.03140200000598,
+        "typed_sum_ms": 141.3547350000499
+      },
+      "1000000": {
+        "import_ms": 2301.5715070000624,
+        "raw_csv_ms": 1516.1526009999307,
+        "analysis_csv_ms": 1583.2706899998357,
+        "typed_sum_ms": 1411.8968509999377
+      }
+    }
+  },
+  "workspace_before": {
+    "captures": 1000,
+    "tabs": 20,
+    "ms": 904.7230319999999,
+    "rebuilds": 1000,
+    "writes": 1
+  },
+  "workspace_after": {
+    "captures": 1000,
+    "tabs": 20,
+    "ms": 0.7489289999999755,
+    "rebuilds": 0,
+    "writes": 0
+  }
+}

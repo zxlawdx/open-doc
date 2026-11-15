@@ -8,9 +8,9 @@ antes de alterar o engine. Veja comandos completos no README.
 
 - Preserve VelaApp, registro de apps/open_doc, template engine, BaseBridge,
   collectstatic e lifecycle. Nenhuma janela/servidor paralelo.
-- Fontes visuais em apps/open_doc/templates, apps/open_doc/static/js e apps/open_doc/styles. main.css é gerado;
-  edite arquivos de apps/open_doc/styles e rode python tools/build_css.py.
-- apps/open_doc/static contém assets versionados; staticfiles é saída gerada. Nunca edite main.css manualmente.
+- Fontes visuais em apps/home/templates, apps/home/static/js e apps/home/styles. main.css é gerado;
+  edite arquivos de apps/home/styles e rode python tools/build_css.py.
+- apps/home/static contém assets versionados; staticfiles é saída gerada. Nunca edite main.css manualmente.
 - Menu/toolbar visível exige handler, serialização preservada e teste.
 - Documentos antigos, revisões, recuperação e backups não podem ser descartados.
 - execCommand fica somente no adapter editor_commands.js; seleção/history

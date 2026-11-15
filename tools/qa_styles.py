@@ -15,8 +15,8 @@ os.environ.setdefault("PYWEBVIEW_GUI", "qt")
 os.environ.setdefault("QT_API", "pyqt5")
 os.environ.setdefault("QTWEBENGINE_REMOTE_DEBUGGING", "9234")
 import webview
-from apps.open_doc.services.preferences_service import Config
-from apps.open_doc.services.container import services
+from shared.services.preferences_service import Config
+from config.composition import get_context as services
 from config.wsgi import create_app
 
 

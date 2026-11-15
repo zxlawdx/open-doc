@@ -30,7 +30,7 @@ A engrenagem no cabeçalho abre **Configurações · Aparência**. O menu **Ferr
 
 O [mapa de arquitetura](../ARCHITECTURE.md) segue os pontos de entrada reais. `main.py` e `launcher.py` chegam ao Vela por `config/wsgi.py`. O HTML recebe os partials da Central e dos editores. `app.js` monta o workspace e liga o frontend a HTTP local e à bridge. A camada de aplicação coordena modelos, SQLite, arquivos e adaptadores de formatos. O Vela gera os assets e inicia o mesmo runtime em código-fonte e nos binários.
 
-A inspeção AST encontrou 88 módulos Python e 96 dependências internas estáticas no escopo de módulo, sem ciclos nesse recorte. Imports locais e dependências JavaScript carregadas no runtime ficam fora dessa métrica. `tests/test_architecture.py` verifica que os modelos canônicos e a aplicação podem ser importados sem Vela, Bottle e WebView.
+A inspeção AST encontrou 88 módulos Python e 96 dependências internas estáticas no escopo de módulo, sem ciclos nesse recorte. Imports locais e dependências JavaScript carregadas no runtime ficam fora dessa métrica. `tests/integration/test_architecture.py` verifica que os modelos canônicos e a aplicação podem ser importados sem Vela, Bottle e WebView.
 
 | Princípio | Constatação | Ação ou limite |
 | --- | --- | --- |

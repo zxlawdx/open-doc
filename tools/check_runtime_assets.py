@@ -50,7 +50,7 @@ def repair_vendor_line_endings(root: Path = ROOT) -> list[str]:
     a genuinely different bundle or mask a partial/interrupted build.
     All files are verified before any write, so failures leave them untouched.
     """
-    vendor = root / "apps/open_doc/static/js/vendor"
+    vendor = root / "apps/home/static/js/vendor"
     if (vendor / ".build-failed").exists():
         raise RuntimeError("Build de vendor interrompido; não restaurar automaticamente.")
     try:
@@ -88,7 +88,7 @@ def repair_vendor_line_endings(root: Path = ROOT) -> list[str]:
 
 def validate_vendor(root: Path = ROOT) -> dict:
     """Validate all prebuilt JS bytes; no Node executable is required."""
-    vendor = root / "apps/open_doc/static/js/vendor"
+    vendor = root / "apps/home/static/js/vendor"
     try:
         if (vendor / ".build-failed").exists():
             raise ValueError("O último build falhou ou foi interrompido.")
@@ -118,11 +118,11 @@ def check(root: Path = ROOT) -> dict:
     """Validate vendor and the two CSS files expected by Vela's HTTP shell."""
     manifest = validate_vendor(root)
     try:
-        if not (root / "apps/open_doc/static/css/main.css").is_file():
+        if not (root / "apps/home/static/css/main.css").is_file():
             raise ValueError("Tailwind pré-compilado ausente.")
-        if not (root / "apps/open_doc/static/css/runtime.css").is_file():
+        if not (root / "apps/home/static/css/runtime.css").is_file():
             raise ValueError("CSS do editor não compilado.")
-        if not (root / "staticfiles/open_doc/css/runtime.css").is_file():
+        if not (root / "staticfiles/home/css/runtime.css").is_file():
             raise ValueError("CSS do editor não coletado.")
         if not (root / "staticfiles/css/vela.bundle.css").is_file():
             raise ValueError("CSS offline do shell Vela ausente.")

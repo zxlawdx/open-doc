@@ -33,7 +33,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item apps/open_doc/static/js/vendor/pdf.bundle.js -ErrorAction SilentlyContinue
+          Remove-Item apps/home/static/js/vendor/pdf.bundle.js -ErrorAction SilentlyContinue
           if (Test-Path node_modules) { throw "node_modules must not exist before collectstatic bootstrap" }
           python manage.py collectstatic --yes
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -64,6 +64,8 @@ jobs:
         run: python -u tools/qa_docx_ink_typing.py
       - name: DOCX pen-to-module navigation
         run: python -u tools/qa_navigation_perf.py
+      - name: Native data scale and responsiveness
+        run: python -u tools/qa_data_scale.py docs/images/datasets/scale
       - name: Actual Vela PyQt QtWebEngine
         shell: pwsh
         run: |
@@ -175,6 +177,8 @@ jobs:
         run: python -u tools/qa_docx_ink_typing.py
       - name: DOCX pen-to-module navigation
         run: python -u tools/qa_navigation_perf.py
+      - name: Native data scale and responsiveness
+        run: python -u tools/qa_data_scale.py docs/images/datasets/scale
       - name: Actual Vela PyQt QtWebEngine
         run: |
           python -u tools/qa_appearance_zoom.py docs/images/appearance-zoom

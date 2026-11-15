@@ -84,11 +84,11 @@ license-compatible reuse over replacing established components.
 
 ## Required regression evidence
 
-- `tests/slide_editor.test.cjs`: only one physical canvas for 2+ slides;
+- `tests/regression/slide_editor.test.cjs`: only one physical canvas for 2+ slides;
   thumbnails retain all slides; slides maintain object identity; editing
   geometry survives navigation and 4:3 sizes; presenter can render an offscreen
   slide without mounting it in the editor.
-- `tests/fixed_rendering.test.cjs`: the fixed-document controller's PPTX
+- `tests/regression/fixed_rendering.test.cjs`: the fixed-document controller's PPTX
   navigation points to the active slide, with a single physical page and full
   `model.surfaces`.
 - `tools/qa_slide_capture.cjs`: live QtWebEngine tests thumbnail clicks,

@@ -14,10 +14,10 @@ from openpyxl import load_workbook
 
 from qa_docx_list import capture, wait
 from qa_runtime import Keyboard
-from apps.open_doc.application.context import get_context
-from apps.open_doc.services.preferences_service import Config
-from apps.open_doc.spreadsheets.files import export
-from apps.open_doc.spreadsheets.objects import media_directory, store_image
+from config.composition import get_context
+from shared.services.preferences_service import Config
+from apps.spreadsheets.services.files import export
+from apps.spreadsheets.services.objects import media_directory, store_image
 from config.wsgi import create_app
 
 
@@ -268,7 +268,7 @@ def main():
                     native.active["E3"].hyperlink.target == "https://example.com/dados"
                 )
                 assert len(native.active.data_validations.dataValidation) == 1
-                from apps.open_doc.spreadsheets.files import read
+                from apps.spreadsheets.services.files import read
 
                 reopened = read(target, media_directory=media_directory(root))[0]
                 assert sum(obj["type"] == "shape" for obj in reopened["objects"]) == 2
@@ -304,7 +304,7 @@ def main():
                 assert js("window.__sheetFixtureDone"), js("window.__sheetFixtureError")
                 capture(output, "packaged-flow-source")
                 # Anonymous layout fixture also allows a private, local-only reference.
-                from apps.open_doc.spreadsheets.files import read
+                from apps.spreadsheets.services.files import read
 
                 compatibility = root / "layout-reference.xlsx"
                 export(

@@ -19,7 +19,7 @@ Base: `main` at `3452b44819a5a2cad6889c4a75b8d8a6d5b02e8d`.
   receive equivalent transformations of their native annotation geometry.
 - Add Python and JSDOM tests for model validation, persistence, native PDF
   annotations, rotation, and browser selection geometry.
-- Keep CSS in `apps/open_doc/styles/semantic_annotations.css`. Run the
+- Keep CSS in `apps/home/styles/semantic_annotations.css`. Run the
   project's normal `npm run build`; do not edit generated `main.css`.
 
 ## Files and boundaries
@@ -53,8 +53,8 @@ No code was copied from any external application's implementation.
 python -m pip install -r requirements-dev.txt
 npm ci
 npm run build
-python -m pytest -q tests/test_pdf_semantic_annotations.py
-node --test tests/semantic_annotations.test.cjs
+python -m pytest -q tests/regression/test_pdf_semantic_annotations.py
+node --test tests/regression/semantic_annotations.test.cjs
 python -m pytest -q
 npm test
 python -u tools/qa_ink.py

@@ -8,7 +8,7 @@ from qa_docx_list import capture, wait
 
 import webview
 
-from apps.open_doc.services.preferences_service import Config
+from shared.services.preferences_service import Config
 from config.wsgi import create_app
 
 

@@ -33,11 +33,11 @@ OpenDoc/
 /node_modules
 
 # Incomplete vendor builds block startup but are not release artifacts.
-apps/open_doc/static/js/vendor/.build-*/
-apps/open_doc/static/js/vendor/.build-failed
+apps/home/static/js/vendor/.build-*/
+apps/home/static/js/vendor/.build-failed
 
 /.vela-vendor-*/
 
 # CSS created by collectstatic; the tracked main.css is an offline Tailwind seed.
-/apps/open_doc/static/css/runtime.css
-/apps/open_doc/static/css/runtime.css.tmp
+/apps/home/static/css/runtime.css
+/apps/home/static/css/runtime.css.tmp

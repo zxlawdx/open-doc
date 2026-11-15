@@ -10,9 +10,9 @@ from qa_docx_list import capture, wait
 
 import webview
 
-from apps.open_doc.application.context import get_context
-from apps.open_doc.services.preferences_service import Config
-from apps.open_doc.spreadsheets.templates import catalog
+from config.composition import get_context
+from shared.services.preferences_service import Config
+from apps.spreadsheets.services.templates import catalog
 from config.wsgi import create_app
 
 VIEWPORTS = (

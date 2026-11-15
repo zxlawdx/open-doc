@@ -35,13 +35,13 @@ MAX_TOTAL_BYTES = 180 * 1024 * 1024
 MAX_FILE_BYTES = 60 * 1024 * 1024
 MAX_FILES = 1000
 REQUIRED = {
-    "apps/open_doc/static/css/main.css",
-    "apps/open_doc/static/css/runtime.css",
-    "apps/open_doc/static/js/vendor/vendor-manifest.json",
+    "apps/home/static/css/main.css",
+    "apps/home/static/css/runtime.css",
+    "apps/home/static/js/vendor/vendor-manifest.json",
     "staticfiles/css/vela.bundle.css",
-    "staticfiles/open_doc/css/main.css",
-    "staticfiles/open_doc/css/runtime.css",
-    "staticfiles/open_doc/js/vendor/vendor-manifest.json",
+    "staticfiles/home/css/main.css",
+    "staticfiles/home/css/runtime.css",
+    "staticfiles/home/js/vendor/vendor-manifest.json",
 }
 
 
@@ -64,9 +64,9 @@ def source_fingerprint(root: Path = ROOT) -> str:
         "config/settings.py",
     ]
     for relative in (
-        "apps/open_doc/styles",
-        "apps/open_doc/templates",
-        "apps/open_doc/static/js",
+        "apps/home/styles",
+        "apps/home/templates",
+        "apps/home/static/js",
     ):
         directory = root / relative
         if directory.is_dir():
@@ -100,10 +100,10 @@ def _permitted(name: str) -> bool:
         return False
     return (
         name.startswith("staticfiles/")
-        or name.startswith("apps/open_doc/static/js/vendor/")
+        or name.startswith("apps/home/static/js/vendor/")
         or name in {
-            "apps/open_doc/static/css/main.css",
-            "apps/open_doc/static/css/runtime.css",
+            "apps/home/static/css/main.css",
+            "apps/home/static/css/runtime.css",
         }
     )
 
@@ -112,11 +112,11 @@ def _compiled_files(root: Path) -> list[Path]:
     files = sorted(path for path in (root / "staticfiles").rglob("*") if path.is_file())
     files += sorted(
         path
-        for path in (root / "apps/open_doc/static/js/vendor").rglob("*")
+        for path in (root / "apps/home/static/js/vendor").rglob("*")
         if path.is_file()
     )
-    files.append(root / "apps/open_doc/static/css/main.css")
-    files.append(root / "apps/open_doc/static/css/runtime.css")
+    files.append(root / "apps/home/static/css/main.css")
+    files.append(root / "apps/home/static/css/runtime.css")
     for path in files:
         if not _permitted(path.relative_to(root).as_posix()):
             raise RuntimeError(f"Arquivo não permitido no pacote offline: {path}")
@@ -129,9 +129,9 @@ def _existing_tailwind_css(root: Path) -> str:
     Only handwritten styles are reassembled. No fake/empty CSS or remote CDN.
     If the compiled base or marker disappears, fail rather than fabricate CSS.
     """
-    main = (root / "apps/open_doc/static/css/main.css").read_text(encoding="utf-8")
+    main = (root / "apps/home/static/css/main.css").read_text(encoding="utf-8")
     first_line = (
-        (root / "apps/open_doc/styles/tokens.css").read_text(encoding="utf-8")
+        (root / "apps/home/styles/tokens.css").read_text(encoding="utf-8")
         .splitlines()[0]
     )
     cut = main.find("\n" + first_line)
@@ -159,11 +159,11 @@ def prepare(root: Path = ROOT) -> None:
     validate_vendor(root)
     compiled = _existing_tailwind_css(root)
     custom = "\n".join(
-        (root / "apps/open_doc/styles" / name).read_text(encoding="utf-8")
+        (root / "apps/home/styles" / name).read_text(encoding="utf-8")
         for name in STYLE_ORDER
     )
     # The checked-in main.css is only an offline Tailwind seed. Do not edit it.
-    runtime_css = root / "apps/open_doc/static/css/runtime.css"
+    runtime_css = root / "apps/home/static/css/runtime.css"
     shell_css = root / "staticfiles/css/vela.bundle.css"
     shell_css.parent.mkdir(parents=True, exist_ok=True)
     shell_css.write_text(compiled + "\n", encoding="utf-8")
@@ -263,7 +263,7 @@ def install(archive: Path, *, root: Path = ROOT, verify_only: bool = False) -> N
                 target.write_bytes(data)
 
             vendor = json.loads(
-                (stage / "apps/open_doc/static/js/vendor/vendor-manifest.json").read_text("utf-8")
+                (stage / "apps/home/static/js/vendor/vendor-manifest.json").read_text("utf-8")
             )
             expected_source = source_hash(root)
             if vendor.get("source_hash") != expected_source:
@@ -271,7 +271,7 @@ def install(archive: Path, *, root: Path = ROOT, verify_only: bool = False) -> N
             if vendor.get("build_hash") != metadata.get("vendor_build_hash"):
                 raise RuntimeError("Manifesto vendor do pacote não corresponde ao artefato.")
             for name, digest in vendor.get("files", {}).items():
-                compiled = stage / "apps/open_doc/static/js/vendor" / name
+                compiled = stage / "apps/home/static/js/vendor" / name
                 if not compiled.is_file() or _digest(compiled.read_bytes()) != digest:
                     raise RuntimeError("Bundle de vendor inconsistente: " + name)
 

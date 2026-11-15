@@ -1,0 +1,61 @@
+{
+  "platform": "Linux-7.0.0-1019-azure-x86_64-with-glibc2.43",
+  "startup_to_ready_ms": 946.0242290000167,
+  "scope": "single native Qt run; import includes bridge, SQLite and render; RSS includes warm imports; no GUI baseline",
+  "results": [
+    {
+      "start": 664.7650000000169,
+      "last": 713.594999999998,
+      "ticks": 3,
+      "maxDelay": 29.48499999999399,
+      "import_render_ms": 57.9349999999863,
+      "dom_rows": 50,
+      "page_render_ms": 60.77645299998835,
+      "records": 1000,
+      "python_qt_rss_bytes": 316248064,
+      "child_rss_bytes": 456126464
+    },
+    {
+      "start": 802.4849999999901,
+      "last": 874.6050000000025,
+      "ticks": 4,
+      "maxDelay": 23.959999999988213,
+      "import_render_ms": 75.35500000000184,
+      "dom_rows": 50,
+      "page_render_ms": 71.20317799999043,
+      "records": 10000,
+      "python_qt_rss_bytes": 317702144,
+      "child_rss_bytes": 460443648
+    },
+    {
+      "start": 981.5600000000018,
+      "last": 1493.6950000000024,
+      "ticks": 32,
+      "maxDelay": 26.499999999998636,
+      "import_render_ms": 522.2349999999949,
+      "dom_rows": 50,
+      "page_render_ms": 61.03495499999667,
+      "records": 100000,
+      "python_qt_rss_bytes": 327561216,
+      "child_rss_bytes": 492122112
+    },
+    {
+      "start": 1727.2350000000074,
+      "last": 5374.6749999999965,
+      "ticks": 227,
+      "maxDelay": 31.319999999994252,
+      "import_render_ms": 3647.480000000002,
+      "dom_rows": 50,
+      "page_render_ms": 60.11651700001153,
+      "records": 1000000,
+      "python_qt_rss_bytes": 327806976,
+      "child_rss_bytes": 493961216
+    }
+  ],
+  "source": {
+    "commit": "482fa31b35725ec2a0b10fed446a43cfa6251399",
+    "run": "https://github.com/zxlawdx/open-doc/actions/runs/43578859560",
+    "job": 132399047599,
+    "note": "scale step passed; later desktop redo test failed, fixed in a subsequent commit; before encoder optimization"
+  }
+}

@@ -29,7 +29,7 @@ Node/npm remain system prerequisites and are never installed by Vela. In CI the 
 
 `bridge.py` owns native UI concerns such as file pickers and delegates document operations to `DocumentApplication`. `api.py` owns HTTP session authentication and status mapping. Document commands delegate to the same facade. Workbook and dataset controllers currently dispatch into their dedicated services. The composition root publishes its context only after the stores initialize.
 
-The historical `apps.open_doc.services.container` path remains as a compatibility shim while existing services/tests migrate to `apps.open_doc.application.context`.
+The historical `config.composition` path remains as a compatibility shim while existing services/tests migrate to `config.composition`.
 
 ## Domain and document model
 
@@ -50,4 +50,4 @@ The persisted document representations stay independent of both preferences.
 
 ## Tests
 
-`tests/test_architecture.py` validates dependency direction with AST import scanning and asserts the declarative `collectstatic` asset contract. Existing DOCX round-trip, fixed document, handwriting and frontend tests remain the behavioral safety net.
+`tests/integration/test_architecture.py` validates dependency direction with AST import scanning and asserts the declarative `collectstatic` asset contract. Existing DOCX round-trip, fixed document, handwriting and frontend tests remain the behavioral safety net.

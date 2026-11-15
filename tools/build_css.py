@@ -42,9 +42,9 @@ STYLE_ORDER = (
 
 def main() -> None:
     """Recompila utilitários e preserva o tema escrito à mão."""
-    target = ROOT / "apps" / "open_doc" / "static" / "css" / "runtime.css"
+    target = ROOT / "apps" / "home" / "static" / "css" / "runtime.css"
     custom_css = "\n".join(
-        (ROOT / "apps/open_doc/styles" / name).read_text(encoding="utf-8")
+        (ROOT / "apps/home/styles" / name).read_text(encoding="utf-8")
         for name in STYLE_ORDER
     )
     staging = ROOT / ".vela-build"

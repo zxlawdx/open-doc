@@ -1,7 +1,7 @@
 /* ============ VELA OFFLINE TAILWIND ============ */
 module.exports = {
   content: [
-    "./apps/open_doc/templates/**/*.html", "./apps/open_doc/static/js/*.js",
+    "./apps/home/templates/**/*.html", "./apps/home/static/js/*.js",
     "./.vela-build/framework-shell.html"
   ],
   corePlugins: {preflight: false},

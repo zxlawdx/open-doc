@@ -168,7 +168,7 @@ Comandos Windows efetivamente executados:
 python -m pip install -r requirements-dev.txt
 python -m pip check
 npm ci
-Remove-Item apps/open_doc/static/js/vendor/pdf.bundle.js
+Remove-Item apps/home/static/js/vendor/pdf.bundle.js
 npm run build
 python tools/check_runtime_assets.py
 python -m pytest -q

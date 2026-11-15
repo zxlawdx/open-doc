@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-from apps.open_doc.services.preferences_service import PROJECT_ROOT
+from shared.services.preferences_service import PROJECT_ROOT
 
 
 def main() -> None:

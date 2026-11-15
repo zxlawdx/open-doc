@@ -12,7 +12,7 @@ shell.css; document.css acumulava chrome, páginas, conteúdo e popovers. Toolba
 continha definições conflitantes de altura/wrap. Havia aliases inexistentes
 `--panel-bg` e `--text`, com fallback claro nos menus de página/tabela.
 
-Agora `apps/open_doc/styles` possui ordem explícita:
+Agora `apps/home/styles` possui ordem explícita:
 
 | Grupo | Arquivos |
 |---|---|

@@ -9,8 +9,8 @@ from zipfile import ZipFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from apps.open_doc.application.context import configure
-from apps.open_doc.services.preferences_service import Config
+from config.composition import configure
+from shared.services.preferences_service import Config
 
 
 def edit_text(note, suffix):

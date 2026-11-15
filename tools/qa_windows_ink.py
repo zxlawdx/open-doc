@@ -10,7 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from apps.open_doc.ink.windows_ink import WindowsInkBackend
+from shared.services.ink.windows_ink import WindowsInkBackend
 
 
 def main() -> int:

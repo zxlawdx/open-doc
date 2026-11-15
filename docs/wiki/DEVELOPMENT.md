@@ -18,7 +18,7 @@ python -m pytest -q
 npm test
 python tools/audit_css.py
 python -m black --check --line-length 88 apps config tools tests main.py manage.py launcher.py
-node --check apps/open_doc/static/js/app.js
+node --check apps/home/static/js/app.js
 python tools/build_css.py
 python manage.py collectstatic --no-tailwind
 python manage.py runapp
@@ -45,7 +45,7 @@ A validação visual deve cobrir múltiplas resoluções desktop e os temas supo
 Nunca edite apenas o CSS gerado como fonte de verdade. Os arquivos de origem ficam em:
 
 ```text
-apps/open_doc/styles/
+apps/home/styles/
 ```
 
 Após alterações:
