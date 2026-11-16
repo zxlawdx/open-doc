@@ -63,6 +63,26 @@ def test_legacy_table_is_not_silently_retyped(store,tmp_path):
     assert store.page(identifier,0,0)['rows']==[['20'],['31']]
 
 
+
+def test_arrow_dictionary_encoded_categorical_values_preserve_logical_types():
+    import pyarrow as pa
+    from apps.data.services.inference import from_arrow
+
+    schema = pa.schema([
+        pa.field("Sex", pa.dictionary(pa.int8(), pa.string())),
+        pa.field("Embarked", pa.dictionary(pa.int16(), pa.large_string())),
+        pa.field("Pclass", pa.dictionary(pa.int8(), pa.int64())),
+        pa.field("Age", pa.float64()),
+    ])
+    profile = from_arrow(schema)
+    assert [field["kind"] for field in profile["schema"]] == [
+        "text", "text", "integer", "decimal"
+    ]
+    assert profile["options"]["native"] is True
+    with pytest.raises(ValueError, match="Tipo Arrow não suportado"):
+        from_arrow(pa.schema([("nested", pa.list_(pa.int32()))]))
+
+
 def test_arrow_dataframe_matches_same_pandas_version_and_options(tmp_path):
     from config.wsgi import create_app
     from config.composition import get_context
