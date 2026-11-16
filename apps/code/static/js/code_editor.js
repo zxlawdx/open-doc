@@ -49,10 +49,12 @@
         if(!context.explicit&&!prefix&&previous!==".")return null;
         try{
           const result=await analyze("complete",context.state,context.pos);
-          if(context.aborted||!result.items.length)return null;
+          if(context.aborted)return null;
+          if(context.explicit)signature.textContent="";
+          if(!result.items?.length)return null;
           return {from:prefix?.from ?? context.pos, options:result.items};
         } catch(error){
-          if(!context.aborted&&signature)
+          if(context.explicit&&!context.aborted&&signature)
             signature.textContent="Autocomplete indisponível: "+(error.message||String(error));
           return null;
         }

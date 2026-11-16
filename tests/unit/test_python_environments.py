@@ -53,9 +53,30 @@ def test_installer_uses_project_venv_bounded_wheel_pip_and_reports_installed(tmp
     pip_call=next(call for call in called if "--only-binary=:all:" in call[0])
     assert "--no-input" in pip_call[0]
     assert "--only-binary=:all:" in pip_call[0]
-    assert "jedi==0.19.2" in pip_call[0]  # Python completion in project venvs
+    assert pip_call[0].count("jedi==0.19.2") == 1  # Editor dependency is included with consent.
     assert pip_call[0][0] == str(service.interpreter(project))
     assert str(tmp_path) in pip_call[0][0]
     assert service.status(project)["packages"][0] == {"name": "pandas", "version": "2.2"}
     other = str(uuid4())
     assert service.interpreter(other) is None
+
+
+def test_explicit_jedi_install_does_not_duplicate_editor_dependency(tmp_path, monkeypatch):
+    import sys
+    from apps.code.services import python_envs
+
+    service = PythonEnvironments(tmp_path)
+    project = str(uuid4())
+    executable = service.path(project) / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    executable.parent.mkdir(parents=True)
+    executable.touch()
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(python_envs, "run_external", fake_run)
+    result = service.install(project, ["jedi==0.19.2"], confirm=True)
+    assert calls[0].count("jedi==0.19.2") == 1
+    assert result["installed"] == ["jedi==0.19.2"]

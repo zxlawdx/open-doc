@@ -44,14 +44,17 @@ def analyze(code, line, column, operation, project=None):
             details=(result.stderr or result.stdout or "")[-1200:]
             if "No module named 'jedi'" in details or 'No module named "jedi"' in details:
                 raise ValueError(
-                    "O autocomplete precisa de Jedi neste projeto. Instale "
-                    "jedi==0.19.2 em Bibliotecas do projeto e tente novamente."
+                    "Jedi não está instalado no Python deste projeto. Abra "
+                    "Bibliotecas do projeto e selecione 'Ativar autocomplete Python (Jedi)'."
                 )
             raise ValueError(
                 "Falha ao analisar o Python do projeto. Verifique o ambiente "
                 "selecionado e as bibliotecas instaladas."
             )
-        return json.loads(result.stdout)
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as error:
+            raise ValueError("O serviço de autocomplete retornou uma resposta inválida.") from error
     with _analysis_lock:
         executable = sys.executable
         if project:

@@ -37,6 +37,8 @@ class Editor:
         self.path = config.root / ".veladata" / "writer.sqlite3"
         self._lock = RLock()
         with self._connect() as connection:
+            # Let the Qt editor read committed snapshots during parallel saves.
+            connection.execute("PRAGMA journal_mode=WAL")
             connection.executescript(
                 "CREATE TABLE IF NOT EXISTS documents ("
                 "id TEXT PRIMARY KEY, title TEXT NOT NULL, markdown TEXT NOT NULL,"
@@ -59,7 +61,8 @@ class Editor:
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self.path)
+        # Bound lock contention from asynchronous autosaves on slower disks.
+        connection = sqlite3.connect(self.path, timeout=15.0)
         connection.row_factory = sqlite3.Row
         try:
             with connection:
