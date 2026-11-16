@@ -68,3 +68,15 @@ def test_program_can_execute_without_pandas_or_dataset_binding(tmp_path):
     service=NotebookService(context);service.open=Mock(side_effect=AssertionError('pure program must not open df'))
     assert service.execute('program','print(42)')['output']=='42'
     kernel.execute.assert_called_once_with('program','print(42)')
+
+
+def test_frozen_python_completion_reports_missing_jedi(monkeypatch):
+    from apps.code.services.python_analysis import analyze
+    from apps.code.services import local_runtime
+    monkeypatch.setattr(sys, 'frozen', True, raising=False)
+    monkeypatch.setattr(local_runtime, 'external_python', lambda: sys.executable)
+    monkeypatch.setattr(local_runtime, 'run_external', lambda *args, **kwargs: SimpleNamespace(
+        returncode=1, stdout='', stderr="ModuleNotFoundError: No module named 'jedi'"
+    ))
+    with pytest.raises(ValueError, match='Ativar autocomplete Python'):
+        analyze('import pandas as pd\\npd.Dat', 2, 6, 'complete')
