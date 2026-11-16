@@ -64,6 +64,9 @@ class NotebookService:
                 executed["output"] = output + "\n" + executed.get("output", "")
                 return executed
             return {"returncode": 0, "output": output, "outputs": [{"type": "stream", "text": output}]}
+        datasets = getattr(self.context, "datasets", None)
+        if language == "python" and identifier not in self._bindings and datasets is not None and datasets.is_program(identifier):
+            return self.context.kernels.execute(identifier, code)
         if identifier not in self._bindings:
             opened = self.open(identifier)
             if opened.get("returncode"):

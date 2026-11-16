@@ -68,7 +68,7 @@ class KernelSessions:
                 )
             except Exception as exc:
                 raise ValueError(
-                    "Instale ipykernel, pandas e pyarrow no ambiente deste projeto para iniciar o notebook."
+                    "Instale ipykernel no ambiente deste projeto para iniciar o notebook. Para DataFrames, adicione pandas e pyarrow."
                 ) from exc
 
             class ProjectSpecs(KernelSpecManager):

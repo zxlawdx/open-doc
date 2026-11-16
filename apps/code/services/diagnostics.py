@@ -82,6 +82,16 @@ def self_test():
         report["steps"].append("xlsx-parquet-roundtrip")
         app.close()
         app = None
+        # A program needs only ipykernel; table libraries stay optional.
+        program = ctx.datasets.create("Pure Python smoke")["id"]
+        prepared = ctx.notebooks.execute(program, "!pip install ipykernel")
+        assert prepared.get("returncode") == 0
+        pure = ctx.notebooks.execute(program, "import importlib.util; assert importlib.util.find_spec('pandas') is None; answer=42; print(answer)")
+        assert pure.get("returncode") == 0 and pure["output"].strip() == "42"
+        assert ctx.notebooks.execute(program, "!pip install humanize").get("returncode") == 0
+        retained = ctx.notebooks.execute(program, "import humanize; print(answer)")
+        assert retained.get("returncode") == 0 and retained["output"].strip() == "42"
+        report["steps"].append("pure-python-without-pandas-and-pip-preserves-variables")
         report["success"] = True
         result_code = 0
     except BaseException as error:

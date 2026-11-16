@@ -6,7 +6,7 @@ Esta mudança parte do merge `2d5a3dc9`. A release existente continua disponíve
 
 A central contém atalhos coloridos para Documentos, Planilhas, Apresentações, PDF, Dados, Código e Templates. Cada aplicação registra sua rota pelo AppConfig (`/documents`, `/spreadsheets`, `/presentations`, `/pdf`, `/data`, `/code`, `/templates`). A renderização compartilhada pertence a `shared/services`, sem imports privados entre aplicações. O ciclo oficial de desmontagem aguarda as gravações de preferências, notebook e editor.
 
-Dados permite criar programas vazios, importar tabelas e alternar projetos por abas. Cada projeto conserva suas células. A exclusão é confirmada na interface e remove tabela, fontes, tipos e histórico em uma transação SQLite; recursos previamente publicados e referenciados por Planilhas são preservados. Abas de recursos excluídos saem da sessão global.
+Dados permite criar programas Python independentes de datasets (ipykernel é suficiente; Pandas/Arrow só são necessários para DataFrames), importar tabelas e alternar projetos por abas. Cada projeto conserva suas células. A exclusão é confirmada na interface e remove tabela, fontes, tipos e histórico em uma transação SQLite; recursos previamente publicados e referenciados por Planilhas são preservados. Abas de recursos excluídos saem da sessão global.
 
 O painel duplicado “Python local” fica fora da interface. As células do notebook são o ponto de edição Python; bibliotecas ficam em uma janela própria. Operações exibem progresso indeterminado e estado ocupado, sem inventar percentuais.
 
@@ -34,7 +34,7 @@ A conexão atual é de leitura: transação read-only imposta no servidor e roll
 
 ## Validação
 
-- Local: 420 testes Python aprovados, 7 skips de ambiente/plataforma/serviços externos; 325 testes frontend aprovados.
+- Local: 421 testes Python aprovados, 7 skips de ambiente/plataforma/serviços externos; 325 testes frontend aprovados.
 - Qt local: criação, alternância e preservação de dois programas, clique nativo na área vazia, autocomplete Pandas, filtro/remoção e exclusão passaram.
 - O CI inclui o mesmo QA Qt em Windows/Linux, screenshots e smoke empacotado com autocomplete e ausência de console.
 - Um job separado inicia PostgreSQL 16 e MySQL 8 e verifica consulta real, truncamento e rejeição de escrita. Os testes são pulados localmente quando os serviços não estão disponíveis; não são apresentados como aprovação local desses bancos.

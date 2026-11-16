@@ -14,8 +14,10 @@ def test_empty_program_and_transactional_delete(tmp_path):
     store=Datasets(tmp_path); store.initialize()
     project=store.create('Programa de análise')
     assert store.page(project['id'],0,0)['rows']==[]
+    assert store.is_program(project['id']) is True
     source=tmp_path/'t.csv';source.write_text('a,b\n1,2\n')
     dataset=store.import_files([source])
+    assert store.is_program(dataset['id']) is False
     store.edit_cell(dataset['id'],1,0,'3')
     store.delete(dataset['id'])
     assert [x['id'] for x in store.list()]==[project['id']]
@@ -58,3 +60,11 @@ def test_remote_sql_validates_target_before_spawning(tmp_path):
         query(tmp_path,'bad',{'kind':'unknown'},'SELECT 1')
     with pytest.raises(ValueError,match='host'):
         query(tmp_path,'bad',{'kind':'postgresql'},'SELECT 1')
+
+
+def test_program_can_execute_without_pandas_or_dataset_binding(tmp_path):
+    kernel=Mock();kernel.execute.return_value={'returncode':0,'output':'42'}
+    context=SimpleNamespace(datasets=SimpleNamespace(is_program=lambda identifier:True),kernels=kernel)
+    service=NotebookService(context);service.open=Mock(side_effect=AssertionError('pure program must not open df'))
+    assert service.execute('program','print(42)')['output']=='42'
+    kernel.execute.assert_called_once_with('program','print(42)')

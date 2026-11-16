@@ -35,6 +35,9 @@ class Datasets:
                     id TEXT PRIMARY KEY, title TEXT NOT NULL,
                     columns_json TEXT NOT NULL, row_count INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS dataset_projects (
+                    dataset_id TEXT PRIMARY KEY REFERENCES datasets(id), kind TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS sources (
                     id INTEGER PRIMARY KEY, dataset_id TEXT NOT NULL REFERENCES datasets(id),
                     filename TEXT NOT NULL, first_row INTEGER NOT NULL, row_count INTEGER NOT NULL
@@ -73,14 +76,19 @@ class Datasets:
         with self.connect() as db:
             db.execute("INSERT INTO datasets VALUES (?,?,?,0)",
                        (identifier, title.strip(), '["valor"]'))
+            db.execute("INSERT INTO dataset_projects VALUES (?, 'program')", (identifier,))
         return {"id": identifier, "title": title.strip()}
+
+    def is_program(self, identifier):
+        with self.connect() as db:
+            return db.execute("SELECT 1 FROM dataset_projects WHERE dataset_id=? AND kind='program'", (identifier,)).fetchone() is not None
 
     def delete(self, identifier):
         """Delete owned table state atomically; published shared snapshots survive."""
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             self.get(db, identifier)
-            for table in ("dataset_edit_history", "dataset_field_types", "dataset_rows", "sources"):
+            for table in ("dataset_projects", "dataset_edit_history", "dataset_field_types", "dataset_rows", "sources"):
                 db.execute(f"DELETE FROM {table} WHERE dataset_id=?", (identifier,))
             db.execute("DELETE FROM datasets WHERE id=?", (identifier,))
         return {"deleted": identifier}
