@@ -331,6 +331,28 @@
     showView(true);
     design?.navigateLibrary(route, section);
   }
+  // Desktop module transitions should not tear down and remount Vela's WebView.
+  const suiteRoutes={documents:'docx',presentations:'pptx',pdf:'pdf',spreadsheets:'xlsx',templates:'templates'};
+  function navigateSuite(app){
+    if(!Object.prototype.hasOwnProperty.call(suiteRoutes,app) && app!=='data' && app!=='code')return;
+    const ticket=++navigationEpoch;
+    root.dataset.navigationPending='true';
+    const operation=async()=>{
+      if(root.dataset.workbookView==='true' && workbook)await workbook.save();
+      if(!currentNavigation(ticket))return;
+      if(app==='data'||app==='code'){
+        await openDatasets(ticket);
+        if(!currentNavigation(ticket))return;
+        if(app==='code')datasets?.focusCode?.();
+      }else libraryRoute(suiteRoutes[app]);
+      if(currentNavigation(ticket))root.dataset.entryApp=app;
+    };
+    return operateModule(operation).finally(()=>{
+      if(!currentNavigation(ticket))return;
+      root.dataset.navigationPending='false';
+      root.dispatchEvent(new CustomEvent('open-doc:workspace'));
+    });
+  }
   function moduleDirty(name,value) {
     dirtyModules.set(name,Boolean(value));
     const dirty=[...dirtyModules.values()].some(Boolean);
@@ -727,6 +749,15 @@
     }
     root.addEventListener('pointerdown', preserveSelection, {signal});
     root.addEventListener('mousedown', preserveSelection, {signal});
+    // Intercept only Open Doc suite links. Let browser modifier clicks work normally.
+    root.addEventListener('click',event=>{
+      const link=event.target.closest?.('a[data-vela-link][data-suite-app]');
+      if(!link || event.defaultPrevented || event.button!==0 ||
+          event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+      if(!root.contains(link))return;
+      event.preventDefault();event.stopPropagation();
+      navigateSuite(link.dataset.suiteApp);
+    },{capture:true,signal});
     root.addEventListener('click', event => {
       const button = event.target.closest('button'); if (!button || button.disabled) return;
       if (button.hasAttribute('data-action')) action(button.dataset.action);

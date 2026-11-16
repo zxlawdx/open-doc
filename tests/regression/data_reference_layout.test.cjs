@@ -33,6 +33,9 @@ test("dataset restores notebook split on import while preserving explicit editor
 test("real application tabs use its SVG sprite, not a detached HTML prototype",()=>{
   const source=read("apps/home/static/js/workspace.js");
   assert.match(source,/workspace-tab-icon/);
-  assert.match(source,/root.querySelector\('svg use'\)/);
+  assert.match(source,/root.querySelector\('\.od-rail-home use'\)/);
+  assert.match(source,/symbols=\{document:'i-doc',slides:'i-slides',pdf:'i-pdf'/);
+  assert.match(source,/xlink:href/);
+  assert.doesNotMatch(source,/root.querySelector\('svg use'\)/);
   assert.match(source,/button.onclick=\(\)=>activate\(tab\)/);
 });

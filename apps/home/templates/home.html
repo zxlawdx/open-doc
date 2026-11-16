@@ -1,6 +1,6 @@
 <!-- Real Open Doc library; Ofício-inspired cards, no fabricated cloud state. -->
 <main class="home" data-library hidden aria-labelledby="recent-title">
-<nav class="suite-launcher" aria-label="Aplicativos Open Doc"><a href="/documents" data-vela-link data-suite-app="documents" style="--app-accent:#2563eb"><strong>Documentos</strong><span>Abrir aplicativo</span></a><a href="/spreadsheets" data-vela-link data-suite-app="spreadsheets" style="--app-accent:#168348"><strong>Planilhas</strong><span>Abrir aplicativo</span></a><a href="/presentations" data-vela-link data-suite-app="presentations" style="--app-accent:#d75128"><strong>Apresentações</strong><span>Abrir aplicativo</span></a><a href="/pdf" data-vela-link data-suite-app="pdf" style="--app-accent:#d12f43"><strong>PDF</strong><span>Abrir aplicativo</span></a><a href="/data" data-vela-link data-suite-app="data" style="--app-accent:#087f8c"><strong>Dados</strong><span>Abrir aplicativo</span></a><a href="/code" data-vela-link data-suite-app="code" style="--app-accent:#8247cf"><strong>Código</strong><span>Abrir aplicativo</span></a><a href="/templates" data-vela-link data-suite-app="templates" style="--app-accent:#aa6b00"><strong>Templates</strong><span>Abrir aplicativo</span></a></nav>
+<nav class="suite-launcher" aria-label="Aplicativos Open Doc"><a href="/documents" data-vela-link data-suite-app="documents" style="--app-accent:#2563eb"><svg class="od-icon od-suite-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-doc"></use></svg><strong>Documentos</strong><span>Abrir aplicativo</span></a><a href="/spreadsheets" data-vela-link data-suite-app="spreadsheets" style="--app-accent:#168348"><svg class="od-icon od-suite-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-sheet"></use></svg><strong>Planilhas</strong><span>Abrir aplicativo</span></a><a href="/presentations" data-vela-link data-suite-app="presentations" style="--app-accent:#d75128"><svg class="od-icon od-suite-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-slides"></use></svg><strong>Apresentações</strong><span>Abrir aplicativo</span></a><a href="/pdf" data-vela-link data-suite-app="pdf" style="--app-accent:#d12f43"><svg class="od-icon od-suite-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-pdf"></use></svg><strong>PDF</strong><span>Abrir aplicativo</span></a><a href="/data" data-vela-link data-suite-app="data" style="--app-accent:#087f8c"><svg class="od-icon od-suite-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-data"></use></svg><strong>Dados</strong><span>Abrir aplicativo</span></a><a href="/code" data-vela-link data-suite-app="code" style="--app-accent:#8247cf"><svg class="od-icon od-suite-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-code"></use></svg><strong>Código</strong><span>Abrir aplicativo</span></a><a href="/templates" data-vela-link data-suite-app="templates" style="--app-accent:#aa6b00"><svg class="od-icon od-suite-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-doc"></use></svg><strong>Templates</strong><span>Abrir aplicativo</span></a></nav>
   <aside class="home-side-nav" aria-label="Navegação da biblioteca">
     <p class="home-side-nav-title">ESPAÇO DE TRABALHO</p>
     <button type="button" data-action="home" aria-current="page">
@@ -71,13 +71,12 @@
     <div class="home-actions home-resume">
       <button type="button" data-action="resume-editor">Voltar ao editor</button>
     </div>
-    <nav class="home-actions home-mobile-modules" aria-label="Módulos do Open Doc">
-      <button type="button" data-library-route="docx">Documentos</button>
-      <button type="button" data-library-route="pptx">Apresentações</button>
-      <button type="button" data-library-route="pdf">PDFs</button>
-      <button type="button" data-library-route="xlsx">Planilhas</button>
-      <button type="button" data-action="datasets">Dados</button>
+    <nav class="home-actions home-mobile-modules od-library-navigation" aria-label="Seções da biblioteca">
+      <button type="button" data-library-nav="home" aria-current="page">Início</button>
+      <button type="button" data-library-nav="recent">Recentes</button>
+      <button type="button" data-library-nav="files">Importados</button>
       <button type="button" data-library-route="templates">Templates</button>
+      <button type="button" data-action="import">Abrir arquivo</button>
     </nav>
     <section class="home-status-banner" data-library-privacy aria-label="Privacidade dos arquivos">
       <span class="status-symbol"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#shield"></use></svg></span>

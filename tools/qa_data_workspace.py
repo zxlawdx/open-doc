@@ -35,11 +35,18 @@ def main(output):
                 assert js("document.querySelectorAll('.suite-launcher [data-suite-app]').length")==7
                 assert js("document.querySelector('.suite-launcher').getBoundingClientRect().bottom <= document.querySelector('.home-inner').getBoundingClientRect().top + 1")
                 capture(output,'application-launcher')
+                js("window.__qaPersistentRoot=document.querySelector('[data-app]')")
                 click('.suite-launcher [data-suite-app=data]')
                 wait(w,"document.querySelector('[data-app]')?.dataset.entryApp==='data' && document.querySelector('[data-app]').dataset.ready==='true'")
+                assert js("window.__qaPersistentRoot===document.querySelector('[data-app]')"), "Vela navigation remounted the desktop app"
                 create('Primeiro programa')
                 wait(w,"!!document.querySelector('.code-notebook-cell .cm-content')")
                 assert not js("!!document.querySelector('[data-dataset-python]')")
+                before_cells=js("document.querySelectorAll('[data-code-cell=python]').length")
+                click('.od-app-rail [data-suite-app=code]')
+                wait(w,"document.querySelector('[data-app]')?.dataset.entryApp==='code' && document.querySelector('[data-app]')?.dataset.datasetView==='true'")
+                assert js("window.__qaPersistentRoot===document.querySelector('[data-app]')"), "Code navigation remounted the desktop app"
+                assert js("document.querySelectorAll('[data-code-cell=python]').length")==before_cells, "Code navigation duplicated Python cells"
                 js("document.querySelector('.code-notebook-cell .cm-content').scrollIntoView({block:'center'})")
                 keyboard=Keyboard(w)
                 rect=js("document.querySelector('.code-notebook-cell .cm-content').getBoundingClientRect().toJSON()")

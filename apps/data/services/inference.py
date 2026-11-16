@@ -148,9 +148,15 @@ def from_arrow(arrow_schema):
     import pyarrow as pa
     fields=[]
     for field in arrow_schema:
-        kind = ('integer' if pa.types.is_integer(field.type) else 'decimal' if pa.types.is_floating(field.type) or pa.types.is_decimal(field.type)
-                else 'boolean' if pa.types.is_boolean(field.type) else 'date' if pa.types.is_date(field.type) else 'datetime' if pa.types.is_timestamp(field.type) else 'text')
-        if not (kind!='text' or pa.types.is_string(field.type) or pa.types.is_large_string(field.type) or pa.types.is_null(field.type)):
+        # Pandas categorical columns are Parquet/Arrow dictionary-encoded.
+        # The dictionary index (often int8) is not the column's logical type:
+        # classify its values, not the compression representation.
+        value_type = field.type
+        while pa.types.is_dictionary(value_type):
+            value_type = value_type.value_type
+        kind = ('integer' if pa.types.is_integer(value_type) else 'decimal' if pa.types.is_floating(value_type) or pa.types.is_decimal(value_type)
+                else 'boolean' if pa.types.is_boolean(value_type) else 'date' if pa.types.is_date(value_type) else 'datetime' if pa.types.is_timestamp(value_type) else 'text')
+        if not (kind!='text' or pa.types.is_string(value_type) or pa.types.is_large_string(value_type) or pa.types.is_null(value_type)):
             raise ValueError('Tipo Arrow não suportado na tabela: '+str(field.type))
         fields.append({'name':field.name,'kind':kind,'dtype':DTYPES[kind],'nullable':True,'inferred':False})
     return {'schema':fields,'options':{**options(),'encoding':'utf-8-sig','delimiter':',','decimal':'.','native':True}}

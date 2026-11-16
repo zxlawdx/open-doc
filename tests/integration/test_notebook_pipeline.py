@@ -89,6 +89,38 @@ def test_csv_dataframe_publish_undo_redo_and_reference_sheet(tmp_path):
         app.close()
 
 
+
+def test_publish_dataframe_with_pandas_category_columns(tmp_path):
+    """Regression: category -> Arrow dictionary<int8,string> must be publishable."""
+    require_kernel_transport()
+    from config.wsgi import create_app
+    from config.composition import get_context
+    from shared.services.preferences_service import Config
+
+    app = create_app(Config(tmp_path))
+    try:
+        ctx = get_context()
+        csv = tmp_path / "categorical.csv"
+        csv.write_text("Sex,Embarked,Age\nmale,S,35\nfemale,C,\nfemale,S,28\n")
+        identifier = ctx.datasets.import_files([csv], delimiter=",", infer_types=True)["id"]
+        assert ctx.notebooks.open(identifier)["returncode"] == 0
+        result = ctx.notebooks.execute(
+            identifier,
+            "df['Sex'] = df['Sex'].astype('category')\n"
+            "df['Embarked'] = df['Embarked'].astype('category')"
+        )
+        assert result["returncode"] == 0, result
+        published = ctx.notebooks.publish(identifier)
+        assert published["resource"]["revision"] >= 2
+        page = ctx.datasets.page(identifier, 0, 0)
+        assert page["rows"][0][:2] == ["male", "S"]
+        assert page["rows"][1][:2] == ["female", "C"]
+        assert page["schema"][0]["kind"] == "text"
+        assert ctx.datasets.undo(identifier)["changed"]
+    finally:
+        app.close()
+
+
 def test_real_xlsx_parquet_interchange_and_publication_history(tmp_path):
     import pandas as pd
     from config.wsgi import create_app

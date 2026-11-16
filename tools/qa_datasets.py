@@ -213,9 +213,12 @@ def main():
                 # Exercise the public notebook controls, publication and native reference sheet.
                 js("document.querySelector('[data-action=datasets]').click()")
                 wait(window, "!document.querySelector('[data-dataset]').hidden")
-                # The real DataFrame actions now live inside the expandable toolbar.\n                js("document.querySelector('.dataset-dataframe-actions').open=true")\n                wait(window, "!![...document.querySelectorAll('.dataset-dataframe-buttons > button')].find(n=>n.textContent==='Abrir como DataFrame' && !n.disabled)")
+                # Explicitly reveal public controls and wait for reset I/O.
+                js("document.querySelector('.dataset-dataframe-actions').open=true")
+                wait(window, "document.querySelector('[data-dataset]').getAttribute('aria-busy')==='false'")
                 js("document.querySelector('[data-dataset-command=reset]').click()")
-                wait(window, "document.querySelector('[data-dataset-command=reset]').disabled")
+                wait(window, "document.querySelector('[data-dataset]').getAttribute('aria-busy')==='false' && document.querySelector('[data-dataset-command=reset]').disabled")
+                wait(window, "!![...document.querySelectorAll('.dataset-dataframe-buttons > button')].find(n=>n.textContent==='Abrir como DataFrame' && !n.disabled)")
                 js("""(() => {
                   const tools=document.querySelector('[data-dataset-tools]');
                   [...tools.querySelectorAll('.dataset-dataframe-buttons > button')].find(node=>node.textContent==='Abrir como DataFrame').click();
