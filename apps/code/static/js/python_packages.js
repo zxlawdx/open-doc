@@ -36,6 +36,12 @@
       const names=presetNames||$("[data-python-env-names]").value.split(",").map(t=>t.trim()).filter(Boolean);
       if(!names.length)throw Error("Informe o nome de uma biblioteca Python.");
       if(names.length>5)throw Error("Instale até 5 pacotes por operação.");
+      if(presetNames){
+        // Do not silently switch a system-Python notebook to an empty venv.
+        const environment=await request("dataset",{operation:"python-env-status",id});
+        if(project()!==id)return message("Projeto alterado; reabra as bibliotecas.");
+        if(!environment.initialized)throw Error("Este projeto usa o Python do sistema. Primeiro configure o ambiente do projeto com suas bibliotecas; só depois ative o Jedi.");
+      }
 
       message(remove?"Removendo bibliotecas do ambiente do projeto…":"Instalando em ambiente virtual exclusivo do projeto…");
       const result=await request("dataset",{operation:remove?"python-env-remove":"python-env-install",
