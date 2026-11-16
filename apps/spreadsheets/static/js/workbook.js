@@ -92,6 +92,8 @@
       }
       for(const field of host.querySelectorAll("select[data-book-style]"))
         field.value=style[field.dataset.bookStyle]??"";
+      // The chosen paint colors are tools, not per-cell values. Selecting a
+      // different cell must not overwrite the user's last chosen color.
       $("[data-book-command=bold]").setAttribute("aria-pressed",String(sheet().bold.includes(key(row,col))));
       for(const button of tabs.children) button.setAttribute("aria-pressed",String(+button.dataset.index===index));
     }
@@ -661,9 +663,14 @@
         }else editInline("="+fn+"(");
         return;
       }
-      if(name.startsWith("align-"))return styleSelection("align",name.slice(6));
-      if(["italic","underline","strike","border","wrap"].includes(name))return styleSelection(name);
-      if(name==="clear-style")return styleSelection(null);
+      if(name.startsWith("align-")){finishInline();commit();return styleSelection("align",name.slice(6));}
+      if(["italic","underline","strike","border","wrap"].includes(name)){finishInline();commit();return styleSelection(name);}
+      if(name==="color-apply"||name==="fill-apply"){
+        finishInline();commit();
+        const property=name==="color-apply"?"color":"fill";
+        return styleSelection(property,$('[data-book-style="'+property+'"]').value);
+      }
+      if(name==="clear-style"){finishInline();commit();return styleSelection(null);}
       if(name==="edit")return editInline();
       if(name==="clear")return clearSelection();
       if(name==="select-used"){
@@ -715,11 +722,13 @@
         if(item){item[name==="undo"?"back":"forward"]();other.push(item);formula.value=raw();mark();update();}
       }
       if(name==="bold"){
-        const target=sheet(), before=target.bold, after=new Set(before);
+        finishInline();commit();
+        const target=sheet(),before=target.bold||[],after=new Set(before);
         const ids=rectangle().flat();
         const remove=ids.every(id=>after.has(id));
         for(const id of ids)if(remove)after.delete(id);else after.add(id);
-        change(()=>target.bold=before,()=>target.bold=[...after]);
+        change(()=>{target.bold=before;},()=>{target.bold=[...after];});
+        return;
       }
       if(name==="add"){
         if(book.sheets.length>=20)throw Error("Limite de 20 abas.");
@@ -1129,7 +1138,7 @@
     function styleSelection(property,value) {
       const target=sheet(),before=target.styles,oldBold=target.bold;
       const after={...before},ids=rectangle().flat();
-      const next=value??!ids.every(id=>after[id]?.[property]);
+      const next=value??(property?!ids.every(id=>after[id]?.[property]):false);
       for(const id of ids){
         const style={...after[id]};
         if(!property)delete after[id];
@@ -1148,6 +1157,7 @@
       const field=event.target;
       try{
         if(field.dataset.bookStyle){
+          finishInline();commit();
           styleSelection(field.dataset.bookStyle,field.dataset.bookStyle==="size"?Number(field.value):field.value);
         }
       }catch(error){report(error.message);}
