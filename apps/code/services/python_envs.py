@@ -106,7 +106,7 @@ class PythonEnvironments:
         # Static Jedi completion executes inside the selected interpreter on
         # Windows. Ensure its tooling is available whenever users authorize
         # installing packages; no environment is created without consent.
-        tooling = [] if any(re.match(r"(?i)^jedi(?:$|[=<>!~\\[])", package) for package in packages) else ["jedi==0.19.2"]
+        tooling = [] if any(re.match(r"(?i)^jedi\b", package) for package in packages) else ["jedi==0.19.2"]
         try:
             process = run_external(
                 [
