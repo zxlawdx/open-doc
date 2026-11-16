@@ -171,6 +171,8 @@
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
       if(current?.id!==result.id){
+        // Reference layout: dataset and notebook are visible together on open.
+        toolsOpen=true;
         selected=null;anchor=null;conversion=null;widths.clear();
         output.textContent="";
         const schema=await request("dataset",{operation:"columns",id:result.id});
@@ -179,6 +181,7 @@
         notebook.activate(schema.columns);
       }
       current=result;row=nextRow;column=nextColumn;querying=false;lastQuery=null;
+      showTools();
       rowInput.value=row+1;columnInput.value=column+1;
       draw(result);
       host.dispatchEvent(new CustomEvent("open-doc:workspace",{bubbles:true}));
