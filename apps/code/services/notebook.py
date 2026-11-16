@@ -71,7 +71,10 @@ class NotebookService:
             and identifier not in self._bindings
             and datasets is not None
             and datasets.is_program(identifier)
-            and self.context.publications.bound_resource(identifier) is None
+            and (
+                getattr(self.context, "publications", None) is None
+                or self.context.publications.bound_resource(identifier) is None
+            )
         ):
             # A new code-only project has no source dataset to open. Once its
             # df is published, later sessions can load the persisted snapshot.
