@@ -268,3 +268,140 @@
   .open-doc .od-app-rail *,
   .open-doc .workspace-global-tabs * { transition: none !important; }
 }
+
+
+/* Navigation clarity: one global app rail, no second vertical library bar.
+   Library sections remain available as a compact, labeled horizontal strip. */
+.open-doc .home {
+  grid-template-columns: minmax(0,1fr) !important;
+  grid-template-rows: max-content minmax(0,1fr);
+  min-width: 0;
+  align-content: start;
+}
+.open-doc .home .home-side-nav { display: none !important; }
+.open-doc .home .home-inner {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  box-sizing: border-box;
+  width: min(calc(100% - 48px),1200px);
+  max-width: none;
+  margin: 0 auto;
+  min-width: 0;
+}
+.open-doc .suite-launcher {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: repeat(7,minmax(0,1fr));
+  gap: 8px;
+  padding: 12px 20px;
+  min-width: 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  background: var(--color-app-chrome);
+}
+.open-doc .suite-launcher a {
+  display: grid;
+  grid-template-columns: 24px minmax(0,1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--app-accent);
+  border-radius: 9px;
+  color: var(--color-text-primary);
+  background: var(--color-panel);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.open-doc .suite-launcher a .od-suite-icon {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 22px;
+  height: 22px;
+  color: var(--app-accent);
+}
+.open-doc .suite-launcher a strong {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.open-doc .suite-launcher a span {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.open-doc .suite-launcher a:hover,
+.open-doc .suite-launcher a:focus-visible,
+.open-doc .suite-launcher a[aria-current="page"] {
+  border-color: var(--app-accent);
+  box-shadow: 0 2px 12px #00000012;
+}
+.open-doc .home .od-library-navigation {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.open-doc .home .od-library-navigation button {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  border-radius: 7px;
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+.open-doc .home .od-library-navigation button[aria-current="page"] {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.open-doc .home .home-bottom-nav { display: none !important; }
+@media (max-width: 1130px) {
+  .open-doc .suite-launcher {
+    display: flex;
+    overflow-x: auto;
+    padding-inline: 12px;
+  }
+  .open-doc .suite-launcher a { flex: 0 0 145px; }
+  .open-doc .home .home-inner { width: calc(100% - 32px); }
+}
+@media (max-width: 640px) {
+  .open-doc .home .home-inner { width: calc(100% - 24px); }
+  .open-doc .home .od-library-navigation { flex-wrap: nowrap; overflow-x: auto; }
+  .open-doc .home .od-library-navigation button { white-space: nowrap; }
+}
+/* No wholesale Qt page replacement: animate only the content surface. */
+@keyframes od-module-enter {
+  from { opacity:.65; transform:translateY(5px); }
+  to { opacity:1; transform:translateY(0); }
+}
+.open-doc .home:not([hidden]) .home-inner,
+.open-doc [data-dataset]:not([hidden]),
+.open-doc [data-workbook]:not([hidden]),
+.open-doc [data-document-body]:not([hidden]) {
+  animation: od-module-enter 150ms ease-out;
+}
+.open-doc[data-navigation-pending="true"] .home-inner,
+.open-doc[data-navigation-pending="true"] [data-dataset],
+.open-doc[data-navigation-pending="true"] [data-workbook] { opacity:.82; }
+@media (prefers-reduced-motion:reduce) {
+  .open-doc .suite-launcher a { transition:none; }
+  .open-doc .home:not([hidden]) .home-inner,
+  .open-doc [data-dataset]:not([hidden]),
+  .open-doc [data-workbook]:not([hidden]),
+  .open-doc [data-document-body]:not([hidden]) { animation:none; }
+}
