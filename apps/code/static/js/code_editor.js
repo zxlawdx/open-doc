@@ -122,6 +122,13 @@
       }));
     } else extensions.push(dialect.of(sqlLanguage([])));
     const view=new EditorView({doc:field.value,parent:host,extensions});
+    if(language==="python"){
+      window.addEventListener("open-doc:python-env-updated",event=>{
+        if(event.detail?.project!==(typeof project==="function"?project():null))return;
+        // Do not steal focus from another editor or project after installation.
+        if(view.dom?.contains(document.activeElement))startCompletion(view);
+      },{signal});
+    }
     field.hidden=true;
     signal.addEventListener("abort",()=>{clearTimeout(pendingSignature);view.destroy();host.remove();},{once:true});
     const history=document.createElement("select");
