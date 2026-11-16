@@ -213,12 +213,12 @@ def main():
                 # Exercise the public notebook controls, publication and native reference sheet.
                 js("document.querySelector('[data-action=datasets]').click()")
                 wait(window, "!document.querySelector('[data-dataset]').hidden")
-                wait(window, "[...document.querySelector('[data-dataset-tools]').children].some(n=>n.textContent==='Abrir como DataFrame' && !n.disabled)")
+                # The real DataFrame actions now live inside the expandable toolbar.\n                js("document.querySelector('.dataset-dataframe-actions').open=true")\n                wait(window, "!![...document.querySelectorAll('.dataset-dataframe-buttons > button')].find(n=>n.textContent==='Abrir como DataFrame' && !n.disabled)")
                 js("document.querySelector('[data-dataset-command=reset]').click()")
                 wait(window, "document.querySelector('[data-dataset-command=reset]').disabled")
                 js("""(() => {
                   const tools=document.querySelector('[data-dataset-tools]');
-                  [...tools.children].find(node=>node.textContent==='Abrir como DataFrame').click();
+                  [...tools.querySelectorAll('.dataset-dataframe-buttons > button')].find(node=>node.textContent==='Abrir como DataFrame').click();
                 })()""")
                 wait(window, "document.querySelector('[data-dataset-output]').textContent.includes('DataFrame pronto')")
                 js("""(() => {
@@ -232,11 +232,11 @@ def main():
                 })()""")
                 wait(window, "[...document.querySelectorAll('.code-notebook-output')].some(n=>n.textContent.includes('isolated-frame-ready'))")
                 assert not js("document.querySelector('[data-dataset-table]').textContent.includes('qa_published')"), "Unpublished edits leaked into table"
-                js("[...document.querySelector('[data-dataset-tools]').children].find(n=>n.textContent==='Publicar df na tabela').click()")
+                js("[...document.querySelectorAll('.dataset-dataframe-buttons > button')].find(n=>n.textContent==='Publicar df na tabela').click()")
                 wait(window, "document.querySelector('[data-dataset-status]').textContent.includes('Transformação publicada')")
                 assert js("document.querySelector('[data-dataset-table]').textContent.includes('qa_published')")
                 capture(output, "notebook-published-table")
-                js("[...document.querySelector('[data-dataset-tools]').children].find(n=>n.textContent==='Abrir em Planilhas por referência').click()")
+                js("[...document.querySelectorAll('.dataset-dataframe-buttons > button')].find(n=>n.textContent==='Abrir em Planilhas por referência').click()")
                 wait(window, "document.querySelector('.linked-resource-sheet')?.textContent.includes('qa_published')")
                 assert js("document.querySelector('.linked-resource-sheet td:last-child')?.textContent==='42'")
                 capture(output, "notebook-reference-sheet")
