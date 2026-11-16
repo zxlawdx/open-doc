@@ -33,10 +33,14 @@
     const home = root.querySelector(".od-rail-home");
     const links = [...root.querySelectorAll(".od-app-rail [data-suite-app]")];
     function syncRail(){
-      const isHome = root.dataset.homeView === "true";
-      home?.setAttribute("aria-current",isHome?"page":"false");
-      for(const link of links) {
-        const selected = !isHome && link.dataset.suiteApp === root.dataset.entryApp;
+      const library=root.dataset.homeView === "true" &&
+        root.dataset.datasetView !== "true" && root.dataset.workbookView !== "true";
+      const app=root.dataset.datasetView==="true"
+        ? (root.dataset.entryApp==="code" ? "code" : "data")
+        : root.dataset.workbookView==="true" ? "spreadsheets" : root.dataset.entryApp;
+      home?.setAttribute("aria-current",library?"page":"false");
+      for(const link of [...links,...root.querySelectorAll(".suite-launcher [data-suite-app]")]) {
+        const selected=!library && link.dataset.suiteApp===app;
         link.setAttribute("aria-current",selected?"page":"false");
       }
     }
@@ -68,6 +72,7 @@
         if(!use) { use=document.createElementNS(SVG_NS,"use"); icon.replaceChildren(use); }
         const href=source+"#"+(ICONS[type]||"i-doc");
         if(source && use.getAttribute("href")!==href)use.setAttribute("href",href);
+        if(source)use.setAttributeNS("http://www.w3.org/1999/xlink","xlink:href",href);
       }
     }
     let observedBar=null, barObserver=null;
@@ -88,6 +93,12 @@
       rootObserver.disconnect();
       barObserver?.disconnect();
     },{once:true});
+    // The deployed QtWebEngine uses an older Chromium SVG implementation.
+    // Mirror href into xlink:href for locally bundled external sprite symbols.
+    for(const use of root.querySelectorAll(".od-app-rail svg use, .suite-launcher svg use")){
+      const href=use.getAttribute("href");
+      if(href)use.setAttributeNS("http://www.w3.org/1999/xlink","xlink:href",href);
+    }
     attachTabs(); syncRail();
     return {sync:()=>{attachTabs();syncRail();}};
   }
