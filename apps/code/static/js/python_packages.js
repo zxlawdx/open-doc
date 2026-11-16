@@ -21,7 +21,8 @@
         row.textContent=pkg.name+" "+pkg.version;return row;
       }));
       if(!result.initialized)message("Nenhum venv criado. O ambiente só será criado após autorização.");
-      else message(installed.length+" pacotes presentes neste projeto.");
+      else message(installed.length+" pacotes presentes neste projeto."+(
+        installed.some(pkg=>pkg.name.toLowerCase()==="jedi")?" Autocomplete Python preparado.":" Autocomplete indisponível: ative o Jedi abaixo."));
     }
     async function inspect() {
       const id=project();
@@ -29,10 +30,10 @@
       const result=await request("dataset",{operation:"python-env-status",id});
       if(project()===id)showDetails(result);
     }
-    async function install(remove=false) {
+    async function install(remove=false, presetNames=null) {
       const id=project();
       if(!id)throw Error("Nenhum projeto ativo.");
-      const names=$("[data-python-env-names]").value.split(",").map(t=>t.trim()).filter(Boolean);
+      const names=presetNames||$("[data-python-env-names]").value.split(",").map(t=>t.trim()).filter(Boolean);
       if(!names.length)throw Error("Informe o nome de uma biblioteca Python.");
       if(names.length>5)throw Error("Instale até 5 pacotes por operação.");
 
@@ -46,22 +47,24 @@
       await inspect();
       message("Bibliotecas "+(remove?"removidas":"instaladas")+" no ambiente do projeto: "+(result.installed||result.removed).join(", ")+".");
     }
+    const autocomplete=document.createElement("button");autocomplete.type="button";autocomplete.textContent="Ativar autocomplete Python (Jedi)";
+    autocomplete.dataset.pythonEnvCommand="editor";
     const preset=document.createElement("button");preset.type="button";preset.textContent="Preparar notebook (Pandas, Arrow, Jupyter e SQL)";
     preset.addEventListener("click",()=>{open();$("[data-python-env-names]").value="pandas, pyarrow, ipykernel, duckdb";message("Confira os pacotes, autorize a instalação e clique em Instalar.");},{signal});
     const remove=document.createElement("button");remove.type="button";remove.textContent="Remover bibliotecas informadas";remove.dataset.pythonEnvCommand="remove";
-    body.prepend(preset,remove);
+    body.prepend(autocomplete,preset,remove);
     host.addEventListener("click",async event=>{
       const action=event.target.closest("[data-python-env-command]")?.dataset.pythonEnvCommand;
       if(!action||working)return;
       if(action==="toggle") {
         open();
       }
-      working=true;submit.disabled=true;progress.hidden=false;modal.setAttribute("aria-busy","true");
+      working=true;submit.disabled=true;autocomplete.disabled=true;progress.hidden=false;modal.setAttribute("aria-busy","true");
       try {
         if(action==="toggle")await inspect();
-        else if(action==="install"||action==="remove")await install(action==="remove");
+        else if(action==="install"||action==="remove"||action==="editor")await install(action==="remove",action==="editor"?["jedi==0.19.2"]:null);
       }catch(error){message(error.message||String(error));}
-      finally{working=false;submit.disabled=false;progress.hidden=true;modal.setAttribute("aria-busy","false");}
+      finally{working=false;submit.disabled=false;autocomplete.disabled=false;progress.hidden=true;modal.setAttribute("aria-busy","false");}
     },{signal});
     return {inspect};
   }
