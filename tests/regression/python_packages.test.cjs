@@ -17,3 +17,18 @@ test('an installation finishing after switching projects cannot clear the new pr
  host.querySelector('[data-python-env-command=install]').click();id='second';host.querySelector('[data-python-env-names]').value='numpy';finish({installed:['humanize']});await tick();
  assert.equal(host.querySelector('[data-python-env-names]').value,'numpy');assert.match(host.querySelector('output').textContent,/projeto anterior/);
 });
+
+test('activating Python autocomplete installs Jedi into the selected project on explicit click',async t=>{
+ const requests=[],{host}=setup(t,async(path,data)=>{
+   requests.push(data);
+   return data.operation==='python-env-install'?{installed:['jedi==0.19.2'],log:'ok'}:
+     {initialized:true,packages:[{name:'jedi',version:'0.19.2'}]};
+ });
+ host.querySelector('[data-python-env-command=editor]').click();
+ await tick();
+ assert.equal(requests[0].operation,'python-env-install');
+ assert.deepEqual(requests[0].packages,['jedi==0.19.2']);
+ assert.equal(requests[0].confirm,true);
+ assert.equal(requests[0].id,'project');
+ assert.match(host.querySelector('output').textContent,/Bibliotecas instaladas/);
+});
