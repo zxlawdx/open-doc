@@ -10,6 +10,10 @@ on:
       - "tools/qa_appearance_zoom.py"
       - ".github/workflows/qa-ui-shell.yml"
   workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   shell-native-qt:
     runs-on: ubuntu-latest
