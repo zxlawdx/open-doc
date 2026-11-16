@@ -56,7 +56,11 @@
     function showCode(language){
       if(!current)return;
       toolsOpen=true;showTools();
-      if(language==="python")notebook.add("python");else {$("[data-dataset-advanced]").open=true;sqlEditor.focus();}
+      if(language==="python"){
+        const existing=tools.querySelector('[data-code-cell=python] .cm-content');
+        if(existing){existing.focus();existing.scrollIntoView?.({block:"nearest"});}
+        else notebook.add("python");
+      }else {$("[data-dataset-advanced]").open=true;sqlEditor.focus();}
     }
     function showTools() {
       tools.hidden=!current || !toolsOpen;
@@ -537,7 +541,7 @@
     list.addEventListener("change",()=>run(async()=>{
       current=null;table.replaceChildren();await showPage();
     }),{signal});
-    return {flush:()=>notebook.flush(),load:()=>run(()=>load()), id:()=>list.value, title:()=>current?.title, activate:id=>run(()=>load(id))};
+    return {flush:()=>notebook.flush(),load:()=>run(()=>load()), id:()=>list.value, title:()=>current?.title, activate:id=>run(()=>load(id)), focusCode:()=>showCode("python")};
   }
   window.OpenDocDatasets={create};
 })();
