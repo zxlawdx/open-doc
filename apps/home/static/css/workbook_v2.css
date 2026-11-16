@@ -857,3 +857,32 @@
     grid-template-columns: repeat(2,minmax(0,1fr));
   }
 }
+
+/* Embedded, keyboard-accessible SQL guide for future spreadsheet users. */
+.open-doc .book-sql-tutorial {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  margin: 10px 0 12px;
+  padding: 0 12px;
+  background: var(--color-panel);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.open-doc .book-sql-tutorial summary {
+  cursor: pointer;
+  padding: 10px 4px;
+  font-weight: 650;
+  color: var(--color-primary);
+}
+.open-doc .book-sql-tutorial summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.open-doc .book-sql-tutorial p { margin: 8px 0; }
+.open-doc .book-sql-tutorial code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
