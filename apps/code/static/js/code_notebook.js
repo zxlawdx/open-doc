@@ -24,9 +24,13 @@
       node.addEventListener("click",action);
       return node;
     }
+    const datasetMode=Boolean(panel.closest("[data-dataset]"));
     const notebook=element("section","code-notebook");
     notebook.setAttribute("aria-label","Caderno de código");
     const toolbar=element("div","code-notebook-tools");
+    const kernelStatus=element("span","code-notebook-kernel-status","● Kernel ocioso");
+    kernelStatus.setAttribute("role","status");
+    kernelStatus.setAttribute("aria-live","polite");
     const list=element("div","code-notebook-cells");
     const notice=element("p","code-notebook-status");
     notice.setAttribute("role","status");
@@ -43,6 +47,7 @@
     const openFile=button("Importar .ipynb","file-plus",()=>picker.click());
     const saveFile=button("Exportar .ipynb","download",exportNotebook);
     picker.addEventListener("change",importNotebook,{signal});
+    if(datasetMode)toolbar.append(kernelStatus);
     toolbar.append(...addButtons,runAll,stopAll,openFile,saveFile,split,full,picker);
     notebook.append(toolbar,notice,list);
     notebook.addEventListener("focusout",persist,{signal});
@@ -63,11 +68,16 @@
     function refresh() {
       runAll.disabled=busy||!cells.some(cell=>cell.language!=="text");
       stopAll.hidden=!busy;
+      if(datasetMode){
+        kernelStatus.textContent=busy?"● Executando…":"● Kernel ocioso";
+        kernelStatus.dataset.running=String(busy);
+      }
       openFile.disabled=busy||!key||cells.length>=LIMIT;
       saveFile.disabled=busy||!cells.length;
       addButtons.forEach(button=>button.disabled=busy||!key||cells.length>=LIMIT);
       for(const [index,cell] of cells.entries()){
         cell.title.textContent=(index+1)+" · "+LABELS[cell.language];
+        if(cell.counter)cell.counter.textContent="["+(index+1)+"]";
         cell.controls.forEach(control=>control.disabled=busy);
         cell.up.disabled=busy||index===0;
         cell.down.disabled=busy||index===cells.length-1;
@@ -79,6 +89,7 @@
       if(busy||!key||cells.length>=LIMIT)return;
       const controller=new AbortController();
       const node=element("article","code-notebook-cell");
+      if(datasetMode)node.classList.add("data-notebook-cell");
       node.dataset.codeCell=language;
       const heading=element("div","code-notebook-cell-tools");
       const title=element("strong");
@@ -109,13 +120,31 @@
       const clear=button("Limpar saída","close",()=>{output.replaceChildren();output.hidden=true;});
       cell.up=up;cell.down=down;
       cell.controls=[up,down,duplicate,remove];
-      heading.append(title);
+      const gutter=datasetMode?element("div","data-notebook-gutter"):null;
+      if(datasetMode){
+        const counter=element("span","data-notebook-count","[ ]");
+        cell.counter=counter;gutter.append(counter);
+        const kind=element("span","data-notebook-kind",LABELS[language]);
+        heading.append(title,kind);
+      }else heading.append(title);
+      const actions=datasetMode?element("div","data-notebook-actions"):heading;
       if(language!=="text"){
         const play=button("Executar","play",()=>run([cell]));
-        heading.append(play,clear);cell.controls.push(play,clear);
+        if(datasetMode){
+          play.classList.add("data-notebook-run");
+          play.replaceChildren(icon("play"));
+          gutter.prepend(play);
+        }else actions.append(play);
+        actions.append(clear);cell.controls.push(play,clear);
       }
-      heading.append(up,down,duplicate,remove);
-      node.append(heading,field,signature,output);
+      actions.append(up,down,duplicate,remove);
+      if(datasetMode){
+        heading.append(actions);
+        node.append(gutter);
+        const main=element("div","data-notebook-main");
+        main.append(heading,field,signature,output);
+        node.append(main);
+      }else node.append(heading,field,signature,output);
       list.insertBefore(node,cells[at]?.node??null);
       cells.splice(at,0,cell);
       if(language!=="text"){
