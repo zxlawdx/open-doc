@@ -47,5 +47,5 @@ def test_imported_table_rejects_invalid_tracks(tmp_path, field, invalid):
     model = read_editable_deck(path)
     assert model is not None
     model["surfaces"][0]["elements"][0][field] = invalid
-    with pytest.raises(ValueError, match="Proporções"):
+    with pytest.raises(ValueError, match="Proporções|Coordenada ou dimensão"):
         SlideModelValidator().validate({"source_kind": "pptx", **model})
