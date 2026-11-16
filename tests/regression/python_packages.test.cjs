@@ -26,9 +26,21 @@ test('activating Python autocomplete installs Jedi into the selected project on 
  });
  host.querySelector('[data-python-env-command=editor]').click();
  await tick();
- assert.equal(requests[0].operation,'python-env-install');
- assert.deepEqual(requests[0].packages,['jedi==0.19.2']);
- assert.equal(requests[0].confirm,true);
- assert.equal(requests[0].id,'project');
+ assert.equal(requests[0].operation,'python-env-status');
+ assert.equal(requests[1].operation,'python-env-install');
+ assert.deepEqual(requests[1].packages,['jedi==0.19.2']);
+ assert.equal(requests[1].confirm,true);
+ assert.equal(requests[1].id,'project');
  assert.match(host.querySelector('output').textContent,/Bibliotecas instaladas/);
+});
+
+test('autocomplete repair does not replace system Python with a new Jedi-only venv',async t=>{
+ const requests=[],{host}=setup(t,async(path,data)=>{
+   requests.push(data);
+   return {initialized:false,packages:[]};
+ });
+ host.querySelector('[data-python-env-command=editor]').click();
+ await tick();
+ assert.deepEqual(requests.map(r=>r.operation),['python-env-status']);
+ assert.match(host.querySelector('output').textContent,/Python do sistema/);
 });
