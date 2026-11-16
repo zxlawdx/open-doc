@@ -85,7 +85,9 @@ jobs:
       - name: Prepare assets and build with Vela
         shell: pwsh
         run: |
-          python -m pip install -r requirements.txt 'vela-framework[build]'
+          python -m pip install 'pyinstaller>=6.16,<7' 'setuptools>=77,<82' 'jaraco.text>=3.12' 'jaraco.functools>=4' 'jaraco.context>=5' 'more-itertools>=10'
+          python -m pip install -r requirements.txt
+          python tools/check_vela_runtime.py
           python manage.py collectstatic --yes
           python tools/build_release_icon.py
           python manage.py buildapp --gui qt5 --icon build/open-doc.ico
@@ -199,7 +201,9 @@ jobs:
           sudo apt-get install -y xvfb xdotool imagemagick libgl1-mesa-dri desktop-file-utils xdg-utils libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libxcb-shape0 libxcb-randr0 libxcb-xfixes0 libxcb-sync1 libxcb-shm0 libxcb-xkb1 libxcb-render0 libx11-xcb1 libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libnss3 libasound2 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0
       - name: Build and archive Linux package
         run: |
-          python -m pip install -r requirements.txt 'vela-framework[build]' 'PyQt5-Qt5==5.15.2' 'PyQtWebEngine-Qt5==5.15.2'
+          python -m pip install 'pyinstaller>=6.16,<7' 'setuptools>=77,<82' 'jaraco.text>=3.12' 'jaraco.functools>=4' 'jaraco.context>=5' 'more-itertools>=10'
+          python -m pip install -r requirements.txt
+          python tools/check_vela_runtime.py 'PyQt5-Qt5==5.15.2' 'PyQtWebEngine-Qt5==5.15.2'
           python manage.py collectstatic --yes
           python tools/build_release_icon.py
           python -c 'from PIL import Image; Image.open("build/open-doc.ico").save("build/open-doc.png")'
