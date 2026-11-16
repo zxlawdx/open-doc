@@ -41,8 +41,20 @@ def analyze(code, line, column, operation, project=None):
         result = run_external([str(executable or external_python()), "-I", "-c", SOURCE],
                               input=json.dumps([code,line,column,operation]), capture_output=True, text=True, timeout=15)
         if result.returncode:
-            raise ValueError("Prepare o ambiente do notebook para habilitar autocomplete.")
-        return json.loads(result.stdout)
+            details = (result.stderr or result.stdout or "").strip()
+            if "No module named 'jedi'" in details:
+                raise ValueError(
+                    "Jedi não está instalado no Python deste projeto. "
+                    "Abra Bibliotecas do projeto e selecione 'Ativar autocomplete Python (Jedi)'."
+                )
+            raise ValueError(
+                "Não foi possível analisar o código com o Python selecionado. "
+                "Confira o interpretador e as bibliotecas do projeto."
+            )
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError as error:
+            raise ValueError("O serviço de autocomplete retornou uma resposta inválida.") from error
     with _analysis_lock:
         executable = sys.executable
         if project:
