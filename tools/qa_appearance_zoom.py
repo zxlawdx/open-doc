@@ -141,6 +141,19 @@ def exercise(window, output, reopen):
         wait(window, "document.querySelector('[data-app]').dataset.odDensity === 'comfortable'")
 
     if os.getenv("OPEN_DOC_QA_SHELL_ONLY") == "1":
+        # Open a real rich editor: verify that the rail and native session tabs
+        # coexist with the production Ribbon and editable document surface.
+        click("[data-action=resume-editor]")
+        wait(window, "document.querySelector('[data-app]').dataset.homeView === 'false'")
+        wait(window, "!!document.querySelector('[data-rich]')")
+        wait(window, "!!document.querySelector('.workspace-global-tabs > span > button')")
+        for appearance in ("light", "dark"):
+            theme(appearance)
+            for width, height in ((1366, 768), (1920, 1080)):
+                capture(output, f"od-shell-editor-{appearance}-{width}x{height}", width, height)
+                assert js("!!document.querySelector('.toolbar [data-command=bold]')")
+                assert js("!!document.querySelector('.od-app-rail a[href='/documents']')")
+                assert js("!!document.querySelector('.workspace-global-tabs > span > button svg use')")
         wait(window, "document.querySelector('[data-app]').dataset.preferencesSaving === 'false'")
         print("QT_OPEN_DOC_REAL_SHELL_SCREENSHOTS_OK", flush=True)
         return
