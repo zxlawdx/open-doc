@@ -650,3 +650,13 @@
   min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
 .open-doc .workspace-global-tabs button:focus:not(:focus-visible) {outline:none}
+
+
+.open-doc .dataset th[data-column-type]::after {
+  content:attr(data-column-type);display:block;margin-top:3px;
+  font-size:10px;line-height:1.2;font-weight:400;
+  color:var(--color-text-muted);text-transform:none
+}
+.open-doc .dataset [data-dataset-cell].dataset-type-error {
+  background:var(--color-danger-soft);color:var(--color-danger)
+}
