@@ -236,6 +236,24 @@
   <aside class="workbook-sidebar workbook-analysis" id="book-analysis" data-book-analysis hidden aria-label="Análise da aba ativa">
     <div class="workbook-sidebar-title"><strong>Análise da aba ativa</strong><button type="button" data-book-command="close-analysis" aria-label="Recolher análise"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#chevron-right"></use></svg></button></div>
     <p>A primeira linha preenchida fornece os cabeçalhos. SQL consulta <code>dados</code>. Python recebe <code>DATASET_CSV</code>.</p>
+    <details class="book-sql-tutorial" aria-label="Tutorial de consultas SQL">
+      <summary>Como pesquisar nesta tabela — tutorial SQL</summary>
+      <p>Use <code>dados</code> como nome da tabela. A primeira linha preenchida define os nomes das colunas.
+        Digite uma consulta no editor SQL e clique em <strong>Executar SQL</strong>.
+        O resultado é uma prévia; para copiá-lo, use <strong>Enviar para aba</strong>.</p>
+      <p><strong>Ver registros:</strong> <code>SELECT * FROM dados LIMIT 20</code></p>
+      <p><strong>Pesquisar texto:</strong> <code>SELECT * FROM dados WHERE "Item" LIKE '%estágio%'</code>
+        (substitua Item pelo nome de uma coluna existente).</p>
+      <p><strong>Filtrar números:</strong> <code>SELECT * FROM dados WHERE "Valor (R$)" &gt; 500</code>.
+        Se a coluna for texto, use <code>TRY_CAST("Valor (R$)" AS DOUBLE)</code> na comparação.</p>
+      <p><strong>Ordenar:</strong> <code>SELECT * FROM dados ORDER BY "Valor (R$)" DESC LIMIT 10</code></p>
+      <p><strong>Somar:</strong> <code>SELECT SUM("Valor (R$)") AS total FROM dados</code></p>
+      <p>Os nomes de coluna variam conforme a planilha. Use aspas duplas para nomes com espaços,
+        acentos ou símbolos. Consultas SELECT não alteram os dados de origem.</p>
+      <p><strong>Python:</strong> o notebook requer <code>ipykernel</code> no ambiente do projeto.
+        Para instalar, abra <strong>Bibliotecas Python</strong>, informe <code>pandas, pyarrow, ipykernel, duckdb</code>,
+        autorize a instalação e execute. Não use <code>!pip install</code> antes de iniciar o kernel.</p>
+    </details>
     <label for="book-sql">SQL</label>
     <textarea id="book-sql" aria-label="Editor SQL da planilha" maxlength="12000">SELECT * FROM dados LIMIT 20</textarea>
     <button type="button" data-book-command="run-sql"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#play"></use></svg>Executar SQL</button>
