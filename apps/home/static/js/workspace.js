@@ -11,11 +11,16 @@
         button.type=close.type='button';
         // Reuse the application's original SVG icon sprites by file module.
         const symbol=({documents:'document',presentations:'slides',pdf:'pdf',
-          spreadsheets:'file-text',data:'code'})[tab.app]||'file-text';
+          spreadsheets:'sheet',data:'data',code:'code'})[tab.app]||'document';
         const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
         const use=document.createElementNS('http://www.w3.org/2000/svg','use');
-        const sprite=root.querySelector('svg use')?.getAttribute('href')?.split('#')[0];
-        if(sprite)use.setAttribute('href',sprite+'#'+symbol);
+        const sprite=root.querySelector('.od-rail-home use')?.getAttribute('href')?.split('#')[0];
+        const symbols={document:'i-doc',slides:'i-slides',pdf:'i-pdf',sheet:'i-sheet',data:'i-data',code:'i-code'};
+        const href=sprite ? sprite+'#'+(symbols[symbol]||'i-doc') : '';
+        if(href){
+          use.setAttribute('href',href);
+          use.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href',href);
+        }
         svg.setAttribute('aria-hidden','true');svg.classList.add('workspace-tab-icon');
         svg.append(use);
         const name=document.createElement('strong');name.className='workspace-tab-name';
@@ -55,7 +60,7 @@
       });
     }
     function capture(){
-      if(!ready)return;
+      if(!ready || root.dataset.navigationPending==='true')return;
       const tab=snapshot();if(!tab?.id)return;
       const found=tabs.findIndex(item=>item.app===tab.app&&item.id===tab.id);
       // Editor contents are persisted by their owner. Unchanged identity must
