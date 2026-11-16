@@ -399,3 +399,22 @@ test('a slow DOCX save cannot block spreadsheets or let a late document steal th
  assert.equal(root.dataset.workbookView,'true','a completed DOCX request must not steal the chosen view');
  assert.equal(editor.snapshot().id,'late','the created document remains available behind the sheet');
 });
+
+
+test('suite launcher transitions in the same DOM without a Vela page remount', async t => {
+  const {w,root}=await mount(t);
+  await w.OpenDocApp.action('home');
+  const owner=root.ownerDocument;
+  for(const [app,expectedRoute] of [['pdf','pdf'],['templates','templates'],['documents','docx']]){
+    const anchor=root.querySelector('.suite-launcher [data-suite-app='+app+']');
+    const click=new w.MouseEvent('click',{bubbles:true,cancelable:true,button:0});
+    anchor.dispatchEvent(click);
+    await new Promise(resolve=>setTimeout(resolve,5));
+    assert.equal(click.defaultPrevented,true,'internal suite link should not navigate Qt');
+    assert.equal(owner.querySelector('[data-app]'),root,'keep the mounted Open Doc instance');
+    assert.equal(root.querySelector('[data-library]').dataset.route,expectedRoute);
+    assert.equal(root.dataset.entryApp,app);
+    assert.equal(root.dataset.navigationPending,'false');
+  }
+  assert.equal(w.OpenDocApp.failures.length,0);
+});
