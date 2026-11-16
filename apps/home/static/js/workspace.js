@@ -14,9 +14,8 @@
           spreadsheets:'file-text',data:'code'})[tab.app]||'file-text';
         const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
         const use=document.createElementNS('http://www.w3.org/2000/svg','use');
-        use.setAttribute('href',new URL('../icons.svg',document.currentScript?.src||
-          document.querySelector('[data-app] script[src*="workspace"]')?.src||
-          document.baseURI).href+'#'+symbol);
+        const sprite=root.querySelector('svg use')?.getAttribute('href')?.split('#')[0];
+        if(sprite)use.setAttribute('href',sprite+'#'+symbol);
         svg.setAttribute('aria-hidden','true');svg.classList.add('workspace-tab-icon');
         svg.append(use);
         const name=document.createElement('span');name.className='workspace-tab-name';
