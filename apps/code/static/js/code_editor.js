@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  function create({field,language,request,run,runNext,signature,signal,project}) {
+  function create({field,language,request,run,runNext,signature,signal,project,context}) {
     const {basicSetup,EditorView,keymap,hoverTooltip,EditorState,Compartment,
       python,sql,SQLite,autocompletion,acceptCompletion,startCompletion,linter,HighlightStyle,syntaxHighlighting,tags}=window.OpenDocCodeVendor;
     const dialect=new Compartment(), access=new Compartment();
@@ -9,8 +9,13 @@
     field.after(host);
     function analyze(operation, state, pos) {
       const line=state.doc.lineAt(pos);
-      return request("dataset/python-analysis",{operation,code:state.doc.toString(),
-        line:line.number,column:Array.from(line.text.slice(0,pos-line.from)).length,
+      // Imports and definitions in previous cells belong to the same kernel.
+      // Keep diagnostics local to this cell so error ranges remain accurate.
+      const previous=operation!=="diagnostics"&&typeof context==="function"?context():"";
+      const prefix=previous?previous+"\n\n":"";
+      return request("dataset/python-analysis",{operation,code:prefix+state.doc.toString(),
+        line:line.number+(prefix?prefix.split("\n").length-1:0),
+        column:Array.from(line.text.slice(0,pos-line.from)).length,
         project:typeof project==="function"?project():null});
     }
     const sqlLanguage=columns=>sql({dialect:SQLite,schema:{dados:columns},defaultTable:"dados"});
@@ -46,7 +51,11 @@
           const result=await analyze("complete",context.state,context.pos);
           if(context.aborted||!result.items.length)return null;
           return {from:prefix?.from ?? context.pos, options:result.items};
-        } catch{return null;}
+        } catch(error){
+          if(!context.aborted&&signature)
+            signature.textContent="Autocomplete indisponível: "+(error.message||String(error));
+          return null;
+        }
       }]}),linter(async view=>{
         try{
           const state=view.state;
