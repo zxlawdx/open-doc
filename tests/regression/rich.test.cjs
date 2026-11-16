@@ -4,6 +4,8 @@ const {JSDOM}=require('jsdom');const base=path.resolve(__dirname,'../..');
 async function setup(t){
  const html=fs.readFileSync(path.join(base,'apps/home/templates/base.html'),'utf8').replace(/{{ (menus|toolbar|sidebar|editor|home|workbook|data) }}/g,(_,n)=>fs.readFileSync(require('./template_path.cjs')(n),'utf8'));
  const dom=new JSDOM(html,{url:'http://localhost',runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('[data-app]');
+ // Always close JSDOM if boot fails: otherwise repeated regressions keep timers alive.
+ t.after(()=>{w.OpenDocApp?.destroy?.();w.close();});
  const paragraph=(id,rid,text,style={})=>({id,type:'paragraph',style:{},children:[{id:rid,type:'text',text,style}]});
  const content={version:'opendoc-rich-v1',blocks:[paragraph('p1','r1','Texto selecionado',{font_family:'Fonte ausente',font_size_pt:12}),{id:'table',type:'table',rows:[{id:'row',cells:[{id:'cell',col_span:1,row_span:1,blocks:[paragraph('cp','cr','Célula original')]}]}]}],styles:{},media:{},numbering:{},sections:[],headers:{},footers:{},footnotes:{},endnotes:{},metadata:{},preserved_parts:['customXml/item1.xml']};
  w.OpenDocPdf={};w.OpenDocPptxVendor={};w.OpenDocFreehand={};w.requestAnimationFrame=fn=>setTimeout(fn,0);
@@ -14,7 +16,7 @@ async function setup(t){
  w.document.execCommand=command=>{const range=w.getSelection().getRangeAt(0),span=w.document.createElement(command==='bold'?'b':'i');range.surroundContents(span);return true;};
  Object.defineProperty(w.document,'currentScript',{value:{src:'http://localhost/static/home/js/app.js'}});w.eval(fs.readFileSync(path.join(base,'apps/home/static/js/app.js'),'utf8'));
  for(let i=0;i<50 && root.dataset.ready!=='true';i++)await new Promise(r=>setTimeout(r,5));assert.equal(root.dataset.ready,'true');
- t.after(()=>{w.OpenDocApp.destroy();w.close();});const editor=w.OpenDocApp.editor(),rich=root.querySelector('[data-rich]');
+ const editor=w.OpenDocApp.editor(),rich=root.querySelector('[data-rich]');
  function select(selector='[data-node-id="p1"]'){rich.focus();const range=w.document.createRange();range.selectNodeContents(rich.querySelector(selector));w.getSelection().removeAllRanges();w.getSelection().addRange(range);editor.capture();w.document.dispatchEvent(new w.Event('selectionchange'));}
  function click(selector){const e=root.querySelector(selector);e.dispatchEvent(new w.MouseEvent('mousedown',{bubbles:true,cancelable:true}));e.click();}
  function change(selector,value){const e=root.querySelector(selector);e.dispatchEvent(new w.MouseEvent('mousedown',{bubbles:true,cancelable:true}));e.focus();e.value=value;e.dispatchEvent(new w.Event('change',{bubbles:true}));}
