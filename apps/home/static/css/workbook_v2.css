@@ -888,3 +888,20 @@
   overflow-wrap: anywhere;
   user-select: text;
 }
+
+/* Formula function hints: float above the sheet, keep suggestions clickable. */
+.open-doc .workbook {position:relative}
+.open-doc .book-formula-suggestions {
+  position:absolute;z-index:100;min-width:260px;max-width:min(420px,90%);
+  max-height:230px;overflow-y:auto;padding:4px;
+  border:1px solid var(--color-border);border-radius:8px;
+  background:var(--color-paper);box-shadow:0 7px 20px rgba(0,0,0,.18)
+}
+.open-doc .book-formula-suggestions[hidden] {display:none}
+.open-doc .book-formula-suggestions button {
+  display:block;width:100%;text-align:left;padding:8px 10px;
+  border:0;border-radius:5px;background:transparent;
+  color:var(--color-paper-ink);font:inherit;cursor:pointer
+}
+.open-doc .book-formula-suggestions button[aria-selected=true],
+.open-doc .book-formula-suggestions button:hover {background:var(--color-primary-soft)}
