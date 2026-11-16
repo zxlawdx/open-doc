@@ -60,7 +60,7 @@
       schemaColumns=schema.columns;
       sqlEditor.columns(schemaColumns);
       notebook.activate(schemaColumns);
-      status.textContent="DataFrame publicado na tabela. Use Desfazer para restaurar a versão anterior.";
+      status.textContent="Transformação publicada na tabela. Use Desfazer para restaurar a versão anterior.";
     });
     transfer.onclick=()=>run(async()=>{const book=await request("workbook",{operation:"link-dataset",dataset_id:list.value,title:current.title});await onOpenWorkbook(book);});
     stopKernel.onclick=()=>run(async()=>{await request("notebook",{operation:"stop",id:list.value});status.textContent="Kernel encerrado.";output.textContent="Sessão encerrada. As células continuam salvas no projeto.";});
