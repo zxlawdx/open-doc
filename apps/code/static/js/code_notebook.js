@@ -223,7 +223,7 @@
               const plain=String(item.data["text/plain"]||"");
               // A numeric NumPy scalar should read as a number, not np.int64(0).
               // Only normalize a complete numeric repr, never arbitrary output.
-              const numeric=plain.match(/^np\\.(?:u?int(?:8|16|32|64)|float(?:16|32|64))\\((-?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?)\\)$/i);
+              const numeric=plain.match(/^np\.(?:u?int(?:8|16|32|64)|float(?:16|32|64))\((-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)\)$/i);
               output.append(element("pre",null,datasetMode&&numeric?numeric[1]:plain));
             }
           }else output.append(element("pre",null,item.text||""));
