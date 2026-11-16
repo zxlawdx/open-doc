@@ -1,4 +1,5 @@
 <section class="workbook dataset" data-dataset hidden aria-label="Área de dados">
+  <nav class="dataset-project-tabs" data-dataset-project-tabs aria-label="Projetos abertos"></nav>
   <nav class="workbook-ribbon-tabs" aria-label="Guias da faixa de opções">
     <button type="button" data-ribbon-tab="import" aria-pressed="true">Importação</button>
     <button type="button" data-ribbon-tab="transform" aria-pressed="false">Transformação</button>
@@ -19,8 +20,10 @@
     <div class="workbook-tools" data-ribbon-group="import" role="group" aria-label="CSV / TSV">
       <button type="button" data-dataset-command="new" title="Importar arquivos" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#folder-open"></use></svg>Importar arquivos</button>
       <button type="button" data-dataset-command="append" title="Acrescentar arquivos" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#file-plus"></use></svg>Acrescentar arquivos</button>
-      <label>Codificação <select data-dataset-encoding><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
+      <label>Codificação <select data-dataset-encoding><option value="auto">Automático</option><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
       <label>Separador <select data-dataset-delimiter><option value="auto">Automático</option><option value=",">Vírgula</option><option value=";">Ponto e vírgula</option><option value="&#9;">Tabulação</option><option value="|">Barra vertical</option></select></label>
+      <button type="button" data-dataset-command="new-project">Novo programa</button>
+      <button type="button" data-dataset-command="delete-project">Excluir dataset</button>
       <small>CSV / TSV</small>
     </div>
     <div class="workbook-tools" data-ribbon-group="transform clean types" role="group" aria-label="Histórico" hidden>
@@ -30,6 +33,7 @@
       <small>Histórico</small>
     </div>
     <div class="workbook-tools" data-ribbon-group="transform types" role="group" aria-label="Esquema" hidden>
+      <button type="button" data-dataset-command="review-types">Revisar tipos do dataset</button>
       <button type="button" data-dataset-command="types" title="Tipos e conversão" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#cell-types"></use></svg>Tipos e conversão</button>
       <small>Esquema</small>
     </div>
@@ -42,6 +46,11 @@
       <button type="button" data-dataset-command="filter" title="Filtrar valor" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#filter"></use></svg>Filtrar valor</button>
       <button type="button" data-dataset-command="sort-asc" title="Ordenar A–Z" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#arrow-up"></use></svg>Ordenar A–Z</button>
       <button type="button" data-dataset-command="sort-desc" title="Ordenar Z–A" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#arrow-down"></use></svg>Ordenar Z–A</button>
+      <label>Coluna <select data-filter-column aria-label="Coluna do filtro"></select></label>
+      <label>Condição <select data-filter-operation><option value="equals">Igual</option><option value="contains">Contém</option><option value="missing">Vazio / ausente</option><option value="present">Preenchido</option></select></label>
+      <input data-filter-value aria-label="Valor do filtro" placeholder="Valor">
+      <button type="button" data-dataset-command="apply-filter">Aplicar filtro</button>
+      <button type="button" data-dataset-command="clear-filter">Remover filtros</button>
       <small>Consultas de seleção</small>
     </div>
     <div class="workbook-tools" data-ribbon-group="analysis" role="group" aria-label="Estatísticas" hidden>
@@ -89,43 +98,38 @@
     <button type="button" data-dataset-command="sql-to-workbook" title="Criar planilha editável a partir dos resultados SQL" disabled><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#file-plus"></use></svg>Enviar à planilha</button>
     <button type="button" data-dataset-command="reset"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#table"></use></svg>Voltar à prévia</button>
   </div>
-  <details class="dataset-python" data-dataset-python hidden>
-    <summary><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#code"></use></svg>Python local</summary>
-    <label for="dataset-python-code">Script Python · Ctrl+Enter para executar</label>
-    <textarea id="dataset-python-code" data-dataset-code aria-label="Editor Python" rows="7" maxlength="24000" spellcheck="false">import csv
+  <pre class="dataframe-feedback" data-dataset-output aria-label="Estado do DataFrame" role="status" tabindex="0"></pre>
+  <label>Destino SQL <select data-sql-target><option value="local">Tabela deste projeto</option><option value="remote">Banco remoto</option></select></label>
+  <details class="remote-sql"><summary>Conectar a banco de dados</summary>
+    <p>Consulta remota em modo de leitura. Credenciais ficam somente nesta janela.</p>
+    <label>Banco <select data-sql-kind><option value="postgresql">PostgreSQL</option><option value="mysql">MySQL / MariaDB</option></select></label>
+    <label>Host <input data-sql-host autocomplete="off"></label><label>Porta <input data-sql-port type="number" placeholder="Padrão do banco"></label>
+    <label>Database <input data-sql-database autocomplete="off"></label><label>Usuário <input data-sql-user autocomplete="off"></label>
+    <label>Senha <input data-sql-password type="password" autocomplete="off"></label>
+    <label>TLS <select data-sql-tls><option value="require">Exigir TLS</option><option value="verify-full">Validar certificado e host</option><option value="disable">Sem TLS</option></select></label>
+    <button type="button" data-dataset-command="remote-query">Executar SQL no banco remoto</button>
+    <p>Instale no notebook: <code>!pip install sqlalchemy psycopg[binary] pymysql</code>. A prévia retorna até 100 registros.</p>
+  </details>
 
-with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
-    linhas = csv.DictReader(arquivo)
-    print("Colunas:", linhas.fieldnames)
-    print("Total de registros:", sum(1 for _ in linhas))</textarea>
-    <output data-dataset-signature aria-live="polite"></output>
-    <button type="button" data-dataset-command="python"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#play"></use></svg>Executar Python</button>
-    <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
     <section class="python-packages" data-python-packages aria-label="Bibliotecas Python do projeto">
       <button type="button" data-python-env-command="toggle"
         title="Gerenciar pacotes em ambiente virtual exclusivo desta planilha ou dataset">
         <svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#code"></use></svg>Bibliotecas Python
       </button>
       <div data-python-env-body hidden>
-        <p>Instalação opcional por projeto em um venv separado. Pacotes PyPI executam código de terceiros
-          com permissões da sua conta; não constituem isolamento de segurança.</p>
+        <p>Instale bibliotecas neste projeto ou use <code>!pip install pacote</code> em uma célula.</p>
         <label>Pacotes (separe por vírgulas, até 5)
           <input data-python-env-names placeholder="pandas, numpy" maxlength="500">
         </label>
-        <label class="python-packages-consent">
-          <input type="checkbox" data-python-env-agree>
-          Autorizo instalar esses pacotes de terceiros no ambiente do projeto.
-        </label>
+
         <button type="button" data-python-env-command="install"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#download"></use></svg>Instalar no projeto</button>
         <output data-python-env-status role="status" aria-live="polite"></output>
         <details><summary>Pacotes instalados e log</summary>
           <ul data-python-env-installed></ul><pre data-python-env-log></pre>
         </details>
-        <small>Google Colab: integração remota ainda não disponível; nenhum acesso ou execução externa é simulado.</small>
+
       </div>
     </section>
-
-  </details>
   </aside>
   </div>
   <p data-dataset-status role="status" aria-live="polite"></p>

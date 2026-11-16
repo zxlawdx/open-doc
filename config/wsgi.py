@@ -82,6 +82,9 @@ def create_app(
     context.publications = DatasetPublications(context.datasets, application.resources)
     context.dataset_exchange.publications = context.publications
     context.notebooks = NotebookService(context)
+    from apps.data.services.importing import ImportSessions
+    context.dataset_imports = ImportSessions(context)
+    application.lifecycle.on_shutdown(context.dataset_imports.close)
     application.lifecycle.on_shutdown(context.notebooks.close)
     return application
 

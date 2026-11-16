@@ -10,6 +10,10 @@ class DatasetExchange:
         self.publications = None
 
     def snapshot(self, identifier, *, raw=False):
+        profile=self.datasets.import_schema(identifier)
+        if profile is not None and (not raw or profile["options"].get("native")):
+            handle = self.parquet_snapshot(identifier)
+            return {"resource":handle, "rows":self.datasets.page(identifier,0,0)["row_count"]}
         # The legacy SQLite table stays untouched. Stream a consistent export
         # through a private disk-backed file; never build a giant JSON payload.
         with tempfile.TemporaryFile(mode="w+", encoding="utf-8", newline="") as stream:
@@ -32,7 +36,7 @@ class DatasetExchange:
 
         snapshot = self.runtime.resources.snapshot(resource_id, revision)
         if snapshot.media_type == "application/vnd.apache.parquet":
-            return self.runtime.tabular.to_pandas(resource_id, revision)
+            return pd.read_parquet(self.runtime.resources.open_path(resource_id,revision),dtype_backend="numpy_nullable")
         if snapshot.media_type != "text/csv":
             raise ValueError("Recurso não tabular.")
         return pd.read_csv(self.runtime.resources.open_path(resource_id, revision))
@@ -49,6 +53,7 @@ class DatasetExchange:
         if self.publications is not None:
             existing = self.publications.bound_resource(identifier)
             if existing is not None:
+                self.runtime.resource_access.grant("data",existing["resource_id"],existing["revision"])
                 return existing
             token = self.publications.token(identifier)
         import json
@@ -60,7 +65,10 @@ class DatasetExchange:
                 db.execute("BEGIN")
                 dataset = self.datasets.get(db, identifier)
                 columns = json.loads(dataset["columns_json"])
-                schema = pa.schema([(name, pa.string()) for name in columns])
+                profile = self.datasets.effective_schema(identifier,db)
+                convert = self.datasets.scalar_converter(identifier,db,strict=True)
+                arrow_types={"text":pa.string(),"integer":pa.int64(),"decimal":pa.float64(),"boolean":pa.bool_(),"date":pa.timestamp("ns"),"datetime":pa.timestamp("ns")}
+                schema = pa.schema([(name,arrow_types[profile["schema"][i]["kind"]] if profile else pa.string()) for i,name in enumerate(columns)])
                 with pq.ParquetWriter(stream, schema) as writer:
                     rows = db.execute(
                         "SELECT values_json FROM dataset_rows WHERE dataset_id=? ORDER BY number",
@@ -68,7 +76,12 @@ class DatasetExchange:
                     )
                     batch = []
                     for (value,) in rows:
-                        batch.append(dict(zip(columns, json.loads(value))))
+                        values=json.loads(value)
+                        if profile:
+                            from datetime import datetime
+                            values=[convert(v,i,profile["schema"][i]["kind"]) for i,v in enumerate(values)]
+                            values=[datetime.fromisoformat(v) if v is not None and profile["schema"][i]["kind"] in {"date","datetime"} else v for i,v in enumerate(values)]
+                        batch.append(dict(zip(columns, values)))
                         if len(batch) == 1000:
                             writer.write_table(
                                 pa.Table.from_pylist(batch, schema=schema)
@@ -80,6 +93,7 @@ class DatasetExchange:
             handle = self.runtime.resources.publish(
                 stream, media_type="application/vnd.apache.parquet"
             ).to_dict()
+            self.runtime.resource_access.grant("data",handle["resource_id"],handle["revision"])
             if self.publications is not None:
                 self.publications.bind_resource(identifier, handle, token)
             return handle

@@ -1,6 +1,9 @@
 """Read-only analysis snapshots of the active worksheet."""
 
 import csv
+import json
+import math
+from uuid import uuid4
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -20,9 +23,9 @@ class WorksheetSnapshot:
         size = sum(len(name.encode("utf-8")) for name in columns)
         for row in rows:
             if (not isinstance(row, list) or len(row) != len(columns)
-                    or any(not isinstance(value, str) or len(value) > 8192 for value in row)):
+                    or any(not (value is None or isinstance(value,(str,int,float,bool))) or (isinstance(value,str) and len(value)>8192) or (isinstance(value,float) and not math.isfinite(value)) for value in row)):
                 raise ValueError("Valores da planilha inválidos.")
-            size += sum(len(value.encode("utf-8")) for value in row)
+            size += len(json.dumps(row,ensure_ascii=False).encode("utf-8"))
             if size > 5 * 1024 * 1024:
                 raise ValueError("A análise da planilha aceita até 5 MB de valores.")
         self.columns = columns
@@ -38,10 +41,10 @@ class WorksheetSnapshot:
         with TemporaryDirectory(prefix="open-doc-worksheet-") as directory:
             root = Path(directory)
             (root / ".veladata").mkdir()
-            path = root / "planilha.csv"
-            with path.open("w", encoding="utf-8", newline="") as stream:
-                self.write_csv(None, stream)
             store = Datasets(root)
             store.initialize()
-            identifier = store.import_files([path], delimiter=",")["id"]
+            identifier = str(uuid4())
+            with store.connect() as db:
+                db.execute("INSERT INTO datasets VALUES(?,?,?,?)",(identifier,"Planilha",json.dumps(self.columns),len(self.rows)))
+                db.executemany("INSERT INTO dataset_rows VALUES(?,?,?)",((identifier,i+1,json.dumps(row,ensure_ascii=False,allow_nan=False)) for i,row in enumerate(self.rows)))
             return store.query(identifier, sql)

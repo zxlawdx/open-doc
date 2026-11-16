@@ -53,6 +53,7 @@
       if(found<0)tabs.push(tab);else tabs[found]={...tabs[found],...tab};
       if(tabs.length>50)tabs.shift();render();clearTimeout(timer);timer=setTimeout(persist,300);
     }
+    root.addEventListener('open-doc:resource-deleted',event=>{tabs=tabs.filter(tab=>tab.id!==event.detail.id);if(active===event.detail.id)active=undefined;render();persist();},{signal});
     root.addEventListener('open-doc:workspace',capture,{signal});
     const observer=new MutationObserver(capture);observer.observe(root,{attributes:true,attributeFilter:['data-home-view','data-workbook-view','data-dataset-view','data-document-kind']});
     root.addEventListener('open-doc:content',()=>{clearTimeout(captureTimer);captureTimer=setTimeout(capture,1000);},{signal});

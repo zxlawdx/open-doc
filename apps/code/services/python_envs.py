@@ -12,7 +12,7 @@ import sys
 import venv
 from pathlib import Path
 from uuid import UUID
-from .local_runtime import external_python, run_external
+from .local_runtime import external_python, run_external, HIDDEN_CHILD_BOOTSTRAP
 
 PACKAGE = re.compile(
     r"^[A-Za-z][A-Za-z0-9_.-]*(?:\[[A-Za-z0-9_,.-]+\])?"
@@ -88,9 +88,9 @@ class PythonEnvironments:
         if python is None:
             folder = self.path(project)
             folder.parent.mkdir(parents=True, exist_ok=True)
-            if getattr(sys, "frozen", False):
+            if getattr(sys, "frozen", False) or sys.platform == "win32":
                 run_external(
-                    [str(external_python()), "-I", "-m", "venv", str(folder)],
+                    [str(external_python()), "-I", "-c", HIDDEN_CHILD_BOOTSTRAP + "\nimport venv,sys; venv.EnvBuilder(with_pip=True).create(sys.argv[1])", str(folder)],
                     check=True,
                     capture_output=True,
                     text=True,

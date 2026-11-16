@@ -16,6 +16,8 @@ from .local_runtime import (
     external_dll_search,
     external_python,
     run_external,
+    hidden_process_options,
+    HIDDEN_CHILD_BOOTSTRAP,
 )
 from .python_envs import PythonEnvironments
 from shared.contracts.errors import ServiceUnavailable
@@ -66,7 +68,7 @@ class KernelSessions:
                 )
             except Exception as exc:
                 raise ValueError(
-                    "Instale ipykernel, pandas e pyarrow no ambiente deste projeto para iniciar o notebook."
+                    "Instale ipykernel no ambiente deste projeto para iniciar o notebook. Para DataFrames, adicione pandas e pyarrow."
                 ) from exc
 
             class ProjectSpecs(KernelSpecManager):
@@ -102,10 +104,13 @@ class KernelSessions:
                     manager.start_kernel(
                         cwd=directory.name, env=child_environment(),
                         stdout=subprocess.DEVNULL, stderr=errors,
+                        **hidden_process_options(),
                     )
                 client = manager.blocking_client()
                 client.start_channels()
                 client.wait_for_ready(timeout=30)
+                if os.name == "nt":
+                    client.execute(HIDDEN_CHILD_BOOTSTRAP, silent=True, store_history=False, allow_stdin=False)
             except BaseException as error:
                 # Cleanup failures must not replace the original startup diagnosis.
                 for cleanup in ([client.stop_channels] if client is not None else []) + [

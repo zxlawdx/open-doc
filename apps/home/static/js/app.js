@@ -9,7 +9,7 @@
   if (!root) return;
   window.OpenDocApp?.destroy();
   const scriptUrl = document.currentScript.src;
-  const assetOwners = {"tables.js": "documents", "logical_transactions.js": "documents", "editor.js": "documents", "equation_assistant.js": "documents", "persistence_worker.js": "documents", "recovery.js": "documents", "table_insert_dialog.js": "documents", "formatting.js": "documents", "math_gallery.js": "documents", "document_model.js": "documents", "rich_renderer.js": "documents", "page_menu.js": "documents", "rich_serializer.js": "documents", "native_math_parser.js": "documents", "version_history.js": "documents", "pagination.js": "documents", "editor_commands.js": "documents", "history.js": "documents", "office_workspace.js": "home", "document_kinds.js": "home", "compat.js": "home", "help_center.js": "home", "menus.js": "home", "navigation.js": "home", "semantic_annotations.js": "home", "grid_workspace.js": "home", "popovers.js": "home", "zoom.js": "home", "fixed_document.js": "home", "design_system.js": "home", "paper_layout.js": "home", "app.js": "home", "ink_engine.js": "home", "theme.js": "home", "ink.js": "home", "pptx_renderer.js": "presentations", "slide_charts.js": "presentations", "slide_editor.js": "presentations", "workbook_pivot_ui.js": "spreadsheets", "workbook.js": "spreadsheets", "workbook_formula.js": "spreadsheets", "workbook_pivot.js": "spreadsheets", "workbook_objects.js": "spreadsheets", "workbook_types.js": "spreadsheets", "template_preview.js": "templates", "pdf_navigation.js": "pdf", "python_packages.js": "code", "code_notebook.js": "code", "code_editor.js": "code", "datasets.js": "data"};
+  const assetOwners = {"tables.js": "documents", "logical_transactions.js": "documents", "editor.js": "documents", "equation_assistant.js": "documents", "persistence_worker.js": "documents", "recovery.js": "documents", "table_insert_dialog.js": "documents", "formatting.js": "documents", "math_gallery.js": "documents", "document_model.js": "documents", "rich_renderer.js": "documents", "page_menu.js": "documents", "rich_serializer.js": "documents", "native_math_parser.js": "documents", "version_history.js": "documents", "pagination.js": "documents", "editor_commands.js": "documents", "history.js": "documents", "office_workspace.js": "home", "document_kinds.js": "home", "compat.js": "home", "help_center.js": "home", "menus.js": "home", "navigation.js": "home", "semantic_annotations.js": "home", "grid_workspace.js": "home", "popovers.js": "home", "zoom.js": "home", "fixed_document.js": "home", "design_system.js": "home", "paper_layout.js": "home", "app.js": "home", "ink_engine.js": "home", "theme.js": "home", "ink.js": "home", "pptx_renderer.js": "presentations", "slide_charts.js": "presentations", "slide_editor.js": "presentations", "workbook_pivot_ui.js": "spreadsheets", "workbook.js": "spreadsheets", "workbook_formula.js": "spreadsheets", "workbook_pivot.js": "spreadsheets", "workbook_objects.js": "spreadsheets", "workbook_types.js": "spreadsheets", "template_preview.js": "templates", "pdf_navigation.js": "pdf", "python_packages.js": "code", "code_notebook.js": "code", "code_editor.js": "code", "datasets.js": "data", "import_preview.js": "data"};
   const moduleAsset = name => assetOwners[name] ? new URL("../../"+assetOwners[name]+"/js/"+name,scriptUrl).href : new URL(name,scriptUrl).href;
   const controller = new AbortController(), signal = controller.signal;
   let workbook, datasets;
@@ -362,9 +362,9 @@
     const host = root.querySelector('[data-dataset]');
     saveDocumentInBackground();
     await Promise.all([!datasets && Promise.all([
-      loadResources([...gridResources,['OpenDocDatasets','datasets.js']]), loadCodeEditors()
+      loadResources([...gridResources,['OpenDocImportPreview','import_preview.js'],['OpenDocDatasets','datasets.js']]), loadCodeEditors()
     ])]);
-    if (!datasets) datasets = window.OpenDocDatasets.create({host,request,signal,
+    if (!datasets) datasets = window.OpenDocDatasets.create({host,request,signal,dialog,
       onOpenWorkbook:value=>{const ticket=++navigationEpoch;return operateModule(()=>openWorkbook(null,value,ticket));}});
     if(!currentNavigation(ticket))return;
     showView(true, false);
@@ -698,7 +698,7 @@
     flushPreferences: () => preferenceChain
   };
   window.OpenDocApp = page;
-  window.VelaPage = {beforeUnmount: async () => { await preferenceChain; page.destroy(); }};
+  window.VelaPage = {beforeUnmount: async () => { await preferenceChain; await datasets?.flush?.(); if(root.dataset.workbookView==='true')await workbook?.save(); await editor?.flush(); page.destroy(); }};
 
   async function mount() {
     for (const [global, file] of [
@@ -834,6 +834,10 @@
         editor.load(await request('document/open',{id:tab.id}));showView(false);
       })}));
     await workspaceSession?.loaded;
+    const entry=root.dataset.entryApp;
+    if(entry==='data'||entry==='code'){await openDatasets();if(entry==='code'){root.querySelector('[data-dataset-command=show-python]')?.click();}}
+    else if(['documents','spreadsheets','presentations','pdf','templates'].includes(entry)){libraryRoute(({documents:'docx',spreadsheets:'xlsx',presentations:'pptx',pdf:'pdf',templates:'templates'})[entry]);}
+
     installTooltips();
     if (bootstrap.startup_error) status(bootstrap.startup_error);
     root.dataset.ready = 'true';

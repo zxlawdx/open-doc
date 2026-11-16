@@ -75,7 +75,7 @@ def test_sql_queries_only_selected_dataset_and_caps_results(tmp_path, store):
     identifier = store.import_files([path])["id"]
     store.import_files([path])
     assert store.query(identifier, 'SELECT "Nome do município", COUNT(*) FROM dados GROUP BY 1')["rows"] == [
-        ["Porto Velho", "110"]
+        ["Porto Velho", 110]
     ]
     result = store.query(identifier, "SELECT id FROM dados")
     assert result["limited"] and len(result["rows"]) == 100

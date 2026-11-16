@@ -64,26 +64,32 @@ class DatasetPublications:
                 reader = csv.reader(stream)
                 columns = next(reader)
                 self._replace(db, identifier, columns, reader)
+            profile = patch.get("import_schema")
         else:
             import pyarrow.parquet as pq
+            from .inference import from_arrow
+            from datetime import date, datetime
+            from decimal import Decimal
 
             with pq.ParquetFile(path) as parquet:
                 columns = parquet.schema_arrow.names
+                profile = patch.get("import_schema") or from_arrow(parquet.schema_arrow)
 
                 def rows():
                     for batch in parquet.iter_batches(batch_size=1000):
                         values = batch.to_pydict()
                         for index in range(batch.num_rows):
                             yield [
-                                (
-                                    ""
-                                    if values[name][index] is None
-                                    else str(values[name][index])
-                                )
+                                (values[name][index].isoformat() if isinstance(values[name][index],(date,datetime))
+                                 else float(values[name][index]) if isinstance(values[name][index],Decimal)
+                                 else values[name][index])
                                 for name in columns
                             ]
 
                 self._replace(db, identifier, columns, rows())
+        db.execute("DELETE FROM dataset_import_schema WHERE dataset_id=?",(identifier,))
+        if profile is not None:
+            db.execute("INSERT INTO dataset_import_schema VALUES (?,?,?)",(identifier,json.dumps(profile["schema"]),json.dumps(profile["options"])))
 
     def _replace(self, db, identifier, columns, rows):
         if (
@@ -102,7 +108,7 @@ class DatasetPublications:
                 (
                     identifier,
                     count,
-                    json.dumps(values, ensure_ascii=False, separators=(",", ":")),
+                    json.dumps(values, ensure_ascii=False, separators=(",", ":"), allow_nan=False),
                 )
             )
             if len(batch) >= 1000:
@@ -130,13 +136,14 @@ class DatasetPublications:
                     (identifier,),
                 )
             ]
+            before_profile = self.store.import_schema(identifier,db)
             self.apply(db, identifier, {"resource": after})
             history.remember(
                 db,
                 identifier,
                 "resource-publication",
-                {"resource": before, "field_types": types},
-                {"resource": after, "field_types": []},
+                {"resource": before, "field_types": types, "import_schema":before_profile},
+                {"resource": after, "field_types": [], "import_schema":self.store.import_schema(identifier,db)},
             )
             adopted_token = self.token(identifier, db)
             db.execute(

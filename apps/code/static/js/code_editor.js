@@ -2,7 +2,7 @@
 (() => {
   function create({field,language,request,run,runNext,signature,signal,project}) {
     const {basicSetup,EditorView,keymap,hoverTooltip,EditorState,Compartment,
-      python,sql,SQLite,autocompletion,acceptCompletion,linter,HighlightStyle,syntaxHighlighting,tags}=window.OpenDocCodeVendor;
+      python,sql,SQLite,autocompletion,acceptCompletion,startCompletion,linter,HighlightStyle,syntaxHighlighting,tags}=window.OpenDocCodeVendor;
     const dialect=new Compartment(), access=new Compartment();
     const host=document.createElement("div");
     host.className="dataset-code-editor";
@@ -16,6 +16,7 @@
     const sqlLanguage=columns=>sql({dialect:SQLite,schema:{dados:columns},defaultTable:"dados"});
     const extensions=[
       basicSetup,
+      EditorView.theme({".cm-content":{minHeight:"8rem",cursor:"text"},".cm-scroller":{cursor:"text"}}),
       syntaxHighlighting(HighlightStyle.define([
         {tag: [tags.keyword, tags.operatorKeyword, tags.typeName], color: "var(--color-primary)"},
         {tag: [tags.string, tags.regexp], color: "var(--color-success)"},
@@ -29,8 +30,10 @@
       keymap.of([
         {key:"Ctrl-Enter",run:()=>{run();return true;}},
         ...(runNext?[{key:"Shift-Enter",run:()=>{runNext();return true;}}]:[]),
+        {key:"Ctrl-Space",run:view=>{startCompletion(view);return true;}},
         {key:"Tab",run:acceptCompletion},
       ]),
+      EditorView.updateListener.of(update=>{if(update.docChanged){field.value=update.state.doc.toString();field.dispatchEvent(new Event("change",{bubbles:true}));}}),
       access.of([]),
     ];
     let pendingSignature;

@@ -1,3 +1,4 @@
+from qa_runtime import accept_import_preview
 """Exercise dataset imports in the real desktop window."""
 
 import sys
@@ -42,8 +43,10 @@ def main():
                     document.querySelector('[data-dataset-status]').textContent.includes('para começar')
                 """)
                 window.evaluate_js("document.querySelector('[data-dataset-command=new]').click()")
+                accept_import_preview(window)
                 wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='001'")
                 window.evaluate_js("document.querySelector('[data-dataset-command=append]').click()")
+                accept_import_preview(window)
                 wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='002'")
                 window.evaluate_js("document.querySelector('[data-dataset-command=previous]').click()")
                 wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
@@ -74,12 +77,18 @@ def main():
                 window.evaluate_js("document.querySelector('[data-dataset-command=export]').click()")
                 wait(window, "document.querySelector('[data-dataset-status]').textContent.includes('2 linhas exportadas')")
                 assert "002,2024,Bia" in destination.read_text(encoding="utf-8")
-                window.evaluate_js("""document.querySelector('[data-dataset-python]').open=true;
-                  document.querySelector('[data-dataset-command=python]').click();""")
-                wait(window, "document.querySelector('[data-dataset-output]').textContent.includes('Total de registros: 2')")
+                window.evaluate_js("""(() => {
+                  const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
+                  notebook.querySelector('button[title="Python"]').click();
+                  const cell=notebook.querySelector('[data-code-cell=python]:last-child');
+                  const view=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+                  view.dispatch({changes:{from:0,to:view.state.doc.length,insert:"print('Total de registros:', len(df))"}});
+                  cell.querySelector('button[title="Executar"]').click();
+                })()""")
+                wait(window, "[...document.querySelectorAll('.code-notebook-output')].some(n=>n.textContent.includes('Total de registros: 2'))")
                 capture(output, "python")
                 window.evaluate_js("""(() => {
-                  const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-dataset-python] .cm-editor'));
+                  const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-code-cell=python] .cm-editor'));
                   const code='import pathlib as p\\np.Pa';
                   view.dispatch({changes:{from:0,to:view.state.doc.length,insert:code},
                     selection:{anchor:code.length},userEvent:'input.type'});

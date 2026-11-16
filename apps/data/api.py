@@ -10,6 +10,21 @@ def dataset(context=None):
     def operation():
         data = _data(context)
         store = get_context().datasets
+        if data["operation"] == "import-preview":
+            return get_context().dataset_imports.preview(data["token"],data.get("options"))
+        if data["operation"] == "import-commit":
+            return get_context().dataset_imports.commit(data["token"])
+        if data["operation"] == "import-cancel":
+            return get_context().dataset_imports.cancel(data["token"])
+        if data["operation"] == "review-types":
+            return {"preview":get_context().dataset_imports.review(data["id"])}
+        if data["operation"] == "create":
+            return store.create(data.get("title", "Novo programa"))
+        if data["operation"] == "delete":
+            if data.get("confirm") is not True:
+                raise ValueError("Confirme a exclusão do dataset.")
+            get_context().notebooks.stop(data["id"])
+            return store.delete(data["id"])
         if data["operation"] == "resource-snapshot":
             return get_context().dataset_exchange.snapshot(data["id"])
         if data["operation"] == "list":
@@ -49,7 +64,7 @@ def dataset(context=None):
             manager = get_context().code_tools.environments(get_context().config.root)
             if data["operation"] == "python-env-status":
                 return manager.status(data["id"])
-            if get_context().notebooks is not None:
+            if data["operation"] == "python-env-remove" and get_context().notebooks is not None:
                 get_context().notebooks.stop(data["id"])
             action = manager.remove if data["operation"] == "python-env-remove" else manager.install
             result = action(

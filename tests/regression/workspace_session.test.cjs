@@ -69,3 +69,11 @@ test('editing immediately after opening a file cannot cancel the active-file che
  assert.equal(saved.length,1);assert.equal(saved[0].settings.active,'second');
  await wait(1050);assert.equal(saved.length,1,'content-only capture must not append a redundant revision');
 });
+
+test('deleting a dataset removes its persisted workspace tab without touching other files',async t=>{
+ const dom=new JSDOM('<main><nav class="menubar"></nav></main>',{runScripts:'outside-only'}),w=dom.window,root=w.document.querySelector('main'),abort=new w.AbortController(),writes=[];
+ t.after(()=>{abort.abort();w.close();});w.eval(source);
+ const api=w.OpenDocWorkspace.create({root,signal:abort.signal,snapshot:()=>null,activate:async()=>{},status:()=>{},request:async(path,data)=>{if(data.operation==='load')return {revision:1,tabs:[{app:'data',id:'gone',title:'Dataset'},{app:'documents',id:'keep',title:'Documento'}],settings:{active:'gone'}};writes.push(data);return {revision:2};}});
+ await api.loaded;root.dispatchEvent(new w.CustomEvent('open-doc:resource-deleted',{detail:{id:'gone'}}));await wait(10);
+ assert.equal(root.querySelector('.workspace-global-tabs').textContent,'Documento×');assert.equal(writes[0].tabs.length,1);assert.equal(writes[0].settings.active,undefined);
+});

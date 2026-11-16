@@ -1,0 +1,74 @@
+[
+  {
+    "records": 1000,
+    "pandas": "2.2.3",
+    "legacy_import_ms": 4.39,
+    "typed_import_ms": 11.61,
+    "typed_parquet_ms": 36.86,
+    "pandas_reference_ms": 6.16,
+    "typed_dataframe_ms": 19.39,
+    "equal_to_pandas": true,
+    "dtypes": {
+      "id": "string",
+      "Age": "Float64",
+      "amount": "Float64",
+      "flag": "boolean",
+      "day": "datetime64[ns]",
+      "code": "string"
+    }
+  },
+  {
+    "records": 10000,
+    "pandas": "2.2.3",
+    "legacy_import_ms": 26.2,
+    "typed_import_ms": 85.97,
+    "typed_parquet_ms": 55.9,
+    "pandas_reference_ms": 21.9,
+    "typed_dataframe_ms": 3.69,
+    "equal_to_pandas": true,
+    "dtypes": {
+      "id": "string",
+      "Age": "Float64",
+      "amount": "Float64",
+      "flag": "boolean",
+      "day": "datetime64[ns]",
+      "code": "string"
+    }
+  },
+  {
+    "records": 100000,
+    "pandas": "2.2.3",
+    "legacy_import_ms": 266.24,
+    "typed_import_ms": 833.0,
+    "typed_parquet_ms": 540.23,
+    "pandas_reference_ms": 226.26,
+    "typed_dataframe_ms": 17.22,
+    "equal_to_pandas": true,
+    "dtypes": {
+      "id": "string",
+      "Age": "Float64",
+      "amount": "Float64",
+      "flag": "boolean",
+      "day": "datetime64[ns]",
+      "code": "string"
+    }
+  },
+  {
+    "records": 1000000,
+    "pandas": "2.2.3",
+    "legacy_import_ms": 2738.2,
+    "typed_import_ms": 8544.54,
+    "typed_parquet_ms": 5516.89,
+    "pandas_reference_ms": 1625.69,
+    "typed_dataframe_ms": 180.68,
+    "equal_to_pandas": true,
+    "dtypes": {
+      "id": "string",
+      "Age": "Float64",
+      "amount": "Float64",
+      "flag": "boolean",
+      "day": "datetime64[ns]",
+      "code": "string"
+    }
+  }
+]
