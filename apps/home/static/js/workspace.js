@@ -20,7 +20,7 @@
         svg.append(use);
         const name=document.createElement('strong');name.className='workspace-tab-name';
         name.textContent=tab.title;button.title=tab.title;
-        button.append(svg,name);button.setAttribute('aria-current',String(tab.id===active));
+        button.append(svg,name);button.dataset.fileType=tab.app;button.setAttribute('aria-current',String(tab.id===active));
         button.onclick=()=>activate(tab).catch(error=>status(error.message));
         close.textContent='×';close.setAttribute('aria-label','Fechar '+tab.title);
         close.onclick=async()=>{
