@@ -864,7 +864,7 @@
     let drag=null,skipClick=false;
     viewport.addEventListener("pointerdown",event=>{
       const cell=event.target.closest("[data-cell]");
-      if(event.button!==0||!cell||pending||importing)return;
+      if(event.button!==0||!cell||pending||importing||isFormulaReference(referenceEditor))return;
       skipClick=false;
       drag={id:cell.dataset.cell,pointer:event.pointerId,extend:event.shiftKey,moved:false};
     },{signal});
@@ -885,7 +885,7 @@
     window.addEventListener("pointercancel",stopDrag,{signal});
     viewport.addEventListener("dblclick",event=>{
       const cell=event.target.closest("[data-cell]");
-      if(cell&&inline.hidden){
+      if(cell&&inline.hidden&&!isFormulaReference(referenceEditor)){
         select(...cell.dataset.cell.split(",").map(Number));
         if(sheet().pivot){
           const [r,c]=cell.dataset.cell.split(",").map(Number);
