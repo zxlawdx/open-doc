@@ -51,6 +51,9 @@
       if($("[data-python-env-agree]"))$("[data-python-env-agree]").checked=false;
       $("[data-python-env-names]").value="";
       await inspect();
+      // Tell currently open CodeMirror editors to refresh after site-packages
+      // changes. The project id prevents unrelated notebooks from refreshing.
+      window.dispatchEvent(new CustomEvent("open-doc:python-env-updated",{detail:{project:id}}));
       message("Bibliotecas "+(remove?"removidas":"instaladas")+" no ambiente do projeto: "+(result.installed||result.removed).join(", ")+".");
     }
     const autocomplete=document.createElement("button");autocomplete.type="button";autocomplete.textContent="Ativar autocomplete Python (Jedi)";
