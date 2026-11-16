@@ -144,7 +144,8 @@
             if(!shown.valid)el.classList.add("dataset-type-error");
           }else{
             const kind=current.types?.columns?.[String(c)]||"auto";
-            if(kind!=="auto"){el.classList.add("dataset-typed");el.title="Tipo de coluna: "+kind;}
+            const explicit=(current.types?.explicit_columns||current.types?.columns)?.[String(c)];
+            if(explicit&&explicit!=="auto"){el.classList.add("dataset-typed");el.title="Tipo de coluna: "+kind;}
             el.tabIndex=0;columnHandle(el,c,String(value));
             if(current.schema?.[c]){const badge=document.createElement("small");badge.className="dataset-type-badge";badge.textContent=current.schema[c].dtype;el.append(badge);el.title+=" · "+current.schema[c].dtype;}
           }
@@ -307,14 +308,15 @@
           const result=await request("dataset",{operation:"cell",id:datasetId,row:r,column:c});
           if(editing!==item||list.value!==datasetId)return;
           const input=document.createElement("input");input.type="text";
-          input.className="dataset-inline-editor";input.value=result.value;
+          const original=result.value==null?"":String(result.value);
+          input.className="dataset-inline-editor";input.value=original;
           input.setAttribute("aria-label","Editar linha "+r+", coluna "+(c+1));
           target.replaceChildren(input);input.focus();input.select();
           function done(accept){
             if(item.closed)return;
             item.closed=true;editing=null;
             input.remove();
-            if(!accept||input.value===result.value){draw(current);return;}
+            if(!accept||input.value===original){draw(current);return;}
             run(()=>persistCell(datasetId,r,c,input.value));
           }
           input.addEventListener("keydown",event=>{

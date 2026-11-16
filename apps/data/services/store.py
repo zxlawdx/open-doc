@@ -241,7 +241,7 @@ class Datasets:
                 "id": identifier, "title": dataset["title"], "row_count": dataset["row_count"],
                 "column_count": len(names), "columns": [preview(name) for name in columns],
                 "rows": shown_rows,
-                "types": {"columns": column_types, "cells": cell_types},
+                "types": {"columns": column_types, "explicit_columns": explicit_types, "cells": cell_types},
                 "source_count": db.execute(
                     "SELECT COUNT(*) FROM sources WHERE dataset_id=?", (identifier,)
                 ).fetchone()[0],
@@ -305,6 +305,8 @@ class Datasets:
                 converted=self.scalar_converter(identifier,db,strict=True)(value,column,override[0] if override else "auto")
                 if profile["options"].get("native"):value=converted
             previous = cells[column]
+            if previous == value:
+                return {"row": row, "column": column, "previous": previous, "value": value, "changed": False}
             cells[column] = value
             db.execute(
                 "UPDATE dataset_rows SET values_json=? WHERE dataset_id=? AND number=?",

@@ -85,6 +85,9 @@ def test_arrow_dataframe_matches_same_pandas_version_and_options(tmp_path):
         ctx.publications.adopt(identifier,before,published,token)
         assert ctx.datasets.query(identifier,'SELECT SUM(Age) FROM dados')['rows']==[[76.5]]
         assert ctx.datasets.page(identifier,0,0)['rows'][1][0]==25.5
+        unchanged=ctx.publications.token(identifier)
+        assert ctx.datasets.edit_cell(identifier,2,0,'25.5')['changed'] is False
+        assert ctx.publications.token(identifier)==unchanged
         ctx.datasets.undo(identifier)
         assert ctx.datasets.page(identifier,0,0)['rows'][1][0] is None
     finally:app.close()
@@ -188,3 +191,15 @@ def test_append_reordered_columns_validates_schema_by_name(store,tmp_path):
     result=store.import_files([second],identifier,encoding='auto',infer_types=True)
     assert result['added']==1
     assert store.page(identifier,0,0)['rows']==[['001',2023,'Ana'],['002',2024,'Bia']]
+
+
+def test_inferred_and_explicit_types_remain_distinct_after_undo(store,tmp_path):
+    identifier,_=load(store,tmp_path,'id,value\n001,10\n002,20\n')
+    original=store.page(identifier,0,0)
+    assert original['types']['columns']['0']=='text'
+    assert original['types']['explicit_columns']=={}
+    store.set_type(identifier,'column',0,'text')
+    assert store.page(identifier,0,0)['types']['explicit_columns']=={'0':'text'}
+    store.undo(identifier)
+    assert store.page(identifier,0,0)['types']['explicit_columns']=={}
+    assert store.page(identifier,0,0)['schema']==original['schema']
