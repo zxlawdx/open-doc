@@ -4,6 +4,9 @@ on:
     paths:
       - "apps/data/**"
       - "apps/code/**"
+      - "apps/spreadsheets/static/js/workbook.js"
+      - "apps/home/static/js/grid_workspace.js"
+      - "tools/qa_data_workspace.py"
       - "apps/home/static/css/workbook_v2.css"
       - "apps/home/static/js/workspace.js"
       - "tools/qa_datasets.py"
@@ -34,7 +37,7 @@ jobs:
       - name: QtWebEngine Linux dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0 libreoffice-writer libreoffice-impress
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0 libreoffice-writer libreoffice-impress xvfb xauth
       - name: Install and compile native Open Doc assets
         run: |
           python -m pip install -r requirements-dev.txt
@@ -42,10 +45,16 @@ jobs:
           python tools/check_runtime_assets.py
       - name: Dataset layout regression and screenshot capture
         run: python -u tools/qa_datasets.py docs/images/datasets
+      - name: Linux QtWebEngine real Ctrl+A/C/V smoke test and screenshots
+        env:
+          QT_QPA_PLATFORM: xcb
+        run: xvfb-run -a python -u tools/qa_data_workspace.py docs/images/data-workspace
       - name: Upload screenshots from the real Open Doc window
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: open-doc-data-layout-qt-screenshots
-          path: docs/images/datasets/
+          path: |
+            docs/images/datasets/
+            docs/images/data-workspace/
           if-no-files-found: warn
