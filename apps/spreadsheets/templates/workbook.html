@@ -46,8 +46,8 @@
       <button type="button" data-book-command="italic" title="Itálico" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#italic"></use></svg>Itálico</button>
       <button type="button" data-book-command="underline" title="Sublinhar" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#underline"></use></svg>Sublinhar</button>
       <button type="button" data-book-command="strike" title="Tachar" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#strike"></use></svg>Tachar</button>
-      <label class="ribbon-color" title="Cor do texto"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#type-text"></use></svg><input type="color" data-book-style="color" aria-label="Cor do texto" value="#141414"></label>
-      <label class="ribbon-color" title="Preenchimento"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#paint-bucket"></use></svg><input type="color" data-book-style="fill" aria-label="Preenchimento" value="#fff3b0"></label>
+      <span class="ribbon-color" role="group" aria-label="Cor do texto"><button type="button" data-book-command="color-apply" title="Aplicar cor do texto atual"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#type-text"></use></svg><span>Cor</span></button><input type="color" data-book-style="color" aria-label="Escolher cor do texto e aplicar" value="#141414"></span>
+      <span class="ribbon-color" role="group" aria-label="Preenchimento"><button type="button" data-book-command="fill-apply" title="Aplicar cor de preenchimento atual"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#paint-bucket"></use></svg><span>Fundo</span></button><input type="color" data-book-style="fill" aria-label="Escolher cor de preenchimento e aplicar" value="#fff3b0"></span>
       <small>Fonte</small>
     </div>
     <div class="workbook-tools" data-ribbon-group="home layout" role="group" aria-label="Alinhamento">
