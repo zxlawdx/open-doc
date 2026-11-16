@@ -246,10 +246,23 @@ def exercise(window, output, reopen):
     keyboard.key("Escape")
     click("[data-workbook] [data-ribbon-tab=code]")
     wait(window, "!!document.querySelector('[data-book-analysis] .cm-editor')")
-    assert js(
-        """getComputedStyle(document.querySelector('[data-book-analysis] .cm-editor'))
-        .backgroundColor === getComputedStyle(document.querySelector('.app-header')).backgroundColor"""
-    )
+    # The redesign intentionally gives application chrome and editor panels
+    # different semantic surfaces. Test the real editor panel against its own
+    # theme token instead of requiring it to match the unrelated app header.
+    assert js("""(() => {
+      const editor=document.querySelector('#book-sql + .dataset-code-editor .cm-editor');
+      const panel=editor?.closest('.dataset-code-editor');
+      const app=document.querySelector('[data-app]');
+      if(!panel || !app) return false;
+      const bounds=editor.getBoundingClientRect();
+      const probe=document.createElement('span');
+      probe.style.backgroundColor=getComputedStyle(app).getPropertyValue('--color-panel').trim();
+      panel.appendChild(probe);
+      const expected=getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return bounds.width>0 && bounds.height>0 &&
+        getComputedStyle(panel).backgroundColor===expected;
+    })()""")
     capture_module("planilha")
     js("""[...document.querySelectorAll('[data-workbook] button')]
         .find(button => button.title === 'Tela inteira').click()""")
