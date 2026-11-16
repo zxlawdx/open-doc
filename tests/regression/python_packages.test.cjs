@@ -28,7 +28,7 @@ test('activating Python autocomplete installs Jedi into the selected project on 
  await tick();
  assert.equal(requests[0].operation,'python-env-status');
  assert.equal(requests[1].operation,'python-env-install');
- assert.deepEqual(requests[1].packages,['jedi==0.19.2']);
+ assert.deepEqual(Array.from(requests[1].packages),['jedi==0.19.2']);
  assert.equal(requests[1].confirm,true);
  assert.equal(requests[1].id,'project');
  assert.match(host.querySelector('output').textContent,/Bibliotecas instaladas/);

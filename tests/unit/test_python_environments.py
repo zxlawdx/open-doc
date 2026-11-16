@@ -79,4 +79,4 @@ def test_explicit_jedi_install_does_not_duplicate_editor_dependency(tmp_path, mo
     monkeypatch.setattr(python_envs, "run_external", fake_run)
     result = service.install(project, ["jedi==0.19.2"], confirm=True)
     assert calls[0].count("jedi==0.19.2") == 1
-    assert result["editor_dependency"] == []
+    assert result["installed"] == ["jedi==0.19.2"]

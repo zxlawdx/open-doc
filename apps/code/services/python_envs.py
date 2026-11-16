@@ -20,7 +20,6 @@ PACKAGE = re.compile(
 )
 MAX_PACKAGES = 5
 MAX_LOG = 49152
-EDITOR_ANALYZER = "jedi==0.19.2"
 
 
 class PythonEnvironments:
@@ -104,13 +103,10 @@ class PythonEnvironments:
             raise ValueError(
                 "Não foi possível criar o ambiente Python isolado do projeto."
             )
-        # Jedi is an editor tool dependency, not a library users must remember
-        # to install. Include it in the same explicitly authorized pip operation.
-        # Existing venvs can also be repaired from the editor's package dialog.
-        editor_dependency = [] if any(
-            re.split(r"[<=>!~\\[]", item, maxsplit=1)[0].casefold() == "jedi"
-            for item in packages
-        ) else [EDITOR_ANALYZER]
+        # Static Jedi completion executes inside the selected interpreter on
+        # Windows. Ensure its tooling is available whenever users authorize
+        # installing packages; no environment is created without consent.
+        tooling = [] if any(re.match(r"(?i)^jedi\b", package) for package in packages) else ["jedi==0.19.2"]
         try:
             process = run_external(
                 [
@@ -122,7 +118,7 @@ class PythonEnvironments:
                     "--no-input",
                     "--only-binary=:all:",
                     *packages,
-                    *editor_dependency,
+                    *tooling,
                 ],
                 capture_output=True,
                 text=True,
@@ -136,7 +132,7 @@ class PythonEnvironments:
             raise ValueError(
                 "pip retornou código " + str(process.returncode) + ":\n" + log[-3000:]
             )
-        return {"installed": packages, "editor_dependency": editor_dependency, "log": log, "environment": str(python)}
+        return {"installed": packages, "log": log, "environment": str(python)}
 
     def remove(self, project, packages, *, confirm=False):
         if confirm is not True:

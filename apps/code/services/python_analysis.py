@@ -41,15 +41,15 @@ def analyze(code, line, column, operation, project=None):
         result = run_external([str(executable or external_python()), "-I", "-c", SOURCE],
                               input=json.dumps([code,line,column,operation]), capture_output=True, text=True, timeout=15)
         if result.returncode:
-            details = (result.stderr or result.stdout or "").strip()
-            if "No module named 'jedi'" in details:
+            details=(result.stderr or result.stdout or "")[-1200:]
+            if "No module named 'jedi'" in details or 'No module named "jedi"' in details:
                 raise ValueError(
-                    "Jedi não está instalado no Python deste projeto. "
-                    "Abra Bibliotecas do projeto e selecione 'Ativar autocomplete Python (Jedi)'."
+                    "Jedi não está instalado no Python deste projeto. Abra "
+                    "Bibliotecas do projeto e selecione 'Ativar autocomplete Python (Jedi)'."
                 )
             raise ValueError(
-                "Não foi possível analisar o código com o Python selecionado. "
-                "Confira o interpretador e as bibliotecas do projeto."
+                "Falha ao analisar o Python do projeto. Verifique o ambiente "
+                "selecionado e as bibliotecas instaladas."
             )
         try:
             return json.loads(result.stdout)
