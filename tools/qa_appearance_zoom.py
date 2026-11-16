@@ -152,7 +152,7 @@ def exercise(window, output, reopen):
             for width, height in ((1366, 768), (1920, 1080)):
                 capture(output, f"od-shell-editor-{appearance}-{width}x{height}", width, height)
                 assert js("!!document.querySelector('.toolbar [data-command=bold]')")
-                assert js("!!document.querySelector('.od-app-rail a[href='/documents']')")
+                assert js("!!document.querySelector('.od-app-rail [data-suite-app=documents]')")
                 assert js("!!document.querySelector('.workspace-global-tabs > span > button svg use')")
         wait(window, "document.querySelector('[data-app]').dataset.preferencesSaving === 'false'")
         print("QT_OPEN_DOC_REAL_SHELL_SCREENSHOTS_OK", flush=True)
