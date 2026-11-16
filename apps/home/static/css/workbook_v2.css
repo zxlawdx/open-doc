@@ -426,7 +426,7 @@
   border:1px solid var(--color-border);padding:4px 7px
 }
 .open-doc [data-code-split].code-notebook-full>.workbook-sidebar:not([hidden]) {
-  position:absolute;top:0;right:0;bottom:0;left:0;width:auto;max-width:none;z-index:105;
+  position:absolute;top:0;right:0;bottom:0;left:0;width:auto;max-width:none;z-index:80;
   background:var(--color-panel);padding:12px max(12px,calc((100% - 88rem)/2))
 }
 .open-doc .code-notebook-full>.workbook-scroll,.open-doc .code-notebook-full>.code-splitter {visibility:hidden}
