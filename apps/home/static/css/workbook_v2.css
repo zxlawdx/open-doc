@@ -635,3 +635,18 @@
   }
   .open-doc .dataset-body:not(.code-notebook-full)>.code-splitter {display:none}
 }
+
+
+/* Compact file tabs retain the existing workspace session and actions. */
+.open-doc .workspace-global-tabs {min-width:0;overflow-x:auto;scrollbar-width:thin}
+.open-doc .workspace-global-tabs>span {display:inline-flex;align-items:center;max-width:222px;min-width:0;flex:none}
+.open-doc .workspace-global-tabs>span>button:first-child {
+  display:inline-flex;align-items:center;gap:7px;min-width:0;max-width:190px
+}
+.open-doc .workspace-global-tabs .workspace-tab-icon {
+  width:16px;height:16px;flex:none;color:var(--color-primary)
+}
+.open-doc .workspace-global-tabs .workspace-tab-name {
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.open-doc .workspace-global-tabs button:focus:not(:focus-visible) {outline:none}
