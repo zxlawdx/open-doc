@@ -219,7 +219,13 @@
           if(item.data){
             if(item.data["image/png"]||item.data["image/jpeg"]){const image=document.createElement("img");const mime=item.data["image/png"]?"image/png":"image/jpeg";image.src="data:"+mime+";base64,"+item.data[mime];image.alt="Visualização da célula";image.style.maxWidth="100%";output.append(image);}
             else if(item.data["text/html"]&&window.DOMPurify){const html=element("div");html.innerHTML=window.DOMPurify.sanitize(item.data["text/html"]);output.append(html);}
-            else output.append(element("pre",null,item.data["text/plain"]||""));
+            else {
+              const plain=String(item.data["text/plain"]||"");
+              // A numeric NumPy scalar should read as a number, not np.int64(0).
+              // Only normalize a complete numeric repr, never arbitrary output.
+              const numeric=plain.match(/^np\\.(?:u?int(?:8|16|32|64)|float(?:16|32|64))\\((-?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?)\\)$/i);
+              output.append(element("pre",null,datasetMode&&numeric?numeric[1]:plain));
+            }
           }else output.append(element("pre",null,item.text||""));
         }
       }else output.append(element("pre",null,result.output||result.message||"Sem saída."));
