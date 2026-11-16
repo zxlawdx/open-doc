@@ -252,7 +252,9 @@
         acentos ou símbolos. Consultas SELECT não alteram os dados de origem.</p>
       <p><strong>Python:</strong> o notebook requer <code>ipykernel</code> no ambiente do projeto.
         Para instalar, abra <strong>Bibliotecas Python</strong>, informe <code>pandas, pyarrow, ipykernel, duckdb</code>,
-        autorize a instalação e execute. Não use <code>!pip install</code> antes de iniciar o kernel.</p>
+        autorize a instalação e execute. Alternativamente, a primeira célula Python pode executar
+        <code>!pip install ipykernel</code> antes do kernel iniciar; depois adicione Pandas/Arrow.
+        A instalação exige um Python externo funcional no Linux.</p>
     </details>
     <label for="book-sql">SQL</label>
     <textarea id="book-sql" aria-label="Editor SQL da planilha" maxlength="12000">SELECT * FROM dados LIMIT 20</textarea>
