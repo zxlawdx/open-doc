@@ -68,7 +68,7 @@ class KernelSessions:
                 )
             except Exception as exc:
                 raise ValueError(
-                    "Instale ipykernel no ambiente deste projeto para iniciar o notebook. Para DataFrames, adicione pandas e pyarrow."
+                    "O interpretador selecionado não possui ipykernel. Abra Bibliotecas do projeto, escolha Preparar notebook (Pandas, Arrow, Jupyter e SQL), autorize a instalação e tente novamente. Instalar pacotes no Python do sistema não instala no ambiente virtual deste projeto."
                 ) from exc
 
             class ProjectSpecs(KernelSpecManager):
