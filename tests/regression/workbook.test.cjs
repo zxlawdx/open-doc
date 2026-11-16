@@ -31,3 +31,20 @@ test('imported tracker IF COUNT and AVERAGE recalculate with lazy empty branches
  sheet.cells['7,1']='70';sheet.cells['7,2']='72';sheet.cells['7,3']='0';calc=evaluate([sheet]);assert.equal(calc(0,7,4),142/3);
  sheet.cells['0,0']='=IF(1=1,"texto, com; separador",1/0)';calc=evaluate([sheet]);assert.equal(calc(0,0,0),'texto, com; separador');
 });
+
+test('Brazilian decimal arithmetic, precedence and power are evaluated consistently',()=>{
+ const formulas=[
+  ['=2*19,32',38.64],['=2*19.32',38.64],['=2^3',8],['=2**3',8],
+  ['=2^3^2',512],['=-2^2',-4],['=(-2)^2',4],['=2^-2',0.25],
+  ['=2+3*4',14],['=(2+3)*4',20],['=10/4',2.5],
+  ['=20%',0.2],['=1,25+2.75',4],['=3-5',-2],
+  ['=A1*2',38.64],['=B1/2',9.66],['=10/0','#DIV/0!']
+ ];
+ const cells={'0,0':'19,32','0,1':'19.32'};
+ formulas.forEach(([formula],i)=>cells[(i+1)+',0']=formula);
+ const calc=evaluate([{name:'Calculos',cells}]);
+ assert.equal(calc(0,0,0),19.32);
+ assert.equal(calc(0,0,1),19.32);
+ formulas.forEach(([formula,expected],i)=>assert.equal(calc(0,i+1,0),expected,formula));
+ assert.equal(evaluate([{name:'Calculos',cells:{'0,0':'texto','0,1':'=A1*2'}}])(0,0,1),'#VALOR!');
+});
