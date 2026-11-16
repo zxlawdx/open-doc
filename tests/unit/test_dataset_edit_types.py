@@ -82,8 +82,8 @@ def test_dataset_sql_reads_explicit_ptbr_types_without_modifying_source(store):
     service, identifier = store
     service.set_type(identifier, "column", 1, "decimal")
     rows = service.query(identifier, 'SELECT quantidade FROM dados ORDER BY quantidade DESC')["rows"]
-    assert rows == [["1234.56"], ["25.5"]]
-    assert service.query(identifier, 'SELECT ROUND(SUM(quantidade),2) FROM dados')["rows"] == [["1260.06"]]
+    assert rows == [[1234.56], [25.5]]
+    assert service.query(identifier, 'SELECT ROUND(SUM(quantidade),2) FROM dados')["rows"] == [[1260.06]]
     assert service.cell(identifier, 1, 1)["value"] == "1.234,56"
     service.set_type(identifier, "column", 2, "date")
     assert service.query(identifier, "SELECT data FROM dados LIMIT 1")["rows"] == [["2026-08-18"]]

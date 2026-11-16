@@ -33,6 +33,7 @@ class ApplicationContext:
     publications: Any = None
     resource_workspace: Any = None
     dataset_exchange: Any = None
+    dataset_imports: Any = None
     templates: Any = None
     documents: Any = None
     assets: Any = None

@@ -31,7 +31,7 @@ class Keyboard:
 
     def __init__(self, window):
         from threading import Event
-        from PyQt5.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
+        from PyQt5.QtCore import QObject, Qt, QPoint, pyqtSignal, pyqtSlot
         from PyQt5.QtTest import QTest
         from PyQt5.QtWidgets import QApplication
         from webview.platforms.qt import BrowserView
@@ -40,6 +40,7 @@ class Keyboard:
             requested = pyqtSignal(str)
             typing = pyqtSignal(str, int)
             plain = pyqtSignal(str, bool)
+            clicked = pyqtSignal(int, int)
 
             def __init__(self, view):
                 super().__init__()
@@ -48,6 +49,13 @@ class Keyboard:
                 self.requested.connect(self.perform)
                 self.typing.connect(self.type_text)
                 self.plain.connect(self.type_key)
+                self.clicked.connect(self.click_at)
+
+            @pyqtSlot(int, int)
+            def click_at(self, x, y):
+                target = self.view.focusProxy() or self.view
+                QTest.mouseClick(target, Qt.LeftButton, Qt.NoModifier, QPoint(x,y))
+                self.done.set()
 
             @pyqtSlot(str, int)
             def type_text(self, text, delay):
@@ -105,3 +113,16 @@ class Keyboard:
         self.driver.plain.emit(key, shift)
         if not self.driver.done.wait(5):
             raise AssertionError("Qt key timeout: " + key)
+
+    def click(self, x, y):
+        self.driver.done.clear()
+        self.driver.clicked.emit(round(x), round(y))
+        if not self.driver.done.wait(5):
+            raise AssertionError("Qt pointer timeout")
+
+
+def accept_import_preview(window):
+    """Accept the default inferred CSV schema in unrelated editor regression flows."""
+    from qa_version_history import wait
+    wait(window, "!!document.querySelector('[data-import-confirm]') && !document.querySelector('[data-import-confirm]').disabled")
+    window.evaluate_js("document.querySelector('[data-import-confirm]').click()")

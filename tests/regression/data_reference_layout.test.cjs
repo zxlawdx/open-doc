@@ -8,7 +8,7 @@ test("data reference layout retains the real Open Doc ribbon and functional comp
   for(const tab of ["import","transform","clean","filter","types","analysis","sql","python","export"])
     assert.match(html,new RegExp('data-ribbon-tab="'+tab+'"'));
   for(const item of ["data-dataset-table","data-dataset-tools","data-dataset-list",
-    "data-dataset-advanced","data-dataset-query","data-dataset-python"])
+    "data-dataset-advanced","data-dataset-query","data-sql-target"])
     assert.ok(html.includes(item),item);
   assert.match(html,/Editores avulsos \(modo avançado\)/);
 });

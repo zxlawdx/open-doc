@@ -124,10 +124,12 @@ def workbook(context=None):
                 new_sheet["bold"].append(f"0,{col}")
             for row, values in enumerate(data_sheet.rows, start=1):
                 for col, value in enumerate(values):
-                    if value:
-                        new_sheet["cells"][f"{row},{col}"] = (
-                            "'" + value if value.startswith(("=", "'")) else value
-                        )
+                    if value is not None and value != "":
+                        key=f"{row},{col}"
+                        kind="boolean" if isinstance(value,bool) else "integer" if isinstance(value,int) else "decimal" if isinstance(value,float) else "text"
+                        text=("TRUE" if value else "FALSE") if isinstance(value,bool) else str(value)
+                        new_sheet["cells"][key]="'"+text if isinstance(value,str) and text.startswith(("=","'")) else text
+                        new_sheet.setdefault("types",{"columns":{},"cells":{}})["cells"][key]=kind
             return store.create("Resultado SQL", [new_sheet])
         if command == "new":
             return store.create()

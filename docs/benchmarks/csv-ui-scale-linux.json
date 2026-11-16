@@ -1,0 +1,55 @@
+{
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "startup_to_ready_ms": 1133.5396479998963,
+  "scope": "single native Qt run; import includes bridge, SQLite and render; RSS includes warm imports; no GUI baseline",
+  "results": [
+    {
+      "start": 783.6850000003324,
+      "last": 975.8550000005926,
+      "ticks": 11,
+      "maxDelay": 36.38000000046304,
+      "import_render_ms": 202.83500000005006,
+      "dom_rows": 50,
+      "page_render_ms": 59.079063999888604,
+      "records": 1000,
+      "python_qt_rss_bytes": 235040768,
+      "child_rss_bytes": 245465088
+    },
+    {
+      "start": 1102.3549999999886,
+      "last": 1310.540000000401,
+      "ticks": 12,
+      "maxDelay": 37.83500000008644,
+      "import_render_ms": 222.30000000035943,
+      "dom_rows": 50,
+      "page_render_ms": 64.31429300027958,
+      "records": 10000,
+      "python_qt_rss_bytes": 236879872,
+      "child_rss_bytes": 253804544
+    },
+    {
+      "start": 1411.9150000005902,
+      "last": 1860.0500000002285,
+      "ticks": 28,
+      "maxDelay": 24.430000000393193,
+      "import_render_ms": 462.82499999961146,
+      "dom_rows": 50,
+      "page_render_ms": 65.28265099950659,
+      "records": 100000,
+      "python_qt_rss_bytes": 239841280,
+      "child_rss_bytes": 258514944
+    },
+    {
+      "start": 2056.880000000092,
+      "last": 5753.020000000106,
+      "ticks": 231,
+      "maxDelay": 33.48000000005413,
+      "import_render_ms": 3702.089999999771,
+      "dom_rows": 50,
+      "page_render_ms": 60.676981000142405,
+      "records": 1000000,
+      "python_qt_rss_bytes": 243437568,
+      "child_rss_bytes": 260780032
+    }
+  ]
+}

@@ -51,6 +51,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm test
           exit $LASTEXITCODE
+      - name: CSV preview and nullable schema
+        run: python -u tools/qa_csv_import.py docs/images/csv-import
+      - name: Data workspace project tabs and Python autocomplete
+        run: python -u tools/qa_data_workspace.py docs/images/data-workspace
       - name: Unified office UI and staged ink stress
         env:
           OPEN_DOC_STRESS_COUNTS: "300,1000,10000"
@@ -112,6 +116,8 @@ jobs:
         with:
           name: windows-qt-screenshots
           path: |
+            docs/images/csv-import/
+            docs/images/data-workspace/
             docs/images/pdf-navigation/
             docs/images/office-foundation/
             docs/images/pptx-compat/
@@ -164,6 +170,10 @@ jobs:
         run: |
           python -m pytest -q
           npm test
+      - name: CSV preview and nullable schema
+        run: python -u tools/qa_csv_import.py docs/images/csv-import
+      - name: Data workspace project tabs and Python autocomplete
+        run: python -u tools/qa_data_workspace.py docs/images/data-workspace
       - name: Unified office UI and staged ink stress
         env:
           OPEN_DOC_STRESS_COUNTS: "300,1000,10000"
@@ -205,6 +215,8 @@ jobs:
         with:
           name: linux-qt-screenshots
           path: |
+            docs/images/csv-import/
+            docs/images/data-workspace/
             docs/images/pdf-navigation/
             docs/images/office-foundation/
             docs/images/pptx-compat/

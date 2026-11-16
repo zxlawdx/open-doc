@@ -164,6 +164,17 @@ class SlideModelValidator:
                 for cell in row:
                     if not isinstance(cell, str) or len(cell) > 2000:
                         raise ValueError("Conteúdo de célula PPTX inválido.")
+            for field, count in (("table_row_heights", len(cells)),
+                                 ("table_col_widths", columns)):
+                tracks = element.get(field)
+                if tracks is not None:
+                    if (not isinstance(tracks, list) or len(tracks) != count
+                            or any(type(track) not in (int, float) for track in tracks)):
+                        raise ValueError("Proporções da tabela PPTX inválidas.")
+                    for track in tracks:
+                        number(track, 0.000001, 1)
+                    if abs(sum(tracks) - 1) > 0.0001:
+                        raise ValueError("Proporções da tabela PPTX não somam 1.")
             if element.get("rotation", 0) != 0:
                 raise ValueError("Rotação de tabelas PPTX não suportada.")
         if element.get("type") == "chart":

@@ -393,6 +393,21 @@ def main():
                 window,
                 "document.querySelector('[data-workbook] .code-notebook-full') && document.querySelectorAll('[data-workbook] [data-code-cell]').length===3",
             )
+            # Regression captured in the actual QtWebEngine application:
+            # appearance settings must appear above a fullscreen code notebook.
+            js("document.querySelector('[data-action=theme]').click()")
+            wait(window, "document.querySelector('[data-dialog]').hidden===false")
+            assert js("""(() => {
+              const dialog=document.querySelector('[data-dialog]');
+              const notebook=document.querySelector('[data-workbook] .code-notebook-full>.workbook-sidebar');
+              const rect=dialog.querySelector('.dialog').getBoundingClientRect();
+              const top=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
+              return Number(getComputedStyle(dialog).zIndex)>Number(getComputedStyle(notebook).zIndex)
+                && dialog.contains(top);
+            })()"""), "Settings dialog is hidden behind fullscreen notebook"
+            capture(output, "notebook-fullscreen-settings-open")
+            click("[data-dialog-cancel]")
+            wait(window, "document.querySelector('[data-dialog]').hidden===true")
             js("""(() => {
               const cell=document.querySelector('[data-workbook] [data-code-cell=sql]');
               const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));

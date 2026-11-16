@@ -61,8 +61,16 @@ def external_dll_search():
 
 def popen_external(*args, **kwargs):
     kwargs.setdefault("env", child_environment())
+    kwargs.update(hidden_process_options(kwargs.get("creationflags", 0)))
     with external_dll_search():
         return subprocess.Popen(*args, **kwargs)
+
+
+def hidden_process_options(flags=0):
+    """Keep subprocess output in the application, including windowed builds."""
+    if sys.platform != "win32":
+        return {}
+    return {"creationflags": flags | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
 
 
 def run_external(
@@ -73,7 +81,8 @@ def run_external(
     timeout=None,
     check=False,
     cwd=None,
-    env=None
+    env=None,
+    input=None
 ):
     # Restore the parent's DLL search immediately after CreateProcess, before
     # waiting, so the GUI can continue loading its own runtime libraries.
@@ -82,11 +91,12 @@ def run_external(
         stdout=subprocess.PIPE if capture_output else None,
         stderr=subprocess.PIPE if capture_output else None,
         text=text,
+        stdin=subprocess.PIPE if input is not None else None,
         cwd=cwd,
         env=env or child_environment(),
     ) as process:
         try:
-            stdout, stderr = process.communicate(timeout=timeout)
+            stdout, stderr = process.communicate(input=input, timeout=timeout)
         except subprocess.TimeoutExpired:
             process.kill()
             stdout, stderr = process.communicate()
@@ -128,3 +138,16 @@ def external_python():
     raise ValueError(
         "Instale Python 3 e disponibilize o interpretador no PATH para usar código local."
     )
+
+
+# Executed once in an external Python so its own children (venv/ensurepip,
+# IPython shell magics and analysis helpers) also stay inside the application.
+HIDDEN_CHILD_BOOTSTRAP = r"""
+import os as _opendoc_os, subprocess as _opendoc_subprocess
+if _opendoc_os.name == 'nt':
+    class _OpenDocHiddenPopen(_opendoc_subprocess.Popen):
+        def __init__(self, *args, **kwargs):
+            kwargs['creationflags'] = kwargs.get('creationflags', 0) | _opendoc_subprocess.CREATE_NO_WINDOW
+            super().__init__(*args, **kwargs)
+    _opendoc_subprocess.Popen = _OpenDocHiddenPopen
+"""

@@ -50,6 +50,12 @@ def apply_patch(db, identifier, patch, apply_resource=None):
         db.executemany("INSERT INTO dataset_field_types VALUES(?,?,?,?,?)",
                        [(identifier, *row) for row in patch.get("field_types", [])])
         return
+    if "import_schema" in patch:
+        profile=patch["import_schema"]
+        db.execute("DELETE FROM dataset_import_schema WHERE dataset_id=?",(identifier,))
+        if profile is not None:
+            db.execute("INSERT INTO dataset_import_schema VALUES (?,?,?)",(identifier,json.dumps(profile["schema"]),json.dumps(profile["options"])))
+        return
     values = patch.get("values", [])
     types = patch.get("types", [])
     if not isinstance(values, list) or not isinstance(types, list):
@@ -66,7 +72,7 @@ def apply_patch(db, identifier, patch, apply_resource=None):
             raise ValueError("Linha do histórico não encontrada.")
         cells = json.loads(original[0])
         for column, value in changes:
-            if not isinstance(value, str) or not 0 <= column < len(cells):
+            if not (value is None or isinstance(value,(str,int,float,bool))) or not 0 <= column < len(cells):
                 raise ValueError("Célula do histórico inválida.")
             cells[column] = value
         db.execute(

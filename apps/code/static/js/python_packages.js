@@ -4,6 +4,13 @@
     const $=selector=>host.querySelector(selector);
     const body=$("[data-python-env-body]"),status=$("[data-python-env-status]");
     const submit=$('[data-python-env-command="install"]');
+    const modal=document.createElement("dialog");modal.className="code-package-dialog";
+    const heading=document.createElement("h2");heading.textContent="Bibliotecas do projeto";
+    const close=document.createElement("button");close.type="button";close.textContent="Fechar";
+    close.onclick=()=>{if(modal.close)modal.close();else modal.removeAttribute("open");};
+    modal.append(heading,body,close);host.append(modal);
+    const progress=document.createElement("progress");progress.hidden=true;progress.setAttribute("aria-label","Instalando bibliotecas");status.before(progress);
+    const open=()=>{body.hidden=false;if(modal.showModal){if(!modal.open)modal.showModal();}else modal.setAttribute("open","");};
     let working=false;
     const message=text=>{status.textContent=text;};
     function showDetails(result) {
@@ -28,35 +35,33 @@
       const names=$("[data-python-env-names]").value.split(",").map(t=>t.trim()).filter(Boolean);
       if(!names.length)throw Error("Informe o nome de uma biblioteca Python.");
       if(names.length>5)throw Error("Instale até 5 pacotes por operação.");
-      if(!$("[data-python-env-agree]").checked)
-        throw Error("A instalação só pode acontecer após sua autorização explícita.");
+
       message(remove?"Removendo bibliotecas do ambiente do projeto…":"Instalando em ambiente virtual exclusivo do projeto…");
       const result=await request("dataset",{operation:remove?"python-env-remove":"python-env-install",
         id,packages:names,confirm:true});
       if(project()!==id){message("Operação concluída no projeto anterior. Atualize a lista de bibliotecas do projeto atual.");return;}
       $("[data-python-env-log]").textContent=result.log||"";
-      $("[data-python-env-agree]").checked=false;
+      if($("[data-python-env-agree]"))$("[data-python-env-agree]").checked=false;
       $("[data-python-env-names]").value="";
       await inspect();
       message("Bibliotecas "+(remove?"removidas":"instaladas")+" no ambiente do projeto: "+(result.installed||result.removed).join(", ")+".");
     }
     const preset=document.createElement("button");preset.type="button";preset.textContent="Preparar notebook (Pandas, Arrow, Jupyter e SQL)";
-    preset.addEventListener("click",()=>{body.hidden=false;$("[data-python-env-names]").value="pandas, pyarrow, ipykernel, duckdb";message("Confira os pacotes, autorize a instalação e clique em Instalar.");},{signal});
+    preset.addEventListener("click",()=>{open();$("[data-python-env-names]").value="pandas, pyarrow, ipykernel, duckdb";message("Confira os pacotes, autorize a instalação e clique em Instalar.");},{signal});
     const remove=document.createElement("button");remove.type="button";remove.textContent="Remover bibliotecas informadas";remove.dataset.pythonEnvCommand="remove";
-    host.prepend(preset,remove);
+    body.prepend(preset,remove);
     host.addEventListener("click",async event=>{
       const action=event.target.closest("[data-python-env-command]")?.dataset.pythonEnvCommand;
       if(!action||working)return;
       if(action==="toggle") {
-        body.hidden=!body.hidden;
-        if(body.hidden)return;
+        open();
       }
-      working=true;submit.disabled=true;
+      working=true;submit.disabled=true;progress.hidden=false;modal.setAttribute("aria-busy","true");
       try {
         if(action==="toggle")await inspect();
         else if(action==="install"||action==="remove")await install(action==="remove");
       }catch(error){message(error.message||String(error));}
-      finally{working=false;submit.disabled=false;}
+      finally{working=false;submit.disabled=false;progress.hidden=true;modal.setAttribute("aria-busy","false");}
     },{signal});
     return {inspect};
   }

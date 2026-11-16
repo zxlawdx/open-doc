@@ -1,6 +1,7 @@
 """Notebook orchestration through injected table and kernel contracts."""
 
 import json
+import shlex
 import tempfile
 from pathlib import Path
 from threading import RLock
@@ -23,11 +24,12 @@ class NotebookService:
             path = ctx.dataset_exchange.runtime.resources.open_path(
                 analysis["resource_id"], analysis["revision"]
             )
+            reader = "read_parquet" if analysis.get("media_type")=="application/vnd.apache.parquet" else "read_csv"
             result = ctx.kernels.execute(
                 identifier,
-                "import pandas as pd\nfrom pathlib import Path\nDATASET_CSV = Path("
+                "import pandas as pd\nfrom pathlib import Path\n" + ("DATASET_PARQUET" if reader=="read_parquet" else "DATASET_CSV") + " = Path("
                 + repr(str(path))
-                + ")\ndf = pd.read_csv(DATASET_CSV)\nprint('DataFrame pronto:', df.shape)",
+                + ")\ndf = pd." + reader + "(" + ("DATASET_PARQUET" if reader=="read_parquet" else "DATASET_CSV") + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")\nprint('DataFrame pronto:', df.shape)",
             )
             if result.get("returncode"):
                 return result
@@ -45,6 +47,27 @@ class NotebookService:
             return {**result, "resource": analysis}
 
     def execute(self, identifier, code, language="python"):
+        if language == "python" and isinstance(code, str) and code.strip().startswith(("!pip ", "%pip ")):
+            lines = code.strip().splitlines()
+            command = shlex.split(lines[0][1:])
+            if len(command) < 3 or command[:2] != ["pip", "install"]:
+                raise ValueError("Use !pip install pacote ou %pip install pacote.")
+            packages = [item for item in command[2:] if item not in {"-q", "--quiet"}]
+            manager = self.context.code_tools.environments(self.context.config.root)
+            result = manager.install(identifier, packages, confirm=True)
+            self.context.code_tools.clear_analysis_cache()
+            kernels = getattr(self.context, "kernels", None)
+            if kernels is not None and kernels.has_session(identifier):
+                kernels.execute(identifier, "import importlib; importlib.invalidate_caches()")
+            output = "Bibliotecas instaladas: " + ", ".join(result["installed"]) + "\n" + result.get("log", "")
+            if len(lines) > 1 and "\n".join(lines[1:]).strip():
+                executed = self.execute(identifier, "\n".join(lines[1:]), language)
+                executed["output"] = output + "\n" + executed.get("output", "")
+                return executed
+            return {"returncode": 0, "output": output, "outputs": [{"type": "stream", "text": output}]}
+        datasets = getattr(self.context, "datasets", None)
+        if language == "python" and identifier not in self._bindings and datasets is not None and datasets.is_program(identifier):
+            return self.context.kernels.execute(identifier, code)
         if identifier not in self._bindings:
             opened = self.open(identifier)
             if opened.get("returncode"):
@@ -66,7 +89,7 @@ class NotebookService:
                 "import pandas as pd\nfrom pathlib import Path\n"
                 + ("DATASET_CSV" if reader == "read_csv" else "DATASET_PARQUET")
                 + " = Path(" + repr(str(path)) + ")\ndf = pd." + reader
-                + "(" + repr(str(path)) + ")",
+                + "(" + repr(str(path)) + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")",
             )
             if loaded.get("returncode"):
                 return loaded
@@ -208,7 +231,7 @@ class NotebookService:
             + reader
             + "("
             + repr(str(path))
-            + ")\nprint('DataFrame pronto:', df.shape)",
+            + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")\nprint('DataFrame pronto:', df.shape)",
         )
         if not result.get("returncode"):
             runtime.resources.replace_pins("kernel_" + identifier, [snapshot.to_dict()])

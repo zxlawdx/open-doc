@@ -1,3 +1,4 @@
+from qa_runtime import accept_import_preview
 """Measure native dataset import/render/paging at the four required scales."""
 
 import json
@@ -54,6 +55,7 @@ def main():
                         window.__scaleTimer=setInterval(()=>{const now=performance.now();
                         __scale.maxDelay=Math.max(__scale.maxDelay,now-__scale.last);__scale.last=now;__scale.ticks++;},16);
                         document.querySelector('[data-dataset-command=new]').click();""")
+                    accept_import_preview(window)
                     wait(window, f"document.querySelector('[data-dataset-list]').selectedOptions[0]?.textContent==='scale-{count}' && !document.querySelector('[data-dataset-command=new]').disabled")
                     measured = js("clearInterval(__scaleTimer);({...__scale,import_render_ms:performance.now()-__scale.start,dom_rows:document.querySelectorAll('[data-dataset-table] tbody tr').length})")
                     assert measured["dom_rows"] == 50, measured
