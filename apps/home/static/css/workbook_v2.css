@@ -500,3 +500,138 @@
 .open-doc .book-no-gridlines .book-cell {border-color:transparent}
 .open-doc .book-cell.book-wrapped {white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.25}
 .open-doc .workbook .book-inline-editor {min-width:16px}
+
+
+/* Data workspace reference layout. All selectors are scoped to datasets:
+   preserve workbook editors, data APIs, existing tabs and Qt 83 support. */
+.open-doc .dataset .workbook-ribbon-tabs {
+  min-height:36px;gap:2px;padding:0 10px;border-bottom:1px solid var(--color-border)
+}
+.open-doc .dataset .workbook-ribbon-tabs button {
+  min-height:36px;padding:7px 11px;border-radius:0;
+  border-bottom:2px solid transparent;font-size:12px
+}
+.open-doc .dataset .workbook-ribbon-tabs button[aria-pressed="true"] {
+  border-bottom-color:var(--color-primary);background:transparent;color:var(--color-primary)
+}
+.open-doc .dataset .workbook-ribbon {min-height:46px;padding:5px 10px}
+.open-doc .dataset .workbook-tools button {min-height:31px}
+.open-doc .dataset [data-dataset-pagination] {min-height:38px;padding:4px 12px}
+.open-doc .dataset [data-dataset-pagination] button {min-height:29px}
+.open-doc .dataset-body {
+  min-height:0;gap:8px;padding:0 10px 8px;box-sizing:border-box;
+  background:var(--color-workspace)
+}
+.open-doc .dataset-body>.workbook-scroll,
+.open-doc .dataset-body>.workbook-sidebar:not([hidden]) {
+  min-height:0;border:1px solid var(--color-border);border-radius:8px;
+  background:var(--color-panel);overflow:auto
+}
+.open-doc .dataset-body>.workbook-scroll {flex:1 1 51%;min-width:0}
+.open-doc .dataset-body>.workbook-sidebar:not([hidden]) {
+  flex:0 0 var(--code-width,48%);min-width:0;padding:0 8px 8px;
+  box-sizing:border-box
+}
+.open-doc .dataset .dataset-empty {margin:24px auto}
+.open-doc .dataset table {border-collapse:separate;border-spacing:0}
+.open-doc .dataset thead th {
+  padding:8px 10px;min-width:100px;border-bottom:1px solid var(--color-border);
+  background:var(--color-panel);font-size:12px
+}
+.open-doc .dataset tbody th {
+  background:var(--color-workspace);font-variant-numeric:tabular-nums;
+  border-bottom:1px solid var(--color-border)
+}
+.open-doc .dataset tbody td {
+  padding:7px 10px;border-bottom:1px solid var(--color-border-soft);
+  font-variant-numeric:tabular-nums
+}
+.open-doc .dataset .workbook-sidebar-title {
+  position:sticky;top:0;z-index:3;background:var(--color-panel);
+  border-bottom:1px solid var(--color-border);margin:0 -8px;padding:9px 12px
+}
+.open-doc .dataset .code-notebook {margin:0;min-width:0}
+.open-doc .dataset .code-notebook-tools {
+  position:sticky;top:0;z-index:2;margin:0 -8px;padding:8px;
+  gap:3px;border-bottom:1px solid var(--color-border);background:var(--color-panel)
+}
+.open-doc .dataset .code-notebook-tools button {
+  min-height:29px;padding:3px 7px;margin:1px;border:1px solid var(--color-border)
+}
+.open-doc .dataset .code-notebook-kernel-status {
+  order:-1;display:inline-flex;align-items:center;margin:0 6px 0 2px;
+  color:var(--color-success);font-size:12px;font-weight:650
+}
+.open-doc .dataset .code-notebook-kernel-status[data-running="true"] {
+  color:var(--color-warning)
+}
+.open-doc .dataset .code-notebook-status {
+  margin:0;padding:7px 8px;font-size:11px
+}
+.open-doc .dataset .code-notebook-cells {padding:4px 0}
+.open-doc .dataset .data-notebook-cell {
+  display:grid;grid-template-columns:48px minmax(0,1fr);
+  padding:0;margin:7px 0;position:relative;overflow:hidden;
+  border-radius:8px;border:1px solid var(--color-border)
+}
+.open-doc .dataset .data-notebook-cell:hover,
+.open-doc .dataset .data-notebook-cell:focus-within {border-color:var(--color-primary)}
+.open-doc .dataset .data-notebook-gutter {
+  display:flex;align-items:center;flex-direction:column;gap:8px;
+  padding:8px 3px;background:var(--color-workspace);
+  color:var(--color-text-secondary);font:12px/1.2 var(--font-mono)
+}
+.open-doc .dataset .data-notebook-run {
+  width:30px;height:30px;min-height:30px;padding:4px;
+  border-radius:50%;background:var(--color-primary);color:var(--color-on-primary)
+}
+.open-doc .dataset .data-notebook-run svg {width:15px;height:15px;fill:currentColor}
+.open-doc .dataset .data-notebook-main {min-width:0;overflow:hidden}
+.open-doc .dataset .data-notebook-main>.code-notebook-cell-tools {
+  display:flex;align-items:center;gap:6px;padding:5px 9px;
+  min-height:30px;margin:0;position:relative
+}
+.open-doc .dataset .data-notebook-main>.code-notebook-cell-tools strong {
+  flex:0 1 auto;margin:0;white-space:nowrap;font-size:11px;
+  color:var(--color-text-secondary)
+}
+.open-doc .dataset .data-notebook-kind {font-size:11px;color:var(--color-text-muted)}
+.open-doc .dataset .data-notebook-actions {
+  display:flex;gap:2px;margin-left:auto;opacity:0;pointer-events:none
+}
+.open-doc .dataset .data-notebook-cell:hover .data-notebook-actions,
+.open-doc .dataset .data-notebook-cell:focus-within .data-notebook-actions {
+  opacity:1;pointer-events:auto
+}
+.open-doc .dataset .data-notebook-actions button {
+  min-height:25px;padding:2px 4px;margin:0;border:1px solid transparent;
+  font-size:0
+}
+.open-doc .dataset .data-notebook-actions button svg {width:15px;height:15px}
+.open-doc .dataset .data-notebook-main>.dataset-code-editor {margin:0;border:0}
+.open-doc .dataset .data-notebook-main>.code-notebook-output {
+  max-height:260px;padding:8px 10px;background:var(--color-panel)
+}
+.open-doc .dataset .data-notebook-main>.code-notebook-output table {
+  display:table;width:auto;max-width:100%;min-width:0;font-size:12px
+}
+.open-doc .dataset .data-notebook-main>.code-notebook-output th {
+  position:static;min-width:0;padding:5px 8px
+}
+.open-doc .dataset .dataset-legacy-tools {
+  margin-top:10px;border-top:1px solid var(--color-border);
+  padding:8px;font-size:12px;color:var(--color-text-secondary)
+}
+.open-doc .dataset .dataset-legacy-tools>summary {cursor:pointer;padding:5px}
+.open-doc .dataset .code-splitter {
+  flex:0 0 6px;border-radius:4px;background:var(--color-border)
+}
+.open-doc .dataset [data-dataset-status] {padding:6px 12px;margin:0;min-height:28px}
+@media(max-width:900px){
+  .open-doc .dataset-body:not(.code-notebook-full) {flex-direction:column}
+  .open-doc .dataset-body:not(.code-notebook-full)>.workbook-scroll,
+  .open-doc .dataset-body:not(.code-notebook-full)>.workbook-sidebar:not([hidden]) {
+    flex:1 1 50%;width:100%;min-height:200px
+  }
+  .open-doc .dataset-body:not(.code-notebook-full)>.code-splitter {display:none}
+}
