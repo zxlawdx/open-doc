@@ -121,6 +121,67 @@ def test_publish_dataframe_with_pandas_category_columns(tmp_path):
         app.close()
 
 
+def test_program_publishes_python_dataframe_without_importing_csv(tmp_path):
+    """Code-only notebooks can create a dataset directly from a pandas df."""
+    require_kernel_transport()
+    from config.wsgi import create_app
+    from config.composition import get_context
+    from shared.services.preferences_service import Config
+
+    app = create_app(Config(tmp_path))
+    try:
+        ctx = get_context()
+        identifier = ctx.datasets.create("Titanic carregado no notebook")["id"]
+        assert ctx.datasets.is_program(identifier)
+        ran = ctx.notebooks.execute(
+            identifier,
+            "import pandas as pd\n"
+            "df = pd.DataFrame({'PassengerId': [1, 2], "
+            "'Age': [22.0, None], 'Sex': ['male', 'female']})\n"
+            "df['Sex'] = df['Sex'].astype('category')",
+        )
+        assert ran["returncode"] == 0, ran
+        assert ctx.datasets.page(identifier, 0, 0)["row_count"] == 0
+        published = ctx.notebooks.publish(identifier)
+        assert published["resource"]["media_type"] == "application/vnd.apache.parquet"
+        page = ctx.datasets.page(identifier, 0, 0)
+        assert page["columns"] == ["PassengerId", "Age", "Sex"]
+        assert page["row_count"] == 2
+        assert page["rows"][0] == [1, 22.0, "male"]
+        assert page["rows"][1] == [2, None, "female"]
+        assert page["schema"][2]["kind"] == "text"
+        ctx.kernels.stop(identifier)
+        restarted = ctx.notebooks.execute(identifier, "print(df['PassengerId'].sum())")
+        assert restarted["returncode"] == 0, restarted
+        assert restarted["output"].strip() == "3"
+        assert ctx.datasets.undo(identifier)["changed"]
+        assert ctx.datasets.page(identifier, 0, 0)["row_count"] == 0
+        assert ctx.datasets.undo(identifier, redo=True)["changed"]
+        assert ctx.datasets.page(identifier, 0, 0)["row_count"] == 2
+    finally:
+        app.close()
+
+
+def test_program_publish_failure_does_not_change_existing_table(tmp_path):
+    require_kernel_transport()
+    from config.wsgi import create_app
+    from config.composition import get_context
+    from shared.services.preferences_service import Config
+
+    app = create_app(Config(tmp_path))
+    try:
+        ctx = get_context()
+        identifier = ctx.datasets.create("Python sem df")["id"]
+        assert ctx.notebooks.execute(identifier, "numero = 3")["returncode"] == 0
+        failed = ctx.notebooks.publish(identifier)
+        assert failed["returncode"] == 1
+        assert "DataFrame" in failed["output"]
+        assert ctx.datasets.page(identifier, 0, 0)["row_count"] == 0
+        assert ctx.publications.bound_resource(identifier) is None
+    finally:
+        app.close()
+
+
 def test_real_xlsx_parquet_interchange_and_publication_history(tmp_path):
     import pandas as pd
     from config.wsgi import create_app
