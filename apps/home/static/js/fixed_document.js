@@ -83,7 +83,7 @@
     layer.setAttribute('role','dialog');
     layer.setAttribute('aria-label','Apresentação de páginas PDF');
     layer.tabIndex=-1;
-    Object.assign(layer.style,{position:'fixed',inset:'0',width:'100vw',height:'100vh',
+    Object.assign(layer.style,{position:'fixed',top:'0',right:'0',bottom:'0',left:'0',width:'100vw',height:'100vh',
       background:'#101318',color:'#fff',zIndex:'10000',display:'flex',
       flexDirection:'column',alignItems:'stretch'});
     const stage=document.createElement('div');
