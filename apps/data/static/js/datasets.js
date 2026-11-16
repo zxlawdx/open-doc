@@ -37,7 +37,17 @@
     const publish=document.createElement("button"),openFrame=document.createElement("button"),transfer=document.createElement("button"),stopKernel=document.createElement("button");
     openFrame.type=publish.type=transfer.type=stopKernel.type="button";
     openFrame.textContent="Abrir como DataFrame";publish.textContent="Publicar df na tabela";transfer.textContent="Abrir em Planilhas por referência";stopKernel.textContent="Encerrar kernel";
-    tools.prepend(openFrame,publish,transfer,stopKernel);
+    // Keep data publication tools available without pushing the notebook
+    // header and code cells below the fold in the reference split layout.
+    const dataframeTools=document.createElement("details");
+    dataframeTools.className="dataset-dataframe-actions";
+    const dataframeLabel=document.createElement("summary");
+    dataframeLabel.textContent="DataFrame e kernel";
+    const dataframeButtons=document.createElement("div");
+    dataframeButtons.className="dataset-dataframe-buttons";
+    dataframeButtons.append(openFrame,publish,transfer,stopKernel);
+    dataframeTools.append(dataframeLabel,dataframeButtons);
+    tools.querySelector(".workbook-sidebar-title").after(dataframeTools);
     openFrame.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"open",id:list.value});if(result.returncode)throw Error(result.output);output.textContent=result.output;status.textContent="DataFrame aberto. Execute células Python para transformar os dados.";});
     publish.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"publish",id:list.value});if(result.returncode)throw Error(result.output);await showPage(row,column);status.textContent="Transformação publicada. Use Desfazer para restaurar a tabela anterior.";});
     transfer.onclick=()=>run(async()=>{const book=await request("workbook",{operation:"link-dataset",dataset_id:list.value,title:current.title});await onOpenWorkbook(book);});
@@ -46,7 +56,7 @@
     function showCode(language){
       if(!current)return;
       toolsOpen=true;showTools();
-      if(language==="python")notebook.add("python");else sqlEditor.focus();
+      if(language==="python")notebook.add("python");else {$("[data-dataset-advanced]").open=true;sqlEditor.focus();}
     }
     function showTools() {
       tools.hidden=!current || !toolsOpen;
@@ -144,6 +154,7 @@
             if(!shown.valid)el.classList.add("dataset-type-error");
           }else{
             const kind=current.types?.columns?.[String(c)]||"auto";
+            el.dataset.columnType=kind==="auto"?"Automático":kind;
             const explicit=(current.types?.explicit_columns||current.types?.columns)?.[String(c)];
             if(explicit&&explicit!=="auto"){el.classList.add("dataset-typed");el.title="Tipo de coluna: "+kind;}
             el.tabIndex=0;columnHandle(el,c,String(value));
@@ -173,6 +184,8 @@
       }
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
       if(current?.id!==result.id){
+        // Reference layout: dataset and notebook are visible together on open.
+        toolsOpen=true;
         selected=null;anchor=null;conversion=null;widths.clear();
         $("[data-sql-password]").value="";
         output.textContent="";
@@ -184,6 +197,7 @@
         notebook.activate(schema.columns);
       }
       current=result;row=nextRow;column=nextColumn;querying=false;lastQuery=null;
+      showTools();
       rowInput.value=row+1;columnInput.value=column+1;
       draw(result);
       host.dispatchEvent(new CustomEvent("open-doc:workspace",{bubbles:true}));

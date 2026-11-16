@@ -8,7 +8,19 @@
       bar.replaceChildren();
       for(const tab of tabs){
         const entry=document.createElement('span'),button=document.createElement('button'),close=document.createElement('button');
-        button.type=close.type='button';button.textContent=tab.title;button.setAttribute('aria-current',String(tab.id===active));
+        button.type=close.type='button';
+        // Reuse the application's original SVG icon sprites by file module.
+        const symbol=({documents:'document',presentations:'slides',pdf:'pdf',
+          spreadsheets:'file-text',data:'code'})[tab.app]||'file-text';
+        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        const use=document.createElementNS('http://www.w3.org/2000/svg','use');
+        const sprite=root.querySelector('svg use')?.getAttribute('href')?.split('#')[0];
+        if(sprite)use.setAttribute('href',sprite+'#'+symbol);
+        svg.setAttribute('aria-hidden','true');svg.classList.add('workspace-tab-icon');
+        svg.append(use);
+        const name=document.createElement('strong');name.className='workspace-tab-name';
+        name.textContent=tab.title;button.title=tab.title;
+        button.append(svg,name);button.dataset.fileType=tab.app;button.setAttribute('aria-current',String(tab.id===active));
         button.onclick=()=>activate(tab).catch(error=>status(error.message));
         close.textContent='×';close.setAttribute('aria-label','Fechar '+tab.title);
         close.onclick=async()=>{

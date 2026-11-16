@@ -96,7 +96,10 @@ class NotebookService:
         if language == "sql":
             if len(code) > 12000:
                 raise ValueError("Consulta SQL excede o limite.")
-            code = "import duckdb\ndados = df\nduckdb.sql(" + repr(code) + ").df()"
+            # SQL cells leave a DataFrame accessible to subsequent Python cells.
+            # The final expression still renders the result in the notebook.
+            code = ("import duckdb\ndados = df\ndf_resultado = duckdb.sql("
+                    + repr(code) + ").df()\ndf_resultado")
         return self.context.kernels.execute(identifier, code)
 
     def publish(self, identifier):
