@@ -108,15 +108,24 @@ def exercise(window, output, reopen):
         (1280, 720, 2),
     ):
         capture(output, f"sidebar-{width}x{height}-dpr{dpi:g}", width, height, dpi)
-        spacing = js("""(() => {
-          const rows = [...document.querySelectorAll('.home-side-nav button, .product')];
-          return rows.map(row => {
-            const icon = row.querySelector('svg').getBoundingClientRect();
-            const label = row.querySelector('span:last-child').getBoundingClientRect();
-            return Math.round(label.left - icon.right);
-          });
+        navigation = js("""(() => {
+          const duplicate=document.querySelector('.home-side-nav');
+          const links=[...document.querySelectorAll('.suite-launcher [data-suite-app]')];
+          return {
+            duplicateHidden: getComputedStyle(duplicate).display==='none',
+            count:links.length,
+            iconCount:links.filter(link=>{
+              const svg=link.querySelector('svg.od-suite-icon');
+              const href=svg?.querySelector('use')?.getAttribute('href')||'';
+              return svg?.getBoundingClientRect().width>=18 && href.includes('approved-icons.svg#i-');
+            }).length,
+            libraryTabs:[...document.querySelectorAll('.od-library-navigation button')].filter(
+              button=>button.getBoundingClientRect().width>0).length
+          };
         })()""")
-        assert len(spacing) > 10 and min(spacing) >= 8, (width, height, dpi, spacing)
+        assert navigation["duplicateHidden"], (width,height,dpi,navigation)
+        assert navigation["count"] == navigation["iconCount"] == 7, (width,height,dpi,navigation)
+        assert navigation["libraryTabs"] >= 4, (width,height,dpi,navigation)
     capture(output, "sidebar-restaurada", 1280, 720)
     js("document.querySelector('.header-actions [data-action=theme]').focus()")
     click(".header-actions [data-action=theme]")
