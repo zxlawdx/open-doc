@@ -90,6 +90,7 @@ def test_preferences_migrate_and_persist_theme_zoom(tmp_path: Path) -> None:
     config = Config(tmp_path)
     config.settings_path.write_text('{"sidebar_collapsed": true}', encoding="utf-8")
     assert config.load_settings()["theme"] == "system"
+    assert config.load_settings()["density"] == "comfortable"
     assert config.load_settings()["interface_zoom"] == 100
     assert config.load_settings()["workbook_zoom"] == 100
     config.save_settings(
@@ -99,6 +100,7 @@ def test_preferences_migrate_and_persist_theme_zoom(tmp_path: Path) -> None:
     assert restored == {
         "sidebar_collapsed": True,
         "theme": "dark",
+        "density": "comfortable",
         "zoom": 120,
         "interface_zoom": 130,
         "workbook_zoom": 140,

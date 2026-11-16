@@ -53,6 +53,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   windows-x64:
     if: github.event_name != 'workflow_dispatch' || inputs.linux_release_tag == ''

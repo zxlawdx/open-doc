@@ -32,10 +32,10 @@ def main(output):
             try:
                 wait(w,"document.querySelector('[data-app]')?.dataset.ready==='true'");report(w)
                 js('OpenDocApp.showHome()');wait(w,"!document.querySelector('[data-library]').hidden")
-                assert js("document.querySelectorAll('[data-suite-app]').length")==7
+                assert js("document.querySelectorAll('.suite-launcher [data-suite-app]').length")==7
                 assert js("document.querySelector('.suite-launcher').getBoundingClientRect().bottom <= document.querySelector('.home-inner').getBoundingClientRect().top + 1")
                 capture(output,'application-launcher')
-                click('[data-suite-app=data]')
+                click('.suite-launcher [data-suite-app=data]')
                 wait(w,"document.querySelector('[data-app]')?.dataset.entryApp==='data' && document.querySelector('[data-app]').dataset.ready==='true'")
                 create('Primeiro programa')
                 wait(w,"!!document.querySelector('.code-notebook-cell .cm-content')")

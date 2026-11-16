@@ -10,6 +10,8 @@ async function mount(t, brokenNavigation = false, startInLibrary = false, system
     .replace(/{{ (menus|toolbar|sidebar|editor|home|workbook|data) }}/g, (_, name) => fs.readFileSync(require('./template_path.cjs')(name), 'utf8'));
   const dom = new JSDOM(template, {url: 'http://localhost', runScripts: 'outside-only'});
   const w = dom.window, root = w.document.querySelector('[data-app]');
+  // Register cleanup before bootstrap assertions: a failed mount must not leak JSDOM timers.
+  t.after(() => { w.OpenDocApp?.destroy?.(); w.close(); });
   w.eval(fs.readFileSync(require('./asset_path.cjs')('workspace.js'),'utf8'));
   const media = new w.EventTarget();
   media.matches = false;
@@ -35,7 +37,7 @@ async function mount(t, brokenNavigation = false, startInLibrary = false, system
       options?.body ? {...JSON.parse(options.body), revision:2} : library;
     return {ok:true,json:async()=>data};
   };
-  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','pdf_navigation.js','fixed_document.js','document_kinds.js','ink_engine.js','office_workspace.js','ink.js', 'design_system.js', 'menus.js', 'theme.js', 'paper_layout.js', 'zoom.js', 'navigation.js','workspace.js','workspace.js']) {
+  for (const file of ['compat.js', 'vendor/marked.js', 'vendor/purify.js', 'vendor/turndown.js', 'document_model.js','rich_renderer.js','rich_serializer.js','formatting.js','tables.js','editor_commands.js', 'history.js', 'recovery.js', 'popovers.js','pagination.js','logical_transactions.js','page_menu.js','editor.js','pptx_renderer.js','semantic_annotations.js','slide_charts.js','native_math_parser.js','math_gallery.js','slide_editor.js','pdf_navigation.js','fixed_document.js','document_kinds.js','ink_engine.js','office_workspace.js','ink.js', 'design_system.js', 'od_shell.js', 'menus.js', 'theme.js', 'paper_layout.js', 'zoom.js', 'navigation.js','workspace.js','workspace.js']) {
     w.eval(fs.readFileSync(require('./asset_path.cjs')(file), 'utf8'));
   }
   if (brokenNavigation) {
@@ -61,7 +63,6 @@ async function mount(t, brokenNavigation = false, startInLibrary = false, system
   for (let i = 0; i < 50 && root.dataset.ready !== 'true'; i++) await new Promise(resolve => setTimeout(resolve, 5));
   assert.equal(root.dataset.ready, 'true');
   assert.equal(w.__workspaceRestored,true,'ready waits for asynchronous workspace restoration');
-  t.after(() => { w.OpenDocApp.destroy(); w.close(); });
   const click = selector => {
     const element = root.querySelector(selector); assert.ok(element, selector);
     element.dispatchEvent(new w.MouseEvent('mousedown', {bubbles: true, cancelable: true})); element.click();

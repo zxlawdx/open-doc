@@ -1,0 +1,270 @@
+/*
+ * Open Doc approved shell · PR 1
+ * Presentation-only layer. Editor engines, action selectors and Vela routing
+ * remain owned by their original controllers. QtWebEngine/Chromium 87 safe.
+ */
+.open-doc {
+  --od-rail-width: 52px;
+  --od-rail-background: #16203a;
+  --od-rail-foreground: #a7b5d1;
+  --od-rail-active: #ffffff26;
+  --od-surface: #ffffff;
+  --od-subtle: #f5f7fb;
+  --od-border: #dce2ec;
+  --od-text: #18212f;
+  --od-muted: #667389;
+  --od-accent: #2f5bea;
+  --od-tab-height: 34px;
+  --od-control-gap: 8px;
+  --od-docx: #3971df;
+  --od-pptx: #d86e30;
+  --od-pdf: #d34244;
+  --od-xlsx: #1b9560;
+  --od-data: #8b62cc;
+  --od-code: #259cb4;
+  position: relative;
+  padding-left: var(--od-rail-width);
+  min-width: 0;
+  --color-app-chrome: #eef1f6;
+  --color-workspace: #eef1f6;
+  --color-panel: #ffffff;
+  --color-border: #dce2ec;
+  --color-border-soft: #e6eaf1;
+}
+.open-doc[data-theme="dark"] {
+  --od-rail-background: #0a0e16;
+  --od-rail-foreground: #a4b3d2;
+  --od-rail-active: #ffffff24;
+  --od-surface: #151b26;
+  --od-subtle: #1a2230;
+  --od-border: #283244;
+  --od-text: #e5eaf2;
+  --od-muted: #8e9bb0;
+  --od-accent: #7c9cff;
+  --color-app-chrome: #0d1118;
+  --color-workspace: #0d1118;
+  --color-panel: #151b26;
+  --color-border: #283244;
+  --color-border-soft: #263042;
+}
+.open-doc .od-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.open-doc .od-app-rail {
+  position: absolute;
+  z-index: 24;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--od-rail-width);
+  padding: 8px 5px;
+  background: var(--od-rail-background);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.open-doc .od-app-rail::-webkit-scrollbar { width: 0; }
+.open-doc .od-app-rail > a,
+.open-doc .od-app-rail > button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--od-rail-foreground);
+  text-decoration: none;
+  cursor: pointer;
+}
+.open-doc .od-app-rail > a:hover,
+.open-doc .od-app-rail > button:hover,
+.open-doc .od-app-rail > a:focus-visible,
+.open-doc .od-app-rail > button:focus-visible {
+  background: #ffffff18;
+  color: #ffffff;
+}
+.open-doc .od-app-rail > [aria-current="page"] {
+  background: var(--od-rail-active);
+  color: #ffffff;
+}
+.open-doc .od-app-rail > [aria-current="page"]::before {
+  position: absolute;
+  left: -5px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  content: "";
+  background: var(--od-accent);
+  border-radius: 3px;
+}
+.open-doc .od-app-rail .od-rail-home {
+  margin-bottom: 3px;
+  background: var(--od-accent);
+  color: #ffffff;
+}
+.open-doc .od-rail-divider {
+  flex: 0 0 1px;
+  width: 24px;
+  margin: 3px 0;
+  background: #ffffff28;
+}
+.open-doc .od-rail-spacer { flex: 1 0 5px; }
+.open-doc .od-app-rail > button[data-od-density-toggle][aria-pressed="true"] {
+  background: var(--od-rail-active);
+  color: #ffffff;
+}
+/* The live app already owns its tab creation, save/recovery and close logic. */
+.open-doc .workspace-global-tabs {
+  min-height: var(--od-tab-height);
+  max-height: var(--od-tab-height);
+  flex: 0 0 var(--od-tab-height);
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 8px 0;
+  background: var(--color-app-chrome);
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: thin;
+}
+.open-doc .workspace-global-tabs > span {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  min-width: 94px;
+  max-width: 210px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+/* Styled by the controller's active state and a supported sibling selector. */
+.open-doc .workspace-global-tabs > span.od-tab-active {
+  background: var(--od-surface);
+  border-color: var(--od-border);
+  box-shadow: inset 0 2px var(--od-accent);
+}
+.open-doc .workspace-global-tabs > span > button:first-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 3px 4px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--od-muted);
+  font-size: 12px;
+  text-align: left;
+}
+.open-doc .workspace-global-tabs > span > button[aria-current="true"] {
+  color: var(--od-text);
+  font-weight: 600;
+}
+.open-doc .workspace-global-tabs .od-tab-label,
+.open-doc .workspace-global-tabs .workspace-tab-name {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+}
+.open-doc .workspace-global-tabs > span > button:last-child:not(:first-child) {
+  min-width: 22px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--od-muted);
+}
+.open-doc .workspace-global-tabs > span > button:last-child:not(:first-child):hover {
+  color: var(--od-text);
+  background: var(--od-subtle);
+}
+.open-doc .workspace-global-tabs .od-tab-icon,
+.open-doc .workspace-global-tabs .workspace-tab-icon { width: 15px; height: 15px; flex: 0 0 auto; }
+.open-doc .workspace-global-tabs [data-file-type="documents"] .od-tab-icon,
+.open-doc .workspace-global-tabs [data-file-type="documents"] .workspace-tab-icon { color: var(--od-docx); }
+.open-doc .workspace-global-tabs [data-file-type="presentations"] .od-tab-icon,
+.open-doc .workspace-global-tabs [data-file-type="presentations"] .workspace-tab-icon { color: var(--od-pptx); }
+.open-doc .workspace-global-tabs [data-file-type="pdf"] .od-tab-icon,
+.open-doc .workspace-global-tabs [data-file-type="pdf"] .workspace-tab-icon { color: var(--od-pdf); }
+.open-doc .workspace-global-tabs [data-file-type="spreadsheets"] .od-tab-icon,
+.open-doc .workspace-global-tabs [data-file-type="spreadsheets"] .workspace-tab-icon { color: var(--od-xlsx); }
+.open-doc .workspace-global-tabs [data-file-type="data"] .od-tab-icon,
+.open-doc .workspace-global-tabs [data-file-type="data"] .workspace-tab-icon { color: var(--od-data); }
+.open-doc .workspace-global-tabs [data-file-type="code"] .od-tab-icon,
+.open-doc .workspace-global-tabs [data-file-type="code"] .workspace-tab-icon { color: var(--od-code); }
+.open-doc .menubar [data-menu],
+.open-doc .statusbar button,
+.open-doc .header-actions .icon-button {
+  border-radius: 7px;
+}
+.open-doc .dropdown,
+.open-doc .document-action-menu,
+.open-doc .page-menu,
+.open-doc .dialog {
+  border-color: var(--od-border);
+  background: var(--od-surface);
+  color: var(--od-text);
+}
+.open-doc .statusbar { background: var(--od-surface); }
+.open-doc .app-header { background: var(--color-app-chrome); }
+.open-doc .od-app-rail :focus-visible { outline: 2px solid #b1c7ff; outline-offset: -1px; }
+/* Density affects the global chrome only, not editor content or document metrics. */
+.open-doc[data-od-density="compact"] {
+  --od-tab-height: 30px;
+  --od-control-gap: 5px;
+  --menubar-height: 27px;
+  --statusbar-height: 24px;
+}
+.open-doc[data-od-density="compact"] .app-header { --header-height: 34px; }
+.open-doc[data-od-density="compact"] .menubar { gap: 1px; }
+.open-doc[data-od-density="compact"] .menubar [data-menu] { padding: 2px 6px; }
+.open-doc[data-od-density="compact"] .od-app-rail { gap: 1px; }
+.open-doc[data-od-density="compact"] .od-app-rail > a,
+.open-doc[data-od-density="compact"] .od-app-rail > button {
+  flex-basis: 34px; height: 34px; min-height: 34px;
+}
+@media (max-width: 900px) {
+  .open-doc { --od-rail-width: 44px; }
+  .open-doc .od-app-rail { padding: 5px 3px; }
+  .open-doc .od-app-rail > a,
+  .open-doc .od-app-rail > button { width: 36px; min-width: 36px; }
+  .open-doc .workspace-global-tabs > span { max-width: 145px; }
+  .open-doc .save-status { flex: 0 1 110px; width: 110px; }
+}
+@media (max-height: 590px) {
+  .open-doc .od-app-rail { gap: 1px; padding-block: 3px; }
+  .open-doc .od-app-rail > a,
+  .open-doc .od-app-rail > button { flex-basis: 32px; height: 32px; min-height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .open-doc .od-app-rail *,
+  .open-doc .workspace-global-tabs * { transition: none !important; }
+}

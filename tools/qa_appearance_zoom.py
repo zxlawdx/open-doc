@@ -124,6 +124,40 @@ def exercise(window, output, reopen):
     wait(window, "document.querySelector('[data-dialog]').hidden")
     assert js("document.activeElement.matches('.header-actions [data-action=theme]')")
 
+    # Screenshots from the REAL QtWebEngine Open Doc, not the HTML reference.
+    # Exercise the persisted appearance, density, and application rail.
+    for appearance in ("light", "dark"):
+        theme(appearance)
+        for density_mode in ("comfortable", "compact"):
+            if js("document.querySelector('[data-app]').dataset.odDensity") != density_mode:
+                click("[data-od-density-toggle]")
+            wait(window, f"document.querySelector('[data-app]').dataset.odDensity === '{density_mode}'")
+            for width, height in ((1366, 768), (1920, 1080)):
+                capture(output, f"od-shell-{appearance}-{density_mode}-{width}x{height}", width, height)
+                assert js("document.querySelector('.od-app-rail').getBoundingClientRect().width") > 0
+                assert js("!!document.querySelector('.workspace-global-tabs, .menubar')")
+    if js("document.querySelector('[data-app]').dataset.odDensity") != "comfortable":
+        click("[data-od-density-toggle]")
+        wait(window, "document.querySelector('[data-app]').dataset.odDensity === 'comfortable'")
+
+    if os.getenv("OPEN_DOC_QA_SHELL_ONLY") == "1":
+        # Open a real rich editor: verify that the rail and native session tabs
+        # coexist with the production Ribbon and editable document surface.
+        click("[data-action=resume-editor]")
+        wait(window, "document.querySelector('[data-app]').dataset.homeView === 'false'")
+        wait(window, "!!document.querySelector('[data-rich]')")
+        wait(window, "!!document.querySelector('.workspace-global-tabs > span > button')")
+        for appearance in ("light", "dark"):
+            theme(appearance)
+            for width, height in ((1366, 768), (1920, 1080)):
+                capture(output, f"od-shell-editor-{appearance}-{width}x{height}", width, height)
+                assert js("!!document.querySelector('.toolbar [data-command=bold]')")
+                assert js("!!document.querySelector('.od-app-rail [data-suite-app=documents]')")
+                assert js("!!document.querySelector('.workspace-global-tabs > span > button svg use')")
+        wait(window, "document.querySelector('[data-app]').dataset.preferencesSaving === 'false'")
+        print("QT_OPEN_DOC_REAL_SHELL_SCREENSHOTS_OK", flush=True)
+        return
+
     theme("system")
     assert js("document.querySelector('[data-app]').dataset.theme") == (
         "dark" if js("matchMedia('(prefers-color-scheme: dark)').matches") else "light"
@@ -212,10 +246,23 @@ def exercise(window, output, reopen):
     keyboard.key("Escape")
     click("[data-workbook] [data-ribbon-tab=code]")
     wait(window, "!!document.querySelector('[data-book-analysis] .cm-editor')")
-    assert js(
-        """getComputedStyle(document.querySelector('[data-book-analysis] .cm-editor'))
-        .backgroundColor === getComputedStyle(document.querySelector('.app-header')).backgroundColor"""
-    )
+    # The redesign intentionally gives application chrome and editor panels
+    # different semantic surfaces. Test the real editor panel against its own
+    # theme token instead of requiring it to match the unrelated app header.
+    assert js("""(() => {
+      const editor=document.querySelector('#book-sql + .dataset-code-editor .cm-editor');
+      const panel=editor?.closest('.dataset-code-editor');
+      const app=document.querySelector('[data-app]');
+      if(!panel || !app) return false;
+      const bounds=editor.getBoundingClientRect();
+      const probe=document.createElement('span');
+      probe.style.backgroundColor=getComputedStyle(app).getPropertyValue('--color-panel').trim();
+      panel.appendChild(probe);
+      const expected=getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return bounds.width>0 && bounds.height>0 &&
+        getComputedStyle(panel).backgroundColor===expected;
+    })()""")
     capture_module("planilha")
     js("""[...document.querySelectorAll('[data-workbook] button')]
         .find(button => button.title === 'Tela inteira').click()""")
@@ -281,7 +328,10 @@ def run(output, workspace, reopen):
 if __name__ == "__main__":
     output = Path(sys.argv[1]).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    if len(sys.argv) > 2:
+    if os.getenv("OPEN_DOC_QA_SHELL_ONLY") == "1" and len(sys.argv) == 2:
+        with TemporaryDirectory(prefix="open-doc-shell-qa-") as directory:
+            run(output, Path(directory), False)
+    elif len(sys.argv) > 2:
         run(output, Path(sys.argv[2]), sys.argv[3] == "reopen")
     else:
         with TemporaryDirectory(prefix="open-doc-appearance-qa-") as directory:
