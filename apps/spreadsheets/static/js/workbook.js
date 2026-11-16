@@ -802,8 +802,13 @@
       if(event.target.matches('[data-book-checkbox],[data-book-choice]'))return;
       if(cell){
         if(skipClick){skipClick=false;return;}
-        finishInline();
         const id=cell.dataset.cell;
+        if(isFormulaReference(referenceEditor)){
+          const [refRow,refCol]=id.split(",").map(Number);
+          insertCellReference(refRow,refCol);
+          return;
+        }
+        finishInline();
         const now=Date.now(), double=lastClick?.id===id && now-lastClick.time<350;
         lastClick=double ? null : {id,time:now};
         select(...id.split(",").map(Number),event.shiftKey);viewport.focus();
@@ -898,7 +903,23 @@
       const value=field.dataset.bookCheckbox?(field.checked?'TRUE':'FALSE'):field.value;
       select(...id.split(',').map(Number));applyCells([[id,value]]);
     },{signal});
-    const formulaNames=["SOMA","MÉDIA","MÍNIMO","MÁXIMO","SE","SEERRO","COUNT","COUNTA","SUM","AVERAGE","MIN","MAX","IF","IFERROR"];
+    const formulaHelp={
+      SOMA:"SOMA(A1:A10) — soma os valores do intervalo",
+      "MÉDIA":"MÉDIA(A1:A10) — calcula a média",
+      "MÍNIMO":"MÍNIMO(A1:A10) — menor número",
+      "MÁXIMO":"MÁXIMO(A1:A10) — maior número",
+      SE:"SE(A1>0; \"Sim\"; \"Não\") — testa uma condição",
+      SEERRO:"SEERRO(A1/B1; 0) — valor alternativo se houver erro",
+      COUNT:"COUNT(A1:A10) — conta números",
+      COUNTA:"COUNTA(A1:A10) — conta células preenchidas",
+      SUM:"SUM(A1:A10) — soma",
+      AVERAGE:"AVERAGE(A1:A10) — média",
+      MIN:"MIN(A1:A10) — mínimo",
+      MAX:"MAX(A1:A10) — máximo",
+      IF:"IF(A1>0; 1; 0) — condição",
+      IFERROR:"IFERROR(A1/B1; 0) — trata erro"
+    };
+    const formulaNames=Object.keys(formulaHelp);
     const suggestionBox=document.createElement("div");
     suggestionBox.className="book-formula-suggestions";
     suggestionBox.setAttribute("role","listbox");
@@ -913,7 +934,7 @@
       const cursor=input.selectionStart??input.value.length;
       const prefix=input.value.slice(0,cursor);
       if(!prefix.startsWith("=")){hideSuggestions();return;}
-      const match=/(?:^=|[;,(+*/-])\\s*([A-Za-zÀ-ÿ]*)$/i.exec(prefix);
+      const match=/(?:^=|[;,(+*/-])\s*([A-Za-zÀ-ÿ]*)$/i.exec(prefix);
       if(!match){hideSuggestions();return;}
       const query=match[1].toLocaleUpperCase("pt-BR");
       suggestionItems=formulaNames.filter(name=>name.startsWith(query)).slice(0,8);
@@ -921,7 +942,7 @@
       suggestionInput=input;suggestionIndex=0;
       suggestionBox.replaceChildren(...suggestionItems.map((name,i)=>{
         const item=document.createElement("button");
-        item.type="button";item.textContent=name+"(";item.dataset.suggestion=String(i);
+        item.type="button";item.textContent=formulaHelp[name];item.title=formulaHelp[name];item.dataset.suggestion=String(i);
         item.setAttribute("role","option");item.setAttribute("aria-selected",String(i===suggestionIndex));
         return item;
       }));
@@ -934,7 +955,7 @@
       if(!suggestionInput||suggestionBox.hidden)return false;
       const input=suggestionInput,cursor=input.selectionStart??input.value.length;
       const beginning=input.value.slice(0,cursor);
-      const match=/(?:^=|[;,(+*/-])\\s*([A-Za-zÀ-ÿ]*)$/i.exec(beginning);
+      const match=/(?:^=|[;,(+*/-])\s*([A-Za-zÀ-ÿ]*)$/i.exec(beginning);
       if(!match)return false;
       const replace=match[1],name=suggestionItems[suggestionIndex];
       const offset=cursor-replace.length;
@@ -958,8 +979,23 @@
       if(event.key==="Enter"||event.key==="Tab"){event.preventDefault();acceptSuggestion();return true;}
       return false;
     }
-    inline.addEventListener("blur",()=>finishInline(),{signal});
-    inline.addEventListener("input",()=>{notifyDirty(true);showSuggestions(inline);},{signal});
+    let referenceEditor=null;
+    const isFormulaReference=input=>input && !input.hidden && input.value.startsWith("=") && input.value.length>0;
+    function insertCellReference(r,c){
+      const input=referenceEditor;
+      if(!isFormulaReference(input))return false;
+      const reference=column(c)+(r+1);
+      const cursor=input.selectionStart??input.value.length,end=input.selectionEnd??cursor;
+      input.value=input.value.slice(0,cursor)+reference+input.value.slice(end);
+      input.focus();input.setSelectionRange(cursor+reference.length,cursor+reference.length);
+      notifyDirty(true);hideSuggestions();return true;
+    }
+    // Keep the editor focused when selecting a reference from the grid.
+    viewport.addEventListener("pointerdown",event=>{
+      if(event.target.closest("[data-cell]") && isFormulaReference(referenceEditor))event.preventDefault();
+    },{capture:true,signal});
+    inline.addEventListener("blur",()=>{if(referenceEditor===inline)referenceEditor=null;hideSuggestions();finishInline();},{signal});
+    inline.addEventListener("input",()=>{referenceEditor=inline;notifyDirty(true);showSuggestions(inline);},{signal});
     inline.addEventListener("keydown",event=>{
       event.stopPropagation();
       if(suggestionKeydown(event))return;
@@ -973,8 +1009,8 @@
     viewport.addEventListener("scroll",schedule,{signal,passive:true});
     window.addEventListener("resize",schedule,{signal});
     title.addEventListener("input",mark,{signal});
-    formula.addEventListener("input",()=>{mark();showSuggestions(formula);},{signal});
-    formula.addEventListener("blur",commit,{signal});
+    formula.addEventListener("input",()=>{referenceEditor=formula;mark();showSuggestions(formula);},{signal});
+    formula.addEventListener("blur",()=>{if(referenceEditor===formula)referenceEditor=null;hideSuggestions();commit();},{signal});
     formula.addEventListener("keydown",event=>{
       if(suggestionKeydown(event))return;
       if(event.isComposing || !["Enter","Tab","Escape"].includes(event.key))return;
