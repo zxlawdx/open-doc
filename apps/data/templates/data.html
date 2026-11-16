@@ -97,6 +97,7 @@
     <button type="button" data-dataset-command="sql-to-workbook" title="Criar planilha editável a partir dos resultados SQL" disabled><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#file-plus"></use></svg>Enviar à planilha</button>
     <button type="button" data-dataset-command="reset"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#table"></use></svg>Voltar à prévia</button>
   </div>
+  <pre class="dataframe-feedback" data-dataset-output aria-label="Estado do DataFrame" role="status" tabindex="0"></pre>
   <label>Destino SQL <select data-sql-target><option value="local">Tabela deste projeto</option><option value="remote">Banco remoto</option></select></label>
   <details class="remote-sql"><summary>Conectar a banco de dados</summary>
     <p>Consulta remota em modo de leitura. Credenciais ficam somente nesta janela.</p>
@@ -119,7 +120,7 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
     print("Total de registros:", sum(1 for _ in linhas))</textarea>
     <output data-dataset-signature aria-live="polite"></output>
     <button type="button" data-dataset-command="python"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#play"></use></svg>Executar Python</button>
-    <pre data-dataset-output aria-label="Saída Python" tabindex="0"></pre>
+
 
 
   </details>

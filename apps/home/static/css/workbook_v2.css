@@ -530,3 +530,6 @@
 .open-doc .home .home-side-nav,.open-doc .home .home-inner {grid-row:2}
 
 .open-doc .home {grid-template-rows:max-content max-content;align-content:start}
+
+.open-doc .dataframe-feedback {white-space:pre-wrap;padding:10px;border:1px solid var(--color-border);border-radius:8px;max-height:8rem;overflow:auto}
+.open-doc .dataframe-feedback:empty {display:none}

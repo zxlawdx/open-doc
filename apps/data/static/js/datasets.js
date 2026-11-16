@@ -40,10 +40,10 @@
     openFrame.type=publish.type=transfer.type=stopKernel.type="button";
     openFrame.textContent="Abrir como DataFrame";publish.textContent="Publicar df na tabela";transfer.textContent="Abrir em Planilhas por referência";stopKernel.textContent="Encerrar kernel";
     tools.prepend(openFrame,publish,transfer,stopKernel);
-    openFrame.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"open",id:list.value});if(result.returncode)throw Error(result.output);output.textContent=result.output;});
+    openFrame.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"open",id:list.value});if(result.returncode)throw Error(result.output);output.textContent=result.output;status.textContent="DataFrame aberto. Execute células Python para transformar os dados.";});
     publish.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"publish",id:list.value});if(result.returncode)throw Error(result.output);await showPage(row,column);status.textContent="Transformação publicada. Use Desfazer para restaurar a tabela anterior.";});
     transfer.onclick=()=>run(async()=>{const book=await request("workbook",{operation:"link-dataset",dataset_id:list.value,title:current.title});await onOpenWorkbook(book);});
-    stopKernel.onclick=()=>run(async()=>{await request("notebook",{operation:"stop",id:list.value});status.textContent="Kernel encerrado.";});
+    stopKernel.onclick=()=>run(async()=>{await request("notebook",{operation:"stop",id:list.value});status.textContent="Kernel encerrado.";output.textContent="Sessão encerrada. As células continuam salvas no projeto.";});
     let toolsOpen=false;
     function showCode(language){
       if(!current)return;
@@ -458,7 +458,7 @@
     },{signal});
     async function queryFor(name) {
       $("[data-sql-target]").value="local";
-      const cell=selected||[row+1,column];
+      const cell=selected||[row+1,Number($("[data-filter-column]").value)||column];
       const columnName= schemaColumns[cell[1]] || schemaColumns[Number($("[data-filter-column]").value)];
       if(!columnName)throw Error("Selecione uma coluna.");
       const field='"'+columnName.replace(/"/g,'""')+'"';
