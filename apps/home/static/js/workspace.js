@@ -18,7 +18,7 @@
         if(sprite)use.setAttribute('href',sprite+'#'+symbol);
         svg.setAttribute('aria-hidden','true');svg.classList.add('workspace-tab-icon');
         svg.append(use);
-        const name=document.createElement('span');name.className='workspace-tab-name';
+        const name=document.createElement('strong');name.className='workspace-tab-name';
         name.textContent=tab.title;button.title=tab.title;
         button.append(svg,name);button.setAttribute('aria-current',String(tab.id===active));
         button.onclick=()=>activate(tab).catch(error=>status(error.message));
