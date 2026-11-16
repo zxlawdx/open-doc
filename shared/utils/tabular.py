@@ -3,20 +3,30 @@
 import csv
 from contextlib import contextmanager
 
-ENCODINGS = ("utf-8-sig", "cp1252", "latin-1")
+ENCODINGS = ("auto", "utf-8", "utf-8-sig", "utf-16", "cp1252", "latin-1")
 DELIMITERS = (",", ";", "\t", "|")
 
 
 @contextmanager
-def delimited(path, encoding, delimiter):
+def delimited(path, encoding, delimiter, *, header_row=1):
     if encoding not in ENCODINGS or (
         delimiter != "auto" and delimiter not in DELIMITERS
     ):
         raise ValueError("Codificação ou separador inválido.")
+    if encoding == "auto":
+        with path.open("rb") as raw: sample = raw.read(65536)
+        if sample.startswith((b"\xff\xfe", b"\xfe\xff")): encoding="utf-16"
+        else:
+            try:
+                import codecs
+                codecs.getincrementaldecoder("utf-8-sig")().decode(sample,final=False); encoding="utf-8-sig"
+            except UnicodeDecodeError: encoding="cp1252"
     with path.open(encoding=encoding, newline="") as stream:
+        for _ in range(header_row-1): stream.readline()
+        start=stream.tell()
         if delimiter == "auto":
             sample = stream.read(16384)
-            stream.seek(0)
+            stream.seek(start)
             try:
                 delimiter = (
                     csv.Sniffer()

@@ -20,7 +20,7 @@
     <div class="workbook-tools" data-ribbon-group="import" role="group" aria-label="CSV / TSV">
       <button type="button" data-dataset-command="new" title="Importar arquivos" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#folder-open"></use></svg>Importar arquivos</button>
       <button type="button" data-dataset-command="append" title="Acrescentar arquivos" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#file-plus"></use></svg>Acrescentar arquivos</button>
-      <label>Codificação <select data-dataset-encoding><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
+      <label>Codificação <select data-dataset-encoding><option value="auto">Automático</option><option value="utf-8-sig">UTF-8</option><option value="cp1252">Windows-1252</option><option value="latin-1">Latin-1</option></select></label>
       <label>Separador <select data-dataset-delimiter><option value="auto">Automático</option><option value=",">Vírgula</option><option value=";">Ponto e vírgula</option><option value="&#9;">Tabulação</option><option value="|">Barra vertical</option></select></label>
       <button type="button" data-dataset-command="new-project">Novo programa</button>
       <button type="button" data-dataset-command="delete-project">Excluir dataset</button>
@@ -33,6 +33,7 @@
       <small>Histórico</small>
     </div>
     <div class="workbook-tools" data-ribbon-group="transform types" role="group" aria-label="Esquema" hidden>
+      <button type="button" data-dataset-command="review-types">Revisar tipos do dataset</button>
       <button type="button" data-dataset-command="types" title="Tipos e conversão" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#cell-types"></use></svg>Tipos e conversão</button>
       <small>Esquema</small>
     </div>

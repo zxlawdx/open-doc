@@ -24,11 +24,12 @@ class NotebookService:
             path = ctx.dataset_exchange.runtime.resources.open_path(
                 analysis["resource_id"], analysis["revision"]
             )
+            reader = "read_parquet" if analysis.get("media_type")=="application/vnd.apache.parquet" else "read_csv"
             result = ctx.kernels.execute(
                 identifier,
-                "import pandas as pd\nfrom pathlib import Path\nDATASET_CSV = Path("
+                "import pandas as pd\nfrom pathlib import Path\n" + ("DATASET_PARQUET" if reader=="read_parquet" else "DATASET_CSV") + " = Path("
                 + repr(str(path))
-                + ")\ndf = pd.read_csv(DATASET_CSV)\nprint('DataFrame pronto:', df.shape)",
+                + ")\ndf = pd." + reader + "(" + ("DATASET_PARQUET" if reader=="read_parquet" else "DATASET_CSV") + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")\nprint('DataFrame pronto:', df.shape)",
             )
             if result.get("returncode"):
                 return result
@@ -88,7 +89,7 @@ class NotebookService:
                 "import pandas as pd\nfrom pathlib import Path\n"
                 + ("DATASET_CSV" if reader == "read_csv" else "DATASET_PARQUET")
                 + " = Path(" + repr(str(path)) + ")\ndf = pd." + reader
-                + "(" + repr(str(path)) + ")",
+                + "(" + repr(str(path)) + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")",
             )
             if loaded.get("returncode"):
                 return loaded
@@ -227,7 +228,7 @@ class NotebookService:
             + reader
             + "("
             + repr(str(path))
-            + ")\nprint('DataFrame pronto:', df.shape)",
+            + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")\nprint('DataFrame pronto:', df.shape)",
         )
         if not result.get("returncode"):
             runtime.resources.replace_pins("kernel_" + identifier, [snapshot.to_dict()])

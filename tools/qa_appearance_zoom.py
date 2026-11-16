@@ -1,3 +1,4 @@
+from qa_runtime import accept_import_preview
 """Validate appearance and zoom in the real Vela Qt window on Linux and Windows."""
 
 import json
@@ -238,6 +239,7 @@ def exercise(window, output, reopen):
     try:
         window.create_file_dialog = lambda *args, **kwargs: (str(source),)
         click("[data-dataset-command=new]")
+        accept_import_preview(window)
         wait(
             window,
             "document.querySelector('[data-dataset-table] td')?.textContent === '001'",

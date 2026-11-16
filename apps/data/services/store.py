@@ -12,7 +12,7 @@ from shared.utils.tabular import ENCODINGS, DELIMITERS, delimited, typed_value
 
 
 def preview(value):
-    return value if len(value) <= 512 else value[:512] + "…"
+    return value if not isinstance(value, str) or len(value) <= 512 else value[:512] + "…"
 
 
 class Datasets:
@@ -34,6 +34,9 @@ class Datasets:
                 CREATE TABLE IF NOT EXISTS datasets (
                     id TEXT PRIMARY KEY, title TEXT NOT NULL,
                     columns_json TEXT NOT NULL, row_count INTEGER NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS dataset_import_schema (
+                    dataset_id TEXT PRIMARY KEY REFERENCES datasets(id), schema_json TEXT NOT NULL, options_json TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS dataset_projects (
                     dataset_id TEXT PRIMARY KEY REFERENCES datasets(id), kind TEXT NOT NULL
@@ -88,15 +91,23 @@ class Datasets:
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             self.get(db, identifier)
-            for table in ("dataset_projects", "dataset_edit_history", "dataset_field_types", "dataset_rows", "sources"):
+            for table in ("dataset_import_schema", "dataset_projects", "dataset_edit_history", "dataset_field_types", "dataset_rows", "sources"):
                 db.execute(f"DELETE FROM {table} WHERE dataset_id=?", (identifier,))
             db.execute("DELETE FROM datasets WHERE id=?", (identifier,))
         return {"deleted": identifier}
 
-    def import_files(self, paths, identifier=None, *, encoding="utf-8-sig", delimiter="auto"):
+    def import_files(self, paths, identifier=None, *, encoding="utf-8-sig", delimiter="auto", infer_types=False, import_options=None):
         paths = list(map(Path, paths))
         if not paths or any(path.suffix.lower() not in (".csv", ".tsv") for path in paths):
             raise ValueError("Selecione arquivos CSV ou TSV.")
+        profile = None
+        fingerprints={path:(path.stat().st_size,path.stat().st_mtime_ns,path.stat().st_ino) for path in paths} if infer_types else {}
+        config = {**(import_options or {}), "encoding":encoding, "delimiter":delimiter}
+        if infer_types:
+            from .inference import infer
+            profile = infer(paths, config)
+            if profile["errors"]:
+                raise ValueError("Conversões inválidas; arquivo não importado: " + json.dumps(profile["errors"],ensure_ascii=False))
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if identifier is None:
@@ -110,7 +121,7 @@ class Datasets:
             encode_row = json.JSONEncoder(ensure_ascii=False, separators=(",", ":")).encode
             for path in paths:
                 try:
-                    with delimited(path, encoding, delimiter) as (header, reader):
+                    with delimited(path, encoding, delimiter, header_row=config.get("header",1)) as (header, reader):
                         if columns is None:
                             columns = header
                             db.execute("INSERT INTO datasets VALUES (?,?,?,0)", (
@@ -143,8 +154,51 @@ class Datasets:
                     raise ValueError(f"{path.name}: arquivo incompatível com a codificação selecionada.") from error
                 except csv.Error as error:
                     raise ValueError(f"{path.name}: CSV inválido ({error}).") from error
+            if any((path.stat().st_size,path.stat().st_mtime_ns,path.stat().st_ino)!=version for path,version in fingerprints.items()):
+                raise ValueError("O arquivo mudou durante a importação. Revise a prévia novamente.")
+            if profile is not None:
+                previous = self.effective_schema(identifier, db)
+                if previous is not None:
+                    # Appending never silently retypes an existing table.
+                    for old, new in zip(previous["schema"], profile["schema"]):
+                        if old["kind"] != new["kind"] and new["missing"] < profile["row_count"]:
+                            raise ValueError("Tipos incompatíveis ao acrescentar arquivos. Revise a coluna " + old["name"])
+                elif initial == 0:
+                    db.execute("INSERT OR IGNORE INTO dataset_import_schema VALUES (?,?,?)",
+                               (identifier,json.dumps(profile["schema"],ensure_ascii=False),json.dumps(profile["options"],ensure_ascii=False)))
             db.execute("UPDATE datasets SET row_count=? WHERE id=?", (count, identifier))
-            return {"id": identifier, "added": count - initial, "row_count": count}
+            return {"id": identifier, "added": count - initial, "row_count": count, "schema":self.import_schema(identifier,db)}
+
+    def import_schema(self, identifier, db=None):
+        if db is None:
+            with self.connect() as connection:
+                return self.import_schema(identifier, connection)
+        record = db.execute("SELECT schema_json,options_json FROM dataset_import_schema WHERE dataset_id=?", (identifier,)).fetchone()
+        return {"schema":json.loads(record[0]),"options":json.loads(record[1])} if record else None
+
+    def effective_schema(self, identifier, db):
+        profile=self.import_schema(identifier,db)
+        if profile is None:return None
+        from .inference import DTYPES
+        for index,kind in db.execute("SELECT column_number,kind FROM dataset_field_types WHERE dataset_id=? AND scope='column'",(identifier,)):
+            if kind in DTYPES:
+                profile["schema"][index].update(kind=kind,dtype=DTYPES[kind],inferred=False)
+        return profile
+
+    def scalar_converter(self, identifier, db, *, strict=False):
+        profile = self.import_schema(identifier, db)
+        if profile is None:
+            return lambda value, column, kind="auto": typed_value(value,kind)
+        from .inference import parse, KINDS
+        def convert(value, column, kind="auto"):
+            field = profile["schema"][column] if kind == "auto" else {"kind":kind}
+            if field["kind"] in KINDS:
+                try:return parse(value,field,profile["options"])
+                except ValueError:
+                    if strict:raise ValueError("Valor incompatível com "+field["kind"]+" na coluna "+profile["schema"][column]["name"])
+                    return value
+            return typed_value(value,kind)
+        return convert
 
     def page(self, identifier, row, column):
         if type(row) is not int or type(column) is not int or not (0 <= row < 2**63-1 and 0 <= column < 2**63-1):
@@ -160,7 +214,9 @@ class Datasets:
                 "SELECT values_json FROM dataset_rows WHERE dataset_id=? AND number>? ORDER BY number LIMIT 50",
                 (identifier, row),
             ).fetchall()
-            column_types, cell_types = {}, {}
+            profile = self.effective_schema(identifier,db)
+            column_types = {str(i):field["kind"] for i,field in enumerate(profile["schema"])} if profile else {}
+            explicit_types, cell_types = {}, {}
             for entry in db.execute(
                 "SELECT scope,row_number,column_number,kind FROM dataset_field_types "
                 "WHERE dataset_id=? AND column_number>=? AND column_number<? "
@@ -169,13 +225,20 @@ class Datasets:
             ):
                 if entry["scope"] == "column":
                     column_types[str(entry["column_number"])] = entry["kind"]
+                    explicit_types[str(entry["column_number"])] = entry["kind"]
                 else:
                     cell_types[f'{entry["row_number"]},{entry["column_number"]}'] = entry["kind"]
+            convert = self.scalar_converter(identifier,db)
+            shown_rows=[]
+            for index,item in enumerate(records):
+                raw=json.loads(item[0]); number=row+index+1
+                shown_rows.append([preview(convert(value,col,cell_types.get(f"{number},{col}",explicit_types.get(str(col),"auto")))) if profile else preview(value)
+                                   for col,value in enumerate(raw) if column<=col<column+len(columns)])
             return {
+                "schema": profile["schema"] if profile else None,
                 "id": identifier, "title": dataset["title"], "row_count": dataset["row_count"],
                 "column_count": len(names), "columns": [preview(name) for name in columns],
-                "rows": [[preview(value) for value in json.loads(item[0])[column:column + len(columns)]]
-                         for item in records],
+                "rows": shown_rows,
                 "types": {"columns": column_types, "cells": cell_types},
                 "source_count": db.execute(
                     "SELECT COUNT(*) FROM sources WHERE dataset_id=?", (identifier,)
@@ -203,7 +266,7 @@ class Datasets:
                     "AND (scope='column' OR (scope='cell' AND row_number=?)) ORDER BY scope LIMIT 1",
                     (identifier, column, row),
                 ).fetchone()
-                value = typed_value(value, kind["kind"] if kind else "auto")
+                value = self.scalar_converter(identifier,db)(value,column,kind["kind"] if kind else "auto")
                 if isinstance(value, str):
                     # A text literal with NUL must use a blob cast because SQL
                     # source strings cannot contain literal NUL characters.
@@ -234,6 +297,11 @@ class Datasets:
             if record is None:
                 raise ValueError("Linha não encontrada.")
             cells = json.loads(record["values_json"])
+            profile=self.import_schema(identifier,db)
+            if profile is not None:
+                override=db.execute("SELECT kind FROM dataset_field_types WHERE dataset_id=? AND column_number=? AND (scope='column' OR (scope='cell' AND row_number=?)) ORDER BY scope LIMIT 1",(identifier,column,row)).fetchone()
+                converted=self.scalar_converter(identifier,db,strict=True)(value,column,override[0] if override else "auto")
+                if profile["options"].get("native"):value=converted
             previous = cells[column]
             cells[column] = value
             db.execute(
@@ -444,11 +512,12 @@ class Datasets:
                     "SELECT DISTINCT column_number FROM dataset_field_types WHERE dataset_id=? AND scope='cell'", (identifier,),
                 )
             }
-            db.create_function("od_typed", 2, typed_value, deterministic=True)
+            db.create_function("od_import", 3, self.scalar_converter(identifier,db), deterministic=True)
+            profile = self.import_schema(identifier,db)
             fields = []
             for index, name in enumerate(names):
                 value = f"json_extract(values_json, '$[{index}]')"
-                if index in typed_columns or index in cell_indices:
+                if profile or index in typed_columns or index in cell_indices:
                     default = typed_columns.get(index, "auto")
                     kind = f"'{default}'"
                     if index in cell_indices:
@@ -458,7 +527,7 @@ class Datasets:
                             f"AND override.row_number=dataset_rows.number AND override.column_number={index})"
                         )
                         kind = f"COALESCE({override},'{default}')"
-                    value = f"od_typed({value},{kind})"
+                    value = f"od_import({value},{index},{kind})"
                 fields.append(f"{value} AS {quote(name)}")
             fields = ", ".join(fields)
             private_view = "_dataset_" + uuid4().hex
@@ -492,7 +561,7 @@ class Datasets:
                 columns = [preview(item[0]) for item in cursor.description]
                 rows = []
                 for row in cursor:
-                    rows.append([preview(str(value)) if value is not None else None for value in row])
+                    rows.append([preview(value) if not isinstance(value, bytes) else value.hex() for value in row])
                     if len(rows) > 100:
                         break
                 return {"columns": columns, "rows": rows[:100], "limited": len(rows) > 100}

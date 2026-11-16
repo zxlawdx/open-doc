@@ -146,6 +146,7 @@
             const kind=current.types?.columns?.[String(c)]||"auto";
             if(kind!=="auto"){el.classList.add("dataset-typed");el.title="Tipo de coluna: "+kind;}
             el.tabIndex=0;columnHandle(el,c,String(value));
+            if(current.schema?.[c]){const badge=document.createElement("small");badge.className="dataset-type-badge";badge.textContent=current.schema[c].dtype;el.append(badge);el.title+=" · "+current.schema[c].dtype;}
           }
         }
         tr.append(el);return el;
@@ -205,10 +206,11 @@
     }
     async function ingest(append) {
       status.textContent="Selecione arquivos CSV ou TSV…";
-      const result=await window.pywebview.api.import_dataset(
-        append ? list.value : null, $("[data-dataset-encoding]").value, $("[data-dataset-delimiter]").value
+      let result=await window.pywebview.api.import_dataset(
+        append ? list.value : null, $("[data-dataset-encoding]").value, $("[data-dataset-delimiter]").value, {preview:true,infer_types:true}
       );
       if(result.error)throw Error(result.error);
+      if(result.preview)result=await window.OpenDocImportPreview.show({host,request,initial:result.preview,signal});
       if(result.cancelled)return showPage(row,column);
       const first=result.added ? result.row_count-result.added : 0;
       await load(result.id);
@@ -476,6 +478,7 @@
       if(command==="tools"){toolsOpen=!toolsOpen;showTools();}
       if(command==="close-tools"){toolsOpen=false;showTools();host.querySelector("[data-ribbon-tab][aria-pressed=true]").focus();}
       if(command==="show-sql"||command==="show-python")showCode(command.slice(5));
+      if(command==="review-types")run(async()=>{if(!list.value)return;const staged=await request("dataset",{operation:"review-types",id:list.value});const result=await window.OpenDocImportPreview.show({host,request,initial:staged.preview,signal});if(!result.cancelled){await showPage(row,column);status.textContent="Tipos atualizados. Reabra o DataFrame para usar o novo schema na sessão Python. Use Desfazer para restaurar os tipos anteriores.";}});
       if(command==="types"){
         const [r,c]=selected||[row+1,column],rect=button.getBoundingClientRect();
         showTypeMenu({preventDefault(){},clientX:rect.left,clientY:rect.bottom},{r,c});
@@ -495,7 +498,7 @@
       if(command==="sql-to-workbook")run(async()=>{
         if(!lastQuery)throw Error("Execute uma consulta SQL antes.");
         const sheets=await request("workbook",{operation:"from-query",
-          columns:lastQuery.columns,rows:lastQuery.rows.map(line=>line.map(v=>v??""))});
+          columns:lastQuery.columns,rows:lastQuery.rows});
         if(typeof onOpenWorkbook!=="function")throw Error("Abertura de planilha indisponível.");
         await onOpenWorkbook(sheets);
       });

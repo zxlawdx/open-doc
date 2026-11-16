@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def import_files(
-    store, paths, identifier=None, *, encoding="utf-8-sig", delimiter="auto"
+    store, paths, identifier=None, *, encoding="utf-8-sig", delimiter="auto", infer_types=False, import_options=None
 ):
     with tempfile.TemporaryDirectory(prefix="opendoc-import-") as directory:
         converted = []
@@ -48,7 +48,7 @@ def import_files(
                     raise ValueError("Selecione CSV, TSV, XLSX ou Parquet.")
             converted.append(target)
         return store.import_files(
-            converted, identifier, encoding=encoding, delimiter=delimiter
+            converted, identifier, encoding=encoding, delimiter=delimiter, infer_types=infer_types, import_options=import_options
         )
 
 
@@ -67,8 +67,10 @@ def export_file(store, identifier, destination):
 
                 dataset = store.get(db, identifier)
                 columns = json.loads(dataset["columns_json"])
+                profile = store.effective_schema(identifier, db)
+                convert = store.scalar_converter(identifier, db, strict=True)
                 rows = (
-                    json.loads(row[0])
+                    [convert(value, index, profile["schema"][index]["kind"]) for index, value in enumerate(json.loads(row[0]))] if profile else json.loads(row[0])
                     for row in db.execute(
                         "SELECT values_json FROM dataset_rows WHERE dataset_id=? ORDER BY number",
                         (identifier,),
@@ -85,7 +87,7 @@ def export_file(store, identifier, destination):
                         # Imported cells are literals, never executable formulas.
                         sheet.append(
                             [
-                                "'" + value if value.startswith("=") else value
+                                "'" + value if isinstance(value, str) and value.startswith("=") else value
                                 for value in row
                             ]
                         )
@@ -94,10 +96,14 @@ def export_file(store, identifier, destination):
                     import pyarrow as pa
                     import pyarrow.parquet as pq
 
-                    schema = pa.schema([(name, pa.string()) for name in columns])
+                    from datetime import datetime
+                    types = {"text":pa.string(), "integer":pa.int64(), "decimal":pa.float64(), "boolean":pa.bool_(), "date":pa.timestamp("ns"), "datetime":pa.timestamp("ns")}
+                    schema = pa.schema([(name, types[profile["schema"][index]["kind"]] if profile else pa.string()) for index, name in enumerate(columns)])
                     with pq.ParquetWriter(temporary, schema) as writer:
                         batch = []
                         for values in rows:
+                            if profile:
+                                values = [datetime.fromisoformat(value) if value is not None and profile["schema"][index]["kind"] in {"date", "datetime"} else value for index, value in enumerate(values)]
                             batch.append(dict(zip(columns, values)))
                             if len(batch) == 1000:
                                 writer.write_table(

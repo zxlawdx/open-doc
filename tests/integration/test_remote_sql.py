@@ -12,7 +12,7 @@ def test_real_remote_database_readonly_preview(tmp_path,monkeypatch,kind,port):
     monkeypatch.setattr(PythonEnvironments,'interpreter',lambda *args:sys.executable)
     connection={'kind':kind,'host':'127.0.0.1','port':port,'database':'opendoc','username':'opendoc','password':'opendoc-test','sslmode':'disable'}
     result=query(tmp_path,'project',connection,'SELECT 42 AS answer')
-    assert result['columns']==['answer'] and result['rows']==[['42']]
+    assert result['columns']==['answer'] and result['rows']==[[42]]
     sql='SELECT generate_series(1,150) AS value' if kind=='postgresql' else 'WITH RECURSIVE sequence AS (SELECT 1 AS value UNION ALL SELECT value+1 FROM sequence WHERE value<150) SELECT value FROM sequence'
     assert query(tmp_path,'project',connection,sql)['truncated'] is True
     with pytest.raises(ValueError,match='permissões'):

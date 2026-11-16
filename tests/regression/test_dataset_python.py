@@ -60,7 +60,7 @@ def test_analysis_csv_preserves_untyped_bytes_and_typed_cell_precedence(tmp_path
     store.write_analysis_csv(identifier, analysis)
     assert raw.getvalue() == analysis.getvalue()
     store.set_type(identifier, 'column', 0, 'integer')
-    assert store.query(identifier, 'SELECT id FROM dados')['rows'] == [['1']]
+    assert store.query(identifier, 'SELECT id FROM dados')['rows'] == [[1]]
     store.set_type(identifier, 'cell', 0, 'text', row=1)
     assert store.query(identifier, 'SELECT id FROM dados')['rows'] == [['001']]
     typed = io.StringIO(newline='')

@@ -1,3 +1,4 @@
+from qa_runtime import accept_import_preview
 """Exercise dataset imports in the real desktop window."""
 
 import sys
@@ -42,8 +43,10 @@ def main():
                     document.querySelector('[data-dataset-status]').textContent.includes('para começar')
                 """)
                 window.evaluate_js("document.querySelector('[data-dataset-command=new]').click()")
+                accept_import_preview(window)
                 wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='001'")
                 window.evaluate_js("document.querySelector('[data-dataset-command=append]').click()")
+                accept_import_preview(window)
                 wait(window, "document.querySelector('[data-dataset-table] td')?.textContent==='002'")
                 window.evaluate_js("document.querySelector('[data-dataset-command=previous]').click()")
                 wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")

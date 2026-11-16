@@ -1,3 +1,4 @@
+from qa_runtime import accept_import_preview
 """Exercise project tabs, filters and real CodeMirror pointer/autocomplete in Qt."""
 import json
 import sys
@@ -56,6 +57,7 @@ def main(output):
                 capture(output,'project-tabs')
                 w.create_file_dialog=lambda *args,**kwargs:(str(source),)
                 click('[data-dataset-command=new]')
+                accept_import_preview(w)
                 wait(w,"document.querySelector('[data-dataset-table] td')?.textContent==='Ana'")
                 click('[data-ribbon-tab=filter]')
                 js("document.querySelector('[data-filter-column]').value='0';document.querySelector('[data-filter-value]').value='Bia'")

@@ -10,6 +10,14 @@ def dataset(context=None):
     def operation():
         data = _data(context)
         store = get_context().datasets
+        if data["operation"] == "import-preview":
+            return get_context().dataset_imports.preview(data["token"],data.get("options"))
+        if data["operation"] == "import-commit":
+            return get_context().dataset_imports.commit(data["token"])
+        if data["operation"] == "import-cancel":
+            return get_context().dataset_imports.cancel(data["token"])
+        if data["operation"] == "review-types":
+            return {"preview":get_context().dataset_imports.review(data["id"])}
         if data["operation"] == "create":
             return store.create(data.get("title", "Novo programa"))
         if data["operation"] == "delete":

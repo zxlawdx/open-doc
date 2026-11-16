@@ -29,8 +29,8 @@ def self_test():
         app = create_app(Config(root))
         ctx = get_context()
         source = root / "data.csv"
-        source.write_text("id,value\n1,10\n2,20\n")
-        identifier = ctx.datasets.import_files([source], delimiter=",")["id"]
+        source.write_text("id,value,Age,CEP,active\n1,10,20,00123,true\n2,20,,00456,false\n3,0,31,00789,\n")
+        identifier = ctx.datasets.import_files([source], delimiter=",", infer_types=True)["id"]
         report["steps"].append("csv-import")
         installed = ctx.code_tools.environments(root).install(
             identifier, ["pandas", "pyarrow", "ipykernel", "duckdb"], confirm=True
@@ -53,6 +53,10 @@ def self_test():
             report["steps"].append("kernel-no-console")
 
         assert not opened.get("returncode"), opened
+        typed = ctx.notebooks.execute(identifier, "reference=pd.read_csv("+repr(str(source))+", dtype_backend='numpy_nullable', dtype={'id':'string','CEP':'string','Age':'Float64'})\npd.testing.assert_frame_equal(df,reference)\nassert str(df.Age.dtype)=='Float64'\ndf['Age']=df.Age.fillna(df.Age.mean())\nassert df.Age.tolist()==[20.0,25.5,31.0]")
+        assert typed.get("returncode")==0, typed
+        report["pandas_comparison"] = ctx.notebooks.execute(identifier,"print(pd.__version__)")["output"].strip()
+        report["steps"].append("nullable-csv-schema-and-pandas-fillna-parity")
         assert not ctx.notebooks.execute(identifier, "df['value'] *= 2").get(
             "returncode"
         )
@@ -68,7 +72,7 @@ def self_test():
         assert ctx.datasets.cell(identifier, 1, 1)["value"] == "10"
         report["steps"].append("persistent-python-sql-and-isolated-dataframe")
         ctx.notebooks.publish(identifier)
-        assert ctx.datasets.cell(identifier, 1, 1)["value"] == "20"
+        assert ctx.datasets.cell(identifier, 1, 1)["value"] == 20
         ctx.datasets.undo(identifier)
         assert ctx.datasets.cell(identifier, 1, 1)["value"] == "10"
         report["steps"].append("publication-and-undo")

@@ -114,7 +114,7 @@ def test_real_xlsx_parquet_interchange_and_publication_history(tmp_path):
             frame.loc[0, "value"] = 99
             after = ctx.dataset_exchange.runtime.tabular.publish_pandas(frame).to_dict()
             ctx.publications.adopt(identifier, before, after, token)
-            assert ctx.datasets.cell(identifier, 1, 1)["value"] == "99"
+            assert ctx.datasets.cell(identifier, 1, 1)["value"] == 99
             ctx.datasets.undo(identifier)
             assert ctx.datasets.cell(identifier, 1, 1)["value"] == "10"
             destination = tmp_path / ("export." + extension)

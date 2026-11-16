@@ -161,7 +161,7 @@ class OpenDocBridge(BaseBridge):
                 "error": "Não foi possível abrir/importar este documento. O arquivo original foi preservado."
             }
 
-    def import_dataset(self, identifier, encoding, delimiter):
+    def import_dataset(self, identifier, encoding, delimiter, options=None):
         import sqlite3
         import webview
 
@@ -175,8 +175,11 @@ class OpenDocBridge(BaseBridge):
         if not paths:
             return {"cancelled": True}
         try:
+            if options and options.get("preview") and all(Path(path).suffix.lower() in {".csv",".tsv"} for path in paths):
+                return {"preview": get_context().dataset_imports.stage(paths,identifier,{"encoding":encoding,"delimiter":delimiter})}
             return get_context().data_tools.import_files(
-                get_context().datasets, paths, identifier, encoding=encoding, delimiter=delimiter
+                get_context().datasets, paths, identifier, encoding=encoding, delimiter=delimiter,
+                infer_types=bool(options and options.get("infer_types",True))
             )
         except (ValueError, OSError) as error:
             return {"error": str(error)}

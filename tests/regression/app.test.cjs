@@ -332,7 +332,7 @@ test('module resources load concurrently, reuse shared scripts and allow direct 
     'workbook_types.js':'OpenDocWorkbookTypes','python_packages.js':'OpenDocPythonPackages',
     'workbook.js':'OpenDocWorkbook','datasets.js':'OpenDocDatasets','workbook_objects.js':'OpenDocWorkbookObjects',
     'code-editor.bundle.js':'OpenDocCodeVendor','code_editor.js':'OpenDocCodeEditor',
-    'code_notebook.js':'OpenDocCodeNotebook'
+    'code_notebook.js':'OpenDocCodeNotebook','import_preview.js':'OpenDocImportPreview'
   };
   let saves=0,loads=0; const pending=[],loaded=[];
   const append=w.document.body.append.bind(w.document.body);
@@ -354,7 +354,7 @@ test('module resources load concurrently, reuse shared scripts and allow direct 
     'opening a module must not refresh invisible template previews');
   const data=w.OpenDocApp.action('datasets');
   await new Promise(resolve=>setTimeout(resolve,0));
-  assert.equal(pending.length,4,'shared grid resources must be reused');
+  assert.equal(pending.length,5,'shared grid resources must be reused');
   pending.splice(0).forEach(resolve=>resolve());await data;
   assert.equal(root.dataset.datasetView,'true');assert.equal(saves,1);
   await w.OpenDocApp.action('workbook-new');

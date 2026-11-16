@@ -119,3 +119,10 @@ class Keyboard:
         self.driver.clicked.emit(round(x), round(y))
         if not self.driver.done.wait(5):
             raise AssertionError("Qt pointer timeout")
+
+
+def accept_import_preview(window):
+    """Accept the default inferred CSV schema in unrelated editor regression flows."""
+    from qa_version_history import wait
+    wait(window, "!!document.querySelector('[data-import-confirm]') && !document.querySelector('[data-import-confirm]').disabled")
+    window.evaluate_js("document.querySelector('[data-import-confirm]').click()")

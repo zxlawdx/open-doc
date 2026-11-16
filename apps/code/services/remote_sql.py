@@ -20,7 +20,9 @@ def query(workspace, project, connection, sql):
     if python is None: raise ValueError('Prepare o ambiente do projeto e instale sqlalchemy e o driver do banco.')
     payload = {**connection, 'port':port, 'sql':sql}
     script = textwrap.dedent('''
-        import json,sys,ssl
+        import json,sys,ssl,math
+        from datetime import date,datetime
+        from decimal import Decimal
         from sqlalchemy import create_engine
         from sqlalchemy.engine import URL
         data=json.load(sys.stdin)
@@ -41,14 +43,25 @@ def query(workspace, project, connection, sql):
                 result=conn.execution_options(stream_results=True,max_row_buffer=101).exec_driver_sql(data['sql'])
                 columns=list(result.keys())
                 if len(columns)>200: raise ValueError('Too many columns')
-                rows=[]; size=0; truncated=False
+                rows=[]; size=0; truncated=False; types={}
+                def scalar(value,name):
+                    if value is None:return None
+                    types.setdefault(name,type(value).__name__)
+                    if isinstance(value,(bool,int)):return value
+                    if isinstance(value,float):
+                        if not math.isfinite(value):raise ValueError('Non-finite result')
+                        return value
+                    if isinstance(value,(date,datetime)):return value.isoformat()
+                    if isinstance(value,Decimal):return str(value)
+                    if isinstance(value,bytes):return value.hex()
+                    return str(value)[:4096]
                 for index,row in enumerate(result):
                     if index>=100: truncated=True; break
-                    values=[None if x is None else str(x)[:4096] for x in row]
+                    values=[scalar(x,name) for name,x in zip(columns,row)]
                     size+=len(json.dumps(values).encode())
                     if size>1024*1024: truncated=True; break
                     rows.append(values)
-                answer={'columns':columns,'rows':rows,'truncated':truncated}
+                answer={'columns':columns,'rows':rows,'types':types,'truncated':truncated}
                 conn.rollback()
             print(json.dumps(answer))
         except Exception:
