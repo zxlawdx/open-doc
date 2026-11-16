@@ -17,7 +17,7 @@ function setup() {
     static domEventHandlers=function(value){Object.assign(handlers,value);return value;};
     constructor({doc}) {
       this.doc=doc;
-      this.state={doc:{length:doc.length,toString:()=>doc},selection:{main:{from:0,to:0,empty:true}}};
+      this.state={doc:{length:doc.length,toString:()=>doc},sliceDoc:(from,to)=>doc.slice(from,to),selection:{main:{from:0,to:0,empty:true}}};
       view=this;
     }
     dispatch({selection}={}) {
