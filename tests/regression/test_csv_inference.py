@@ -164,7 +164,7 @@ def test_generated_kernel_loader_preserves_schema_without_csv_reinference(tmp_pa
 def test_typed_exports_preserve_numbers_nulls_booleans_and_identifiers(store,tmp_path):
     from apps.data.services.interchange import export_file
     from openpyxl import load_workbook
-    identifier,_=load(store,tmp_path,'Age,amount,active,CEP,day\n20,1.5,true,00123,2024-01-01\n,-2.5,false,00456,2024-01-02\n')
+    identifier,_=load(store,tmp_path,'Age,amount,active,CEP,day\n20,1.5,true,00123,2024-01-01\n,-2.5,false,00456,\n')
     parquet=tmp_path/'typed.parquet';export_file(store,identifier,parquet)
     actual=pd.read_parquet(parquet,dtype_backend='numpy_nullable')
     assert str(actual.Age.dtype)=='Float64' and actual.Age.isna().tolist()==[False,True]
@@ -176,3 +176,15 @@ def test_typed_exports_preserve_numbers_nulls_booleans_and_identifiers(store,tmp
         rows=list(book.active.values)
         assert rows[1][:4]==(20,1.5,True,'00123') and rows[2][0] is None
     finally:book.close()
+    from apps.data.services.interchange import import_files
+    restored=import_files(store,[xlsx])
+    assert restored["row_count"]==2
+    assert len(store.page(restored["id"],0,0)["rows"][1])==5
+
+
+def test_append_reordered_columns_validates_schema_by_name(store,tmp_path):
+    identifier,_=load(store,tmp_path,'id;ano;nome\n001;2023;Ana\n')
+    second=tmp_path/'second.csv';second.write_text('ano;nome;id\n2024;Bia;002\n')
+    result=store.import_files([second],identifier,encoding='auto',infer_types=True)
+    assert result['added']==1
+    assert store.page(identifier,0,0)['rows']==[['001',2023,'Ana'],['002',2024,'Bia']]

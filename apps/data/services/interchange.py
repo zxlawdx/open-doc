@@ -23,7 +23,13 @@ def import_files(
 
                     book = load_workbook(path, read_only=True, data_only=True)
                     try:
+                        width = None
                         for row in book.active.iter_rows(values_only=True):
+                            if width is None:
+                                width = len(row)
+                            # Write-only XLSX sheets omit trailing empty cells.
+                            # CSV records must still match the header width.
+                            row = tuple(row) + (None,) * max(0, width - len(row))
                             writer.writerow(
                                 ["" if value is None else value for value in row]
                             )

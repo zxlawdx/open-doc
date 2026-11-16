@@ -160,7 +160,9 @@ class Datasets:
                 previous = self.effective_schema(identifier, db)
                 if previous is not None:
                     # Appending never silently retypes an existing table.
-                    for old, new in zip(previous["schema"], profile["schema"]):
+                    incoming = {field["name"]:field for field in profile["schema"]}
+                    for old in previous["schema"]:
+                        new = incoming[old["name"]]
                         if old["kind"] != new["kind"] and new["missing"] < profile["row_count"]:
                             raise ValueError("Tipos incompatíveis ao acrescentar arquivos. Revise a coluna " + old["name"])
                 elif initial == 0:
