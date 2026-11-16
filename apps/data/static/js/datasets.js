@@ -44,6 +44,7 @@
     function showCode(language){
       if(!current)return;
       toolsOpen=true;showTools();
+      $("[data-dataset-advanced]").open=true;
       if(language==="python")$("[data-dataset-python]").open=true;
       (language==="python"?pythonEditor:sqlEditor).focus();
     }
