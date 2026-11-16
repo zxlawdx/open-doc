@@ -19,8 +19,8 @@ HTML, CSS e JavaScript exibida em uma janela pywebview.
 | Tinta digital | Caneta, marca-texto livre, borracha parcial, remoção de traço inteiro e conversão opcional de manuscrito com um reconhecedor local. |
 | PDFs | Navegar, buscar, destacar, comentar, adicionar notas adesivas, extrair páginas e exportar cópias anotadas. PDFs digitais compatíveis também permitem substituir trechos de texto e salvar uma cópia corrigida. |
 | Apresentações | Criar ou importar PPTX, organizar slides, inserir texto, formas e imagens, criar gráficos editáveis, aplicar transições, apresentar em tela cheia e exportar um slide ou a apresentação inteira. |
-| Planilhas e Dados | Editar planilhas XLSX, importar CSV/TSV, usar fórmulas e tabelas dinâmicas, consultar dados com SQL e preparar cadernos de código. |
-| Código | Editor Python e SQL com completamento. A execução Python roda em processo separado com as permissões do usuário e requer a versão iniciada pelo interpretador. |
+| Planilhas e Dados | Editar planilhas XLSX, importar CSV/TSV, usar fórmulas e tabelas dinâmicas, consultar dados com SQL e preparar cadernos Python. Projetos de código também podem publicar um `pandas.DataFrame` na tabela sem importar CSV previamente. |
+| Código | Editor Python e SQL com autocomplete estático (Jedi). O Python usa um interpretador externo, com ambientes opcionais por projeto, e executa código com as permissões do usuário. O autocomplete utiliza imports e definições das células Python anteriores. |
 
 A edição de texto em PDF é experimental e depende da fonte e da composição do
 arquivo. OCR, digitalização e edição visual de imagens em PDF seguem pendentes.
@@ -69,14 +69,11 @@ git push origin v1.0.1
 ```
 
 O Vela empacota Python, Qt e os arquivos da interface usados pelo aplicativo.
-O pacote não exige uma instalação prévia de Python ou Node.js. A execução de
-scripts Python em Planilhas e Dados ainda requer iniciar o Open Doc pelo
-interpretador, e as funções que usam LibreOffice dependem de sua instalação
-separada. Os pacotes são gerados sem assinatura Authenticode.
+O pacote não exige uma instalação prévia de Python ou Node.js **para a interface e os módulos de documentos**. Para executar código Python local em Dados ou Planilhas, é necessário um interpretador Python externo disponível no PATH (ou um ambiente Python de projeto previamente configurado). O Open Doc não executa scripts do usuário dentro do runtime Python congelado da interface. Recursos dependentes de LibreOffice exigem instalação separada. Os pacotes são gerados sem assinatura Authenticode.
 
 ### Executar pelo código-fonte
 
-Tenha Git, Python 3.11 ou mais recente, Node.js 22 ou mais recente com npm e
+Tenha Git, Python 3.12 ou 3.13, Node.js 22 ou mais recente com npm e
 uma sessão gráfica. O CI usa Python 3.12 e Node.js 22 no Windows e no Linux.
 O primeiro preparo baixa as dependências. O aplicativo usa os recursos
 compilados localmente.
@@ -202,6 +199,87 @@ usam os atalhos do sistema. Menus têm navegação por setas, Escape e foco vis�
 Detalhes de instalação opcional, escrita, PDF/PPTX, licenças e testes em
 [PDF e tinta](docs/OPEN_DOC_PDF_INK.md).
 Estabilização, diagnóstico e evidências em [Estabilização](docs/OPEN_DOC_STABILIZATION.md).
+
+## Dados, notebooks Python e autocomplete
+
+O módulo **Dados** possui uma tabela persistida separada do kernel Python.
+Carregar um arquivo ou URL em `pd.read_csv()` apenas cria um DataFrame na memória
+do notebook: os dados **não entram automaticamente na tabela**. Para publicar a
+transformação, escolha **Publicar df na tabela**. A operação cria uma revisão
+versionada e pode ser desfeita/refeita.
+
+### Criar uma tabela diretamente a partir do Python
+
+1. Em **Dados**, crie um **Novo programa** e execute uma célula Python para
+   carregar ou gerar um DataFrame chamado **`df`**.
+2. Garanta que o ambiente Python do projeto tenha `pandas`, `pyarrow` e
+   `ipykernel`. Use **Bibliotecas do projeto** (instalação somente com
+   autorização explícita). **O pacote Jedi** fornece o autocomplete.
+3. Clique em **Publicar df na tabela**. O Open Doc cria a tabela a partir
+   do DataFrame, atualiza suas colunas e a torna disponível para operações
+   na grade e consultas SQL. Não é necessário importar o CSV manualmente.
+
+Exemplo reproduzível, sem internet:
+
+```python
+import pandas as pd
+
+df = pd.DataFrame({
+    "PassengerId": [1, 2, 3],
+    "Age": [22, None, 35],
+    "Sex": ["male", "female", "female"],
+})
+df["Sex"] = df["Sex"].astype("category")
+df["Age"] = df["Age"].fillna(df["Age"].median())
+```
+
+O destino é sempre o projeto aberto; o DataFrame deve se chamar **`df`**.
+As colunas devem possuir nomes preenchidos e únicos e tipos compatíveis com a
+tabela/Parquet. Categorias do Pandas são interpretadas pelo tipo lógico de
+seus valores, mesmo quando o Arrow as armazena como dicionários. Uma falha
+de validação não deve substituir a tabela anterior. O projeto pode continuar
+executando Python sem importar CSV, mas não poderá publicar até criar `df`.
+
+Se o Python já carregou `df` de um endereço HTTP/HTTPS, use o mesmo botão.
+Problemas de certificados SSL podem depender do Python instalado, do sistema
+e da cadeia de confiança do servidor: o Open Doc não desativa a verificação
+HTTPS globalmente nem corrige automaticamente certificados inválidos.
+
+### Completamento inteligente
+
+O editor utiliza **Jedi** para sugerir nomes de bibliotecas instaladas no
+interpretador do projeto, atributos, funções, assinaturas e documentação.
+Imports e definições de **células Python anteriores** entram no contexto
+de análise estática, sem executar código apenas para sugerir completamentos.
+Use **Ctrl+Espaço** para abrir as sugestões manualmente.
+
+```python
+# Célula 1
+import pandas as pd
+
+# Célula 2: digite e pressione Ctrl+Espaço
+pd.DataF
+```
+
+Exemplo de resultado esperado: `DataFrame`. O código e os pacotes devem estar
+no **mesmo ambiente Python**; para conferir, execute `import sys;
+print(sys.executable)` numa célula. Um ambiente de projeto criado antes da
+introdução do autocomplete pode precisar instalar `jedi==0.19.2`
+explicitamente. Jedi é análise **estática**: objetos construídos dinamicamente
+durante a execução podem não ter todos os atributos inferidos.
+
+### Testes dessa integração
+
+```bash
+python -m pytest -q tests/integration/test_notebook_pipeline.py
+python -m pytest -q tests/unit/test_python_analysis.py tests/unit/test_python_environments.py
+node --test tests/regression/notebook_session.test.cjs
+python -u tools/qa_datasets.py docs/images/datasets
+```
+
+Os testes de integração reais precisam de um kernel Jupyter inicializável.
+A captura da janela Qt depende da preparação gráfica documentada no workflow
+de CI; os comandos acima não dispensam a validação no Windows e Linux.
 
 ## Layout e limites
 
