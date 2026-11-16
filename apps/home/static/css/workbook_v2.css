@@ -740,3 +740,120 @@
 .open-doc .workspace-global-tabs [data-file-type="spreadsheets"] .workspace-tab-icon {background:#1f8a5b}
 .open-doc .workspace-global-tabs [data-file-type="data"] .workspace-tab-icon {background:#64748b}
 .open-doc .workspace-global-tabs [data-file-type="documents"] .workspace-tab-icon {background:#2563eb}
+
+
+/* Import review must keep its full headers, type selectors and confirmation
+   visible on 1366px desktops and on Qt's scaled/compact windows. */
+.open-doc .dataset-import-preview {
+  box-sizing: border-box;
+  width: min(1180px,calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  min-width: 0;
+  overflow: hidden;
+  padding: 20px;
+}
+.open-doc .dataset-import-preview[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.open-doc .dataset-import-preview h2,
+.open-doc .dataset-import-preview p { margin: 0; flex-shrink: 0; }
+.open-doc .dataset-import-preview .import-options {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 9px 12px;
+  margin: 4px 0;
+}
+.open-doc .dataset-import-preview .import-options label {
+  min-width: 0;
+  font-size: 12px;
+}
+.open-doc .dataset-import-preview .import-options input,
+.open-doc .dataset-import-preview .import-options select {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-panel);
+  color: var(--color-text-primary);
+}
+.open-doc .dataset-import-preview [data-import-status] {
+  display: block;
+  flex-shrink: 0;
+  max-height: 3.5em;
+  overflow: auto;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.open-doc .dataset-import-preview .import-preview-scroll {
+  flex: 1 1 auto;
+  min-height: 150px;
+  max-height: none;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  overflow: auto;
+}
+.open-doc .dataset-import-preview table {
+  width: max-content;
+  min-width: 100%;
+  border-spacing: 0;
+  table-layout: auto;
+}
+.open-doc .dataset-import-preview th,
+.open-doc .dataset-import-preview td {
+  box-sizing: border-box;
+  min-width: 135px;
+  max-width: 320px;
+  padding: 7px 9px;
+  border: 1px solid var(--color-border-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.open-doc .dataset-import-preview thead tr:first-child th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--color-panel);
+  height: 36px;
+}
+.open-doc .dataset-import-preview thead tr:nth-child(2) td {
+  position: sticky;
+  top: 36px;
+  z-index: 2;
+  background: var(--color-panel);
+}
+.open-doc .dataset-import-preview [data-import-type] {
+  width: 100%;
+  max-width: 290px;
+  min-height: 34px;
+  padding: 5px;
+  background: var(--color-panel);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+}
+.open-doc .dataset-import-preview footer {
+  flex: 0 0 auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-soft);
+}
+.open-doc .dataset-import-preview footer button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 7px;
+}
+@media(max-width:700px) {
+  .open-doc .dataset-import-preview { padding: 12px; }
+  .open-doc .dataset-import-preview .import-options {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+}
