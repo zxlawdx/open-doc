@@ -944,6 +944,7 @@
         const area=input.getBoundingClientRect(),root=host.getBoundingClientRect();
         formulaExample.style.left=Math.max(0,area.left-root.left)+"px";
         formulaExample.style.top=(area.bottom-root.top+4)+"px";
+        hideSuggestions();return;
       }
       const match=/(?:^=|[;,(+*/-])\s*([A-Za-zÀ-ÿ]*)$/i.exec(prefix);
       if(!match){hideSuggestions();return;}
