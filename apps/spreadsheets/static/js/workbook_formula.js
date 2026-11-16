@@ -2,8 +2,9 @@
 (() => {
   const FUNCTIONS = {SUM:"SUM", SOMA:"SUM", AVERAGE:"AVERAGE", "MÉDIA":"AVERAGE",
     MIN:"MIN", "MÍNIMO":"MIN", MAX:"MAX", "MÁXIMO":"MAX", IF:"IF", SE:"IF", COUNT:"COUNT", COUNTA:"COUNTA", IFERROR:"IFERROR", SEERRO:"IFERROR"};
-  const token = /^(?:"(?:[^"]|"")*"|\d+(?:\.\d+)?|(?:'[\w À-ÿ]+'|[\wÀ-ÿ]+)!|\$?[A-Za-z]{1,3}\$?[1-9]\d*\b|[A-Za-zÀ-ÿ]+|<=|>=|<>|[=<>%+*/():;,&-])/;
-  const number = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/;
+  const token = /^(?:"(?:[^"]|"")*"|\d+(?:[.,]\d+)?|(?:'[\w À-ÿ]+'|[\wÀ-ÿ]+)!|\$?[A-Za-z]{1,3}\$?[1-9]\d*\b|[A-Za-zÀ-ÿ]+|<=|>=|<>|\*\*|[=<>%^+*/():;,&-])/;
+  const number = /^-?(?:0|[1-9]\d*)(?:[.,]\d+)?$/;
+  const parseNumber = value => Number(String(value).replace(",", "."));
   function column(index) {
     let label = "";
     for (let value=index+1; value>0; value=Math.floor((value-1)/26)) {
@@ -27,6 +28,7 @@
     function numeric(value) {
       if (typeof value==="number" && Number.isFinite(value)) return value;
       if (value==="") return 0;
+      if (typeof value==="string" && number.test(value.trim())) return parseNumber(value.trim());
       fail("#VALOR!");
     }
     function get(index,row,col) {
@@ -34,7 +36,7 @@
       if (active.has(key)) fail("#CICLO!");
       if (cache.has(key)) return cache.get(key);
       const raw=sheets[index].cells[row+","+col] || "";
-      if (!raw.startsWith("=")) return raw.startsWith("'") ? raw.slice(1) : number.test(raw) ? Number(raw) : raw;
+      if (!raw.startsWith("=")) return raw.startsWith("'") ? raw.slice(1) : number.test(raw) ? parseNumber(raw) : raw;
       if (--remaining<0 || active.size>=150) fail("#LIMITE!");
       active.add(key);
       try {
@@ -64,8 +66,6 @@
         return [sheet,...cell];
       }
       function atom(){
-        if(take("-"))return {op:"neg",a:atom()};
-        if(take("+"))return {op:"pos",a:atom()};
         if(take("(")){const value=comparison();if(!take(")"))fail();return value;}
         const word=tokens[pos];if(!word)fail();
         if(tokens[pos+1]==="("){
@@ -75,7 +75,7 @@
           return {fn:name,args};
         }
         if(word.startsWith('"')){pos++;return {value:word.slice(1,-1).replace(/""/g,'"')};}
-        if(/^\d/.test(word)&&!word.endsWith("!")){pos++;return {value:Number(word)};}
+        if(/^\d/.test(word)&&!word.endsWith("!")){pos++;return {value:parseNumber(word)};}
         const ref=reference();
         if(take(":")){
           const explicit=tokens[pos]?.endsWith("!"),end=reference();if(!explicit)end[0]=ref[0];
@@ -84,7 +84,9 @@
         }
         return {ref};
       }
-      function percent(){let value=atom();while(take("%"))value={op:"/",a:value,b:{value:100}};return value;}
+      function power(){let value=atom();if(["^","**"].includes(tokens[pos])){pos++;value={op:"^",a:value,b:unary()};}return value;}
+      function unary(){if(take("-"))return {op:"neg",a:unary()};if(take("+"))return {op:"pos",a:unary()};return power();}
+      function percent(){let value=unary();while(take("%"))value={op:"/",a:value,b:{value:100}};return value;}
       function product(){let value=percent();while(["*","/"].includes(tokens[pos])){const op=tokens[pos++];value={op,a:value,b:percent()};}return value;}
       function sum(){let value=product();while(["+","-","&"].includes(tokens[pos])){const op=tokens[pos++];value={op,a:value,b:product()};}return value;}
       function comparison(){let value=sum();if(["=","<>","<",">","<=",">="].includes(tokens[pos])){const op=tokens[pos++];value={op,a:value,b:sum()};}return value;}
@@ -113,7 +115,7 @@
         if(node.op==="<")return a<b;if(node.op===">")return a>b;
         if(node.op==="<=")return a<=b;if(node.op===">=")return a>=b;
         if(node.op==="+")return numeric(a)+numeric(b);if(node.op==="-")return numeric(a)-numeric(b);
-        if(node.op==="*")return numeric(a)*numeric(b);if(b===0)fail("#DIV/0!");return numeric(a)/numeric(b);
+        if(node.op==="*")return numeric(a)*numeric(b);if(node.op==="^")return Math.pow(numeric(a),numeric(b));if(numeric(b)===0)fail("#DIV/0!");return numeric(a)/numeric(b);
       }
       const tree=comparison();if(pos!==tokens.length)fail();
       const value=run(tree);return typeof value==="number"?numeric(value):value;
