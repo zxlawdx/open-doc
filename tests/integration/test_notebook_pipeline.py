@@ -70,11 +70,11 @@ def test_csv_dataframe_publish_undo_redo_and_reference_sheet(tmp_path):
         assert "60" in str(queried)
         published = ctx.notebooks.publish(identifier)
         assert published["resource"]["revision"] == 2
-        assert ctx.datasets.cell(identifier, 1, 1)["value"] == "20"
+        assert ctx.datasets.cell(identifier, 1, 1)["value"] == 20
         assert ctx.datasets.undo(identifier)["changed"]
         assert ctx.datasets.cell(identifier, 1, 1)["value"] == "10"
         assert ctx.datasets.undo(identifier, redo=True)["changed"]
-        assert ctx.datasets.cell(identifier, 1, 1)["value"] == "20"
+        assert ctx.datasets.cell(identifier, 1, 1)["value"] == 20
         context = {
             "headers": {"X-Open-Doc-Token": ctx.token},
             "json": {"operation": "link-dataset", "dataset_id": identifier},
