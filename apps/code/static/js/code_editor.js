@@ -44,9 +44,17 @@
         if(!context.explicit&&!prefix&&previous!==".")return null;
         try{
           const result=await analyze("complete",context.state,context.pos);
-          if(context.aborted||!result.items.length)return null;
+          if(context.aborted)return null;
+          if(context.explicit)signature.textContent="";
+          if(!result.items?.length)return null;
           return {from:prefix?.from ?? context.pos, options:result.items};
-        } catch{return null;}
+        } catch(error){
+          // Never hide a missing analysis dependency when completion was requested.
+          // Typing-triggered failures remain quiet to avoid distracting the editor.
+          if(context.explicit&&!context.aborted)
+            signature.textContent="Autocomplete indisponível: "+(error.message||String(error));
+          return null;
+        }
       }]}),linter(async view=>{
         try{
           const state=view.state;
