@@ -684,3 +684,15 @@
   width:17px;height:17px;display:block;
   color:#ffffff;stroke:#ffffff;fill:none
 }
+
+
+/* Reference-file type palette, still rendered with the real Open Doc SVG sprite. */
+.open-doc .workspace-global-tabs .workspace-tab-icon {
+  box-sizing:content-box;padding:3px;border-radius:4px;
+  background:#64748b;color:#fff
+}
+.open-doc .workspace-global-tabs [data-file-type="presentations"] .workspace-tab-icon {background:#d9622b}
+.open-doc .workspace-global-tabs [data-file-type="pdf"] .workspace-tab-icon {background:#c0392b}
+.open-doc .workspace-global-tabs [data-file-type="spreadsheets"] .workspace-tab-icon {background:#1f8a5b}
+.open-doc .workspace-global-tabs [data-file-type="data"] .workspace-tab-icon {background:#64748b}
+.open-doc .workspace-global-tabs [data-file-type="documents"] .workspace-tab-icon {background:#2563eb}
