@@ -1,13 +1,106 @@
 /* PDF navigation keeps source order and hierarchy, independently of page rendering. */
 'use strict';
 (() => {
-  function create({host, sidebar, controls, signal, navigate, thumbnail, status}) {
+  function create({host, sidebar, controls, signal, navigate, thumbnail, status, getPdf=()=>null}) {
     let state = null, preferred = 'outline', width = 280;
     const toggle = document.createElement('button');
     toggle.type = 'button';toggle.textContent = 'Navegação';toggle.hidden = true;
     toggle.dataset.pdfSidebarToggle = '';
     toggle.setAttribute('aria-label', 'Mostrar ou ocultar navegação do PDF');
     controls.prepend(toggle);
+
+    // A PDF slide deck is presented directly by PDF.js, without converting
+    // pages to PPTX or changing annotations, source bytes or reader zoom.
+    const presentButton=document.createElement('button');
+    presentButton.type='button';presentButton.textContent='Apresentar PDF';
+    presentButton.dataset.pdfPresent='';presentButton.hidden=true;
+    presentButton.setAttribute('aria-label','Apresentar páginas do PDF como slides');
+    controls.append(presentButton);
+    let presentation=null;
+    async function startPresentation(){
+      if(presentation||!state)return;
+      const pdf=getPdf();
+      if(!pdf||typeof pdf.getPage!=='function')throw Error('PDF não está pronto para apresentação.');
+      const overlay=document.createElement('section');
+      overlay.className='pdf-slide-presentation';
+      overlay.dataset.pdfPresentation='';
+      overlay.setAttribute('role','dialog');
+      overlay.setAttribute('aria-label','Apresentação de PDF');
+      Object.assign(overlay.style,{position:'fixed',inset:'0',zIndex:'2147483640',
+        display:'flex',flexDirection:'column',background:'#101114',color:'#fff'});
+      const toolbar=document.createElement('nav');toolbar.setAttribute('aria-label','Controles da apresentação');
+      Object.assign(toolbar.style,{display:'flex',alignItems:'center',justifyContent:'center',
+        gap:'12px',padding:'8px',background:'#202127'});
+      const back=document.createElement('button');back.type='button';back.textContent='Anterior';
+      const counter=document.createElement('span');counter.dataset.pdfSlideCounter='';
+      const next=document.createElement('button');next.type='button';next.textContent='Próximo';
+      const close=document.createElement('button');close.type='button';close.textContent='Sair';
+      for(const button of [back,next,close])button.style.color='#111';
+      toolbar.append(back,counter,next,close);
+      const stage=document.createElement('div');
+      Object.assign(stage.style,{flex:'1',display:'flex',alignItems:'center',
+        justifyContent:'center',minHeight:'0',overflow:'hidden'});
+      const canvas=document.createElement('canvas');canvas.setAttribute('aria-label','Página do PDF');
+      stage.append(canvas);overlay.append(stage,toolbar);document.body.append(overlay);
+      const previousFocus=document.activeElement;
+      const controller=new AbortController(),listen={signal:controller.signal};
+      const current=presentation={overlay,pdf,canvas,stage,controller,task:null,index:Math.min(
+        Math.max(0,state.current),Math.max(0,state.surfaces.length-1)),serial:0,previousFocus};
+      const update=async()=>{
+        if(presentation!==current)return;
+        const token=++current.serial;
+        if(current.task){try{current.task.cancel();}catch{}current.task=null;}
+        const page=await pdf.getPage(current.index+1);
+        if(presentation!==current||token!==current.serial)return;
+        const size=page.getViewport({scale:1});
+        const availableWidth=Math.max(1,stage.clientWidth-24),availableHeight=Math.max(1,stage.clientHeight-24);
+        const scale=Math.min(availableWidth/size.width,availableHeight/size.height);
+        const pixelRatio=Math.min(2,window.devicePixelRatio||1);
+        const viewport=page.getViewport({scale:scale*pixelRatio});
+        canvas.width=Math.max(1,Math.ceil(viewport.width));canvas.height=Math.max(1,Math.ceil(viewport.height));
+        canvas.style.width=viewport.width/pixelRatio+'px';
+        canvas.style.height=viewport.height/pixelRatio+'px';
+        const context=canvas.getContext('2d');
+        if(!context)throw Error('Canvas indisponível para apresentação PDF.');
+        counter.textContent=(current.index+1)+' / '+current.pdf.numPages;
+        back.disabled=current.index===0;next.disabled=current.index>=current.pdf.numPages-1;
+        current.task=page.render({canvasContext:context,viewport});
+        try{await current.task.promise;}catch(error){if(error?.name!=='RenderingCancelledException')throw error;}
+        if(presentation===current&&token===current.serial)current.task=null;
+      };
+      const go=index=>{
+        if(presentation!==current)return;
+        current.index=Math.min(Math.max(0,index),pdf.numPages-1);
+        update().catch(error=>status(error.message));
+      };
+      const stop=()=>{
+        if(presentation!==current)return;
+        presentation=null;current.serial++;
+        controller.abort();
+        try{current.task?.cancel();}catch{}
+        if(document.fullscreenElement===overlay)document.exitFullscreen?.().catch(()=>{});
+        overlay.remove();current.previousFocus?.focus?.();
+      };
+      back.addEventListener('click',()=>go(current.index-1),listen);
+      next.addEventListener('click',()=>go(current.index+1),listen);
+      close.addEventListener('click',stop,listen);
+      overlay.addEventListener('keydown',event=>{
+        if(['ArrowRight','PageDown',' ','Enter'].includes(event.key)){event.preventDefault();go(current.index+1);}
+        else if(['ArrowLeft','PageUp','Backspace'].includes(event.key)){event.preventDefault();go(current.index-1);}
+        else if(event.key==='Home'){event.preventDefault();go(0);}
+        else if(event.key==='End'){event.preventDefault();go(pdf.numPages-1);}
+        else if(event.key==='Escape'){event.preventDefault();stop();}
+      },listen);
+      document.addEventListener('fullscreenchange',()=>{
+        if(presentation===current&&document.fullscreenElement!==overlay)stop();
+      },listen);
+      window.addEventListener('resize',()=>update().catch(error=>status(error.message)),listen);
+      signal.addEventListener('abort',stop,{once:true});
+      overlay.tabIndex=-1;overlay.focus();
+      try{await overlay.requestFullscreen?.();}catch{} // Embedded Qt may deny fullscreen.
+      if(presentation===current)await update();
+    }
+    presentButton.addEventListener('click',()=>startPresentation().catch(error=>status(error.message)),{signal});
     function open(value) {
       if (!state) return;
       host.dataset.pdfSidebar = value ? 'open' : 'closed';sidebar.hidden = !value;
@@ -17,7 +110,8 @@
     toggle.addEventListener('click', () => open(host.dataset.pdfSidebar !== 'open'), {signal});
     function reset() {
       state?.abort.abort();state?.observer?.disconnect();state = null;
-      toggle.hidden = true;sidebar.hidden = false;sidebar.replaceChildren();
+      if(presentation){presentation.controller.abort();presentation.task?.cancel?.();presentation.overlay.remove();presentation=null;}
+      presentButton.hidden=true;toggle.hidden = true;sidebar.hidden = false;sidebar.replaceChildren();
       delete host.dataset.pdfNavigation;delete host.dataset.pdfSidebar;
     }
     function setWidth(value) {
@@ -32,7 +126,7 @@
       const doc = state = {abort, surfaces, resolve, records: [], current: -1, selected: null,
         resolved: [], indexReady:false, pageDestinations: new Map(), thumbnails: [], visible: new Set(), queued: new Set(),
         pending: [], running: 0, cache: [], mode: null};
-      host.dataset.pdfNavigation = 'true';toggle.hidden = false;setWidth(width);open(true);
+      host.dataset.pdfNavigation = 'true';toggle.hidden = false;presentButton.hidden=false;setWidth(width);open(true);
       const heading = document.createElement('div');heading.className = 'pdf-navigation-heading';
       const title = document.createElement('strong');title.textContent = 'Estrutura do documento';
       const close = document.createElement('button');close.textContent = '×';close.type = 'button';
