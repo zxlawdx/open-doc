@@ -5,12 +5,12 @@ const {JSDOM}=require("jsdom");
 const read=path=>fs.readFileSync(path,"utf8");
 
 test("spreadsheet and data templates reference only existing offline SVG symbols",()=>{
-  const normal=new Set([...read("apps/home/static/icons.svg").matchAll(/<symbol\\s+id="([^"]+)"/g)].map(x=>x[1]));
-  const approved=new Set([...read("apps/home/static/approved-icons.svg").matchAll(/<symbol\\s+id="([^"]+)"/g)].map(x=>x[1]));
+  const normal=new Set([...read("apps/home/static/icons.svg").matchAll(/<symbol\s+id="([^"]+)"/g)].map(x=>x[1]));
+  const approved=new Set([...read("apps/home/static/approved-icons.svg").matchAll(/<symbol\s+id="([^"]+)"/g)].map(x=>x[1]));
   for(const file of ["apps/spreadsheets/templates/workbook.html","apps/data/templates/data.html",
     "apps/home/templates/base.html","apps/home/templates/home.html","apps/home/templates/toolbar.html"]){
     const html=read(file);
-    const refs=[...html.matchAll(/<use[^>]*href="[^"]*?(icons|approved-icons)\\.svg[^"]*?#([^"]+)"/g)];
+    const refs=[...html.matchAll(/<use[^>]*href="[^"]*?(icons|approved-icons)\.svg[^"]*?#([^"]+)"/g)];
     assert.ok(refs.length>0,file+" must contain sprite references");
     for(const [,sprite,id] of refs)assert.ok((sprite==="icons"?normal:approved).has(id),file+" references missing "+id);
   }
