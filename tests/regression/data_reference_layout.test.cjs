@@ -10,7 +10,7 @@ test("data reference layout retains the real Open Doc ribbon and functional comp
   for(const item of ["data-dataset-table","data-dataset-tools","data-dataset-list",
     "data-dataset-advanced","data-dataset-query","data-sql-target"])
     assert.ok(html.includes(item),item);
-  assert.match(html,/Editores avulsos \(modo avançado\)/);
+  assert.match(html,/Editor SQL avançado/);
 });
 
 test("data notebook uses real execution, scoped run gutter, and a status indicator",()=>{
