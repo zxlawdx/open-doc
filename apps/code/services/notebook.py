@@ -1,6 +1,7 @@
 """Notebook orchestration through injected table and kernel contracts."""
 
 import json
+import shlex
 import tempfile
 from pathlib import Path
 from threading import RLock
@@ -45,6 +46,24 @@ class NotebookService:
             return {**result, "resource": analysis}
 
     def execute(self, identifier, code, language="python"):
+        if language == "python" and isinstance(code, str) and code.strip().startswith(("!pip ", "%pip ")):
+            lines = code.strip().splitlines()
+            command = shlex.split(lines[0][1:])
+            if len(command) < 3 or command[:2] != ["pip", "install"]:
+                raise ValueError("Use !pip install pacote ou %pip install pacote.")
+            packages = [item for item in command[2:] if item not in {"-q", "--quiet"}]
+            manager = self.context.code_tools.environments(self.context.config.root)
+            result = manager.install(identifier, packages, confirm=True)
+            self.context.code_tools.clear_analysis_cache()
+            kernels = getattr(self.context, "kernels", None)
+            if kernels is not None and kernels.has_session(identifier):
+                kernels.execute(identifier, "import importlib; importlib.invalidate_caches()")
+            output = "Bibliotecas instaladas: " + ", ".join(result["installed"]) + "\n" + result.get("log", "")
+            if len(lines) > 1 and "\n".join(lines[1:]).strip():
+                executed = self.execute(identifier, "\n".join(lines[1:]), language)
+                executed["output"] = output + "\n" + executed.get("output", "")
+                return executed
+            return {"returncode": 0, "output": output, "outputs": [{"type": "stream", "text": output}]}
         if identifier not in self._bindings:
             opened = self.open(identifier)
             if opened.get("returncode"):

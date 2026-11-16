@@ -6,6 +6,7 @@
   function create({panel,signal,project,request,execute,onLayout}) {
     const shell=panel.parentElement;
     const workbooks=new Map();
+    let restoration=Promise.resolve();
     let key, cells=[], columns=[], busy=false, stop=false, saveTimer;
     const sources=()=>cells.map(cell=>({language:cell.language,source:cell.editor?.value()??cell.field.value}));
     function persist(){if(!key)return;const id=key,payload=sources();clearTimeout(saveTimer);saveTimer=setTimeout(()=>request("notebook",{operation:"save-cells",id,cells:payload}).catch(error=>{notice.textContent="Caderno não salvo: "+error.message;}),400);}
@@ -29,6 +30,7 @@
     const toolbar=element("div","code-notebook-tools");
     const list=element("div","code-notebook-cells");
     const notice=element("p","code-notebook-status");
+    const progress=element("progress");progress.setAttribute("aria-label","Executando célula");progress.hidden=true;
     notice.setAttribute("role","status");
     const addButtons=Object.entries(LABELS).map(([language,label])=>
       button(label, "file-plus",()=>add(language)));
@@ -44,7 +46,7 @@
     const saveFile=button("Exportar .ipynb","download",exportNotebook);
     picker.addEventListener("change",importNotebook,{signal});
     toolbar.append(...addButtons,runAll,stopAll,openFile,saveFile,split,full,picker);
-    notebook.append(toolbar,notice,list);
+    notebook.append(toolbar,progress,notice,list);
     notebook.addEventListener("focusout",persist,{signal});
     notebook.addEventListener("change",persist,{signal});
     panel.querySelector(".workbook-sidebar-title").after(notebook);
@@ -61,6 +63,7 @@
       }
     },{signal});
     function refresh() {
+      progress.hidden=!busy;notebook.setAttribute("aria-busy",String(busy));
       runAll.disabled=busy||!cells.some(cell=>cell.language!=="text");
       stopAll.hidden=!busy;
       openFile.disabled=busy||!key||cells.length>=LIMIT;
@@ -233,7 +236,7 @@
         cells=workbooks.get(key);
         list.replaceChildren(...cells.map(cell=>cell.node));
         notice.textContent="Células Python e SQL compartilham o kernel deste projeto. df permanece isolado até publicar.";
-        if(key)restore(key);
+        if(key)restoration=restore(key);
       }
       for(const cell of cells)if(cell.language==="sql")cell.editor.columns(columns);
       refresh();
@@ -243,7 +246,7 @@
       for(const cells of workbooks.values())for(const cell of cells)cell.controller.abort();
     },{once:true});
     layout(false);activate();
-    return {activate,collapse:()=>layout(false)};
+    return {activate,add:(language,source)=>restoration.then(()=>add(language,source)),flush:async()=>{clearTimeout(saveTimer);await restoration;if(key)await request("notebook",{operation:"save-cells",id:key,cells:sources()});},collapse:()=>layout(false)};
   }
   window.OpenDocCodeNotebook={create};
 })();

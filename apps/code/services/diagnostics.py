@@ -37,7 +37,21 @@ def self_test():
         )
         report["python"] = installed["environment"]
         report["steps"].append("project-environment-and-libraries")
+        from apps.code.services.python_analysis import analyze
+        suggestions=analyze("import pandas as pd\npd.Dat",2,6,"complete",identifier)
+        assert "DataFrame" in {item["label"] for item in suggestions["items"]}
+        report["steps"].append("frozen-pandas-autocomplete")
+        if sys.platform == "win32":
+            from apps.code.services.local_runtime import run_external
+            checked=run_external([installed["environment"],"-c","import ctypes; assert not ctypes.windll.kernel32.GetConsoleWindow()"],capture_output=True,text=True,check=True,timeout=10)
+            report["steps"].append("external-python-no-console")
+
         opened = ctx.notebooks.open(identifier)
+        if sys.platform == "win32":
+            quiet=ctx.kernels.execute(identifier,"import ctypes, subprocess, sys; assert not ctypes.windll.kernel32.GetConsoleWindow(); subprocess.run([sys.executable, '-c', 'import ctypes; assert not ctypes.windll.kernel32.GetConsoleWindow()'], check=True)")
+            assert quiet.get("returncode")==0
+            report["steps"].append("kernel-no-console")
+
         assert not opened.get("returncode"), opened
         assert not ctx.notebooks.execute(identifier, "df['value'] *= 2").get(
             "returncode"

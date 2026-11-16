@@ -42,3 +42,13 @@ def notebook(context=None):
         if command == "load-cells": return ctx.notebooks.load_cells(data["id"])
         raise ValueError("Operação de notebook inválida.")
     return _handle(operation)
+
+
+@api.post('/open_doc/remote-sql')
+def remote_sql(context=None):
+    from shared.contracts.workspace import workspace
+    from apps.code.services.remote_sql import query
+    def operation():
+        data = _data(context)
+        return query(workspace().config.root, data['id'], data['connection'], data['sql'])
+    return _handle(operation)

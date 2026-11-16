@@ -66,6 +66,25 @@ class Datasets:
                 "SELECT id,title,row_count FROM datasets ORDER BY rowid DESC"
             )]
 
+    def create(self, title="Novo programa"):
+        if not isinstance(title, str) or not title.strip() or len(title) > 200:
+            raise ValueError("Informe um nome de até 200 caracteres.")
+        identifier = str(uuid4())
+        with self.connect() as db:
+            db.execute("INSERT INTO datasets VALUES (?,?,?,0)",
+                       (identifier, title.strip(), '["valor"]'))
+        return {"id": identifier, "title": title.strip()}
+
+    def delete(self, identifier):
+        """Delete owned table state atomically; published shared snapshots survive."""
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self.get(db, identifier)
+            for table in ("dataset_edit_history", "dataset_field_types", "dataset_rows", "sources"):
+                db.execute(f"DELETE FROM {table} WHERE dataset_id=?", (identifier,))
+            db.execute("DELETE FROM datasets WHERE id=?", (identifier,))
+        return {"deleted": identifier}
+
     def import_files(self, paths, identifier=None, *, encoding="utf-8-sig", delimiter="auto"):
         paths = list(map(Path, paths))
         if not paths or any(path.suffix.lower() not in (".csv", ".tsv") for path in paths):

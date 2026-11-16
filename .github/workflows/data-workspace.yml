@@ -1,0 +1,37 @@
+name: Data workspace database integration
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  databases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: opendoc
+          POSTGRES_PASSWORD: opendoc-test
+          POSTGRES_DB: opendoc
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U opendoc" --health-interval 5s --health-timeout 5s --health-retries 20
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root-test
+          MYSQL_DATABASE: opendoc
+          MYSQL_USER: opendoc
+          MYSQL_PASSWORD: opendoc-test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -proot-test" --health-interval 5s --health-timeout 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest sqlalchemy==2.0.46 'psycopg[binary]==3.2.12' pymysql==1.1.2 cryptography
+      - run: python -m pytest -q tests/integration/test_remote_sql.py
+        env:
+          OPEN_DOC_DATABASE_CI: '1'

@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  function create({host,request,signal,onOpenWorkbook}) {
+  function create({host,request,signal,onOpenWorkbook,dialog}) {
     const $=selector=>host.querySelector(selector);
     const list=$("[data-dataset-list]"), table=$("[data-dataset-table]");
     const status=$("[data-dataset-status]"), pagination=$("[data-dataset-pagination]");
@@ -10,6 +10,8 @@
     let row=0, column=0, current, busy=false, querying=false, selected=null, anchor=null, editing=null, menu=null;
     let conversion=null,lastQuery=null;
     const widths=new Map();
+    let schemaColumns=[];
+    const positions=new Map();
     const workspace=window.OpenDocGridWorkspace;
     workspace.ribbon(host,signal);
     const icon=name=>workspace.icon(host,name);
@@ -21,12 +23,14 @@
       run:()=>run(executeQuery)});
     const tools=$("[data-dataset-tools]"), toolsButton=$("[data-dataset-command=tools]");
     const syncSplitter=workspace.splitter(tools,signal);
+    async function remoteQuery(sql){return request("remote-sql",{id:list.value,sql,connection:{kind:$("[data-sql-kind]").value,host:$("[data-sql-host]").value,port:$("[data-sql-port]").value,database:$("[data-sql-database]").value,username:$("[data-sql-user]").value,password:$("[data-sql-password]").value,sslmode:$("[data-sql-tls]").value}});}
     const notebook=window.OpenDocCodeNotebook.create({panel:tools,signal,request,
       project:()=>current?.id,onLayout:syncSplitter,execute:async(language,code)=>{
         if(busy)throw Error("Aguarde a operação de Dados em andamento.");
         busy=true;
         controls();
         try{
+          if(language==="sql"&&$("[data-sql-target]").value==="remote"){const result=await remoteQuery(code);const text=[result.columns,...result.rows].map(row=>row.join("\t")).join("\n");return {returncode:0,output:text,outputs:[{type:"stream",text}]};}
           return await (language==="python"
             ?request("notebook",{operation:"execute",id:list.value,code,language})
             :request("notebook",{operation:"execute",id:list.value,code,language}));
@@ -44,8 +48,7 @@
     function showCode(language){
       if(!current)return;
       toolsOpen=true;showTools();
-      if(language==="python")$("[data-dataset-python]").open=true;
-      (language==="python"?pythonEditor:sqlEditor).focus();
+      if(language==="python")notebook.add("python");else sqlEditor.focus();
     }
     function showTools() {
       tools.hidden=!current || !toolsOpen;
@@ -172,9 +175,12 @@
       const result=await request("dataset",{operation:"page",id:list.value,row:nextRow,column:nextColumn});
       if(current?.id!==result.id){
         selected=null;anchor=null;conversion=null;widths.clear();
+        $("[data-sql-password]").value="";
         output.textContent="";
         const schema=await request("dataset",{operation:"columns",id:result.id});
         sqlEditor.columns(schema.columns);
+        schemaColumns=schema.columns;
+        $("[data-filter-column]").replaceChildren(...schema.columns.map((name,i)=>new Option(name,String(i))));
         current=result;
         notebook.activate(schema.columns);
       }
@@ -187,16 +193,18 @@
         number(result.source_count)+" arquivos · linhas exibidas "+number(result.rows.length ? row+1 : 0)+"–"+number(row+result.rows.length);
     }
     async function load(identifier=list.value) {
+      if(current)positions.set(current.id,[row,column]);
       const data=await request("dataset",{operation:"list"});
       list.replaceChildren(...data.datasets.map(item=>new Option(item.title,item.id)));
       if(data.datasets.some(item=>item.id===identifier)) list.value=identifier;
-      await showPage();
+      const tabs=$("[data-dataset-project-tabs]");tabs.replaceChildren(...data.datasets.map(item=>{const button=document.createElement("button");button.type="button";button.textContent=item.title;button.setAttribute("aria-current",String(item.id===list.value));button.onclick=()=>run(()=>load(item.id));return button;}));
+      const position=positions.get(list.value)||[0,0];await showPage(...position);
     }
     async function run(operation) {
       if(busy)return;
-      busy=true;controls();
+      busy=true;host.setAttribute("aria-busy","true");status.textContent="Processando…";controls();
       try {await operation();} catch(error){status.textContent=error.message;}
-      finally{busy=false;controls();}
+      finally{busy=false;host.setAttribute("aria-busy","false");controls();}
     }
     async function ingest(append) {
       status.textContent="Selecione arquivos CSV ou TSV…";
@@ -223,6 +231,8 @@
         result.returncode===0 ? "Python concluído." : "Python terminou com código "+result.returncode+".";
     }
     async function executeQuery(){
+      if($("[data-sql-target]").value==="remote"){const result=await remoteQuery(sqlEditor.value());querying=true;lastQuery=result;draw(result,false);status.textContent=result.rows.length+" registros do banco remoto"+(result.truncated?" · prévia limitada a 100":"");return;}
+
       sqlEditor.remember();
       status.textContent="Executando SQL…";
       const result=await request("dataset",{operation:"query",id:list.value,sql:sqlEditor.value()});
@@ -447,10 +457,11 @@
       if(menu&&event.key==="Escape"){event.preventDefault();closeMenu();}
     },{signal});
     async function queryFor(name) {
+      $("[data-sql-target]").value="local";
       const cell=selected||[row+1,column];
-      const heading=table.querySelector('thead [data-dataset-col="'+cell[1]+'"]');
-      if(!heading)throw Error("Selecione uma coluna visível.");
-      const field='"'+heading.textContent.replace(/"/g,'""')+'"';
+      const columnName= schemaColumns[cell[1]] || schemaColumns[Number($("[data-filter-column]").value)];
+      if(!columnName)throw Error("Selecione uma coluna.");
+      const field='"'+columnName.replace(/"/g,'""')+'"';
       const sql={
         "nulls":`SELECT * FROM dados WHERE ${field} IS NULL OR TRIM(${field}) = '' LIMIT 100`,
         "distinct":`SELECT DISTINCT ${field} FROM dados LIMIT 100`,
@@ -472,6 +483,10 @@
     host.addEventListener("click",event=>{
       const button=event.target.closest("[data-dataset-command]");
       const command=button?.dataset.datasetCommand;
+      if(command==="new-project")run(async()=>{const title=dialog?await dialog("Novo programa","Nome do programa",true,null,{initial:"Novo programa",type:"text",label:"Nome"}):window.prompt("Nome do programa", "Novo programa");if(!title)return;const project=await request("dataset",{operation:"create",title});await load(project.id);toolsOpen=true;showTools();notebook.add("python","!pip install pandas pyarrow ipykernel duckdb");});
+      if(command==="delete-project")run(async()=>{if(!current)return;const confirmed=dialog?await dialog("Excluir dataset","Excluir "+current.title+" e seus dados de edição? Recursos já compartilhados são preservados."):window.confirm("Excluir "+current.title+"?");if(!confirmed)return;const id=list.value;await request("dataset",{operation:"delete",id,confirm:true});host.dispatchEvent(new CustomEvent("open-doc:resource-deleted",{bubbles:true,detail:{id}}));current=null;await load();});
+      if(command==="clear-filter")run(()=>showPage(0,0));
+      if(command==="apply-filter")run(async()=>{$("[data-sql-target]").value="local";const field='"'+schemaColumns[Number($("[data-filter-column]").value)].replace(/"/g,'""')+'"';const literal="'"+$("[data-filter-value]").value.replace(/'/g,"''")+"'";const condition=$("[data-filter-operation]").value;const predicate=condition==="missing"?`${field} IS NULL OR TRIM(${field}) = ''`:condition==="present"?`${field} IS NOT NULL AND TRIM(${field}) != ''`:condition==="contains"?`INSTR(${field}, ${literal}) > 0`:`${field} = ${literal}`;sqlEditor.replace(`SELECT * FROM dados WHERE ${predicate} LIMIT 100`);await executeQuery();});
       if(command==="new" || command==="append")run(()=>ingest(command==="append"));
       if(command==="tools"){toolsOpen=!toolsOpen;showTools();}
       if(command==="close-tools"){toolsOpen=false;showTools();host.querySelector("[data-ribbon-tab][aria-pressed=true]").focus();}
@@ -492,6 +507,7 @@
       if(command==="previous")run(()=>showPage(Math.max(0,row-50),column));
       if(command==="next")run(()=>showPage(row+50,column));
       if(command==="query")run(executeQuery);
+      if(command==="remote-query"){ $("[data-sql-target]").value="remote";run(executeQuery);}
       if(command==="sql-to-workbook")run(async()=>{
         if(!lastQuery)throw Error("Execute uma consulta SQL antes.");
         const sheets=await request("workbook",{operation:"from-query",
@@ -518,7 +534,7 @@
     list.addEventListener("change",()=>run(async()=>{
       current=null;table.replaceChildren();await showPage();
     }),{signal});
-    return {load:()=>run(()=>load()), id:()=>list.value, title:()=>current?.title, activate:id=>run(()=>load(id))};
+    return {flush:()=>notebook.flush(),load:()=>run(()=>load()), id:()=>list.value, title:()=>current?.title, activate:id=>run(()=>load(id))};
   }
   window.OpenDocDatasets={create};
 })();

@@ -364,7 +364,7 @@
     await Promise.all([!datasets && Promise.all([
       loadResources([...gridResources,['OpenDocDatasets','datasets.js']]), loadCodeEditors()
     ])]);
-    if (!datasets) datasets = window.OpenDocDatasets.create({host,request,signal,
+    if (!datasets) datasets = window.OpenDocDatasets.create({host,request,signal,dialog,
       onOpenWorkbook:value=>{const ticket=++navigationEpoch;return operateModule(()=>openWorkbook(null,value,ticket));}});
     if(!currentNavigation(ticket))return;
     showView(true, false);
@@ -698,7 +698,7 @@
     flushPreferences: () => preferenceChain
   };
   window.OpenDocApp = page;
-  window.VelaPage = {beforeUnmount: async () => { await preferenceChain; page.destroy(); }};
+  window.VelaPage = {beforeUnmount: async () => { await preferenceChain; await datasets?.flush?.(); if(root.dataset.workbookView==='true')await workbook?.save(); await editor?.flush(); page.destroy(); }};
 
   async function mount() {
     for (const [global, file] of [
@@ -834,6 +834,10 @@
         editor.load(await request('document/open',{id:tab.id}));showView(false);
       })}));
     await workspaceSession?.loaded;
+    const entry=root.dataset.entryApp;
+    if(entry==='data'||entry==='code'){await openDatasets();if(entry==='code'){root.querySelector('[data-dataset-command=show-python]')?.click();}}
+    else if(['documents','spreadsheets','presentations','pdf','templates'].includes(entry)){libraryRoute(({documents:'docx',spreadsheets:'xlsx',presentations:'pptx',pdf:'pdf',templates:'templates'})[entry]);}
+
     installTooltips();
     if (bootstrap.startup_error) status(bootstrap.startup_error);
     root.dataset.ready = 'true';
