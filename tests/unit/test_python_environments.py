@@ -53,6 +53,7 @@ def test_installer_uses_project_venv_bounded_wheel_pip_and_reports_installed(tmp
     pip_call=next(call for call in called if "--only-binary=:all:" in call[0])
     assert "--no-input" in pip_call[0]
     assert "--only-binary=:all:" in pip_call[0]
+    assert "jedi==0.19.2" in pip_call[0]  # Python completion in project venvs
     assert pip_call[0][0] == str(service.interpreter(project))
     assert str(tmp_path) in pip_call[0][0]
     assert service.status(project)["packages"][0] == {"name": "pandas", "version": "2.2"}

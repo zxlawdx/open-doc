@@ -49,7 +49,19 @@
     dataframeTools.append(dataframeLabel,dataframeButtons);
     tools.querySelector(".workbook-sidebar-title").after(dataframeTools);
     openFrame.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"open",id:list.value});if(result.returncode)throw Error(result.output);output.textContent=result.output;status.textContent="DataFrame aberto. Execute células Python para transformar os dados.";});
-    publish.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"publish",id:list.value});if(result.returncode)throw Error(result.output);await showPage(row,column);status.textContent="Transformação publicada. Use Desfazer para restaurar a tabela anterior.";});
+    publish.onclick=()=>run(async()=>{
+      const result=await request("notebook",{operation:"publish",id:list.value});
+      if(result.returncode)throw Error(result.output);
+      // A program can publish df with an entirely new column schema.
+      // Reset invalid selections and refresh SQL/Python column metadata.
+      selected=null;anchor=null;row=0;column=0;
+      await showPage(0,0);
+      const schema=await request("dataset",{operation:"columns",id:list.value});
+      schemaColumns=schema.columns;
+      sqlEditor.columns(schemaColumns);
+      notebook.activate(schemaColumns);
+      status.textContent="Transformação publicada na tabela. Use Desfazer para restaurar a versão anterior.";
+    });
     transfer.onclick=()=>run(async()=>{const book=await request("workbook",{operation:"link-dataset",dataset_id:list.value,title:current.title});await onOpenWorkbook(book);});
     stopKernel.onclick=()=>run(async()=>{await request("notebook",{operation:"stop",id:list.value});status.textContent="Kernel encerrado.";output.textContent="Sessão encerrada. As células continuam salvas no projeto.";});
     let toolsOpen=false;

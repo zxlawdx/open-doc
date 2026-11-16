@@ -66,7 +66,18 @@ class NotebookService:
                 return executed
             return {"returncode": 0, "output": output, "outputs": [{"type": "stream", "text": output}]}
         datasets = getattr(self.context, "datasets", None)
-        if language == "python" and identifier not in self._bindings and datasets is not None and datasets.is_program(identifier):
+        if (
+            language == "python"
+            and identifier not in self._bindings
+            and datasets is not None
+            and datasets.is_program(identifier)
+            and (
+                getattr(self.context, "publications", None) is None
+                or self.context.publications.bound_resource(identifier) is None
+            )
+        ):
+            # A new code-only project has no source dataset to open. Once its
+            # df is published, later sessions can load the persisted snapshot.
             return self.context.kernels.execute(identifier, code)
         if identifier not in self._bindings:
             opened = self.open(identifier)
@@ -105,17 +116,33 @@ class NotebookService:
     def publish(self, identifier):
         with self._lock:
             binding = self._bindings.get(identifier)
-            if binding is None:
+            creating_from_program = binding is None and self.context.datasets.is_program(identifier)
+            if binding is None and not creating_from_program:
                 raise ValueError("Abra o DataFrame antes de publicar.")
+            if creating_from_program and not self.context.kernels.has_session(identifier):
+                raise ValueError("Execute uma célula que crie o DataFrame df antes de publicar.")
             with tempfile.TemporaryDirectory(
                 prefix="opendoc-publication-"
             ) as directory:
                 path = Path(directory) / "frame.parquet"
                 result = self.context.kernels.execute(
-                    identifier, "df.to_parquet(" + repr(str(path)) + ", index=False)"
+                    identifier,
+                    "import pandas as _opendoc_pd\n"
+                    "if 'df' not in globals() or not isinstance(df, _opendoc_pd.DataFrame):\n"
+                    "    raise ValueError('Crie um pandas.DataFrame chamado df antes de publicar.')\n"
+                    "df.to_parquet(" + repr(str(path)) + ", index=False)",
                 )
                 if result.get("returncode"):
                     return result
+                # Programs start without a dataset binding. Capture a
+                # revisioned before-snapshot only after the export succeeds,
+                # so a failed publish cannot overwrite or bind the table.
+                if creating_from_program:
+                    token = self.context.publications.token(identifier)
+                    before = self.context.dataset_exchange.snapshot(identifier, raw=True)["resource"]
+                    if self.context.publications.token(identifier) != token:
+                        raise ValueError("A tabela mudou durante a publicação. Tente novamente.")
+                    binding = {"before": before, "resource": before, "token": token}
                 runtime = self.context.dataset_exchange.runtime
                 # Prepare a new immutable resource. The table commit is the
                 # publication boundary; a failed table commit never changes it.
@@ -158,6 +185,8 @@ class NotebookService:
                     identifier, binding["before"], after, binding["token"]
                 )
                 binding.update(before=after, resource=after, token=adopted["token"])
+                if creating_from_program:
+                    self._bindings[identifier] = binding
                 runtime.events.emit("dataset:published", adopted)
                 return adopted
 

@@ -24,3 +24,8 @@ def test_signatures_documentation_and_syntax_diagnostics():
     result = analyze("x = )", 1, 0, "diagnostics")
     assert result["items"][0]["line"] == 1
     assert result["items"][0]["column"] == 4
+
+def test_python_completion_supports_notebook_import_context():
+    # This is the static source assembled for two adjacent notebook cells.
+    source = "import pandas as pd\\n\\npd.DataF".replace("\\n", "\n")
+    assert "DataFrame" in labels(source, 3, len("pd.DataF"))

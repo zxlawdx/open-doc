@@ -152,6 +152,20 @@
       cells.splice(at,0,cell);
       if(language!=="text"){
         cell.editor=window.OpenDocCodeEditor.create({field,language,request,signature,
+          // Jedi must see imports/definitions from preceding notebook cells.
+          // Never evaluate them; only submit a bounded static source prefix.
+          context:()=>{
+            const budget=Math.max(0,24000-value().length-2);
+            const parts=[];let length=0;
+            for(const previous of cells.slice(0,cells.indexOf(cell)).reverse()){
+              if(previous.language!=="python")continue;
+              const source=(previous.editor?.value()??previous.field.value)
+                .split("\n").map(line=>/^\s*[!%]/.test(line)?"pass":line).join("\n");
+              if(!source.trim()||length+source.length+2>budget)continue;
+              parts.unshift(source);length+=source.length+2;
+            }
+            return parts.join("\n\n");
+          },
           signal:controller.signal,project,run:()=>run([cell]),runNext:async()=>{
             if(await run([cell])){
               const next=cells[cells.indexOf(cell)+1];
