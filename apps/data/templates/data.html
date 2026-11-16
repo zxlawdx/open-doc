@@ -81,8 +81,10 @@
     <table data-dataset-table></table>
   </div>
   <div class="code-splitter" role="separator" aria-label="Largura do painel de código" aria-orientation="vertical" aria-controls="dataset-tools" tabindex="0" hidden></div>
-  <aside class="workbook-sidebar" id="dataset-tools" data-dataset-tools hidden aria-label="SQL e Python">
-    <div class="workbook-sidebar-title"><strong>SQL e Python</strong><button type="button" data-dataset-command="close-tools" title="Recolher" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#chevron-right"></use></svg>Recolher</button></div>
+  <aside class="workbook-sidebar" id="dataset-tools" data-dataset-tools hidden aria-label="Caderno de dados, SQL e Python">
+    <div class="workbook-sidebar-title"><strong>Caderno de dados</strong><button type="button" data-dataset-command="close-tools" title="Recolher" ><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#chevron-right"></use></svg>Recolher</button></div>
+  <details class="dataset-legacy-tools" data-dataset-advanced>
+    <summary>Editores avulsos (modo avançado)</summary>
   <div class="workbook-toolbar" data-dataset-query hidden>
     <label>SQL <textarea data-dataset-sql aria-label="Editor SQL" rows="2" cols="48" maxlength="12000" spellcheck="false">SELECT * FROM dados LIMIT 100</textarea></label>
     <button type="button" data-dataset-command="query"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#play"></use></svg>Executar SQL</button>
@@ -125,6 +127,7 @@ with DATASET_CSV.open(encoding="utf-8", newline="") as arquivo:
       </div>
     </section>
 
+  </details>
   </details>
   </aside>
   </div>
