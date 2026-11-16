@@ -1,0 +1,53 @@
+name: Open Doc SVG shell visual regression (real Vela Qt)
+on:
+  pull_request:
+    paths:
+      - "apps/home/static/approved-icons.svg"
+      - "apps/home/static/css/od_shell.css"
+      - "apps/home/static/js/od_shell.js"
+      - "apps/home/templates/base.html"
+      - "shared/services/preferences_service.py"
+      - "tools/qa_appearance_zoom.py"
+      - ".github/workflows/qa-ui-shell.yml"
+  workflow_dispatch:
+jobs:
+  shell-native-qt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      PYWEBVIEW_GUI: qt
+      QT_API: pyqt5
+      QT_QPA_PLATFORM: offscreen
+      QT_OPENGL: software
+      QT_QUICK_BACKEND: software
+      QTWEBENGINE_DISABLE_SANDBOX: "1"
+      QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --disable-gpu
+      QTWEBENGINE_REMOTE_DEBUGGING: "9238"
+      PYTHONUTF8: "1"
+      OPEN_DOC_QA_SHELL_ONLY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Real QtWebEngine Linux runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0 libreoffice-writer libreoffice-impress
+      - name: Install and compile Open Doc production assets
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python manage.py collectstatic --yes
+          python tools/check_runtime_assets.py
+      - name: Run native shell QA (1366 and 1920, themes, densities)
+        run: python -u tools/qa_appearance_zoom.py docs/images/appearance-zoom
+      - name: Upload ACTUAL QtWebEngine screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-doc-svg-shell-real-qt
+          path: docs/images/appearance-zoom/
+          if-no-files-found: warn

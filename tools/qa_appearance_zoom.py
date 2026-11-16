@@ -140,6 +140,11 @@ def exercise(window, output, reopen):
         click("[data-od-density-toggle]")
         wait(window, "document.querySelector('[data-app]').dataset.odDensity === 'comfortable'")
 
+    if os.getenv("OPEN_DOC_QA_SHELL_ONLY") == "1":
+        wait(window, "document.querySelector('[data-app]').dataset.preferencesSaving === 'false'")
+        print("QT_OPEN_DOC_REAL_SHELL_SCREENSHOTS_OK", flush=True)
+        return
+
     theme("system")
     assert js("document.querySelector('[data-app]').dataset.theme") == (
         "dark" if js("matchMedia('(prefers-color-scheme: dark)').matches") else "light"
@@ -297,7 +302,10 @@ def run(output, workspace, reopen):
 if __name__ == "__main__":
     output = Path(sys.argv[1]).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    if len(sys.argv) > 2:
+    if os.getenv("OPEN_DOC_QA_SHELL_ONLY") == "1" and len(sys.argv) == 2:
+        with TemporaryDirectory(prefix="open-doc-shell-qa-") as directory:
+            run(output, Path(directory), False)
+    elif len(sys.argv) > 2:
         run(output, Path(sys.argv[2]), sys.argv[3] == "reopen")
     else:
         with TemporaryDirectory(prefix="open-doc-appearance-qa-") as directory:
