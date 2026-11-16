@@ -4,6 +4,9 @@ on:
     paths:
       - "apps/data/**"
       - "apps/code/**"
+      - "apps/spreadsheets/static/js/workbook.js"
+      - "apps/home/static/js/grid_workspace.js"
+      - "tools/qa_data_workspace.py"
       - "apps/home/static/css/workbook_v2.css"
       - "apps/home/static/js/workspace.js"
       - "tools/qa_datasets.py"
@@ -42,10 +45,14 @@ jobs:
           python tools/check_runtime_assets.py
       - name: Dataset layout regression and screenshot capture
         run: python -u tools/qa_datasets.py docs/images/datasets
+      - name: Linux QtWebEngine real Ctrl+A/C/V smoke test and screenshots
+        run: python -u tools/qa_data_workspace.py docs/images/data-workspace
       - name: Upload screenshots from the real Open Doc window
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: open-doc-data-layout-qt-screenshots
-          path: docs/images/datasets/
+          path: |
+            docs/images/datasets/
+            docs/images/data-workspace/
           if-no-files-found: warn

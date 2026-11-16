@@ -19,9 +19,6 @@ def environment(interpreter):
 
 
 def analyze(code, line, column, operation, project=None):
-    import jedi
-
-
     if not isinstance(code, str) or len(code) > MAX_CODE:
         raise ValueError("O código excede o limite do editor.")
     if operation == "diagnostics":
@@ -32,13 +29,21 @@ def analyze(code, line, column, operation, project=None):
         raise ValueError("Posição do cursor inválida.")
     if operation not in ("complete", "diagnostics", "inspect"):
         raise ValueError("Operação de análise inválida.")
-    if getattr(sys, "frozen", False) or sys.platform == "win32":
+    # Always use the project's own interpreter for third-party packages.
+    # In-process Jedi with a separate Environment may retain import caches or
+    # search a different site-packages than the notebook on Linux. The same
+    # isolated worker path is used across Linux Mint and Windows.
+    from .python_envs import PythonEnvironments
+    from shared.contracts.workspace import workspace
+    selected = (
+        PythonEnvironments(workspace().config.root).interpreter(project)
+        if project else None
+    )
+    if selected is not None or getattr(sys, "frozen", False) or sys.platform == "win32":
         from .local_runtime import external_python, run_external
         from .analysis_worker import SOURCE
-        from .python_envs import PythonEnvironments
-        from shared.contracts.workspace import workspace
-        executable = PythonEnvironments(workspace().config.root).interpreter(project) if project else None
-        result = run_external([str(executable or external_python()), "-I", "-c", SOURCE],
+        executable = selected or external_python()
+        result = run_external([str(executable), "-I", "-c", SOURCE],
                               input=json.dumps([code,line,column,operation]), capture_output=True, text=True, timeout=15)
         if result.returncode:
             details=(result.stderr or result.stdout or "")[-1200:]
@@ -55,15 +60,9 @@ def analyze(code, line, column, operation, project=None):
             return json.loads(result.stdout)
         except json.JSONDecodeError as error:
             raise ValueError("O serviço de autocomplete retornou uma resposta inválida.") from error
+    import jedi
     with _analysis_lock:
-        executable = sys.executable
-        if project:
-            from shared.contracts.workspace import workspace as get_context
-            from .python_envs import PythonEnvironments
-            chosen = PythonEnvironments(get_context().config.root).interpreter(project)
-            if chosen is not None:
-                executable = chosen
-        script = jedi.Script(code, environment=environment(str(executable)))
+        script = jedi.Script(code, environment=environment(str(sys.executable)))
         if operation == "complete":
             return {"items": [
                 {"label": item.name, "type": item.type}

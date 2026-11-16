@@ -56,6 +56,22 @@ def main(output):
                 keyboard.press('Space')
                 wait(w,"[...document.querySelectorAll('.cm-tooltip-autocomplete li')].some(n=>n.textContent.includes('DataFrame'))")
                 capture(output,'python-autocomplete');keyboard.key('Escape')
+                # Real QtWebEngine keyboard / clipboard regression: one Ctrl+A
+                # must select all text, followed by a single Ctrl+C / Ctrl+V.
+                keyboard.press('A')
+                wait(w,"window.getSelection().toString().includes('import pandas as pd') && window.getSelection().toString().includes('pd.Dat')")
+                keyboard.press('C')
+                js("""(() => {
+                  const target=document.createElement('textarea');
+                  target.id='qa-code-shortcuts-paste';
+                  document.body.append(target);
+                  target.focus();
+                })()""")
+                keyboard.press('V')
+                wait(w,"document.querySelector('#qa-code-shortcuts-paste').value.includes('import pandas as pd') && document.querySelector('#qa-code-shortcuts-paste').value.includes('pd.Dat')")
+                capture(output,'code-select-copy-paste')
+                js("document.querySelector('#qa-code-shortcuts-paste').remove()")
+                print('QT_CODE_SHORTCUTS_SELECT_COPY_PASTE_OK',flush=True)
                 create('Segundo programa')
                 assert js("document.querySelectorAll('[data-dataset-project-tabs] button').length")==2
                 js("[...document.querySelectorAll('[data-dataset-project-tabs] button')].find(n=>n.textContent==='Primeiro programa').click()")

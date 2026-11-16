@@ -30,10 +30,17 @@ def notebook(context=None):
         command = data["operation"]
         if command == "open": return ctx.notebooks.open(data["id"])
         if command == "execute-workbook":
+            language = data.get("language", "python")
+            code = data["code"]
+            # Explicit notebook pip magics must be handled before opening a
+            # kernel. On a fresh Linux Mint project, ipykernel may be absent;
+            # opening the workbook first would fail before pip could install it.
+            if language == "python" and isinstance(code, str) and code.strip().startswith(("!pip ", "%pip ")):
+                return ctx.notebooks.execute(data["id"], code, language)
             if data["id"] not in ctx.notebooks._bindings:
                 opened = ctx.notebooks.open_workbook(data["id"], data["columns"], data["rows"])
                 if opened.get("returncode"): return opened
-            return ctx.notebooks.execute(data["id"], data["code"], data.get("language", "python"))
+            return ctx.notebooks.execute(data["id"], code, language)
         if command == "execute": return ctx.notebooks.execute(data["id"], data["code"], data.get("language", "python"))
         if command == "publish": return ctx.notebooks.publish(data["id"])
         if command == "sessions": return {"sessions": ctx.kernels.status()}

@@ -32,12 +32,33 @@
       EditorView.contentAttributes.of({"aria-label":field.getAttribute("aria-label") || language,spellcheck:"false"}),
       EditorState.transactionFilter.of(transaction=>
         transaction.newDoc.length>field.maxLength && transaction.docChanged ? [] : transaction),
+      // Explicit select-all for Linux QtWebEngine: selecting text in CodeMirror
+      // must take precedence over document / sheet shortcuts. Native copy
+      // remains browser-managed so the host clipboard receives real text.
       keymap.of([
+        {key:"Mod-a",run:view=>{
+          view.dispatch({selection:{anchor:0,head:view.state.doc.length}});
+          view.focus();
+          return true;
+        }},
         {key:"Ctrl-Enter",run:()=>{run();return true;}},
         ...(runNext?[{key:"Shift-Enter",run:()=>{runNext();return true;}}]:[]),
         {key:"Ctrl-Space",run:view=>{startCompletion(view);return true;}},
         {key:"Tab",run:acceptCompletion},
       ]),
+      // QtWebEngine can expose a synthetic selection with no native DOM
+      // range. Feed the selected CodeMirror document text to clipboardData
+      // synchronously on the genuine copy event, without replacing Ctrl+C.
+      EditorView.domEventHandlers({
+        copy(event,view){
+          if(!event.clipboardData)return false;
+          const selection=view.state.selection.main;
+          if(selection.empty)return false;
+          event.clipboardData.setData("text/plain",view.state.sliceDoc(selection.from,selection.to));
+          event.preventDefault();
+          return true;
+        },
+      }),
       EditorView.updateListener.of(update=>{if(update.docChanged){field.value=update.state.doc.toString();field.dispatchEvent(new Event("change",{bubbles:true}));}}),
       access.of([]),
     ];
@@ -101,6 +122,13 @@
       }));
     } else extensions.push(dialect.of(sqlLanguage([])));
     const view=new EditorView({doc:field.value,parent:host,extensions});
+    if(language==="python"){
+      window.addEventListener("open-doc:python-env-updated",event=>{
+        if(event.detail?.project!==(typeof project==="function"?project():null))return;
+        // Do not steal focus from another editor or project after installation.
+        if(view.dom?.contains(document.activeElement))startCompletion(view);
+      },{signal});
+    }
     field.hidden=true;
     signal.addEventListener("abort",()=>{clearTimeout(pendingSignature);view.destroy();host.remove();},{once:true});
     const history=document.createElement("select");

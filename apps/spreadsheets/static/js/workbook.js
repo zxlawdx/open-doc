@@ -349,14 +349,28 @@
       if((bottom-top+1)*(right-left+1)>50000)
         throw Error("A análise da planilha aceita até 50 mil células.");
       const evaluateCell=evaluate(book.sheets);
+      // A formatted XLSX often starts with a merged title, followed by a
+      // blank spacer and its actual header row. Keep the first populated row
+      // for ordinary datasets; skip decorative merged titles only.
+      let headerRow=top;
+      const titleMerged=(sheet().layout?.merges||[]).some(range=>
+        range[0]===top&&range[1]<=left&&range[3]>=right&&range[3]>range[1]);
+      if(titleMerged&&right>left){
+        for(let candidate=top+1;candidate<=Math.min(bottom,top+10);candidate++){
+          let populated=0;
+          for(let c=left;c<=right;c++)
+            if(String(evaluateCell(index,candidate,c)??"").trim())populated++;
+          if(populated>=2){headerRow=candidate;break;}
+        }
+      }
       const columns=[], seen=new Set(), rows=[];
       for(let c=left;c<=right;c++){
-        const label=String(evaluateCell(index,top,c)).trim() || column(c);
+        const label=String(evaluateCell(index,headerRow,c)).trim() || column(c);
         let name=label, suffix=2;
         while(seen.has(name.toLowerCase()))name=label+"_"+suffix++;
         seen.add(name.toLowerCase());columns.push(name);
       }
-      for(let r=top+1;includeRows&&r<=bottom;r++){
+      for(let r=headerRow+1;includeRows&&r<=bottom;r++){
         const values=[];
         for(let c=left;c<=right;c++){
           const rawValue=evaluateCell(index,r,c);
