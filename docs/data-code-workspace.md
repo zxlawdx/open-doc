@@ -8,7 +8,7 @@ A central contém atalhos coloridos para Documentos, Planilhas, Apresentações,
 
 Dados permite criar programas Python independentes de datasets (ipykernel é suficiente; Pandas/Arrow só são necessários para DataFrames), importar tabelas e alternar projetos por abas. Cada projeto conserva suas células. A exclusão é confirmada na interface e remove tabela, fontes, tipos e histórico em uma transação SQLite; recursos previamente publicados e referenciados por Planilhas são preservados. Abas de recursos excluídos saem da sessão global.
 
-O painel duplicado “Python local” fica fora da interface. As células do notebook são o ponto de edição Python; bibliotecas ficam em uma janela própria. Operações exibem progresso indeterminado e estado ocupado, sem inventar percentuais.
+O painel duplicado “Python local” e seu editor oculto foram removidos. As células do notebook são o ponto de edição Python; bibliotecas ficam em uma janela própria. Operações exibem progresso indeterminado e estado ocupado, sem inventar percentuais.
 
 Filtros oferecem coluna, condição e valor. “Remover filtros” volta à tabela original. Condições: igual, contém, vazio/ausente e preenchido. Consultas geradas escapam identificadores/valores; não modificam a tabela original.
 

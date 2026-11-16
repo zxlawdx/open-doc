@@ -38,7 +38,7 @@ def main(output):
                 wait(w,"document.querySelector('[data-app]')?.dataset.entryApp==='data' && document.querySelector('[data-app]').dataset.ready==='true'")
                 create('Primeiro programa')
                 wait(w,"!!document.querySelector('.code-notebook-cell .cm-content')")
-                assert js("getComputedStyle(document.querySelector('[data-legacy-python]')).display")== 'none'
+                assert not js("!!document.querySelector('[data-dataset-python]')")
                 js("document.querySelector('.code-notebook-cell .cm-content').scrollIntoView({block:'center'})")
                 keyboard=Keyboard(w)
                 rect=js("document.querySelector('.code-notebook-cell .cm-content').getBoundingClientRect().toJSON()")

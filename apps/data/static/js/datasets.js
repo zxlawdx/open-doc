@@ -6,7 +6,7 @@
     const status=$("[data-dataset-status]"), pagination=$("[data-dataset-pagination]");
     const rowInput=$("[data-dataset-row]"), columnInput=$("[data-dataset-column]");
     const interfaceScale=()=>Number(host.closest("[data-app]").style.getPropertyValue("--interface-zoom"))||1;
-    const code=$("[data-dataset-code]"), output=$("[data-dataset-output]");
+    const output=$("[data-dataset-output]");
     let row=0, column=0, current, busy=false, querying=false, selected=null, anchor=null, editing=null, menu=null;
     let conversion=null,lastQuery=null;
     const widths=new Map();
@@ -17,8 +17,6 @@
     const icon=name=>workspace.icon(host,name);
     const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>list.value,signal});
     const sqlField=$("[data-dataset-sql]");
-    const pythonEditor=window.OpenDocCodeEditor.create({field:code,language:"python",request,signal,
-      signature:$("[data-dataset-signature]"),run:()=>run(executePython),project:()=>list.value});
     const sqlEditor=window.OpenDocCodeEditor.create({field:sqlField,language:"sql",request,signal,project:()=>list.value,
       run:()=>run(executeQuery)});
     const tools=$("[data-dataset-tools]"), toolsButton=$("[data-dataset-command=tools]");
@@ -63,8 +61,7 @@
       for (const control of host.querySelectorAll("input,select,button,textarea")) if(!control.closest(".code-notebook"))control.disabled=busy;
       $("[data-dataset-command=append]").disabled=busy || !list.value;
       $("[data-dataset-command=export]").disabled=busy || !current;
-      $("[data-dataset-python]").hidden=!current;
-      pythonEditor.lock(busy);sqlEditor.lock(busy);
+      sqlEditor.lock(busy);
       showTools();
       $("[data-dataset-empty]").hidden=Boolean(current);
       pagination.hidden=!current || querying;
@@ -217,18 +214,6 @@
       await load(result.id);
       if(first)await showPage(first);
       status.textContent=result.added.toLocaleString("pt-BR")+" linhas acrescentadas. "+status.textContent;
-    }
-    async function executePython() {
-      pythonEditor.remember();
-      output.textContent="";
-      status.textContent="Aguardando confirmação para executar Python…";
-      const result=await request("notebook",{operation:"execute",id:list.value,code:pythonEditor.value(),language:"python"});
-      if(result.error)throw Error(result.error);
-      if(result.cancelled){status.textContent="Execução cancelada.";return;}
-      output.textContent=result.output;
-      status.textContent=result.stopped==="timeout" ? "Execução encerrada após 15 segundos." :
-        result.stopped==="output" ? "Saída limitada a 64 KiB." :
-        result.returncode===0 ? "Python concluído." : "Python terminou com código "+result.returncode+".";
     }
     async function executeQuery(){
       if($("[data-sql-target]").value==="remote"){const result=await remoteQuery(sqlEditor.value());querying=true;lastQuery=result;draw(result,false);status.textContent=result.rows.length+" registros do banco remoto"+(result.truncated?" · prévia limitada a 100":"");return;}
@@ -497,7 +482,6 @@
       }
       if(["sort-asc","sort-desc","nulls","distinct","filter","counts"].includes(command))
         run(()=>queryFor(command));
-      if(command==="python")run(executePython);
       if(command==="export")run(async()=>{
         const result=await window.pywebview.api.export_dataset(list.value,current.title);
         if(result.error)throw Error(result.error);

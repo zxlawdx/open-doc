@@ -501,8 +501,7 @@
 .open-doc .book-cell.book-wrapped {white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.25}
 .open-doc .workbook .book-inline-editor {min-width:16px}
 
-/* Code lives in notebook cells; the old single-shot script is compatibility-only. */
-.open-doc [data-legacy-python] {display:none!important}
+/* Notebook cells are the single Python editing surface. */
 .open-doc .dataset-code-editor .cm-content {min-height:8rem;cursor:text}
 .open-doc .dataset-project-tabs {display:flex;gap:6px;padding:8px;overflow:auto;flex-shrink:0}
 .open-doc .dataset-project-tabs [aria-current=true] {background:var(--color-primary-soft);border-bottom:2px solid var(--color-primary)}
