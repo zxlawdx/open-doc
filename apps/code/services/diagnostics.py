@@ -80,8 +80,6 @@ def self_test():
             )
             assert ctx.datasets.cell(imported["id"], 1, 1)["value"] == "10"
         report["steps"].append("xlsx-parquet-roundtrip")
-        app.close()
-        app = None
         # A program needs only ipykernel; table libraries stay optional.
         program = ctx.datasets.create("Pure Python smoke")["id"]
         prepared = ctx.notebooks.execute(program, "!pip install ipykernel")

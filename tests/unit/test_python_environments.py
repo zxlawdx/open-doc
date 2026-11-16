@@ -39,6 +39,9 @@ def test_installer_uses_project_venv_bounded_wheel_pip_and_reports_installed(tmp
 
     def fake_run(args, **kwargs):
         called.append((args, kwargs))
+        if args[1:3] == ["-I", "-c"] and "venv.EnvBuilder" in args[3]:
+            fake_venv(None,args[-1])
+            return SimpleNamespace(returncode=0,stdout="",stderr="")
         if args[1:3] == ["-I", "-c"]:
             return SimpleNamespace(returncode=0, stdout='[{"name":"pandas","version":"2.2"}]', stderr="")
         return SimpleNamespace(returncode=0, stdout="Successfully installed pandas", stderr="")
@@ -47,10 +50,11 @@ def test_installer_uses_project_venv_bounded_wheel_pip_and_reports_installed(tmp
     monkeypatch.setattr(python_envs, "run_external", fake_run)
     result = service.install(project, ["pandas==2.2"], confirm=True)
     assert result["installed"] == ["pandas==2.2"]
-    assert "--no-input" in called[0][0]
-    assert "--only-binary=:all:" in called[0][0]
-    assert called[0][0][0] == str(service.interpreter(project))
-    assert str(tmp_path) in called[0][0][0]
+    pip_call=next(call for call in called if "--only-binary=:all:" in call[0])
+    assert "--no-input" in pip_call[0]
+    assert "--only-binary=:all:" in pip_call[0]
+    assert pip_call[0][0] == str(service.interpreter(project))
+    assert str(tmp_path) in pip_call[0][0]
     assert service.status(project)["packages"][0] == {"name": "pandas", "version": "2.2"}
     other = str(uuid4())
     assert service.interpreter(other) is None
