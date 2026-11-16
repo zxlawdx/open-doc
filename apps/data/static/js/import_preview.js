@@ -12,6 +12,7 @@
       </div><button type="button" data-import-refresh>Atualizar prévia</button><output data-import-status role="status"></output><pre data-import-raw hidden></pre><div class="import-preview-scroll"><table data-import-table></table></div><footer><button type="button" data-import-cancel>Cancelar</button><button type="button" data-import-confirm>Confirmar importação</button></footer>`;
     host.append(modal);const $=s=>modal.querySelector(s),table=$('[data-import-table]'),status=$('[data-import-status]'),confirm=$('[data-import-confirm]');
     let profile=initial,working=false,resolveResult,settled=false;
+    let pendingRefresh=false,queuedOptions=null,refreshTimer=null;
     const optionFields=['encoding','delimiter','decimal','thousands','header','date_format'];
     const field=name=>$('[data-import-'+name.replace('_','-')+']');
     for(const name of optionFields)field(name).value=String(profile.options[name]);
@@ -25,10 +26,29 @@
       head.append(names,types);const body=document.createElement('tbody');for(const row of profile.rows){const tr=body.insertRow();for(const value of row){const cell=tr.insertCell();cell.textContent=value===null?'NULL':String(value);if(value===null)cell.className='import-null';}}
       table.append(head,body);confirm.disabled=profile.errors.length>0;status.textContent=profile.errors.length?'Erros de conversão: '+profile.errors.map(e=>e.column+' · linha '+(e.line||e.row)+' · '+e.value).join('; '):profile.files.join(', ')+' · '+profile.row_count+' registros analisados'+(profile.sampled?' (prévia)':'');
     }
-    async function refresh(){if(working)return;working=true;confirm.disabled=true;status.textContent='Analisando valores e tipos…';try{profile=await request('dataset',{operation:'import-preview',token:profile.token,options:config()});render();}catch(error){status.textContent=error.message;}finally{working=false;}}
-    function finish(value){if(settled)return;settled=true;if(modal.close)modal.close();modal.remove();resolveResult(value);}
+    async function refresh(){
+      clearTimeout(refreshTimer);
+      if(working){pendingRefresh=true;return;}
+      const next=queuedOptions||config();
+      queuedOptions=null;
+      working=true;confirm.disabled=true;
+      status.textContent='Analisando valores e tipos…';
+      try{profile=await request('dataset',{operation:'import-preview',token:profile.token,options:next});render();}
+      catch(error){status.textContent=error.message;}
+      finally{working=false;if(pendingRefresh&&!settled){pendingRefresh=false;refresh();}}
+    }
+    function finish(value){if(settled)return;settled=true;clearTimeout(refreshTimer);if(modal.close)modal.close();modal.remove();resolveResult(value);}
     async function cancel(){if(working)return;await request('dataset',{operation:'import-cancel',token:profile.token}).catch(()=>{});finish({cancelled:true});}
-    modal.addEventListener('change',()=>{confirm.disabled=true;status.textContent='Opções alteradas. Atualize a prévia para revisar os tipos.';},{signal});
+    // Automatically revalidate after type changes; confirmation stays locked
+    // until full-schema preview succeeds, without an extra manual step.
+    modal.addEventListener('change',()=>{
+      queuedOptions=config();
+      confirm.disabled=true;
+      status.textContent='Atualizando prévia e verificando tipos…';
+      clearTimeout(refreshTimer);
+      refreshTimer=setTimeout(refresh,220);
+    },{signal});
+    signal?.addEventListener?.('abort',()=>clearTimeout(refreshTimer),{once:true});
     $('[data-import-refresh]').onclick=refresh;$('[data-import-cancel]').onclick=cancel;
     modal.addEventListener('cancel',event=>{event.preventDefault();cancel();},{signal});
     confirm.onclick=async()=>{if(working)return;working=true;confirm.disabled=true;status.textContent='Importando e verificando o arquivo inteiro…';try{finish(await request('dataset',{operation:'import-commit',token:profile.token}));}catch(error){status.textContent=error.message;confirm.disabled=false;}finally{working=false;}};
