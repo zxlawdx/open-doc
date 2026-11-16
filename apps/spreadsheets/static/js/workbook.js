@@ -898,10 +898,71 @@
       const value=field.dataset.bookCheckbox?(field.checked?'TRUE':'FALSE'):field.value;
       select(...id.split(',').map(Number));applyCells([[id,value]]);
     },{signal});
+    const formulaNames=["SOMA","MÉDIA","MÍNIMO","MÁXIMO","SE","SEERRO","COUNT","COUNTA","SUM","AVERAGE","MIN","MAX","IF","IFERROR"];
+    const suggestionBox=document.createElement("div");
+    suggestionBox.className="book-formula-suggestions";
+    suggestionBox.setAttribute("role","listbox");
+    suggestionBox.setAttribute("aria-label","Sugestões de funções da planilha");
+    suggestionBox.hidden=true;
+    host.append(suggestionBox);
+    let suggestionInput=null,suggestionItems=[],suggestionIndex=0;
+    function hideSuggestions(){
+      suggestionBox.hidden=true;suggestionInput=null;suggestionItems=[];
+    }
+    function showSuggestions(input){
+      const cursor=input.selectionStart??input.value.length;
+      const prefix=input.value.slice(0,cursor);
+      if(!prefix.startsWith("=")){hideSuggestions();return;}
+      const match=/(?:^=|[;,(+*/-])\\s*([A-Za-zÀ-ÿ]*)$/i.exec(prefix);
+      if(!match){hideSuggestions();return;}
+      const query=match[1].toLocaleUpperCase("pt-BR");
+      suggestionItems=formulaNames.filter(name=>name.startsWith(query)).slice(0,8);
+      if(!suggestionItems.length){hideSuggestions();return;}
+      suggestionInput=input;suggestionIndex=0;
+      suggestionBox.replaceChildren(...suggestionItems.map((name,i)=>{
+        const item=document.createElement("button");
+        item.type="button";item.textContent=name+"(";item.dataset.suggestion=String(i);
+        item.setAttribute("role","option");item.setAttribute("aria-selected",String(i===suggestionIndex));
+        return item;
+      }));
+      const rect=input.getBoundingClientRect(),hostRect=host.getBoundingClientRect();
+      suggestionBox.style.left=Math.max(0,rect.left-hostRect.left)+"px";
+      suggestionBox.style.top=(rect.bottom-hostRect.top+4)+"px";
+      suggestionBox.hidden=false;
+    }
+    function acceptSuggestion(){
+      if(!suggestionInput||suggestionBox.hidden)return false;
+      const input=suggestionInput,cursor=input.selectionStart??input.value.length;
+      const beginning=input.value.slice(0,cursor);
+      const match=/(?:^=|[;,(+*/-])\\s*([A-Za-zÀ-ÿ]*)$/i.exec(beginning);
+      if(!match)return false;
+      const replace=match[1],name=suggestionItems[suggestionIndex];
+      const offset=cursor-replace.length;
+      input.value=input.value.slice(0,offset)+name+"("+input.value.slice(cursor);
+      input.focus();input.setSelectionRange(offset+name.length+1,offset+name.length+1);
+      hideSuggestions();notifyDirty(true);return true;
+    }
+    suggestionBox.addEventListener("pointerdown",event=>event.preventDefault(),{signal});
+    suggestionBox.addEventListener("click",event=>{
+      const choice=event.target.closest("[data-suggestion]");
+      if(!choice)return;suggestionIndex=Number(choice.dataset.suggestion);acceptSuggestion();
+    },{signal});
+    function suggestionKeydown(event){
+      if(suggestionBox.hidden||suggestionInput!==event.target)return false;
+      if(event.key==="Escape"){event.preventDefault();hideSuggestions();return true;}
+      if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+        event.preventDefault();suggestionIndex=(suggestionIndex+(event.key==="ArrowDown"?1:-1)+suggestionItems.length)%suggestionItems.length;
+        for(const item of suggestionBox.children)item.setAttribute("aria-selected",String(Number(item.dataset.suggestion)===suggestionIndex));
+        return true;
+      }
+      if(event.key==="Enter"||event.key==="Tab"){event.preventDefault();acceptSuggestion();return true;}
+      return false;
+    }
     inline.addEventListener("blur",()=>finishInline(),{signal});
-    inline.addEventListener("input",()=>notifyDirty(true),{signal});
+    inline.addEventListener("input",()=>{notifyDirty(true);showSuggestions(inline);},{signal});
     inline.addEventListener("keydown",event=>{
       event.stopPropagation();
+      if(suggestionKeydown(event))return;
       if(event.isComposing||!["Escape","Enter","Tab"].includes(event.key))return;
       event.preventDefault();
       finishInline(event.key!=="Escape");
@@ -912,9 +973,10 @@
     viewport.addEventListener("scroll",schedule,{signal,passive:true});
     window.addEventListener("resize",schedule,{signal});
     title.addEventListener("input",mark,{signal});
-    formula.addEventListener("input",mark,{signal});
+    formula.addEventListener("input",()=>{mark();showSuggestions(formula);},{signal});
     formula.addEventListener("blur",commit,{signal});
     formula.addEventListener("keydown",event=>{
+      if(suggestionKeydown(event))return;
       if(event.isComposing || !["Enter","Tab","Escape"].includes(event.key))return;
       event.preventDefault();
       if(event.key==="Escape")formula.value=raw();
@@ -1162,7 +1224,7 @@
         }
       }catch(error){report(error.message);}
     },{signal});
-    signal.addEventListener("abort",()=>cancelAnimationFrame(frame),{once:true});
+    signal.addEventListener("abort",()=>{cancelAnimationFrame(frame);suggestionBox.remove();},{once:true});
     return {load,save,report,id:()=>book.id,title:()=>title.value,value:()=>zoom,set(value){
       zoom=value;
       resizeGrid(value);
