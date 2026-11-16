@@ -48,6 +48,16 @@ def main():
                 window.evaluate_js("document.querySelector('[data-dataset-command=previous]').click()")
                 wait(window, "document.querySelectorAll('[data-dataset-table] tbody tr').length===2")
                 assert "2 arquivos" in window.evaluate_js("document.querySelector('[data-dataset-status]').textContent")
+                # Real QtWebEngine screenshot of the reference-inspired split UI.
+                assert window.evaluate_js(
+                    "document.querySelector('[data-dataset-tools]').hidden===false"
+                ), "The notebook must open beside the data table."
+                window.evaluate_js("""(() => {
+                  const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
+                  notebook.querySelector('button[title="Python"]').click();
+                })()""")
+                wait(window, "!!document.querySelector('[data-dataset-tools] .data-notebook-gutter .data-notebook-run')")
+                capture_viewports(window, output, "dataset-reference-layout")
                 capture_viewports(window, output, "dataset")
                 window.evaluate_js("""(() => {
                   const cell=document.querySelector('[data-dataset-cell][data-dataset-row="2"][data-dataset-col="2"]');
