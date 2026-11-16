@@ -145,6 +145,7 @@
             if(!shown.valid)el.classList.add("dataset-type-error");
           }else{
             const kind=current.types?.columns?.[String(c)]||"auto";
+            el.dataset.columnType=kind==="auto"?"Automático":kind;
             if(kind!=="auto"){el.classList.add("dataset-typed");el.title="Tipo de coluna: "+kind;}
             el.tabIndex=0;columnHandle(el,c,String(value));
           }
