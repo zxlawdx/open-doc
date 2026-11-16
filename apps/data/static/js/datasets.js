@@ -35,7 +35,17 @@
     const publish=document.createElement("button"),openFrame=document.createElement("button"),transfer=document.createElement("button"),stopKernel=document.createElement("button");
     openFrame.type=publish.type=transfer.type=stopKernel.type="button";
     openFrame.textContent="Abrir como DataFrame";publish.textContent="Publicar df na tabela";transfer.textContent="Abrir em Planilhas por referência";stopKernel.textContent="Encerrar kernel";
-    tools.prepend(openFrame,publish,transfer,stopKernel);
+    // Keep data publication tools available without pushing the notebook
+    // header and code cells below the fold in the reference split layout.
+    const dataframeTools=document.createElement("details");
+    dataframeTools.className="dataset-dataframe-actions";
+    const dataframeLabel=document.createElement("summary");
+    dataframeLabel.textContent="DataFrame e kernel";
+    const dataframeButtons=document.createElement("div");
+    dataframeButtons.className="dataset-dataframe-buttons";
+    dataframeButtons.append(openFrame,publish,transfer,stopKernel);
+    dataframeTools.append(dataframeLabel,dataframeButtons);
+    tools.querySelector(".workbook-sidebar-title").after(dataframeTools);
     openFrame.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"open",id:list.value});if(result.returncode)throw Error(result.output);output.textContent=result.output;});
     publish.onclick=()=>run(async()=>{const result=await request("notebook",{operation:"publish",id:list.value});if(result.returncode)throw Error(result.output);await showPage(row,column);status.textContent="Transformação publicada. Use Desfazer para restaurar a tabela anterior.";});
     transfer.onclick=()=>run(async()=>{const book=await request("workbook",{operation:"link-dataset",dataset_id:list.value,title:current.title});await onOpenWorkbook(book);});
