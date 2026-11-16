@@ -338,10 +338,12 @@
 .open-doc .workbook .workbook-tools input,.open-doc .workbook .workbook-tools select {min-height:31px;border-radius:5px}
 .open-doc .workbook .workbook-tools [data-book-style=family] {max-width:112px}
 .open-doc .workbook .workbook-tools .ribbon-color {
-  display:grid;position:relative;justify-items:center;min-width:32px;gap:2px;cursor:pointer
+  display:flex;align-items:stretch;position:relative;min-width:48px;gap:2px
 }
+.open-doc .workbook .ribbon-color button {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer}
 .open-doc .ribbon-color svg {width:18px;height:18px;color:var(--color-primary)}
-.open-doc .workbook .ribbon-color input {min-height:13px;width:26px;padding:0;border:0;cursor:pointer}
+.open-doc .workbook .ribbon-color input {min-height:30px;width:24px;padding:1px;border:1px solid var(--color-border);cursor:pointer}
+.open-doc .workbook .ribbon-color button:focus-visible,.open-doc .workbook .ribbon-color input:focus-visible {outline:2px solid var(--color-primary);outline-offset:2px}
 .open-doc .ribbon-expanded .workbook-tools {flex-wrap:wrap;white-space:normal}
 .open-doc .workbook-ribbon-tabs {scrollbar-width:thin}
 .open-doc .workbook-scroll {font-size:var(--book-grid-font,13px)}
