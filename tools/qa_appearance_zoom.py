@@ -124,6 +124,22 @@ def exercise(window, output, reopen):
     wait(window, "document.querySelector('[data-dialog]').hidden")
     assert js("document.activeElement.matches('.header-actions [data-action=theme]')")
 
+    # Screenshots from the REAL QtWebEngine Open Doc, not the HTML reference.
+    # Exercise the persisted appearance, density, and application rail.
+    for appearance in ("light", "dark"):
+        theme(appearance)
+        for density_mode in ("comfortable", "compact"):
+            if js("document.querySelector('[data-app]').dataset.odDensity") != density_mode:
+                click("[data-od-density-toggle]")
+            wait(window, f"document.querySelector('[data-app]').dataset.odDensity === '{density_mode}'")
+            for width, height in ((1366, 768), (1920, 1080)):
+                capture(output, f"od-shell-{appearance}-{density_mode}-{width}x{height}", width, height)
+                assert js("document.querySelector('.od-app-rail').getBoundingClientRect().width") > 0
+                assert js("!!document.querySelector('.workspace-global-tabs, .menubar')")
+    if js("document.querySelector('[data-app]').dataset.odDensity") != "comfortable":
+        click("[data-od-density-toggle]")
+        wait(window, "document.querySelector('[data-app]').dataset.odDensity === 'comfortable'")
+
     theme("system")
     assert js("document.querySelector('[data-app]').dataset.theme") == (
         "dark" if js("matchMedia('(prefers-color-scheme: dark)').matches") else "light"

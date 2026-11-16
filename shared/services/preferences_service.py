@@ -27,6 +27,7 @@ WINDOW_HEIGHT = 800
 DEFAULT_SETTINGS = {
     "sidebar_collapsed": False,
     "theme": "system",
+    "density": "comfortable",
     "zoom": 100,
     "interface_zoom": 100,
     "workbook_zoom": 100,
@@ -95,6 +96,8 @@ class Config:
             raise ValueError("sidebar_collapsed precisa ser booleano.")
         if settings["view_mode"] not in {"pages", "continuous"}:
             raise ValueError("Modo de visualização inválido.")
+        if settings["density"] not in ("comfortable", "compact"):
+            raise ValueError("Densidade inválida.")
         if settings["theme"] not in ("light", "dark", "system"):
             raise ValueError("Tema inválido.")
         if type(settings["zoom"]) is not int or not 50 <= settings["zoom"] <= 150:

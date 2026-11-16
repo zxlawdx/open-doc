@@ -1,7 +1,22 @@
 <!-- ============ OPEN DOC / VELA VIEW ============ -->
 <link rel="stylesheet" href="{{ static('home/css/runtime.css') }}">
 <link rel="stylesheet" href="{{ static('home/css/workbook_v2.css') }}">
+<link rel="stylesheet" href="{{ static('home/css/od_shell.css') }}">
 <div class="open-doc" data-app data-entry-app="{{ entry_app }}" data-theme="light" data-collapsed="false">
+  <!-- Shared application rail: real Vela routes and existing Open Doc actions. -->
+  <nav class="od-app-rail" aria-label="Aplicativos Open Doc">
+    <button type="button" class="od-rail-home" data-action="home" data-od-app="home" aria-label="Central" title="Central"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-home"></use></svg></button>
+    <span class="od-rail-divider" aria-hidden="true"></span>
+    <a href="/documents" data-vela-link data-suite-app="documents" data-od-app="documents" aria-label="Documentos" title="Documentos"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-doc"></use></svg></a>
+    <a href="/presentations" data-vela-link data-suite-app="presentations" data-od-app="presentations" aria-label="Apresentações" title="Apresentações"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-slides"></use></svg></a>
+    <a href="/pdf" data-vela-link data-suite-app="pdf" data-od-app="pdf" aria-label="PDF" title="PDF"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-pdf"></use></svg></a>
+    <a href="/spreadsheets" data-vela-link data-suite-app="spreadsheets" data-od-app="spreadsheets" aria-label="Planilhas" title="Planilhas"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-sheet"></use></svg></a>
+    <a href="/data" data-vela-link data-suite-app="data" data-od-app="data" aria-label="Dados e notebooks" title="Dados e notebooks"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-data"></use></svg></a>
+    <a href="/code" data-vela-link data-suite-app="code" data-od-app="code" aria-label="Código" title="Código"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-code"></use></svg></a>
+    <span class="od-rail-spacer" aria-hidden="true"></span>
+    <button type="button" data-od-density-toggle aria-label="Ativar modo compacto" aria-pressed="false" title="Alternar densidade"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-gr"></use></svg></button>
+    <button type="button" data-action="theme" aria-label="Configurações de aparência" title="Aparência"><svg class="od-icon" aria-hidden="true"><use href="{{ static('home/approved-icons.svg') }}#i-set"></use></svg></button>
+  </nav>
   <header class="app-header">
     <button class="product" data-action="home" aria-label="Open Doc — documentos recentes">
       <span class="brand-mark"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#file-text"></use></svg></span>
