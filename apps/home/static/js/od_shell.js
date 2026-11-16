@@ -80,7 +80,7 @@
       barObserver=new MutationObserver(()=>decorateTabs(bar));
       barObserver.observe(bar,{childList:true});
     }
-    const rootObserver=new MutationObserver(attachTabs);
+    const rootObserver=new MutationObserver(()=>{attachTabs();syncRail();});
     rootObserver.observe(root,{childList:true,attributes:true,attributeFilter:["data-home-view","data-entry-app"]});
     root.addEventListener("open-doc:workspace",syncRail,{signal});
     root.addEventListener("open-doc:layout",syncRail,{signal});
