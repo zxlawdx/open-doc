@@ -79,4 +79,4 @@ def test_frozen_python_completion_reports_missing_jedi(monkeypatch):
         returncode=1, stdout='', stderr="ModuleNotFoundError: No module named 'jedi'"
     ))
     with pytest.raises(ValueError, match='Ativar autocomplete Python'):
-        analyze('import pandas as pd\\npd.Dat', 2, 6, 'complete')
+        analyze('import pandas as pd\npd.Dat', 2, 6, 'complete')
