@@ -101,12 +101,12 @@ def test_publish_dataframe_with_pandas_category_columns(tmp_path):
     try:
         ctx = get_context()
         csv = tmp_path / "categorical.csv"
-        csv.write_text("Sex,Embarked,Age\\nmale,S,35\\nfemale,C,\\nfemale,S,28\\n")
+        csv.write_text("Sex,Embarked,Age\nmale,S,35\nfemale,C,\nfemale,S,28\n")
         identifier = ctx.datasets.import_files([csv], delimiter=",", infer_types=True)["id"]
         assert ctx.notebooks.open(identifier)["returncode"] == 0
         result = ctx.notebooks.execute(
             identifier,
-            "df['Sex'] = df['Sex'].astype('category')\\n"
+            "df['Sex'] = df['Sex'].astype('category')\n"
             "df['Embarked'] = df['Embarked'].astype('category')"
         )
         assert result["returncode"] == 0, result
