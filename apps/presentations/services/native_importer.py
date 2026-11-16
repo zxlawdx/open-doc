@@ -128,7 +128,13 @@ def _shape_element(shape, width: int, height: int, assets: dict) -> dict:
         cells = [[table.cell(row, col).text[:2000]
                   for col in range(len(table.columns))]
                  for row in range(len(table.rows))]
-        base.update(type="table", rotation=0, table_cells=cells)
+        # Native PowerPoint tables need their real row/column proportions.
+        # Equal tracks cause text wrapping, clipped cells and distorted grids.
+        row_sizes = [int(row.height) for row in table.rows]
+        col_sizes = [int(col.width) for col in table.columns]
+        base.update(type="table", rotation=0, table_cells=cells,
+                    table_row_heights=[size / sum(row_sizes) for size in row_sizes],
+                    table_col_widths=[size / sum(col_sizes) for size in col_sizes])
         style = read_table_style(table)
         if style:
             base.update(style)
