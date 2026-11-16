@@ -240,6 +240,33 @@
       const range=[Math.min(row,anchor[0]),Math.min(col,anchor[1]),Math.max(row,anchor[0]),Math.max(col,anchor[1])];
       for(const rng of sheet().layout?.merges||[])if(rng[0]<=range[2]&&rng[2]>=range[0]&&rng[1]<=range[3]&&rng[3]>=range[1]){range[0]=Math.min(range[0],rng[0]);range[1]=Math.min(range[1],rng[1]);range[2]=Math.max(range[2],rng[2]);range[3]=Math.max(range[3],rng[3]);}return range;
     }
+    function mergeSelection(unmerge=false) {
+      const target=sheet(), selection=bounds(), previous=target.layout;
+      const current=previous?.merges||[];
+      const overlaps=range=>range[0]<=selection[2]&&range[2]>=selection[0]&&range[1]<=selection[3]&&range[3]>=selection[1];
+      if(unmerge) {
+        const remaining=current.filter(range=>!overlaps(range));
+        if(remaining.length===current.length)return report("A seleção não contém células mescladas.");
+        const next={...previous,merges:remaining};
+        change(()=>{target.layout=previous;},()=>{target.layout=next;});
+        report("Células desmescladas.");
+        return;
+      }
+      if(selection[0]===selection[2]&&selection[1]===selection[3])
+        throw Error("Selecione duas ou mais células para mesclar.");
+      if(current.some(overlaps))
+        throw Error("A seleção contém células mescladas. Desmescle antes de criar outra mesclagem.");
+      const [top,left,bottom,right]=selection;
+      for(let r=top;r<=bottom;r++)for(let c=left;c<=right;c++){
+        if(r===top&&c===left)continue;
+        if(target.cells[key(r,c)]!==undefined&&target.cells[key(r,c)]!=="")
+          throw Error("A mesclagem preserva apenas a célula superior esquerda. Limpe ou mova os outros valores antes de mesclar.");
+      }
+      const next={...previous,merges:[...current,selection]};
+      change(()=>{target.layout=previous;},()=>{target.layout=next;});
+      select(top,left,false);
+      report("Células mescladas.");
+    }
     function renderTabs() {
       tabs.replaceChildren(...book.sheets.map(({name},i)=>{
         const button=document.createElement("button");
@@ -599,6 +626,8 @@
       if(["insert-row","delete-row","insert-column","delete-column"].includes(name))
         return changeStructure(name);
       if(name==="sort-asc"||name==="sort-desc")return sortSelection(name==="sort-desc");
+      if(name==="merge-cells")return mergeSelection();
+      if(name==="unmerge-cells")return mergeSelection(true);
       if(name==="fill-down")return fillValues();
       if(name==="pivot-builder"||name==="pivot-chart"){
         togglePivot(true);
