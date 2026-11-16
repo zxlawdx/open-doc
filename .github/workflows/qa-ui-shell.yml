@@ -44,6 +44,10 @@ jobs:
           python tools/check_runtime_assets.py
       - name: Run native shell QA (1366 and 1920, themes, densities)
         run: python -u tools/qa_appearance_zoom.py docs/images/appearance-zoom
+      - name: Full appearance and zoom integration smoke (all real modules)
+        env:
+          OPEN_DOC_QA_SHELL_ONLY: "0"
+        run: python -u tools/qa_appearance_zoom.py docs/images/appearance-zoom
       - name: Upload ACTUAL QtWebEngine screenshot evidence
         if: always()
         uses: actions/upload-artifact@v4
