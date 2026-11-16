@@ -87,7 +87,7 @@
     // first <use> silently points dynamic controls to the wrong sprite.
     const refs=Array.from(host.querySelectorAll("use[href]"));
     const source=refs.map(node=>node.getAttribute("href")||"")
-      .find(href=>/(?:^|\\/)icons\\.svg(?:[?#]|$)/.test(href))?.split("#")[0];
+      .find(href=>/(?:^|\/)icons\.svg(?:[?#]|$)/.test(href))?.split("#")[0];
     if(!source)throw new Error("Sprite SVG da interface não encontrado.");
     const svg=document.createElementNS(ns,"svg"),use=document.createElementNS(ns,"use");
     svg.setAttribute("aria-hidden","true");
