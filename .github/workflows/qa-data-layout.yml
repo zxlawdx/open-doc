@@ -1,0 +1,51 @@
+name: Data workspace visual regression (real Open Doc Qt)
+on:
+  pull_request:
+    paths:
+      - "apps/data/**"
+      - "apps/code/**"
+      - "apps/home/static/css/workbook_v2.css"
+      - "apps/home/static/js/workspace.js"
+      - "tools/qa_datasets.py"
+      - ".github/workflows/qa-data-layout.yml"
+  workflow_dispatch:
+jobs:
+  dataset-qt-capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYWEBVIEW_GUI: qt
+      QT_API: pyqt5
+      QT_QPA_PLATFORM: offscreen
+      QT_OPENGL: software
+      QT_QUICK_BACKEND: software
+      QTWEBENGINE_DISABLE_SANDBOX: "1"
+      QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --disable-gpu
+      QTWEBENGINE_REMOTE_DEBUGGING: "9234"
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: QtWebEngine Linux dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0 libreoffice-writer libreoffice-impress
+      - name: Install and compile native Open Doc assets
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python manage.py collectstatic --yes
+          python tools/check_runtime_assets.py
+      - name: Dataset layout regression and screenshot capture
+        run: python -u tools/qa_datasets.py docs/images/datasets
+      - name: Upload screenshots from the real Open Doc window
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-doc-data-layout-qt-screenshots
+          path: docs/images/datasets/
+          if-no-files-found: warn
