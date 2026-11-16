@@ -235,10 +235,10 @@
   <div class="code-splitter" role="separator" aria-label="Largura do painel de código" aria-orientation="vertical" aria-controls="book-analysis" tabindex="0" hidden></div>
   <aside class="workbook-sidebar workbook-analysis" id="book-analysis" data-book-analysis hidden aria-label="Análise da aba ativa">
     <div class="workbook-sidebar-title"><strong>Análise da aba ativa</strong><button type="button" data-book-command="close-analysis" aria-label="Recolher análise"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#chevron-right"></use></svg></button></div>
-    <p>A primeira linha preenchida fornece os cabeçalhos. SQL consulta <code>dados</code>. Python recebe <code>DATASET_CSV</code>.</p>
+    <p>O SQL consulta <code>dados</code> usando os cabeçalhos da aba; títulos mesclados antes do cabeçalho são ignorados. Python recebe <code>DATASET_CSV</code>.</p>
     <details class="book-sql-tutorial" aria-label="Tutorial de consultas SQL">
       <summary>Como pesquisar nesta tabela — tutorial SQL</summary>
-      <p>Use <code>dados</code> como nome da tabela. A primeira linha preenchida define os nomes das colunas.
+      <p>Use <code>dados</code> como nome da tabela. A primeira linha de cabeçalho define os nomes das colunas; títulos mesclados são ignorados.
         Digite uma consulta no editor SQL e clique em <strong>Executar SQL</strong>.
         O resultado é uma prévia; para copiá-lo, use <strong>Enviar para aba</strong>.</p>
       <p><strong>Ver registros:</strong> <code>SELECT * FROM dados LIMIT 20</code></p>
