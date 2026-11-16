@@ -1490,9 +1490,25 @@
         table.dataset.tablePreset=obj.table_preset||"header";
         if(obj.table_transparent)table.dataset.transparent="true";
         const padding=(obj.table_padding_pt??3)*4/3*(thumb?.16:this.getZoom());
-        (obj.table_cells||[]).forEach((cells,rowIndex)=>{
+        // Imported OOXML tables can have very different column widths and
+        // row heights. Keep their tracks in thumbnails and full-size view.
+        const rows=obj.table_cells||[];
+        const widths=obj.table_col_widths;
+        if(Array.isArray(widths)&&widths.length===(rows[0]||[]).length){
+          const colgroup=document.createElement("colgroup");
+          widths.forEach(ratio=>{
+            const col=document.createElement("col");
+            col.style.width=(ratio*100)+"%";
+            colgroup.append(col);
+          });
+          table.append(colgroup);
+          table.style.tableLayout="fixed";
+        }
+        (rows).forEach((cells,rowIndex)=>{
           const tr=table.insertRow();
-          tr.style.height=100/obj.table_cells.length+"%";
+          const heights=obj.table_row_heights;
+          tr.style.height=(Array.isArray(heights)&&heights.length===rows.length
+            ?heights[rowIndex]*100:100/rows.length)+"%";
           cells.forEach(value=>{
             const td=document.createElement(rowIndex===0&&table.dataset.tablePreset==="header"?"th":"td");
             const label=document.createElement("span");label.textContent=value;
