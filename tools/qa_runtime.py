@@ -41,6 +41,7 @@ class Keyboard:
             typing = pyqtSignal(str, int)
             plain = pyqtSignal(str, bool)
             clicked = pyqtSignal(int, int)
+            clipboard_requested = pyqtSignal()
 
             def __init__(self, view):
                 super().__init__()
@@ -50,6 +51,13 @@ class Keyboard:
                 self.typing.connect(self.type_text)
                 self.plain.connect(self.type_key)
                 self.clicked.connect(self.click_at)
+                self.clipboard_requested.connect(self.read_clipboard)
+                self.clipboard_value = ""
+
+            @pyqtSlot()
+            def read_clipboard(self):
+                self.clipboard_value = QApplication.clipboard().text()
+                self.done.set()
 
             @pyqtSlot(int, int)
             def click_at(self, x, y):
@@ -101,6 +109,20 @@ class Keyboard:
         self.driver.requested.emit(key)
         if not self.driver.done.wait(5):
             raise AssertionError("Qt shortcut timeout: " + key)
+
+    def wait_clipboard(self, *parts, timeout=5):
+        """Wait for one native copy; never write clipboard contents or repeat keys."""
+        import time
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            self.driver.done.clear()
+            self.driver.clipboard_requested.emit()
+            if not self.driver.done.wait(5):
+                raise AssertionError("Qt clipboard read timeout")
+            if all(part in self.driver.clipboard_value for part in parts):
+                return
+            time.sleep(0.05)
+        raise AssertionError("Single Ctrl+C did not reach the system clipboard")
 
     def type(self, text, delay=0):
         self.driver.done.clear()
