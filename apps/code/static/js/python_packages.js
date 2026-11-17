@@ -11,6 +11,15 @@
     modal.append(heading,body,close);host.append(modal);
     const progress=document.createElement("progress");progress.hidden=true;progress.setAttribute("aria-label","Instalando bibliotecas");status.before(progress);
     const open=()=>{body.hidden=false;if(modal.showModal){if(!modal.open)modal.showModal();}else modal.setAttribute("open","");};
+    const interpreter=document.createElement("input");interpreter.placeholder="Caminho absoluto do Python (opcional)";
+    interpreter.setAttribute("aria-label","Interpretador Python");
+    const select=document.createElement("button");select.type="button";select.textContent="Selecionar Python";
+    select.onclick=async()=>{try{await request("dataset",{operation:"python-env-select",id:project(),python:interpreter.value});message("Interpretador selecionado: "+interpreter.value);}catch(error){message(error.message);}};
+    const discover=document.createElement("button");discover.type="button";discover.textContent="Detectar interpretadores";
+    discover.onclick=async()=>{try{const result=await request("dataset",{operation:"python-env-discover",id:project()});message(result.interpreters.map(p=>p.path+" · "+p.version+" · "+p.architecture+" bits · venv: "+p.venv+" · pip: "+p.pip).join("\n")||"Nenhum Python encontrado.");}catch(error){message(error.message);}};
+    const copy=document.createElement("button");copy.type="button";copy.textContent="Copiar diagnóstico";
+    copy.onclick=()=>navigator.clipboard.writeText(status.textContent);
+    body.prepend(interpreter,select,discover,copy);
     let working=false;
     const message=text=>{status.textContent=text;};
     function showDetails(result) {
@@ -21,7 +30,7 @@
         row.textContent=pkg.name+" "+pkg.version;return row;
       }));
       if(!result.initialized)message("Nenhum venv criado. O ambiente só será criado após autorização.");
-      else message(installed.length+" pacotes presentes neste projeto."+(
+      else message(result.python+" · "+installed.length+" pacotes presentes neste projeto."+(
         installed.some(pkg=>pkg.name.toLowerCase()==="jedi")?" Autocomplete Python preparado.":" Autocomplete indisponível: ative o Jedi abaixo."));
     }
     async function inspect() {

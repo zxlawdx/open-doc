@@ -60,8 +60,13 @@ def dataset(context=None):
             return store.undo(data["id"])
         if data["operation"] == "redo":
             return store.undo(data["id"], redo=True)
-        if data["operation"] in {"python-env-status", "python-env-install", "python-env-remove"}:
+        if data["operation"] in {"python-env-status", "python-env-install", "python-env-remove", "python-env-discover", "python-env-select"}:
             manager = get_context().code_tools.environments(get_context().config.root)
+            if data["operation"] == "python-env-discover":
+                from apps.code.services.local_runtime import discover_pythons
+                return {"interpreters": discover_pythons()}
+            if data["operation"] == "python-env-select":
+                return manager.select(data["id"], data["python"])
             if data["operation"] == "python-env-status":
                 return manager.status(data["id"])
             if data["operation"] == "python-env-remove" and get_context().notebooks is not None:

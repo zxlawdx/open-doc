@@ -4,6 +4,7 @@ import importlib
 import subprocess
 import sys
 import venv
+import parso
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -14,7 +15,9 @@ from apps.code.services.python_analysis import analyze
 from apps.code.services.python_envs import PythonEnvironments
 
 
-def test_project_install_refreshes_autocomplete_without_app_restart(tmp_path, monkeypatch):
+def test_project_install_refreshes_autocomplete_without_app_restart(
+    tmp_path, monkeypatch
+):
     project = str(uuid4())
     manager = PythonEnvironments(tmp_path)
     folder = manager.path(project)
@@ -24,7 +27,11 @@ def test_project_install_refreshes_autocomplete_without_app_restart(tmp_path, mo
 
     purelib = Path(
         subprocess.check_output(
-            [str(executable), "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+            [
+                str(executable),
+                "-c",
+                "import sysconfig; print(sysconfig.get_path('purelib'))",
+            ],
             text=True,
             timeout=15,
         ).strip()
@@ -32,12 +39,20 @@ def test_project_install_refreshes_autocomplete_without_app_restart(tmp_path, mo
     # The real installer installs Jedi into the venv. To test offline without
     # PyPI, expose the already-tested host Jedi + Parso via this isolated venv.
     (purelib / "opendoc_test_jedi.pth").write_text(
-        str(Path(jedi.__file__).parent.parent) + "\n", encoding="utf-8"
+        "\n".join(
+            {
+                str(Path(jedi.__file__).parent.parent),
+                str(Path(parso.__file__).parent.parent),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
     workspace_module = importlib.import_module("shared.contracts.workspace")
     monkeypatch.setattr(
-        workspace_module, "workspace",
+        workspace_module,
+        "workspace",
         lambda: SimpleNamespace(config=SimpleNamespace(root=tmp_path)),
     )
 
@@ -57,19 +72,27 @@ def test_project_install_refreshes_autocomplete_without_app_restart(tmp_path, mo
     assert "CustomPrediction" in {item["label"] for item in after["items"]}
 
     nested = "import opendoc_project_only_package as plugin\nplugin.CustomPrediction().from_proj"
-    next_result = analyze(nested, 2, len("plugin.CustomPrediction().from_proj"), "complete", project)
+    next_result = analyze(
+        nested, 2, len("plugin.CustomPrediction().from_proj"), "complete", project
+    )
     assert "from_project_venv" in {item["label"] for item in next_result["items"]}
 
 
-def test_project_editor_reports_explicit_error_when_jedi_not_installed(tmp_path, monkeypatch):
+def test_project_editor_reports_explicit_error_when_jedi_not_installed(
+    tmp_path, monkeypatch
+):
     project = str(uuid4())
     folder = PythonEnvironments(tmp_path).path(project)
     venv.EnvBuilder(with_pip=False).create(folder)
     workspace_module = importlib.import_module("shared.contracts.workspace")
     monkeypatch.setattr(
-        workspace_module, "workspace",
+        workspace_module,
+        "workspace",
         lambda: SimpleNamespace(config=SimpleNamespace(root=tmp_path)),
     )
     import pytest
+
     with pytest.raises(ValueError, match="Jedi não está instalado"):
-        analyze("import pandas as pd\npd.DataF", 2, len("pd.DataF"), "complete", project)
+        analyze(
+            "import pandas as pd\npd.DataF", 2, len("pd.DataF"), "complete", project
+        )

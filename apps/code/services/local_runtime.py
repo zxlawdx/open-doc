@@ -70,7 +70,9 @@ def hidden_process_options(flags=0):
     """Keep subprocess output in the application, including windowed builds."""
     if sys.platform != "win32":
         return {}
-    return {"creationflags": flags | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
+    return {
+        "creationflags": flags | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+    }
 
 
 def run_external(
@@ -82,7 +84,7 @@ def run_external(
     check=False,
     cwd=None,
     env=None,
-    input=None
+    input=None,
 ):
     # Restore the parent's DLL search immediately after CreateProcess, before
     # waiting, so the GUI can continue loading its own runtime libraries.
@@ -111,32 +113,84 @@ def run_external(
         return result
 
 
-def external_python():
-    if not getattr(sys, "frozen", False):
-        return Path(sys.executable)
+def discover_pythons(configured=None):
+    """Probe actual executables; launcher aliases are never used as venv paths."""
+    import json
+
     environment = child_environment()
-    candidates = [
-        shutil.which(name, path=environment.get("PATH"))
-        for name in ("python3", "python")
-    ]
+    candidates = []
+    if configured:
+        candidates.append(str(configured))
+    if not getattr(sys, "frozen", False):
+        candidates.append(sys.executable)
+    for name in ("python3", "python", "python.exe"):
+        candidate = shutil.which(name, path=environment.get("PATH"))
+        if candidate:
+            candidates.append(candidate)
+    if sys.platform == "win32":
+        launcher = shutil.which("py", path=environment.get("PATH"))
+        if launcher:
+            try:
+                listed = run_external(
+                    [launcher, "-0p"], capture_output=True, text=True, timeout=10
+                )
+                for line in (listed.stdout or "").splitlines():
+                    # Both legacy `-3.x-64` and install-manager `-V:...` output.
+                    import re
+
+                    match = re.search(r"([A-Za-z]:[\\/].*?\.exe)\s*\*?\s*$", line, re.I)
+                    if match:
+                        candidates.append(match.group(1))
+            except (OSError, subprocess.SubprocessError):
+                pass
+    probe = (
+        "import sys,json,struct,sysconfig,importlib.util as u;"
+        "print(json.dumps(dict(path=sys.executable,version=sys.version.split()[0],"
+        "architecture=struct.calcsize('P')*8,venv=u.find_spec('venv') is not None,"
+        "pip=u.find_spec('pip') is not None,platform=sys.platform,"
+        "scripts=sysconfig.get_path('scripts',scheme='venv',vars={'base':'/ENV','platbase':'/ENV'}))))"
+    )
+    found, seen = [], set()
     for candidate in candidates:
-        if not candidate or Path(candidate).resolve() == Path(sys.executable).resolve():
-            continue
         try:
             result = run_external(
-                [candidate, "-I", "-c", "import sys; print(sys.executable)"],
+                [candidate, "-I", "-c", probe],
                 capture_output=True,
                 text=True,
                 check=True,
                 timeout=10,
             )
-            actual = Path(result.stdout.strip())
-            if actual.is_file() and actual.resolve() != Path(sys.executable).resolve():
-                return actual
-        except (OSError, subprocess.SubprocessError):
+            item = json.loads(result.stdout)
+            actual = Path(item["path"])
+            key = os.path.normcase(str(actual.resolve()))
+            if not actual.is_file() or key in seen:
+                continue
+            if (
+                getattr(sys, "frozen", False)
+                and actual.resolve() == Path(sys.executable).resolve()
+            ):
+                continue
+            seen.add(key)
+            item["path"] = str(actual.resolve())
+            found.append(item)
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
             continue
+    return found
+
+
+def external_python(configured=None):
+    found = discover_pythons(configured)
+    if configured:
+        expected = Path(configured).resolve()
+        found = [item for item in found if Path(item["path"]).resolve() == expected]
+    if sys.platform == "win32" and not configured:
+        found.sort(key=lambda item: "Scripts" not in item.get("scripts", ""))
+    for item in found:
+        if item["venv"]:
+            return Path(item["path"])
     raise ValueError(
-        "Instale Python 3 e disponibilize o interpretador no PATH para usar código local."
+        "Python com suporte a venv não encontrado. Selecione o executável Python "
+        "nas Bibliotecas do projeto ou instale Python com venv."
     )
 
 

@@ -24,6 +24,26 @@ from shared.contracts.errors import ServiceUnavailable
 
 LOGGER = logging.getLogger(__name__)
 
+# IPython parses shell syntax, interpolation and multiline cells. Override only
+# its shell pip entry point; never rewrite user Python source or string literals.
+KERNEL_BOOTSTRAP = r"""
+import sys as _od_sys, os as _od_os, shlex as _od_shlex, importlib as _od_importlib
+_od_os.environ['VIRTUAL_ENV'] = _od_sys.prefix
+_od_os.environ['PATH'] = _od_os.path.dirname(_od_sys.executable) + _od_os.pathsep + _od_os.environ.get('PATH', '')
+_od_shell = get_ipython()
+_od_system = _od_shell.system
+
+def _od_project_system(command):
+    import re
+    if re.match(r'^\s*pip(?:3)?(?:\s|$)', command):
+        # %pip uses this kernel's sys.executable and IPython's own quoting.
+        return _od_shell.run_line_magic('pip', re.sub(r'^\s*pip(?:3)?\s*', '', command, count=1))
+    return _od_system(command)
+
+_od_shell.system = _od_project_system
+_od_shell.events.register('post_run_cell', lambda result: _od_importlib.invalidate_caches())
+"""
+
 
 @dataclass
 class Session:
@@ -58,18 +78,7 @@ class KernelSessions:
                 self.stop(project)
             if len(self._sessions) >= self.max_sessions:
                 raise ValueError("Encerre uma sessão Python antes de abrir outra.")
-            executable = environments.interpreter(project) or external_python()
-            try:
-                run_external(
-                    [str(executable), "-c", "import ipykernel"],
-                    capture_output=True,
-                    check=True,
-                    timeout=15,
-                )
-            except Exception as exc:
-                raise ValueError(
-                    "O interpretador selecionado não possui ipykernel. Abra Bibliotecas do projeto, escolha Preparar notebook (Pandas, Arrow, Jupyter e SQL), autorize a instalação e tente novamente. Instalar pacotes no Python do sistema não instala no ambiente virtual deste projeto."
-                ) from exc
+            executable = environments.prepare_kernel(project)
 
             class ProjectSpecs(KernelSpecManager):
                 def get_kernel_spec(self, kernel_name):
@@ -102,20 +111,26 @@ class KernelSessions:
                 # Windowed frozen apps have no valid inherited standard handles.
                 with startup_log.open("wb") as errors, external_dll_search():
                     manager.start_kernel(
-                        cwd=directory.name, env=child_environment(),
-                        stdout=subprocess.DEVNULL, stderr=errors,
+                        cwd=directory.name,
+                        env=child_environment(),
+                        stdout=subprocess.DEVNULL,
+                        stderr=errors,
                         **hidden_process_options(),
                     )
                 client = manager.blocking_client()
                 client.start_channels()
                 client.wait_for_ready(timeout=30)
-                if os.name == "nt":
-                    client.execute(HIDDEN_CHILD_BOOTSTRAP, silent=True, store_history=False, allow_stdin=False)
+                client.execute(
+                    HIDDEN_CHILD_BOOTSTRAP + KERNEL_BOOTSTRAP,
+                    silent=True,
+                    store_history=False,
+                    allow_stdin=False,
+                )
             except BaseException as error:
                 # Cleanup failures must not replace the original startup diagnosis.
-                for cleanup in ([client.stop_channels] if client is not None else []) + [
-                    lambda: manager.shutdown_kernel(now=True)
-                ]:
+                for cleanup in (
+                    [client.stop_channels] if client is not None else []
+                ) + [lambda: manager.shutdown_kernel(now=True)]:
                     try:
                         cleanup()
                     except Exception:
