@@ -196,7 +196,21 @@ class PythonEnvironments:
         )
         if probe.returncode:
             tools = embedded_tools()
-            if tools and not self.selected(project):
+            compatible = (
+                run_external(
+                    [
+                        str(python),
+                        "-I",
+                        "-c",
+                        "import sys,struct; assert sys.version_info[:2] == (3,12) and struct.calcsize('P') == 8",
+                    ],
+                    capture_output=True,
+                    timeout=15,
+                )
+                if tools
+                else None
+            )
+            if tools and compatible.returncode == 0 and not self.selected(project):
                 self._run(
                     project,
                     "preparação offline do Jupyter",

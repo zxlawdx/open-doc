@@ -137,3 +137,34 @@ def test_scientific_wheels_import_and_jedi(tmp_path, monkeypatch):
     )
     assert "head" in {item["label"] for item in json.loads(completion.stdout)["items"]}
     assert manager.check(project)["compatible"]
+
+
+def test_existing_external_venv_preserves_its_python_version(tmp_path):
+    """CI host is 3.14 while the shipped runtime is 3.12: real migration path."""
+    import sys
+    import venv
+    from apps.code.services.python_envs import PythonEnvironments
+    from apps.code.services.local_runtime import run_external
+
+    manager = PythonEnvironments(tmp_path)
+    project = str(uuid4())
+    folder = manager.path(project)
+    venv.EnvBuilder(with_pip=False).create(folder)
+    marker = folder / "preserve-data.txt"
+    marker.write_text("old project data")
+    python = manager.prepare_kernel(project)
+    result = run_external(
+        [
+            str(python),
+            "-I",
+            "-c",
+            'import sys,ipykernel; print(str(sys.version_info.major)+"."+str(sys.version_info.minor))',
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    assert result.stdout.strip() == f"{sys.version_info.major}.{sys.version_info.minor}"
+    assert marker.read_text() == "old project data"
+    assert manager.interpreter(project) == python

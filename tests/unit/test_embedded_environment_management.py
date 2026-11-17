@@ -123,3 +123,29 @@ def test_default_internal_python_does_not_probe_msys_store_or_path(
     monkeypatch.setattr(local_runtime, "discover_pythons", forbidden_probe)
     monkeypatch.setenv("PATH", "MSYS2-first;Microsoft-Store;Conda")
     assert local_runtime.external_python() == python
+
+
+def test_legacy_python_314_environment_does_not_use_312_offline_wheels(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+    from apps.code.services import python_envs
+
+    manager = PythonEnvironments(tmp_path)
+    project = str(uuid4())
+    python = Path("/existing Python 3.14/python")
+    monkeypatch.setattr(manager, "ensure", lambda project: python)
+    monkeypatch.setattr(
+        python_envs,
+        "embedded_tools",
+        lambda: {"root": tmp_path / "runtime", "uv": tmp_path / "uv"},
+    )
+    monkeypatch.setattr(
+        python_envs, "run_external", lambda *a, **kw: SimpleNamespace(returncode=1)
+    )
+    calls = []
+    monkeypatch.setattr(
+        manager, "install", lambda *args, **kwargs: calls.append((args, kwargs))
+    )
+    assert manager.prepare_kernel(project) == python
+    assert calls == [((project, ["ipykernel"]), {"confirm": True})]

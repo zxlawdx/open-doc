@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: python -m pip install pytest jupyter_client
       - run: python tools/stage_python_runtime.py build/portable
       - run: python tools/smoke_python_runtime.py build/portable/runtime
