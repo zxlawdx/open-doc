@@ -936,7 +936,7 @@
       const cursor=input.selectionStart??input.value.length;
       const prefix=input.value.slice(0,cursor);
       if(!prefix.startsWith("=")){hideSuggestions();formulaExample.hidden=true;return;}
-      const currentFunction=/([A-Za-zÀ-ÿ]+)\\([^()]*$/i.exec(prefix);
+      const currentFunction=/([A-Za-zÀ-ÿ]+)\([^()]*$/i.exec(prefix);
       const signature=currentFunction && formulaHelp[currentFunction[1].toLocaleUpperCase("pt-BR")];
       formulaExample.hidden=!signature;
       if(signature){
