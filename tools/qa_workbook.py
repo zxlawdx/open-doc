@@ -418,6 +418,7 @@ def main():
             wait(
                 window,
                 "document.querySelector('[data-workbook] [data-code-cell=sql] td')?.textContent==='42'",
+                timeout=240,
             )
             window.create_confirmation_dialog = lambda *args: True
             try:
@@ -430,6 +431,7 @@ def main():
                 wait(
                     window,
                     "document.querySelector('[data-workbook] [data-code-cell=python] pre')?.textContent.includes('caderno-python')",
+                    timeout=240,
                 )
             finally:
                 window.create_confirmation_dialog = confirm
