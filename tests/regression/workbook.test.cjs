@@ -109,3 +109,9 @@ test('structural edits fail atomically on truncated occupied edge or unsupported
   assert.equal(next[1].cells['0,0'],'=Dados!A2');
   assert.equal(other[1].cells['0,0'],'=Dados!A1');
 });
+
+
+test('workbook editor source parses its formula-argument regular expressions',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../../apps/spreadsheets/static/js/workbook.js'),'utf8');
+  assert.doesNotThrow(()=>new vm.Script(source));
+});

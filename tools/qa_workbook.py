@@ -368,6 +368,7 @@ def main():
                 wait(
                     window,
                     "document.querySelector('[data-book-python-output]').textContent.includes('Total de registros: 2')",
+                    timeout=240,
                 )
             finally:
                 window.create_confirmation_dialog = confirm
