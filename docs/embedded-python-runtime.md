@@ -1,0 +1,22 @@
+# Embedded project Python runtime
+
+The application ships CPython **3.12.16** (Astral Python Build Standalone, release **20261110**) and **uv 0.13.9** for Windows x64 and Linux x86-64. `packaging/python-runtime.json` pins asset URLs and the SHA-256 digests returned by the upstream release API. The build rejects a mismatched download, unexpected Python version or non-64-bit runtime. The original CPython/dependency licenses remain under runtime/python; uv's MIT and Apache licenses are staged under runtime/licenses.
+
+`tools/stage_python_runtime.py` runs after freezing and before packaging. It stages `runtime/python`, `runtime/uv`, the checked-in hash-locked minimal IPython/ipykernel/Jedi/pip wheel set, notices, provenance and a per-file integrity manifest. Both installers copy the complete application tree. `embedded_runtime.py` verifies shipped files once per process before use. The basic kernel can be prepared entirely offline. New scientific packages require network access or a populated package cache/local repository.
+
+Project environments stay under the existing writable workspace `.veladata/python_envs`, outside the installation directory. Existing directories are reused and never cleared. The application runtime is never a package-install target. The default interpreter is the bundled runtime; explicit external base interpreters and existing venvs are optional. Selection is stored per project. Changing selection stops the old kernel and clears analysis caches, preserving old environment directories; selecting an internal/external base uses its own persistent slot.
+
+The existing Libraries dialog is the Python Environments configuration surface shared by Code, Data and Sheets. It displays active interpreter and kernel state, discovery/version/architecture/capabilities, external/base/venv selection, install/upgrade/remove, requirements.txt import/export, dependency checks, live logs and cancellation. Requirements imports accept plain PyPI names/version constraints (200 entries / 64 KB); recursive includes, URLs and arbitrary pip flags are intentionally rejected. Native notebook magics retain standard IPython parsing and options, and install through the active kernel's Python. Static completion uses the same project interpreter and existing Jedi worker. Importing a notebook does not execute its code.
+
+GUI installs use the bundled uv with an explicit project `--python`. Native `%pip` and the shell pip hook use that kernel's `sys.executable -m pip`; global Python and global PATH are not changed. Package operations can execute user-trusted arbitrary code; venv isolates dependencies, not OS permissions. Native/GPU dependency failures retain solver/build output. No GPU toolkit or models are distributed; Faster-Whisper import validation does not certify CUDA execution or model downloads.
+
+Validation tools:
+
+* `tools/smoke_python_runtime.py <runtime>` empties PATH, disables downloads and supplies an invalid network proxy, bootstraps a project, runs native `%pip`/`!pip` and preserves a variable through IPython, then checks dependencies/reuse.
+* `tests/integration/test_embedded_runtime.py` runs a real kernel in native CI, checks restart and project selection persistence, and imports NumPy, Pandas, Matplotlib, Scikit-learn, PyArrow, DuckDB and Faster-Whisper. It also checks DataFrame completion with Jedi.
+* Unit tests cover cancellation preserving existing data, requirements validation and corrupted runtime files. Existing project/notebook and cross-platform tests remain required.
+* Package CI runs offline runtime smoke before distributing Windows/Linux installers. Existing frozen-application notebook smoke remains enabled.
+
+Local Linux evidence: verified upstream archives were downloaded and staged; PATH-empty offline venv/kernel-dependency setup passed, including native IPython pip commands and persistent variables. Native Jupyter socket execution is delegated to CI because this executor denies ZeroMQ sockets. The affected Windows computer has not been accessed. Full build/installer and Windows validation must pass before merge/publication.
+
+Release procedure: merge the emergency fix and then this separate runtime PR only after every check is green. Update the existing `release/rebuild-v1.0.1` branch to the final merge SHA; the established workflow rebuilds, validates, replaces v1.0.1 assets only after successful packaging, and records the build commit in release notes. Never publish unvalidated binaries.
