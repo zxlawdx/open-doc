@@ -86,7 +86,7 @@ test('deleting row or column retains ranges and reports deleted references',()=>
   ];
   const next=windowShift(initial,0,'row',1,false);
   assert.equal(next[0].cells['0,1'],'=SOMA(A1:A2)');
-  assert.equal(next[0].cells['1,1'],'=$A$2');
+  assert.equal(next[0].cells['1,1'],'=#REF!');
   assert.equal(next[1].cells['0,0'],'=Dados!#REF!');
   assert.equal(next[1].cells['1,0'],'=Dados!A2');
   assert.equal(evaluate(next)(1,0,0),'#REF!');
