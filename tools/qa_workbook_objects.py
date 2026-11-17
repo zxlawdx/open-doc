@@ -131,7 +131,7 @@ def main():
                 js("""(() => {
                   const bytes=Uint8Array.from(atob(%s),char=>char.charCodeAt(0));
                   const transfer=new DataTransfer();transfer.items.add(new File([bytes],'nova-imagem.png',{type:'image/png'}));
-                  const input=document.querySelector('[data-workbook] input[type=file]');input.files=transfer.files;
+                  const input=document.querySelector('[data-workbook] input[type=file][accept*="image/png"]');input.files=transfer.files;
                   input.dispatchEvent(new Event('change',{bubbles:true}));
                 })()""" % json.dumps(encoded))
                 wait(
