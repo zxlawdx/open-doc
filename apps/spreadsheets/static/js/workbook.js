@@ -1097,39 +1097,18 @@
       else if(!event.altKey&&event.key.length===1){event.preventDefault();editInline(event.key);}
     },{signal});
     function changeStructure(name) {
-      const isColumn=name.endsWith("column"),insert=name.startsWith("insert");
-      const target=sheet(),position=isColumn?col:row,limit=isColumn?COLS:ROWS;
-      // Moving a reference without migrating its formula or pivot metadata could
-      // silently change a result. Allow this operation on plain workbooks only.
-      if(book.sheets.some(item=>item.layout?.merges?.length||item.layout?.freeze?.some(Boolean)||item.pivot||item.objects?.some(obj=>obj.type==='chart')||Object.values(item.cell_tools||{}).some(tool=>tool.sparkline)||Object.values(item.cells).some(value=>value.startsWith("="))))
-        throw Error("A estrutura só pode ser alterada em pastas sem fórmulas e sem tabelas dinâmicas.");
-      const move=index=>{
-        if(index<position)return index;
-        if(!insert&&index===position)return null;
-        const next=index+(insert?1:-1);
-        if(next>=limit)throw Error("A última posição está em uso. Remova o conteúdo antes de inserir.");
-        return next;
-      };
-      const cellAddress=id=>{
-        const [r,c]=id.split(",").map(Number),next=move(isColumn?c:r);
-        return next===null?null:isColumn?key(r,next):key(next,c);
-      };
-      const remap=(values,addressOf)=>Object.fromEntries(Object.entries(values||{}).flatMap(([id,value])=>{
-        const next=addressOf(id);
-        return next===null?[]:[[next,value]];
-      }));
-      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types,cell_tools:target.cell_tools,layout:target.layout};
-      const after={
-        layout:target.layout&&{...target.layout,[isColumn?"columns":"rows"]:remap(target.layout[isColumn?"columns":"rows"],id=>move(Number(id)))},
-        cells:remap(target.cells,cellAddress),
-        bold:target.bold.map(cellAddress).filter(id=>id!==null),
-        styles:target.styles&&remap(target.styles,cellAddress),
-        cell_tools:target.cell_tools&&remap(target.cell_tools,cellAddress),
-        types:target.types&&{cells:remap(target.types.cells,cellAddress),
-          columns:isColumn?remap(target.types.columns,id=>move(Number(id))):target.types.columns},
-      };
-      change(()=>Object.assign(target,before),()=>Object.assign(target,after));
-      report((isColumn?"Coluna":"Linha")+(insert?" inserida.":" excluída.")+" Ctrl+Z para desfazer.");
+      finishInline();commit();
+      const axis=name.endsWith("column")?"column":"row",insert=name.startsWith("insert");
+      const position=axis==="column"?col:row;
+      const before=book.sheets;
+      const after=window.OpenDocWorkbookFormula.shiftStructure(before,index,axis,position,insert);
+      const previousRow=row,previousCol=col;
+      change(()=>{book.sheets=before;geometryCache.delete(before[index]);},
+        ()=>{book.sheets=after;geometryCache.delete(after[index]);});
+      const nextRow=axis==="row"?Math.max(0,Math.min(ROWS-1,previousRow)):previousRow;
+      const nextCol=axis==="column"?Math.max(0,Math.min(COLS-1,previousCol)):previousCol;
+      select(nextRow,nextCol,false,true);
+      report((axis==="column"?"Coluna":"Linha")+(insert?" inserida.":" excluída.")+" Ctrl+Z para desfazer.");
     }
     function fillValues() {
       const range=rectangle(),source=range[0].map(id=>{
