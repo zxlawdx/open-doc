@@ -143,7 +143,12 @@ class PythonEnvironments:
                     f"Ambiente incompleto preservado: {folder}. Selecione outro projeto ou repare este ambiente."
                 )
             base = external_python(self.selected(project))
-            folder.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                folder.parent.mkdir(parents=True, exist_ok=True)
+            except OSError as error:
+                raise ValueError(
+                    f"Etapa: criação do diretório\nPython: {base}\nAmbiente: {folder}\nErro: {error}\nVerifique as permissões do workspace."
+                ) from error
             tools = embedded_tools()
             if tools:
                 args = [

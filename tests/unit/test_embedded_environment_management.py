@@ -80,3 +80,26 @@ def test_integrity_check_rejects_changed_binary(tmp_path):
     verify_runtime.cache_clear()
     with pytest.raises(ValueError, match="Integridade"):
         verify_runtime(tmp_path)
+
+
+def test_environment_parent_permission_failure_is_actionable(tmp_path, monkeypatch):
+    from apps.code.services import python_envs
+
+    manager = PythonEnvironments(tmp_path)
+    project = str(uuid4())
+    monkeypatch.setattr(
+        python_envs, "external_python", lambda *args: Path(sys.executable)
+    )
+    original = Path.mkdir
+
+    def denied(path, *args, **kwargs):
+        if path == manager.root:
+            raise PermissionError("permission denied")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", denied)
+    with pytest.raises(ValueError) as failure:
+        manager.ensure(project)
+    assert "criação do diretório" in str(failure.value)
+    assert str(manager.path(project)) in str(failure.value)
+    assert "permission denied" in str(failure.value)

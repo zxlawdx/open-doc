@@ -94,13 +94,13 @@ def dataset(context=None):
 
                 return {"interpreters": discover_pythons()}
             if data["operation"] == "python-env-select":
-                get_context().kernels.stop(data["id"])
                 result = manager.select(
                     data["id"],
                     data.get("python"),
                     existing=data.get("existing") is True,
                     internal=data.get("internal") is True,
                 )
+                get_context().kernels.stop(data["id"])
                 get_context().code_tools.clear_analysis_cache()
                 return result
             if data["operation"] == "python-env-status":
