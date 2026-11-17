@@ -13,6 +13,7 @@ _spawn_lock = RLock()
 
 def child_environment():
     environment = dict(os.environ)
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
     for key in list(environment):
         if key.startswith(("_PYI_", "PYINSTALLER_")) or key in {
             "PYTHONHOME",

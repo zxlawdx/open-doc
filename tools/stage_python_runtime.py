@@ -104,10 +104,14 @@ def stage(bundle):
             + name,
             notices / ("uv-" + name),
         )
+    # Bytecode caches are mutable and path-dependent, especially after a Windows
+    # installation moves. Verify immutable sources/binaries, not regenerated caches.
+    for cache in runtime.rglob("*.pyc"):
+        cache.unlink()
     files = {
         str(p.relative_to(runtime)).replace("\\", "/"): digest(p)
         for p in runtime.rglob("*")
-        if p.is_file()
+        if p.is_file() and p.suffix != ".pyc"
     }
     (runtime / "integrity.json").write_text(json.dumps(files, indent=2))
     print(
