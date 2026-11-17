@@ -133,6 +133,7 @@ def test_program_publishes_python_dataframe_without_importing_csv(tmp_path):
         ctx = get_context()
         identifier = ctx.datasets.create("Titanic carregado no notebook")["id"]
         assert ctx.datasets.is_program(identifier)
+        ctx.code_tools.environments(tmp_path).prepare_data(identifier)
         ran = ctx.notebooks.execute(
             identifier,
             "import pandas as pd\n"
@@ -172,6 +173,7 @@ def test_program_publish_failure_does_not_change_existing_table(tmp_path):
     try:
         ctx = get_context()
         identifier = ctx.datasets.create("Python sem df")["id"]
+        ctx.code_tools.environments(tmp_path).prepare_data(identifier)
         assert ctx.notebooks.execute(identifier, "numero = 3")["returncode"] == 0
         failed = ctx.notebooks.publish(identifier)
         assert failed["returncode"] == 1
