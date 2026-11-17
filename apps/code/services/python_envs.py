@@ -131,9 +131,18 @@ class PythonEnvironments:
             timeout=15,
         )
         if probe.returncode:
-            self.install(
-                project, ["ipykernel", "pandas", "pyarrow", "duckdb"], confirm=True
-            )
+            self.install(project, ["ipykernel"], confirm=True)
+        return python
+
+    def prepare_data(self, project):
+        python = self.prepare_kernel(project)
+        probe = run_external(
+            [str(python), "-I", "-c", "import pandas, pyarrow, duckdb"],
+            capture_output=True,
+            timeout=15,
+        )
+        if probe.returncode:
+            self.install(project, ["pandas", "pyarrow", "duckdb"], confirm=True)
         return python
 
     def status(self, project):

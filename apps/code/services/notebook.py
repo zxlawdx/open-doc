@@ -13,6 +13,9 @@ class NotebookService:
         self._lock = RLock()
 
     def open(self, identifier):
+        self.context.code_tools.environments(self.context.config.root).prepare_data(
+            identifier
+        )
         ctx = self.context
         with self._lock:
             token = ctx.publications.token(identifier)
@@ -265,6 +268,9 @@ class NotebookService:
         return {"cells": json.loads(content), "revision": snapshot.revision}
 
     def open_workbook(self, identifier, columns, rows):
+        self.context.code_tools.environments(self.context.config.root).prepare_data(
+            identifier
+        )
         import io
 
         book = self.context.workbooks.get(identifier)
