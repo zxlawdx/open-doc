@@ -179,6 +179,8 @@ def discover_pythons(configured=None):
 
 
 def external_python(configured=None):
+    if not configured and not getattr(sys, "frozen", False):
+        return Path(sys.executable)
     found = discover_pythons(configured)
     if configured:
         expected = Path(configured).resolve()

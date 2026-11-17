@@ -122,3 +122,12 @@ def test_windows_launcher_finds_native_python_with_spaces_and_ignores_alias(
     found = local_runtime.discover_pythons()
     assert [entry["version"] for entry in found] == list(versions)
     assert local_runtime.external_python() == candidates[0]
+
+
+def test_current_python_does_not_repeat_discovery_for_editor_requests(monkeypatch):
+    from pathlib import Path
+    monkeypatch.setattr(sys, 'frozen', False, raising=False)
+    def unexpected(*args, **kwargs):
+        raise AssertionError('A running Python interpreter needs no PATH discovery')
+    monkeypatch.setattr(local_runtime, 'discover_pythons', unexpected)
+    assert local_runtime.external_python() == Path(sys.executable)
