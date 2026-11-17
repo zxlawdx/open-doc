@@ -2,7 +2,7 @@
 (() => {
   const FUNCTIONS = {SUM:"SUM", SOMA:"SUM", AVERAGE:"AVERAGE", "MÉDIA":"AVERAGE",
     MIN:"MIN", "MÍNIMO":"MIN", MAX:"MAX", "MÁXIMO":"MAX", IF:"IF", SE:"IF", COUNT:"COUNT", COUNTA:"COUNTA", IFERROR:"IFERROR", SEERRO:"IFERROR"};
-  const token = /^(?:"(?:[^"]|"")*"|\d+(?:[.,]\d+)?|(?:'[\w À-ÿ]+'|[\wÀ-ÿ]+)!|\$?[A-Za-z]{1,3}\$?[1-9]\d*\b|[A-Za-zÀ-ÿ]+|<=|>=|<>|\*\*|[=<>%^+*/():;,&-])/;
+  const token = /^(?:"(?:[^"]|"")*"|\d+(?:[.,]\d+)?|(?:'[\w À-ÿ]+'|[\wÀ-ÿ]+)!|\$?[A-Za-z]{1,3}\$?[1-9]\d*\b|[A-Za-zÀ-ÿ]+|#REF!|<=|>=|<>|\*\*|[=<>%^+*/():;,&-])/;
   const number = /^-?(?:0|[1-9]\d*)(?:[.,]\d+)?$/;
   const parseNumber = value => Number(String(value).replace(",", "."));
   function column(index) {
@@ -68,6 +68,8 @@
       function atom(){
         if(take("(")){const value=comparison();if(!take(")"))fail();return value;}
         const word=tokens[pos];if(!word)fail();
+        if(take("#REF!"))return {error:"#REF!"};
+        if(word.endsWith("!")&&tokens[pos+1]==="#REF!"){pos+=2;return {error:"#REF!"};}
         if(tokens[pos+1]==="("){
           const name=FUNCTIONS[word.toUpperCase()];if(!name)fail("#NOME?");pos+=2;
           const args=[];
@@ -92,6 +94,7 @@
       function comparison(){let value=sum();if(["=","<>","<",">","<=",">="].includes(tokens[pos])){const op=tokens[pos++];value={op,a:value,b:sum()};}return value;}
       function run(node){
         if(--remaining<0)fail("#LIMITE!");
+        if(node.error)fail(node.error);
         if("value" in node)return node.value;
         if(node.ref)return get(...node.ref);
         if(node.range){const [s,r,c,lastRow,lastCol]=node.range,values=[];
@@ -244,7 +247,8 @@
         if(layout.freeze)layout.freeze=shiftFreeze(layout.freeze);
       }
       const cell_tools=remap(original.cell_tools,cellKey);
-      if(cell_tools)for(const tool of Object.values(cell_tools)){
+      if(cell_tools)for(const [id,existing] of Object.entries(cell_tools)){
+        const tool={...existing};cell_tools[id]=tool;
         if(tool?.sparkline?.range){
           const span=shiftRect(tool.sparkline.range);
           if(span)tool.sparkline={...tool.sparkline,range:span};
