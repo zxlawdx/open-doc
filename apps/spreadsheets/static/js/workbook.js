@@ -92,6 +92,8 @@
       }
       for(const field of host.querySelectorAll("select[data-book-style]"))
         field.value=style[field.dataset.bookStyle]??"";
+      // The chosen paint colors are tools, not per-cell values. Selecting a
+      // different cell must not overwrite the user's last chosen color.
       $("[data-book-command=bold]").setAttribute("aria-pressed",String(sheet().bold.includes(key(row,col))));
       for(const button of tabs.children) button.setAttribute("aria-pressed",String(+button.dataset.index===index));
     }
@@ -239,6 +241,33 @@
     function bounds() {
       const range=[Math.min(row,anchor[0]),Math.min(col,anchor[1]),Math.max(row,anchor[0]),Math.max(col,anchor[1])];
       for(const rng of sheet().layout?.merges||[])if(rng[0]<=range[2]&&rng[2]>=range[0]&&rng[1]<=range[3]&&rng[3]>=range[1]){range[0]=Math.min(range[0],rng[0]);range[1]=Math.min(range[1],rng[1]);range[2]=Math.max(range[2],rng[2]);range[3]=Math.max(range[3],rng[3]);}return range;
+    }
+    function mergeSelection(unmerge=false) {
+      const target=sheet(), selection=bounds(), previous=target.layout;
+      const current=previous?.merges||[];
+      const overlaps=range=>range[0]<=selection[2]&&range[2]>=selection[0]&&range[1]<=selection[3]&&range[3]>=selection[1];
+      if(unmerge) {
+        const remaining=current.filter(range=>!overlaps(range));
+        if(remaining.length===current.length)return report("A seleção não contém células mescladas.");
+        const next={...previous,merges:remaining};
+        change(()=>{target.layout=previous;},()=>{target.layout=next;});
+        report("Células desmescladas.");
+        return;
+      }
+      if(selection[0]===selection[2]&&selection[1]===selection[3])
+        throw Error("Selecione duas ou mais células para mesclar.");
+      if(current.some(overlaps))
+        throw Error("A seleção contém células mescladas. Desmescle antes de criar outra mesclagem.");
+      const [top,left,bottom,right]=selection;
+      for(let r=top;r<=bottom;r++)for(let c=left;c<=right;c++){
+        if(r===top&&c===left)continue;
+        if(target.cells[key(r,c)]!==undefined&&target.cells[key(r,c)]!=="")
+          throw Error("A mesclagem preserva apenas a célula superior esquerda. Limpe ou mova os outros valores antes de mesclar.");
+      }
+      const next={...previous,merges:[...current,selection]};
+      change(()=>{target.layout=previous;},()=>{target.layout=next;});
+      select(top,left,false);
+      report("Células mescladas.");
     }
     function renderTabs() {
       tabs.replaceChildren(...book.sheets.map(({name},i)=>{
@@ -599,6 +628,8 @@
       if(["insert-row","delete-row","insert-column","delete-column"].includes(name))
         return changeStructure(name);
       if(name==="sort-asc"||name==="sort-desc")return sortSelection(name==="sort-desc");
+      if(name==="merge-cells")return mergeSelection();
+      if(name==="unmerge-cells")return mergeSelection(true);
       if(name==="fill-down")return fillValues();
       if(name==="pivot-builder"||name==="pivot-chart"){
         togglePivot(true);
@@ -632,9 +663,14 @@
         }else editInline("="+fn+"(");
         return;
       }
-      if(name.startsWith("align-"))return styleSelection("align",name.slice(6));
-      if(["italic","underline","strike","border","wrap"].includes(name))return styleSelection(name);
-      if(name==="clear-style")return styleSelection(null);
+      if(name.startsWith("align-")){finishInline();commit();return styleSelection("align",name.slice(6));}
+      if(["italic","underline","strike","border","wrap"].includes(name)){finishInline();commit();return styleSelection(name);}
+      if(name==="color-apply"||name==="fill-apply"){
+        finishInline();commit();
+        const property=name==="color-apply"?"color":"fill";
+        return styleSelection(property,$('[data-book-style="'+property+'"]').value);
+      }
+      if(name==="clear-style"){finishInline();commit();return styleSelection(null);}
       if(name==="edit")return editInline();
       if(name==="clear")return clearSelection();
       if(name==="select-used"){
@@ -686,11 +722,13 @@
         if(item){item[name==="undo"?"back":"forward"]();other.push(item);formula.value=raw();mark();update();}
       }
       if(name==="bold"){
-        const target=sheet(), before=target.bold, after=new Set(before);
+        finishInline();commit();
+        const target=sheet(),before=target.bold||[],after=new Set(before);
         const ids=rectangle().flat();
         const remove=ids.every(id=>after.has(id));
         for(const id of ids)if(remove)after.delete(id);else after.add(id);
-        change(()=>target.bold=before,()=>target.bold=[...after]);
+        change(()=>{target.bold=before;},()=>{target.bold=[...after];});
+        return;
       }
       if(name==="add"){
         if(book.sheets.length>=20)throw Error("Limite de 20 abas.");
@@ -764,8 +802,13 @@
       if(event.target.matches('[data-book-checkbox],[data-book-choice]'))return;
       if(cell){
         if(skipClick){skipClick=false;return;}
-        finishInline();
         const id=cell.dataset.cell;
+        if(isFormulaReference(referenceEditor)){
+          const [refRow,refCol]=id.split(",").map(Number);
+          insertCellReference(refRow,refCol);
+          return;
+        }
+        finishInline();
         const now=Date.now(), double=lastClick?.id===id && now-lastClick.time<350;
         lastClick=double ? null : {id,time:now};
         select(...id.split(",").map(Number),event.shiftKey);viewport.focus();
@@ -821,7 +864,7 @@
     let drag=null,skipClick=false;
     viewport.addEventListener("pointerdown",event=>{
       const cell=event.target.closest("[data-cell]");
-      if(event.button!==0||!cell||pending||importing)return;
+      if(event.button!==0||!cell||pending||importing||isFormulaReference(referenceEditor))return;
       skipClick=false;
       drag={id:cell.dataset.cell,pointer:event.pointerId,extend:event.shiftKey,moved:false};
     },{signal});
@@ -842,7 +885,7 @@
     window.addEventListener("pointercancel",stopDrag,{signal});
     viewport.addEventListener("dblclick",event=>{
       const cell=event.target.closest("[data-cell]");
-      if(cell&&inline.hidden){
+      if(cell&&inline.hidden&&!isFormulaReference(referenceEditor)){
         select(...cell.dataset.cell.split(",").map(Number));
         if(sheet().pivot){
           const [r,c]=cell.dataset.cell.split(",").map(Number);
@@ -860,10 +903,114 @@
       const value=field.dataset.bookCheckbox?(field.checked?'TRUE':'FALSE'):field.value;
       select(...id.split(',').map(Number));applyCells([[id,value]]);
     },{signal});
-    inline.addEventListener("blur",()=>finishInline(),{signal});
-    inline.addEventListener("input",()=>notifyDirty(true),{signal});
+    const formulaHelp={
+      SOMA:"SOMA(A1:A10) — soma os valores do intervalo",
+      "MÉDIA":"MÉDIA(A1:A10) — calcula a média",
+      "MÍNIMO":"MÍNIMO(A1:A10) — menor número",
+      "MÁXIMO":"MÁXIMO(A1:A10) — maior número",
+      SE:"SE(A1>0; \"Sim\"; \"Não\") — testa uma condição",
+      SEERRO:"SEERRO(A1/B1; 0) — valor alternativo se houver erro",
+      COUNT:"COUNT(A1:A10) — conta números",
+      COUNTA:"COUNTA(A1:A10) — conta células preenchidas",
+      SUM:"SUM(A1:A10) — soma",
+      AVERAGE:"AVERAGE(A1:A10) — média",
+      MIN:"MIN(A1:A10) — mínimo",
+      MAX:"MAX(A1:A10) — máximo",
+      IF:"IF(A1>0; 1; 0) — condição",
+      IFERROR:"IFERROR(A1/B1; 0) — trata erro"
+    };
+    const formulaNames=Object.keys(formulaHelp);
+    const formulaExample=document.createElement("div");
+    formulaExample.className="book-formula-example";formulaExample.hidden=true;host.append(formulaExample);
+    const suggestionBox=document.createElement("div");
+    suggestionBox.className="book-formula-suggestions";
+    suggestionBox.setAttribute("role","listbox");
+    suggestionBox.setAttribute("aria-label","Sugestões de funções da planilha");
+    suggestionBox.hidden=true;
+    host.append(suggestionBox);
+    let suggestionInput=null,suggestionItems=[],suggestionIndex=0;
+    function hideSuggestions(){
+      suggestionBox.hidden=true;suggestionInput=null;suggestionItems=[];
+    }
+    function showSuggestions(input){
+      const cursor=input.selectionStart??input.value.length;
+      const prefix=input.value.slice(0,cursor);
+      if(!prefix.startsWith("=")){hideSuggestions();formulaExample.hidden=true;return;}
+      const currentFunction=/([A-Za-zÀ-ÿ]+)\\([^()]*$/i.exec(prefix);
+      const signature=currentFunction && formulaHelp[currentFunction[1].toLocaleUpperCase("pt-BR")];
+      formulaExample.hidden=!signature;
+      if(signature){
+        formulaExample.textContent=signature+" · Selecione uma célula para inserir sua referência.";
+        const area=input.getBoundingClientRect(),root=host.getBoundingClientRect();
+        formulaExample.style.left=Math.max(0,area.left-root.left)+"px";
+        formulaExample.style.top=(area.bottom-root.top+4)+"px";
+        hideSuggestions();return;
+      }
+      const match=/(?:^=|[;,(+*/-])\s*([A-Za-zÀ-ÿ]*)$/i.exec(prefix);
+      if(!match){hideSuggestions();return;}
+      const query=match[1].toLocaleUpperCase("pt-BR");
+      suggestionItems=formulaNames.filter(name=>name.startsWith(query)).slice(0,8);
+      if(!suggestionItems.length){hideSuggestions();return;}
+      suggestionInput=input;suggestionIndex=0;
+      suggestionBox.replaceChildren(...suggestionItems.map((name,i)=>{
+        const item=document.createElement("button");
+        item.type="button";item.textContent=formulaHelp[name];item.title=formulaHelp[name];item.dataset.suggestion=String(i);
+        item.setAttribute("role","option");item.setAttribute("aria-selected",String(i===suggestionIndex));
+        return item;
+      }));
+      const rect=input.getBoundingClientRect(),hostRect=host.getBoundingClientRect();
+      suggestionBox.style.left=Math.max(0,rect.left-hostRect.left)+"px";
+      suggestionBox.style.top=(rect.bottom-hostRect.top+4)+"px";
+      suggestionBox.hidden=false;
+    }
+    function acceptSuggestion(){
+      if(!suggestionInput||suggestionBox.hidden)return false;
+      const input=suggestionInput,cursor=input.selectionStart??input.value.length;
+      const beginning=input.value.slice(0,cursor);
+      const match=/(?:^=|[;,(+*/-])\s*([A-Za-zÀ-ÿ]*)$/i.exec(beginning);
+      if(!match)return false;
+      const replace=match[1],name=suggestionItems[suggestionIndex];
+      const offset=cursor-replace.length;
+      input.value=input.value.slice(0,offset)+name+"("+input.value.slice(cursor);
+      input.focus();input.setSelectionRange(offset+name.length+1,offset+name.length+1);
+      hideSuggestions();notifyDirty(true);showSuggestions(input);return true;
+    }
+    suggestionBox.addEventListener("pointerdown",event=>event.preventDefault(),{signal});
+    suggestionBox.addEventListener("click",event=>{
+      const choice=event.target.closest("[data-suggestion]");
+      if(!choice)return;suggestionIndex=Number(choice.dataset.suggestion);acceptSuggestion();
+    },{signal});
+    function suggestionKeydown(event){
+      if(suggestionBox.hidden||suggestionInput!==event.target)return false;
+      if(event.key==="Escape"){event.preventDefault();hideSuggestions();return true;}
+      if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+        event.preventDefault();suggestionIndex=(suggestionIndex+(event.key==="ArrowDown"?1:-1)+suggestionItems.length)%suggestionItems.length;
+        for(const item of suggestionBox.children)item.setAttribute("aria-selected",String(Number(item.dataset.suggestion)===suggestionIndex));
+        return true;
+      }
+      if(event.key==="Enter"||event.key==="Tab"){event.preventDefault();acceptSuggestion();return true;}
+      return false;
+    }
+    let referenceEditor=null;
+    const isFormulaReference=input=>input && !input.hidden && input.value.startsWith("=") && input.value.length>0;
+    function insertCellReference(r,c){
+      const input=referenceEditor;
+      if(!isFormulaReference(input))return false;
+      const reference=column(c)+(r+1);
+      const cursor=input.selectionStart??input.value.length,end=input.selectionEnd??cursor;
+      input.value=input.value.slice(0,cursor)+reference+input.value.slice(end);
+      input.focus();input.setSelectionRange(cursor+reference.length,cursor+reference.length);
+      notifyDirty(true);hideSuggestions();showSuggestions(input);return true;
+    }
+    // Keep the editor focused when selecting a reference from the grid.
+    viewport.addEventListener("pointerdown",event=>{
+      if(event.target.closest("[data-cell]") && isFormulaReference(referenceEditor))event.preventDefault();
+    },{capture:true,signal});
+    inline.addEventListener("blur",()=>{if(referenceEditor===inline)referenceEditor=null;hideSuggestions();formulaExample.hidden=true;finishInline();},{signal});
+    inline.addEventListener("input",()=>{referenceEditor=inline;notifyDirty(true);showSuggestions(inline);},{signal});
     inline.addEventListener("keydown",event=>{
       event.stopPropagation();
+      if(suggestionKeydown(event))return;
       if(event.isComposing||!["Escape","Enter","Tab"].includes(event.key))return;
       event.preventDefault();
       finishInline(event.key!=="Escape");
@@ -874,9 +1021,10 @@
     viewport.addEventListener("scroll",schedule,{signal,passive:true});
     window.addEventListener("resize",schedule,{signal});
     title.addEventListener("input",mark,{signal});
-    formula.addEventListener("input",mark,{signal});
-    formula.addEventListener("blur",commit,{signal});
+    formula.addEventListener("input",()=>{referenceEditor=formula;mark();showSuggestions(formula);},{signal});
+    formula.addEventListener("blur",()=>{if(referenceEditor===formula)referenceEditor=null;hideSuggestions();formulaExample.hidden=true;commit();},{signal});
     formula.addEventListener("keydown",event=>{
+      if(suggestionKeydown(event))return;
       if(event.isComposing || !["Enter","Tab","Escape"].includes(event.key))return;
       event.preventDefault();
       if(event.key==="Escape")formula.value=raw();
@@ -949,39 +1097,18 @@
       else if(!event.altKey&&event.key.length===1){event.preventDefault();editInline(event.key);}
     },{signal});
     function changeStructure(name) {
-      const isColumn=name.endsWith("column"),insert=name.startsWith("insert");
-      const target=sheet(),position=isColumn?col:row,limit=isColumn?COLS:ROWS;
-      // Moving a reference without migrating its formula or pivot metadata could
-      // silently change a result. Allow this operation on plain workbooks only.
-      if(book.sheets.some(item=>item.layout?.merges?.length||item.layout?.freeze?.some(Boolean)||item.pivot||item.objects?.some(obj=>obj.type==='chart')||Object.values(item.cell_tools||{}).some(tool=>tool.sparkline)||Object.values(item.cells).some(value=>value.startsWith("="))))
-        throw Error("A estrutura só pode ser alterada em pastas sem fórmulas e sem tabelas dinâmicas.");
-      const move=index=>{
-        if(index<position)return index;
-        if(!insert&&index===position)return null;
-        const next=index+(insert?1:-1);
-        if(next>=limit)throw Error("A última posição está em uso. Remova o conteúdo antes de inserir.");
-        return next;
-      };
-      const cellAddress=id=>{
-        const [r,c]=id.split(",").map(Number),next=move(isColumn?c:r);
-        return next===null?null:isColumn?key(r,next):key(next,c);
-      };
-      const remap=(values,addressOf)=>Object.fromEntries(Object.entries(values||{}).flatMap(([id,value])=>{
-        const next=addressOf(id);
-        return next===null?[]:[[next,value]];
-      }));
-      const before={cells:target.cells,bold:target.bold,styles:target.styles,types:target.types,cell_tools:target.cell_tools,layout:target.layout};
-      const after={
-        layout:target.layout&&{...target.layout,[isColumn?"columns":"rows"]:remap(target.layout[isColumn?"columns":"rows"],id=>move(Number(id)))},
-        cells:remap(target.cells,cellAddress),
-        bold:target.bold.map(cellAddress).filter(id=>id!==null),
-        styles:target.styles&&remap(target.styles,cellAddress),
-        cell_tools:target.cell_tools&&remap(target.cell_tools,cellAddress),
-        types:target.types&&{cells:remap(target.types.cells,cellAddress),
-          columns:isColumn?remap(target.types.columns,id=>move(Number(id))):target.types.columns},
-      };
-      change(()=>Object.assign(target,before),()=>Object.assign(target,after));
-      report((isColumn?"Coluna":"Linha")+(insert?" inserida.":" excluída.")+" Ctrl+Z para desfazer.");
+      finishInline();commit();
+      const axis=name.endsWith("column")?"column":"row",insert=name.startsWith("insert");
+      const position=axis==="column"?col:row;
+      const before=book.sheets;
+      const after=window.OpenDocWorkbookFormula.shiftStructure(before,index,axis,position,insert);
+      const previousRow=row,previousCol=col;
+      change(()=>{book.sheets=before;geometryCache.delete(before[index]);},
+        ()=>{book.sheets=after;geometryCache.delete(after[index]);});
+      const nextRow=axis==="row"?Math.max(0,Math.min(ROWS-1,previousRow)):previousRow;
+      const nextCol=axis==="column"?Math.max(0,Math.min(COLS-1,previousCol)):previousCol;
+      select(nextRow,nextCol,false,true);
+      report((axis==="column"?"Coluna":"Linha")+(insert?" inserida.":" excluída.")+" Ctrl+Z para desfazer.");
     }
     function fillValues() {
       const range=rectangle(),source=range[0].map(id=>{
@@ -1100,7 +1227,7 @@
     function styleSelection(property,value) {
       const target=sheet(),before=target.styles,oldBold=target.bold;
       const after={...before},ids=rectangle().flat();
-      const next=value??!ids.every(id=>after[id]?.[property]);
+      const next=value??(property?!ids.every(id=>after[id]?.[property]):false);
       for(const id of ids){
         const style={...after[id]};
         if(!property)delete after[id];
@@ -1119,11 +1246,12 @@
       const field=event.target;
       try{
         if(field.dataset.bookStyle){
+          finishInline();commit();
           styleSelection(field.dataset.bookStyle,field.dataset.bookStyle==="size"?Number(field.value):field.value);
         }
       }catch(error){report(error.message);}
     },{signal});
-    signal.addEventListener("abort",()=>cancelAnimationFrame(frame),{once:true});
+    signal.addEventListener("abort",()=>{cancelAnimationFrame(frame);suggestionBox.remove();formulaExample.remove();},{once:true});
     return {load,save,report,id:()=>book.id,title:()=>title.value,value:()=>zoom,set(value){
       zoom=value;
       resizeGrid(value);

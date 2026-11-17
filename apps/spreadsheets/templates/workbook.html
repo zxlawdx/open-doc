@@ -46,8 +46,8 @@
       <button type="button" data-book-command="italic" title="Itálico" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#italic"></use></svg>Itálico</button>
       <button type="button" data-book-command="underline" title="Sublinhar" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#underline"></use></svg>Sublinhar</button>
       <button type="button" data-book-command="strike" title="Tachar" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#strike"></use></svg>Tachar</button>
-      <label class="ribbon-color" title="Cor do texto"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#type-text"></use></svg><input type="color" data-book-style="color" aria-label="Cor do texto" value="#141414"></label>
-      <label class="ribbon-color" title="Preenchimento"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#paint-bucket"></use></svg><input type="color" data-book-style="fill" aria-label="Preenchimento" value="#fff3b0"></label>
+      <span class="ribbon-color" role="group" aria-label="Cor do texto"><button type="button" data-book-command="color-apply" title="Aplicar cor do texto atual"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#type-text"></use></svg><span>Cor</span></button><input type="color" data-book-style="color" aria-label="Escolher cor do texto e aplicar" value="#141414"></span>
+      <span class="ribbon-color" role="group" aria-label="Preenchimento"><button type="button" data-book-command="fill-apply" title="Aplicar cor de preenchimento atual"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#paint-bucket"></use></svg><span>Fundo</span></button><input type="color" data-book-style="fill" aria-label="Escolher cor de preenchimento e aplicar" value="#fff3b0"></span>
       <small>Fonte</small>
     </div>
     <div class="workbook-tools" data-ribbon-group="home layout" role="group" aria-label="Alinhamento">
@@ -56,6 +56,8 @@
       <button type="button" data-book-command="align-right" title="Direita" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#align-right"></use></svg>Direita</button>
       <button type="button" data-book-command="border" title="Bordas" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#cell-border"></use></svg>Bordas</button>
       <button type="button" data-book-command="wrap" title="Quebrar texto" aria-pressed="false"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#wrap"></use></svg>Quebrar texto</button>
+      <button type="button" data-book-command="merge-cells" title="Mesclar as células selecionadas preservando o valor superior esquerdo">Mesclar células</button>
+      <button type="button" data-book-command="unmerge-cells" title="Desfazer a mesclagem das células selecionadas">Desmesclar</button>
       <small>Alinhamento</small>
     </div>
     <div class="workbook-tools" data-ribbon-group="home data" role="group" aria-label="Células">
@@ -70,10 +72,10 @@
       <button type="button" data-book-command="fit-column">Ajustar coluna aos dados</button>
       <button type="button" data-book-command="row-height">Altura da linha</button>
       <button type="button" data-book-command="fit-row">Ajustar linha aos dados</button>
-      <button type="button" data-book-command="insert-row" title="Inserir linha em pasta sem fórmulas ou tabelas dinâmicas"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#row-add"></use></svg>Inserir linha</button>
-      <button type="button" data-book-command="delete-row" title="Excluir linha em pasta sem fórmulas ou tabelas dinâmicas"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#row-remove"></use></svg>Excluir linha</button>
-      <button type="button" data-book-command="insert-column" title="Inserir coluna em pasta sem fórmulas ou tabelas dinâmicas"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#column-add"></use></svg>Inserir coluna</button>
-      <button type="button" data-book-command="delete-column" title="Excluir coluna em pasta sem fórmulas ou tabelas dinâmicas"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#column-remove"></use></svg>Excluir coluna</button>
+      <button type="button" data-book-command="insert-row" title="Inserir linha antes da célula selecionada"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#row-add"></use></svg>Inserir linha</button>
+      <button type="button" data-book-command="delete-row" title="Excluir a linha selecionada"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#row-remove"></use></svg>Excluir linha</button>
+      <button type="button" data-book-command="insert-column" title="Inserir coluna antes da célula selecionada"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#column-add"></use></svg>Inserir coluna</button>
+      <button type="button" data-book-command="delete-column" title="Excluir a coluna selecionada"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#column-remove"></use></svg>Excluir coluna</button>
       <small>Estrutura</small>
     </div>
     <div class="workbook-tools" data-ribbon-group="insert" role="group" aria-label="Imagens e gráficos" hidden>

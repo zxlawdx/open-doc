@@ -82,6 +82,8 @@ jobs:
             $version = $env:GITHUB_REF_NAME.Substring(1)
           }
           "OPEN_DOC_BUILD_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Verify spreadsheet arithmetic regression
+        run: node --test tests/regression/workbook.test.cjs
       - name: Prepare assets and build with Vela
         shell: pwsh
         run: |
@@ -195,6 +197,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Verify spreadsheet arithmetic regression
+        run: node --test tests/regression/workbook.test.cjs
       - name: Install Linux runtime libraries
         run: |
           sudo apt-get update -qq
