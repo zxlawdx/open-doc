@@ -139,6 +139,8 @@
     if(!source)throw Error("A aba não existe.");
     if(source.pivot || (source.objects||[]).length || source.external_resource)
       throw Error("Esta aba contém gráficos, desenhos, tabela dinâmica ou recurso externo. Remova esses objetos antes de alterar sua estrutura.");
+    if(sheets.some((other,i)=>i!==sheetIndex&&other.pivot?.source===sheetIndex))
+      throw Error("Atualize ou remova a tabela dinâmica vinculada a esta aba antes de inserir ou excluir linhas e colunas.");
     const step=value=>{
       if(value<position)return value;
       if(!insert&&value===position)return null;
