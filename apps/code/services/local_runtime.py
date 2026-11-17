@@ -192,6 +192,8 @@ def external_python(configured=None):
         # A Store alias, broken Conda install or MSYS2 ahead of PATH must not
         # even be launched during default notebook/bootstrap operations.
         return Path(internal["python"])
+    if not configured and not getattr(sys, "frozen", False):
+        return Path(sys.executable)
     found = discover_pythons(configured)
     if configured:
         expected = Path(configured).resolve()
