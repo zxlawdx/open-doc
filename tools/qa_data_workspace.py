@@ -76,6 +76,7 @@ def main(output):
                 keyboard.press('A')
                 wait(w,"window.getSelection().toString().includes('import pandas as pd') && window.getSelection().toString().includes('pd.Dat')")
                 keyboard.press('C')
+                keyboard.wait_clipboard('import pandas as pd','pd.Dat')
                 js("""(() => {
                   const target=document.createElement('textarea');
                   target.id='qa-code-shortcuts-paste';
