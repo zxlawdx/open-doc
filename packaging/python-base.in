@@ -1,0 +1,5 @@
+# Minimal offline execution + existing static completion engine. Scientific packages remain optional.
+ipykernel==7.4.0
+ipython==9.16.1
+jedi==0.19.2
+pip==25.3

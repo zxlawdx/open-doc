@@ -93,6 +93,10 @@ jobs:
           python manage.py collectstatic --yes
           python tools/build_release_icon.py
           python manage.py buildapp --gui qt5 --icon build/open-doc.ico
+          python tools/stage_python_runtime.py dist/Open-Doc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/smoke_python_runtime.py dist/Open-Doc/runtime
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/Open-Doc/Open-Doc.exe')) { throw 'Executável ausente.' }
           Copy-Item LICENSE,THIRD_PARTY_NOTICES.md -Destination 'dist/Open-Doc/'
           python tools/stage_release_notices.py dist/Open-Doc
@@ -212,6 +216,8 @@ jobs:
           python tools/build_release_icon.py
           python -c 'from PIL import Image; Image.open("build/open-doc.ico").save("build/open-doc.png")'
           python manage.py buildapp --gui qt5 --icon build/open-doc.png --installer
+          python tools/stage_python_runtime.py dist/Open-Doc
+          python tools/smoke_python_runtime.py dist/Open-Doc/runtime
           mkdir -p artifacts
           OPEN_DOC_NOTEBOOK_SMOKE_REPORT="$PWD/artifacts/notebook-linux.json" timeout 600s dist/Open-Doc/Open-Doc --vela-project-test
           python -c "import json; assert json.load(open('artifacts/notebook-linux.json'))['success']"

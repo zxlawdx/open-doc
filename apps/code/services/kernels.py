@@ -29,6 +29,8 @@ LOGGER = logging.getLogger(__name__)
 KERNEL_BOOTSTRAP = r"""
 import sys as _od_sys, os as _od_os, shlex as _od_shlex, importlib as _od_importlib
 _od_os.environ['VIRTUAL_ENV'] = _od_sys.prefix
+if _od_os.name != 'nt' and not _od_os.environ.get('SHELL'):
+    _od_os.environ['SHELL'] = '/bin/sh'
 _od_os.environ['PATH'] = _od_os.path.dirname(_od_sys.executable) + _od_os.pathsep + _od_os.environ.get('PATH', '')
 _od_shell = get_ipython()
 _od_system = _od_shell.system

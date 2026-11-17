@@ -69,6 +69,7 @@ def test_windows_launcher_finds_native_python_with_spaces_and_ignores_alias(
 ):
     import json
     from types import SimpleNamespace
+    monkeypatch.setattr("apps.code.services.embedded_runtime.runtime_root", lambda: None)
 
     candidates = []
     for version in versions:

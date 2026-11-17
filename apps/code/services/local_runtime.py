@@ -119,6 +119,11 @@ def discover_pythons(configured=None):
 
     environment = child_environment()
     candidates = []
+    from .embedded_runtime import embedded_tools
+
+    internal = embedded_tools()
+    if internal:
+        candidates.append(str(internal["python"]))
     if configured:
         candidates.append(str(configured))
     if not getattr(sys, "frozen", False):
@@ -162,7 +167,7 @@ def discover_pythons(configured=None):
             )
             item = json.loads(result.stdout)
             actual = Path(item["path"])
-            key = os.path.normcase(str(actual.resolve()))
+            key = os.path.normcase(os.path.abspath(actual))
             if not actual.is_file() or key in seen:
                 continue
             if (
@@ -171,7 +176,7 @@ def discover_pythons(configured=None):
             ):
                 continue
             seen.add(key)
-            item["path"] = str(actual.resolve())
+            item["path"] = os.path.abspath(actual)
             found.append(item)
         except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
             continue
@@ -183,7 +188,11 @@ def external_python(configured=None):
     if configured:
         expected = Path(configured).resolve()
         found = [item for item in found if Path(item["path"]).resolve() == expected]
-    if sys.platform == "win32" and not configured:
+    if (
+        sys.platform == "win32"
+        and not configured
+        and not any("runtime" in item["path"] for item in found)
+    ):
         found.sort(key=lambda item: "Scripts" not in item.get("scripts", ""))
     for item in found:
         if item["venv"]:

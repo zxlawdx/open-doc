@@ -259,6 +259,7 @@
           notice.textContent="Executando "+cell.title.textContent+"…";
           try{
             const result=await execute(cell.language,cell.editor.value());
+            if(cell.language==="python")window.dispatchEvent(new CustomEvent("open-doc:python-env-updated",{detail:{project:project()}}));
             if(result.error)throw Error(result.error);
             if(active!==project())return false;
             display(cell,result);

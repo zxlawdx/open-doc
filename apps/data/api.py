@@ -11,13 +11,15 @@ def dataset(context=None):
         data = _data(context)
         store = get_context().datasets
         if data["operation"] == "import-preview":
-            return get_context().dataset_imports.preview(data["token"],data.get("options"))
+            return get_context().dataset_imports.preview(
+                data["token"], data.get("options")
+            )
         if data["operation"] == "import-commit":
             return get_context().dataset_imports.commit(data["token"])
         if data["operation"] == "import-cancel":
             return get_context().dataset_imports.cancel(data["token"])
         if data["operation"] == "review-types":
-            return {"preview":get_context().dataset_imports.review(data["id"])}
+            return {"preview": get_context().dataset_imports.review(data["id"])}
         if data["operation"] == "create":
             return store.create(data.get("title", "Novo programa"))
         if data["operation"] == "delete":
@@ -60,22 +62,82 @@ def dataset(context=None):
             return store.undo(data["id"])
         if data["operation"] == "redo":
             return store.undo(data["id"], redo=True)
-        if data["operation"] in {"python-env-status", "python-env-install", "python-env-remove", "python-env-discover", "python-env-select"}:
+        if data["operation"] in {
+            "python-env-status",
+            "python-env-install",
+            "python-env-remove",
+            "python-env-discover",
+            "python-env-select",
+            "python-env-cancel",
+            "python-env-check",
+            "python-env-export",
+            "python-env-import",
+            "python-env-job",
+        }:
             manager = get_context().code_tools.environments(get_context().config.root)
+            if data["operation"] == "python-env-job":
+                return manager.job_status(data["id"])
+            if data["operation"] == "python-env-cancel":
+                return manager.cancel(data["id"])
+            if data["operation"] == "python-env-check":
+                return manager.check(data["id"])
+            if data["operation"] == "python-env-export":
+                return manager.requirements(data["id"])
+            if data["operation"] == "python-env-import":
+                result = manager.import_requirements(
+                    data["id"], data["text"], confirm=data.get("confirm") is True
+                )
+                get_context().code_tools.clear_analysis_cache()
+                return result
             if data["operation"] == "python-env-discover":
                 from apps.code.services.local_runtime import discover_pythons
+
                 return {"interpreters": discover_pythons()}
             if data["operation"] == "python-env-select":
-                return manager.select(data["id"], data["python"])
+                get_context().kernels.stop(data["id"])
+                result = manager.select(
+                    data["id"],
+                    data.get("python"),
+                    existing=data.get("existing") is True,
+                    internal=data.get("internal") is True,
+                )
+                get_context().code_tools.clear_analysis_cache()
+                return result
             if data["operation"] == "python-env-status":
-                return manager.status(data["id"])
-            if data["operation"] == "python-env-remove" and get_context().notebooks is not None:
+                result = manager.status(data["id"])
+                result["kernel"] = next(
+                    (
+                        session
+                        for session in get_context().kernels.status()
+                        if session["project"] == data["id"]
+                    ),
+                    None,
+                )
+                return result
+            if (
+                data["operation"] == "python-env-remove"
+                and get_context().notebooks is not None
+            ):
                 get_context().notebooks.stop(data["id"])
-            action = manager.remove if data["operation"] == "python-env-remove" else manager.install
-            result = action(
-                data["id"], data["packages"], confirm=data.get("confirm") is True
+            action = (
+                manager.remove
+                if data["operation"] == "python-env-remove"
+                else manager.install
             )
+            options = {"confirm": data.get("confirm") is True}
+            if data["operation"] == "python-env-install":
+                options["upgrade"] = data.get("upgrade") is True
+            result = action(data["id"], data["packages"], **options)
             get_context().code_tools.clear_analysis_cache()
+            if data[
+                "operation"
+            ] == "python-env-install" and get_context().kernels.has_session(data["id"]):
+                try:
+                    get_context().kernels.execute(
+                        data["id"], "import importlib; importlib.invalidate_caches()"
+                    )
+                except ValueError:
+                    pass  # The active cell invalidates caches when it finishes.
             return result
         if data["operation"] == "conversion-preview":
             return store.conversion_preview(

@@ -18,3 +18,23 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install pytest ipykernel jupyter_client
       - run: python -m pytest -q tests/unit/test_python_environments.py tests/integration/test_local_runtime.py tests/integration/test_project_kernel_packages.py
+
+  embedded-python:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest jupyter_client
+      - run: python tools/stage_python_runtime.py build/portable
+      - run: python tools/smoke_python_runtime.py build/portable/runtime
+      - run: python -m pytest -q tests/integration/test_embedded_runtime.py
+        env:
+          OPEN_DOC_RUNTIME_ROOT: ${{ github.workspace }}/build/portable/runtime
+          OPEN_DOC_SCIENTIFIC_RUNTIME_TEST: '1'
