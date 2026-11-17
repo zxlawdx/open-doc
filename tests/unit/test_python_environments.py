@@ -136,7 +136,7 @@ def test_creation_failure_exposes_stage_and_preserves_stderr(tmp_path, monkeypat
         and "13" in message
     )
     assert (
-        "/Python with spaces/python" in message
+        str(Path("/Python with spaces/python")) in message
         and str(service.path(project)) in message
     )
     assert "private" not in message
