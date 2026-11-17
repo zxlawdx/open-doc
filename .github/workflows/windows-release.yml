@@ -85,7 +85,9 @@ jobs:
       - name: Prepare assets and build with Vela
         shell: pwsh
         run: |
-          python -m pip install -r requirements.txt 'vela-framework[build]'
+          python -m pip install 'pyinstaller>=6.16,<7' 'setuptools>=77,<82' 'jaraco.text>=3.12' 'jaraco.functools>=4' 'jaraco.context>=5' 'more-itertools>=10'
+          python -m pip install -r requirements.txt
+          python tools/check_vela_runtime.py
           python manage.py collectstatic --yes
           python tools/build_release_icon.py
           python manage.py buildapp --gui qt5 --icon build/open-doc.ico
@@ -199,7 +201,9 @@ jobs:
           sudo apt-get install -y xvfb xdotool imagemagick libgl1-mesa-dri desktop-file-utils xdg-utils libegl1 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libxcb-shape0 libxcb-randr0 libxcb-xfixes0 libxcb-sync1 libxcb-shm0 libxcb-xkb1 libxcb-render0 libx11-xcb1 libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libnss3 libasound2 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 libopengl0
       - name: Build and archive Linux package
         run: |
-          python -m pip install -r requirements.txt 'vela-framework[build]' 'PyQt5-Qt5==5.15.2' 'PyQtWebEngine-Qt5==5.15.2'
+          python -m pip install 'pyinstaller>=6.16,<7' 'setuptools>=77,<82' 'jaraco.text>=3.12' 'jaraco.functools>=4' 'jaraco.context>=5' 'more-itertools>=10'
+          python -m pip install -r requirements.txt
+          python tools/check_vela_runtime.py 'PyQt5-Qt5==5.15.2' 'PyQtWebEngine-Qt5==5.15.2'
           python manage.py collectstatic --yes
           python tools/build_release_icon.py
           python -c 'from PIL import Image; Image.open("build/open-doc.ico").save("build/open-doc.png")'
@@ -295,11 +299,29 @@ jobs:
           trap 'kill "$display_pid" 2>/dev/null || true' EXIT
           sleep 2
           export OPEN_DOC_SMOKE_DEFAULT_LINUX=1 OPEN_DOC_NATIVE_PIXELS=1
-          OPEN_DOC_NATIVE_OUTPUT=artifacts/portable node tools/smoke_release.mjs "$PWD/bundle/Open-Doc/Open-Doc" 2>&1 | tee artifacts/app.log
+          # QtWebEngine can briefly reject requests to the just-started local API
+          # on some container images. Retry only this transient fetch failure;
+          # all other errors fail immediately and the final attempt must pass.
+          smoke_with_retry() {
+            local output="$1" binary="$2" attempt
+            for attempt in 1 2 3; do
+              if OPEN_DOC_NATIVE_OUTPUT="$output" node tools/smoke_release.mjs "$binary" >"${output}.log" 2>&1; then
+                cat "${output}.log"
+                return 0
+              fi
+              cat "${output}.log"
+              if ! grep -q 'Failed to fetch' "${output}.log" || [[ "$attempt" == 3 ]]; then
+                return 1
+              fi
+              echo "Transient local API fetch failed (attempt $attempt/3); retrying..."
+              sleep 3
+            done
+          }
+          smoke_with_retry artifacts/portable "$PWD/bundle/Open-Doc/Open-Doc"
           export XDG_DATA_HOME="$PWD/installed-data"
           "$PWD/bundle/Open-Doc/Instalar.sh"
           test -f "$XDG_DATA_HOME/applications/Open-Doc.desktop"
-          OPEN_DOC_NATIVE_OUTPUT=artifacts/installed node tools/smoke_release.mjs "$XDG_DATA_HOME/vela-apps/Open-Doc/Open-Doc" 2>&1 | tee artifacts/installed.log
+          smoke_with_retry artifacts/installed "$XDG_DATA_HOME/vela-apps/Open-Doc/Open-Doc"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
