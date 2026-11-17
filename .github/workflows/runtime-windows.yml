@@ -12,7 +12,7 @@ concurrency:
 jobs:
   windows-qt:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       PYWEBVIEW_GUI: qt
       QT_API: pyqt5
