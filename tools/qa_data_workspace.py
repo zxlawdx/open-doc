@@ -45,9 +45,12 @@ def main(output):
                 # Exercise the real dialog and HTTP service, not a mocked request.
                 click('[data-dataset] [data-python-env-command=toggle]')
                 wait(w,"document.querySelector('[data-dataset] .code-package-dialog')?.open")
+                wait(w,"document.querySelector('[data-dataset] [data-python-env-command=install]').disabled===false")
                 js("document.querySelector('[data-dataset] [data-python-env-names]').value='pandas'")
                 click('[data-dataset] [data-python-env-command=install]')
-                wait(w,"document.querySelector('[data-dataset] [data-python-env-status]').textContent.includes('Bibliotecas instaladas')",timeout=240)
+                wait(w,"document.querySelector('[data-dataset] [data-python-env-command=install]').disabled===false",timeout=240)
+                install_status=js("document.querySelector('[data-dataset] [data-python-env-status]').textContent")
+                assert 'Bibliotecas instaladas' in install_status, install_status
                 assert js("document.querySelector('[data-dataset] [data-python-env-installed]').textContent.toLowerCase().includes('pandas')")
                 from config.composition import get_context
                 context=get_context()
