@@ -103,6 +103,7 @@ test('structural edits fail atomically on truncated occupied edge or unsupported
   assert.throws(()=>windowShift(initial,0,'row',0,true),/última linha/);
   assert.equal(initial[0].cells['9999,0'],'last');
   assert.throws(()=>windowShift([{name:'Dados',cells:{},objects:[{type:'chart'}]}],0,'row',0,true),/gráficos/);
+  assert.throws(()=>windowShift([{name:'Dados',cells:{}},{name:'Resumo',cells:{},pivot:{source:0,range:[0,0,2,2]}}],0,'column',0,true),/tabela dinâmica vinculada/);
   const other=[{name:'Dados',cells:{'0,0':'1'}},{name:'Resumo',cells:{'0,0':'=Dados!A1'}}];
   const next=windowShift(other,0,'row',0,true);
   assert.equal(next[1].cells['0,0'],'=Dados!A2');
