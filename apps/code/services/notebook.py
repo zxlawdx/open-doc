@@ -1,7 +1,6 @@
 """Notebook orchestration through injected table and kernel contracts."""
 
 import json
-import shlex
 import tempfile
 from pathlib import Path
 from threading import RLock
@@ -14,6 +13,9 @@ class NotebookService:
         self._lock = RLock()
 
     def open(self, identifier):
+        self.context.code_tools.environments(self.context.config.root).prepare_data(
+            identifier
+        )
         ctx = self.context
         with self._lock:
             token = ctx.publications.token(identifier)
@@ -24,12 +26,27 @@ class NotebookService:
             path = ctx.dataset_exchange.runtime.resources.open_path(
                 analysis["resource_id"], analysis["revision"]
             )
-            reader = "read_parquet" if analysis.get("media_type")=="application/vnd.apache.parquet" else "read_csv"
+            reader = (
+                "read_parquet"
+                if analysis.get("media_type") == "application/vnd.apache.parquet"
+                else "read_csv"
+            )
             result = ctx.kernels.execute(
                 identifier,
-                "import pandas as pd\nfrom pathlib import Path\n" + ("DATASET_PARQUET" if reader=="read_parquet" else "DATASET_CSV") + " = Path("
+                "import pandas as pd\nfrom pathlib import Path\n"
+                + ("DATASET_PARQUET" if reader == "read_parquet" else "DATASET_CSV")
+                + " = Path("
                 + repr(str(path))
-                + ")\ndf = pd." + reader + "(" + ("DATASET_PARQUET" if reader=="read_parquet" else "DATASET_CSV") + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")\nprint('DataFrame pronto:', df.shape)",
+                + ")\ndf = pd."
+                + reader
+                + "("
+                + ("DATASET_PARQUET" if reader == "read_parquet" else "DATASET_CSV")
+                + (
+                    ", dtype_backend='numpy_nullable'"
+                    if reader == "read_parquet"
+                    else ""
+                )
+                + ")\nprint('DataFrame pronto:', df.shape)",
             )
             if result.get("returncode"):
                 return result
@@ -47,24 +64,22 @@ class NotebookService:
             return {**result, "resource": analysis}
 
     def execute(self, identifier, code, language="python"):
-        if language == "python" and isinstance(code, str) and code.strip().startswith(("!pip ", "%pip ")):
-            lines = code.strip().splitlines()
-            command = shlex.split(lines[0][1:])
-            if len(command) < 3 or command[:2] != ["pip", "install"]:
-                raise ValueError("Use !pip install pacote ou %pip install pacote.")
-            packages = [item for item in command[2:] if item not in {"-q", "--quiet"}]
-            manager = self.context.code_tools.environments(self.context.config.root)
-            result = manager.install(identifier, packages, confirm=True)
-            self.context.code_tools.clear_analysis_cache()
-            kernels = getattr(self.context, "kernels", None)
-            if kernels is not None and kernels.has_session(identifier):
-                kernels.execute(identifier, "import importlib; importlib.invalidate_caches()")
-            output = "Bibliotecas instaladas: " + ", ".join(result["installed"]) + "\n" + result.get("log", "")
-            if len(lines) > 1 and "\n".join(lines[1:]).strip():
-                executed = self.execute(identifier, "\n".join(lines[1:]), language)
-                executed["output"] = output + "\n" + executed.get("output", "")
-                return executed
-            return {"returncode": 0, "output": output, "outputs": [{"type": "stream", "text": output}]}
+        try:
+            return self._execute(identifier, code, language)
+        finally:
+            if language == "python":
+                tools = getattr(self.context, "code_tools", None)
+                if tools is not None:
+                    tools.clear_analysis_cache()
+
+    def _execute(self, identifier, code, language="python"):
+        # Let IPython parse the complete cell, including multiline magics.
+        if (
+            language == "python"
+            and isinstance(code, str)
+            and code.lstrip().startswith(("!pip ", "%pip "))
+        ):
+            return self.context.kernels.execute(identifier, code)
         datasets = getattr(self.context, "datasets", None)
         if (
             language == "python"
@@ -99,8 +114,18 @@ class NotebookService:
                 identifier,
                 "import pandas as pd\nfrom pathlib import Path\n"
                 + ("DATASET_CSV" if reader == "read_csv" else "DATASET_PARQUET")
-                + " = Path(" + repr(str(path)) + ")\ndf = pd." + reader
-                + "(" + repr(str(path)) + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")",
+                + " = Path("
+                + repr(str(path))
+                + ")\ndf = pd."
+                + reader
+                + "("
+                + repr(str(path))
+                + (
+                    ", dtype_backend='numpy_nullable'"
+                    if reader == "read_parquet"
+                    else ""
+                )
+                + ")",
             )
             if loaded.get("returncode"):
                 return loaded
@@ -109,18 +134,27 @@ class NotebookService:
                 raise ValueError("Consulta SQL excede o limite.")
             # SQL cells leave a DataFrame accessible to subsequent Python cells.
             # The final expression still renders the result in the notebook.
-            code = ("import duckdb\ndados = df\ndf_resultado = duckdb.sql("
-                    + repr(code) + ").df()\ndf_resultado")
+            code = (
+                "import duckdb\ndados = df\ndf_resultado = duckdb.sql("
+                + repr(code)
+                + ").df()\ndf_resultado"
+            )
         return self.context.kernels.execute(identifier, code)
 
     def publish(self, identifier):
         with self._lock:
             binding = self._bindings.get(identifier)
-            creating_from_program = binding is None and self.context.datasets.is_program(identifier)
+            creating_from_program = (
+                binding is None and self.context.datasets.is_program(identifier)
+            )
             if binding is None and not creating_from_program:
                 raise ValueError("Abra o DataFrame antes de publicar.")
-            if creating_from_program and not self.context.kernels.has_session(identifier):
-                raise ValueError("Execute uma célula que crie o DataFrame df antes de publicar.")
+            if creating_from_program and not self.context.kernels.has_session(
+                identifier
+            ):
+                raise ValueError(
+                    "Execute uma célula que crie o DataFrame df antes de publicar."
+                )
             with tempfile.TemporaryDirectory(
                 prefix="opendoc-publication-"
             ) as directory:
@@ -139,9 +173,13 @@ class NotebookService:
                 # so a failed publish cannot overwrite or bind the table.
                 if creating_from_program:
                     token = self.context.publications.token(identifier)
-                    before = self.context.dataset_exchange.snapshot(identifier, raw=True)["resource"]
+                    before = self.context.dataset_exchange.snapshot(
+                        identifier, raw=True
+                    )["resource"]
                     if self.context.publications.token(identifier) != token:
-                        raise ValueError("A tabela mudou durante a publicação. Tente novamente.")
+                        raise ValueError(
+                            "A tabela mudou durante a publicação. Tente novamente."
+                        )
                     binding = {"before": before, "resource": before, "token": token}
                 runtime = self.context.dataset_exchange.runtime
                 # Prepare a new immutable resource. The table commit is the
@@ -230,6 +268,9 @@ class NotebookService:
         return {"cells": json.loads(content), "revision": snapshot.revision}
 
     def open_workbook(self, identifier, columns, rows):
+        self.context.code_tools.environments(self.context.config.root).prepare_data(
+            identifier
+        )
         import io
 
         book = self.context.workbooks.get(identifier)
@@ -256,11 +297,14 @@ class NotebookService:
             identifier,
             "import pandas as pd\nfrom pathlib import Path\n"
             + ("DATASET_CSV" if reader == "read_csv" else "DATASET_PARQUET")
-            + " = Path(" + repr(str(path)) + ")\ndf = pd."
+            + " = Path("
+            + repr(str(path))
+            + ")\ndf = pd."
             + reader
             + "("
             + repr(str(path))
-            + (", dtype_backend='numpy_nullable'" if reader=="read_parquet" else "") + ")\nprint('DataFrame pronto:', df.shape)",
+            + (", dtype_backend='numpy_nullable'" if reader == "read_parquet" else "")
+            + ")\nprint('DataFrame pronto:', df.shape)",
         )
         if not result.get("returncode"):
             runtime.resources.replace_pins("kernel_" + identifier, [snapshot.to_dict()])

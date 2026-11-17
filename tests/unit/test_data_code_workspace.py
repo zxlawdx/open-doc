@@ -30,14 +30,16 @@ def test_windows_children_always_hide_console_and_preserve_flags(monkeypatch):
 
 
 def test_pip_cell_uses_project_environment_without_opening_dataframe(tmp_path):
-    manager=Mock();manager.install.return_value={'installed':['pandas'],'log':'ok'}
-    context=SimpleNamespace(config=SimpleNamespace(root=tmp_path),code_tools=SimpleNamespace(environments=lambda root:manager,clear_analysis_cache=Mock()))
-    service=NotebookService(context);service.stop=Mock();service.open=Mock(side_effect=AssertionError('must not require pandas before installing'))
-    result=service.execute('project','!pip install pandas')
-    manager.install.assert_called_once_with('project',['pandas'],confirm=True)
-    assert result['returncode']==0 and 'pandas' in result['output']
-    service.stop.assert_not_called()
-    with pytest.raises(ValueError):service.execute('project','!pip uninstall pandas')
+    kernel = Mock()
+    kernel.execute.return_value = {"returncode": 0, "output": "pandas"}
+    context = SimpleNamespace(kernels=kernel, code_tools=SimpleNamespace(clear_analysis_cache=Mock()))
+    service = NotebookService(context)
+    service.open = Mock(side_effect=AssertionError("pip must not require a DataFrame"))
+    code = "!pip install pandas\nimport pandas as pd"
+    result = service.execute("project", code)
+    kernel.execute.assert_called_once_with("project", code)
+    assert result["returncode"] == 0
+    context.code_tools.clear_analysis_cache.assert_called_once()
 
 
 def test_frozen_completion_analyzes_project_pandas_without_executing_code(tmp_path,monkeypatch):

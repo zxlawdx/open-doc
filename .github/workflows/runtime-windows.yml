@@ -10,9 +10,53 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  windows-logic:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PYWEBVIEW_GUI: qt
+      QT_API: pyqt5
+      QT_QPA_PLATFORM: windows
+      QT_OPENGL: software
+      QT_QUICK_BACKEND: software
+      QTWEBENGINE_DISABLE_SANDBOX: '1'
+      QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --disable-gpu
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Dependencies and collectstatic bootstrap
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements-dev.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item apps/home/static/js/vendor/pdf.bundle.js -ErrorAction SilentlyContinue
+          if (Test-Path node_modules) { throw "node_modules must not exist before collectstatic bootstrap" }
+          python manage.py collectstatic --yes
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path node_modules)) { throw "collectstatic did not install project-local npm dependencies" }
+          node --version
+          npm --version
+          python tools/check_runtime_assets.py
+          exit $LASTEXITCODE
+      - name: Unit and architecture regressions
+        shell: pwsh
+        run: |
+          python -m pytest -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+          exit $LASTEXITCODE
+
   windows-qt:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       PYWEBVIEW_GUI: qt
       QT_API: pyqt5
@@ -48,13 +92,6 @@ jobs:
           exit $LASTEXITCODE
       - name: Clear historical screenshot fixtures before runtime capture
         run: python -c "from pathlib import Path; folders=[Path('docs/images/pdf-navigation'),Path('docs/images/stabilization'),Path('docs/images/ink'),Path('docs/images/history'),Path('docs/images/math')]; files=[p for f in folders for p in f.rglob('*') if p.suffix.lower() in ('.png','.json')]; [p.unlink() for p in files]; print('QA_SCREENSHOT_OUTPUTS_CLEARED',len(files))"
-      - name: Unit and architecture regressions
-        shell: pwsh
-        run: |
-          python -m pytest -q
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm test
-          exit $LASTEXITCODE
       - name: CSV preview and nullable schema
         run: python -u tools/qa_csv_import.py docs/images/csv-import
       - name: Data workspace project tabs and Python autocomplete

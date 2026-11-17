@@ -42,6 +42,24 @@ def main(output):
                 create('Primeiro programa')
                 wait(w,"!!document.querySelector('.code-notebook-cell .cm-content')")
                 assert not js("!!document.querySelector('[data-dataset-python]')")
+                # Exercise the real dialog and HTTP service, not a mocked request.
+                click('[data-dataset] [data-python-env-command=toggle]')
+                wait(w,"document.querySelector('[data-dataset] .code-package-dialog')?.open")
+                wait(w,"document.querySelector('[data-dataset] [data-python-env-command=install]').disabled===false")
+                js("document.querySelector('[data-dataset] [data-python-env-names]').value='pandas'")
+                click('[data-dataset] [data-python-env-command=install]')
+                wait(w,"document.querySelector('[data-dataset] [data-python-env-command=install]').disabled===false",timeout=240)
+                install_status=js("document.querySelector('[data-dataset] [data-python-env-status]').textContent")
+                assert 'Bibliotecas instaladas' in install_status, install_status
+                assert js("document.querySelector('[data-dataset] [data-python-env-installed]').textContent.toLowerCase().includes('pandas')")
+                from config.composition import get_context
+                context=get_context()
+                identifier=js("document.querySelector('[data-dataset-list]').value")
+                executable=context.code_tools.environments(context.config.root).interpreter(identifier)
+                assert executable and executable.is_file()
+                capture(output,'project-libraries-installed')
+                js("[...document.querySelectorAll('[data-dataset] .code-package-dialog button')].find(n=>n.textContent==='Fechar').click()")
+                print('QT_PROJECT_LIBRARY_INSTALL_BUTTON_OK',flush=True)
                 before_cells=js("document.querySelectorAll('[data-code-cell=python]').length")
                 click('.od-app-rail [data-suite-app=code]')
                 wait(w,"document.querySelector('[data-app]')?.dataset.entryApp==='code' && document.querySelector('[data-app]')?.dataset.datasetView==='true'")
@@ -61,6 +79,7 @@ def main(output):
                 keyboard.press('A')
                 wait(w,"window.getSelection().toString().includes('import pandas as pd') && window.getSelection().toString().includes('pd.Dat')")
                 keyboard.press('C')
+                keyboard.wait_clipboard('import pandas as pd','pd.Dat')
                 js("""(() => {
                   const target=document.createElement('textarea');
                   target.id='qa-code-shortcuts-paste';
@@ -72,6 +91,30 @@ def main(output):
                 capture(output,'code-select-copy-paste')
                 js("document.querySelector('#qa-code-shortcuts-paste').remove()")
                 print('QT_CODE_SHORTCUTS_SELECT_COPY_PASTE_OK',flush=True)
+                kernel_code=("!pip install pandas\n%pip install pandas\n"
+                             "import os,sys,pandas as pd\n"
+                             "assert os.path.samefile(sys.executable, "+repr(str(executable))+")\n"
+                             "shared=41\nprint('GUI_KERNEL_ENV_OK',pd.DataFrame({'value':[shared+1]}).value.sum())")
+                js("""(() => {
+                  const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
+                  notebook.querySelector('button[title="Python"]').click();
+                  const cells=notebook.querySelectorAll('[data-code-cell=python]'),cell=cells[cells.length-1];
+                  const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+                  editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:%s}});
+                  cell.querySelector('button[title="Executar"]').click();
+                })()""" % json.dumps(kernel_code))
+                wait(w,"[...document.querySelectorAll('.code-notebook-output')].some(n=>n.textContent.includes('GUI_KERNEL_ENV_OK 42'))",timeout=240)
+                js("""(() => {
+                  const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
+                  notebook.querySelector('button[title="Python"]').click();
+                  const cells=notebook.querySelectorAll('[data-code-cell=python]'),cell=cells[cells.length-1];
+                  const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+                  editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:"print('GUI_KERNEL_SESSION_OK',shared+1)"}});
+                  cell.querySelector('button[title="Executar"]').click();
+                })()""")
+                wait(w,"[...document.querySelectorAll('.code-notebook-output')].some(n=>n.textContent.includes('GUI_KERNEL_SESSION_OK 42'))",timeout=60)
+                capture(output,'project-library-kernel-shared-environment')
+                print('QT_PROJECT_GUI_PIP_MAGICS_KERNEL_PERSISTENCE_OK',flush=True)
                 create('Segundo programa')
                 assert js("document.querySelectorAll('[data-dataset-project-tabs] button').length")==2
                 js("[...document.querySelectorAll('[data-dataset-project-tabs] button')].find(n=>n.textContent==='Primeiro programa').click()")

@@ -41,7 +41,7 @@ def test_kernel_startup_failure_stops_channels_even_when_shutdown_fails(tmp_path
     manager.shutdown_kernel.side_effect = RuntimeError('cleanup also failed')
     monkeypatch.setattr(jupyter_client, 'KernelManager', lambda **kw: manager)
     monkeypatch.setattr(kernels, 'run_external', lambda *a, **kw: None)
-    monkeypatch.setattr(kernels, 'external_python', lambda: Path(sys.executable))
+    monkeypatch.setattr(kernels.PythonEnvironments, 'prepare_kernel', lambda *a: Path(sys.executable))
     import pytest
     with pytest.raises(ServiceUnavailable, match='iniciar o kernel') as error:
         kernels.KernelSessions(tmp_path)._session(str(uuid4()))

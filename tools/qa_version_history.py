@@ -22,8 +22,8 @@ from shared.services.preferences_service import Config
 from config.wsgi import create_app
 
 
-def wait(window, expression):
-    for _ in range(150):
+def wait(window, expression, timeout=15):
+    for _ in range(int(timeout * 10)):
         if window.evaluate_js(expression):
             return
         time.sleep(0.1)

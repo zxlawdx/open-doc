@@ -5,11 +5,11 @@ the configured Open Doc workspace and never modifies system Python.
 Installed Python packages remain user-trusted code, not a security sandbox.
 """
 
-import importlib.metadata
+import json
+import shlex
 import re
 import subprocess
 import sys
-import venv
 from pathlib import Path
 from uuid import UUID
 from .local_runtime import external_python, run_external, HIDDEN_CHILD_BOOTSTRAP
@@ -35,10 +35,115 @@ class PythonEnvironments:
 
     def interpreter(self, project):
         folder = self.path(project)
-        candidate = folder / (
-            "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
+        layouts = (
+            ("Scripts/python.exe", "bin/python.exe", "bin/python")
+            if sys.platform == "win32"
+            else ("bin/python",)
         )
-        return candidate if candidate.is_file() else None
+        return next(
+            (folder / name for name in layouts if (folder / name).is_file()), None
+        )
+
+    def selected(self, project):
+        setting = self.path(project).parent / (str(UUID(project)) + ".json")
+        return json.loads(setting.read_text())["python"] if setting.is_file() else None
+
+    def select(self, project, executable):
+        if self.path(project).exists():
+            raise ValueError(
+                "O ambiente existente foi preservado. Use outro projeto para trocar o Python base."
+            )
+        actual = external_python(executable)
+        setting = self.path(project).parent / (str(UUID(project)) + ".json")
+        setting.parent.mkdir(parents=True, exist_ok=True)
+        setting.write_text(json.dumps({"python": str(actual)}))
+        return {"python": str(actual)}
+
+    def _run(self, project, stage, args, timeout=120):
+        try:
+            result = run_external(args, capture_output=True, text=True, timeout=timeout)
+            if result.returncode:
+                raise subprocess.CalledProcessError(
+                    result.returncode, args, result.stdout, result.stderr
+                )
+            return result
+        except (OSError, subprocess.SubprocessError) as error:
+            details = str(getattr(error, "stderr", None) or error)[-3000:]
+            # Strip credentials from URLs and conventional token assignments.
+            details = re.sub(
+                r"(https?://)[^\s/@]+:[^\s/@]+@", r"\1[redacted]@", details
+            )
+            details = re.sub(
+                r"(?i)(token|password|secret)([=:]\s*)[^\s]+",
+                r"\1\2[redacted]",
+                details,
+            )
+            raise ValueError(
+                f"Etapa: {stage}\nPython: {args[0]}\nAmbiente: {self.path(project)}"
+                f"\nComando: {shlex.join(args)}\nCódigo: {getattr(error, 'returncode', 'indisponível')}"
+                f"\nErro: {details}\nVerifique o interpretador, as permissões e a conexão. O ambiente foi preservado."
+            ) from error
+
+    def ensure(self, project):
+        folder = self.path(project)
+        python = self.interpreter(project)
+        if python is None:
+            if folder.exists():
+                raise ValueError(
+                    f"Ambiente incompleto preservado: {folder}. Selecione outro projeto ou repare este ambiente."
+                )
+            base = external_python(self.selected(project))
+            folder.parent.mkdir(parents=True, exist_ok=True)
+            self._run(
+                project,
+                "criação do venv",
+                [
+                    str(base),
+                    "-I",
+                    "-c",
+                    HIDDEN_CHILD_BOOTSTRAP
+                    + "\nimport venv,sys; venv.EnvBuilder(with_pip=True, clear=False).create(sys.argv[1])",
+                    str(folder),
+                ],
+            )
+            python = self.interpreter(project)
+        if python is None:
+            raise ValueError(
+                f"Criação do venv não produziu o executável esperado: {folder}"
+            )
+        self._run(
+            project,
+            "validação do ambiente",
+            [
+                str(python),
+                "-I",
+                "-c",
+                "import sys; assert sys.prefix != sys.base_prefix",
+            ],
+        )
+        return python
+
+    def prepare_kernel(self, project):
+        python = self.ensure(project)
+        probe = run_external(
+            [str(python), "-I", "-c", "import ipykernel"],
+            capture_output=True,
+            timeout=15,
+        )
+        if probe.returncode:
+            self.install(project, ["ipykernel"], confirm=True)
+        return python
+
+    def prepare_data(self, project):
+        python = self.prepare_kernel(project)
+        probe = run_external(
+            [str(python), "-I", "-c", "import pandas, pyarrow, duckdb"],
+            capture_output=True,
+            timeout=15,
+        )
+        if probe.returncode:
+            self.install(project, ["pandas", "pyarrow", "duckdb"], confirm=True)
+        return python
 
     def status(self, project):
         python = self.interpreter(project)
@@ -84,54 +189,32 @@ class PythonEnvironments:
             raise ValueError(
                 "Informe até cinco pacotes PyPI válidos. URLs e opções de pip não são aceitas."
             )
-        python = self.interpreter(project)
-        if python is None:
-            folder = self.path(project)
-            folder.parent.mkdir(parents=True, exist_ok=True)
-            if getattr(sys, "frozen", False) or sys.platform == "win32":
-                run_external(
-                    [str(external_python()), "-I", "-c", HIDDEN_CHILD_BOOTSTRAP + "\nimport venv,sys; venv.EnvBuilder(with_pip=True).create(sys.argv[1])", str(folder)],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
-                )
-            else:
-                venv.EnvBuilder(with_pip=True, clear=False).create(folder)
-            python = self.interpreter(project)
-        if python is None:
-            raise ValueError(
-                "Não foi possível criar o ambiente Python isolado do projeto."
-            )
+        python = self.ensure(project)
         # Static Jedi completion executes inside the selected interpreter on
         # Windows. Ensure its tooling is available whenever users authorize
         # installing packages; no environment is created without consent.
-        tooling = [] if any(re.match(r"(?i)^jedi\b", package) for package in packages) else ["jedi==0.19.2"]
-        try:
-            process = run_external(
-                [
-                    str(python),
-                    "-m",
-                    "pip",
-                    "install",
-                    "--disable-pip-version-check",
-                    "--no-input",
-                    "--only-binary=:all:",
-                    *packages,
-                    *tooling,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=180,
-                cwd=self.root,
-            )
-        except subprocess.TimeoutExpired as error:
-            raise ValueError("Instalação encerrada após três minutos.") from error
+        tooling = (
+            []
+            if any(re.match(r"(?i)^jedi\b", package) for package in packages)
+            else ["jedi==0.19.2"]
+        )
+        process = self._run(
+            project,
+            "instalação de bibliotecas",
+            [
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--no-input",
+                "--only-binary=:all:",
+                *packages,
+                *tooling,
+            ],
+            timeout=180,
+        )
         log = (process.stdout + "\n" + process.stderr)[-MAX_LOG:]
-        if process.returncode:
-            raise ValueError(
-                "pip retornou código " + str(process.returncode) + ":\n" + log[-3000:]
-            )
         return {"installed": packages, "log": log, "environment": str(python)}
 
     def remove(self, project, packages, *, confirm=False):

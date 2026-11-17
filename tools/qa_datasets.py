@@ -95,7 +95,7 @@ def main():
                   view.dispatch({changes:{from:0,to:view.state.doc.length,insert:"print('Total de registros:', len(df))"}});
                   cell.querySelector('button[title="Executar"]').click();
                 })()""")
-                wait(window, "[...document.querySelectorAll('.code-notebook-output')].some(n=>n.textContent.includes('Total de registros: 2'))")
+                wait(window, "[...document.querySelectorAll('.code-notebook-output')].some(n=>n.textContent.includes('Total de registros: 2'))", timeout=240)
                 capture(output, "python")
                 window.evaluate_js("""(() => {
                   const view=OpenDocCodeVendor.EditorView.findFromDOM(document.querySelector('[data-code-cell=python] .cm-editor'));
