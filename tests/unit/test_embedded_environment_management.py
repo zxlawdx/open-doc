@@ -103,3 +103,23 @@ def test_environment_parent_permission_failure_is_actionable(tmp_path, monkeypat
     assert "criação do diretório" in str(failure.value)
     assert str(manager.path(project)) in str(failure.value)
     assert "permission denied" in str(failure.value)
+
+
+def test_default_internal_python_does_not_probe_msys_store_or_path(
+    tmp_path, monkeypatch
+):
+    from apps.code.services import local_runtime, embedded_runtime
+
+    python = tmp_path / "runtime/python/python.exe"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    monkeypatch.setattr(embedded_runtime, "embedded_tools", lambda: {"python": python})
+
+    def forbidden_probe(*args, **kwargs):
+        raise AssertionError(
+            "Default runtime must not launch external PATH interpreters"
+        )
+
+    monkeypatch.setattr(local_runtime, "discover_pythons", forbidden_probe)
+    monkeypatch.setenv("PATH", "MSYS2-first;Microsoft-Store;Conda")
+    assert local_runtime.external_python() == python

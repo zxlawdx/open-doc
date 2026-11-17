@@ -185,6 +185,13 @@ def discover_pythons(configured=None):
 
 
 def external_python(configured=None):
+    from .embedded_runtime import embedded_tools
+
+    internal = embedded_tools()
+    if internal and not configured:
+        # A Store alias, broken Conda install or MSYS2 ahead of PATH must not
+        # even be launched during default notebook/bootstrap operations.
+        return Path(internal["python"])
     found = discover_pythons(configured)
     if configured:
         expected = Path(configured).resolve()
