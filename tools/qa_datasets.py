@@ -90,7 +90,7 @@ def main():
                 window.evaluate_js("""(() => {
                   const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
                   notebook.querySelector('button[title="Python"]').click();
-                  const cell=notebook.querySelector('[data-code-cell=python]:last-child');
+                  const cell=notebook.querySelector('[data-code-cell=python]:last-of-type');
                   const view=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
                   view.dispatch({changes:{from:0,to:view.state.doc.length,insert:"print('Total de registros:', len(df))"}});
                   cell.querySelector('button[title="Executar"]').click();
@@ -227,7 +227,7 @@ def main():
                 js("""(() => {
                   const notebook=document.querySelector('[data-dataset-tools] .code-notebook');
                   notebook.querySelector('button[title="Python"]').click();
-                  const cell=notebook.querySelector('[data-code-cell=python]:last-child');
+                  const cell=notebook.querySelector('[data-code-cell=python]:last-of-type');
                   const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
                   editor.dispatch({changes:{from:0,to:editor.state.doc.length,
                     insert:"df['qa_published'] = 42\\nprint('isolated-frame-ready')"}});

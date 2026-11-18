@@ -47,3 +47,29 @@ test('Python completion receives earlier notebook imports without executing them
  assert.match(editors[3].context(),/pass/);
  assert.doesNotMatch(editors[3].context(),/!pip/);
 });
+
+test('cell insertion uses the selected gap and only the executing cell shows a spinner',async t=>{
+ const dom=new JSDOM('<section><aside><h2 class="workbook-sidebar-title">Código</h2></aside></section>',{runScripts:'outside-only'});
+ const w=dom.window,panel=w.document.querySelector('aside'),signal=new w.AbortController(),pending=[];
+ t.after(()=>{signal.abort();w.close();});
+ w.OpenDocGridWorkspace={icon:()=>w.document.createElement('i')};
+ w.OpenDocCodeEditor={create:({field})=>({value:()=>field.value,focus:()=>{},lock:()=>{},remember:()=>{},columns:()=>{}})};
+ w.eval(source);
+ const api=w.OpenDocCodeNotebook.create({panel,signal:signal.signal,project:()=> 'project',
+   onLayout:()=>{},request:async()=>({cells:[]}),execute:()=>new Promise(resolve=>pending.push(resolve))});
+ await api.add('python','print(1)');
+ await api.add('python','print(2)');
+ panel.querySelectorAll('.code-notebook-insert')[1].querySelector('[title=Texto]').click();
+ const cells=[...panel.querySelectorAll('.code-notebook-cell')];
+ assert.deepEqual(cells.map(cell=>cell.dataset.codeCell),['python','text','python']);
+ assert.equal(panel.querySelectorAll('.code-notebook-insert').length,4);
+ const visible=()=>cells.filter(cell=>cell.querySelector('.code-cell-spinner:not([hidden])'));
+ panel.querySelector('[title="Executar todas"]').click();
+ assert.deepEqual(visible(),[cells[0]]);
+ pending.shift()({output:'1'});
+ await wait(0);
+ assert.deepEqual(visible(),[cells[2]]);
+ pending.shift()({output:'2'});
+ await wait(0);
+ assert.deepEqual(visible(),[]);
+});

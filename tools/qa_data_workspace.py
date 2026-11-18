@@ -42,24 +42,23 @@ def main(output):
                 create('Primeiro programa')
                 wait(w,"!!document.querySelector('.code-notebook-cell .cm-content')")
                 assert not js("!!document.querySelector('[data-dataset-python]')")
-                # Exercise the real dialog and HTTP service, not a mocked request.
-                click('[data-dataset] [data-python-env-command=toggle]')
-                wait(w,"document.querySelector('[data-dataset] .code-package-dialog')?.open")
-                wait(w,"document.querySelector('[data-dataset] [data-python-env-command=install]').disabled===false")
-                js("document.querySelector('[data-dataset] [data-python-env-names]').value='pandas'")
-                click('[data-dataset] [data-python-env-command=install]')
-                wait(w,"document.querySelector('[data-dataset] [data-python-env-command=install]').disabled===false",timeout=240)
-                install_status=js("document.querySelector('[data-dataset] [data-python-env-status]').textContent")
-                assert 'Bibliotecas instaladas' in install_status, install_status
-                assert js("document.querySelector('[data-dataset] [data-python-env-installed]').textContent.toLowerCase().includes('pandas')")
+                assert not js("!!document.querySelector('[data-python-packages]')")
+                # Install through the cell and reuse its environment for completion.
+                js("""(() => {
+                  const cell=document.querySelector('[data-code-cell=python]');
+                  const editor=OpenDocCodeVendor.EditorView.findFromDOM(cell.querySelector('.cm-editor'));
+                  editor.dispatch({changes:{from:0,to:editor.state.doc.length,insert:
+                    '!pip install pandas\\nimport pandas as pd\\nprint("GUI_INSTALL_FROM_CELL_OK")'}});
+                  cell.querySelector('button[title="Executar"]').click();
+                })()""")
+                wait(w,"document.querySelector('.code-notebook-output').textContent.includes('GUI_INSTALL_FROM_CELL_OK') && !document.querySelector('[data-running]:is(.code-notebook-cell)')",timeout=240)
                 from config.composition import get_context
                 context=get_context()
                 identifier=js("document.querySelector('[data-dataset-list]').value")
                 executable=context.code_tools.environments(context.config.root).interpreter(identifier)
                 assert executable and executable.is_file()
                 capture(output,'project-libraries-installed')
-                js("[...document.querySelectorAll('[data-dataset] .code-package-dialog button')].find(n=>n.textContent==='Fechar').click()")
-                print('QT_PROJECT_LIBRARY_INSTALL_BUTTON_OK',flush=True)
+                print('QT_PROJECT_LIBRARY_INSTALL_CELL_OK',flush=True)
                 before_cells=js("document.querySelectorAll('[data-code-cell=python]').length")
                 click('.od-app-rail [data-suite-app=code]')
                 wait(w,"document.querySelector('[data-app]')?.dataset.entryApp==='code' && document.querySelector('[data-app]')?.dataset.datasetView==='true'")
@@ -74,6 +73,10 @@ def main(output):
                 keyboard.press('Space')
                 wait(w,"[...document.querySelectorAll('.cm-tooltip-autocomplete li')].some(n=>n.textContent.includes('DataFrame'))")
                 capture(output,'python-autocomplete');keyboard.key('Escape')
+                for _ in range(3):
+                    keyboard.key('Left', shift=True)
+                keyboard.press('C')
+                keyboard.wait_clipboard('Dat')
                 # Real QtWebEngine keyboard / clipboard regression: one Ctrl+A
                 # must select all text, followed by a single Ctrl+C / Ctrl+V.
                 keyboard.press('A')

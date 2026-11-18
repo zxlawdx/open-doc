@@ -1,9 +1,4 @@
-"""Opt-in, project-local Python environment management for Open Doc.
-
-No automatic package installation. A project-specific virtualenv lives under
-the configured Open Doc workspace and never modifies system Python.
-Installed Python packages remain user-trusted code, not a security sandbox.
-"""
+"""Project-local Python environments and default kernel dependencies."""
 
 import os
 import signal
@@ -188,9 +183,13 @@ class PythonEnvironments:
         return python
 
     def prepare_kernel(self, project):
+        with _ENV_LOCK:
+            return self._prepare_kernel(project)
+
+    def _prepare_kernel(self, project):
         python = self.ensure(project)
         probe = run_external(
-            [str(python), "-I", "-c", "import ipykernel"],
+            [str(python), "-I", "-c", "import ipykernel, jedi, pip"],
             capture_output=True,
             timeout=15,
         )

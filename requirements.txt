@@ -33,3 +33,4 @@ jedi==0.19.2
 pandas>=2.2,<3
 pyarrow>=18,<27
 jupyter_client>=8.6,<9
+psutil>=7.2,<8

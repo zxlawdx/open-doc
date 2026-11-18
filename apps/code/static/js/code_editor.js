@@ -68,6 +68,7 @@
         const prefix=context.matchBefore(/[\p{L}\p{N}_]+/u);
         const previous=context.state.sliceDoc(Math.max(0,context.pos-1),context.pos);
         if(!context.explicit&&!prefix&&previous!==".")return null;
+        context.addEventListener("abort",()=>{}, {onDocChange:true});
         try{
           const result=await analyze("complete",context.state,context.pos);
           if(context.aborted)return null;
@@ -122,13 +123,6 @@
       }));
     } else extensions.push(dialect.of(sqlLanguage([])));
     const view=new EditorView({doc:field.value,parent:host,extensions});
-    if(language==="python"){
-      window.addEventListener("open-doc:python-env-updated",event=>{
-        if(event.detail?.project!==(typeof project==="function"?project():null))return;
-        // Do not steal focus from another editor or project after installation.
-        if(view.dom?.contains(document.activeElement))startCompletion(view);
-      },{signal});
-    }
     field.hidden=true;
     signal.addEventListener("abort",()=>{clearTimeout(pendingSignature);view.destroy();host.remove();},{once:true});
     const history=document.createElement("select");
@@ -159,7 +153,7 @@
       lock(value){
         if(locked===value)return;
         locked=value;history.disabled=value;
-        view.dispatch({effects:access.reconfigure([EditorState.readOnly.of(value),EditorView.editable.of(!value)])});
+        view.dispatch({effects:access.reconfigure(EditorState.readOnly.of(value))});
       },
     };
   }

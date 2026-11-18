@@ -21,11 +21,6 @@ def environment(interpreter):
 def analyze(code, line, column, operation, project=None):
     if not isinstance(code, str) or len(code) > MAX_CODE:
         raise ValueError("O código excede o limite do editor.")
-    if operation == "diagnostics":
-        code = "\n".join(
-            "pass" if line.lstrip().startswith(("!pip ", "%pip ")) else line
-            for line in code.split("\n")
-        )
     lines = code.split("\n")
     if (
         type(line) is not int
@@ -36,43 +31,55 @@ def analyze(code, line, column, operation, project=None):
         raise ValueError("Posição do cursor inválida.")
     if operation not in ("complete", "diagnostics", "inspect"):
         raise ValueError("Operação de análise inválida.")
-    # Always use the project's own interpreter for third-party packages.
-    # In-process Jedi with a separate Environment may retain import caches or
-    # search a different site-packages than the notebook on Linux. The same
-    # isolated worker path is used across Linux Mint and Windows.
+    # Preserve cursor offsets on Python lines while hiding notebook magics
+    # from Jedi. Keep indentation so magics inside a block remain valid.
+    for index, source in enumerate(lines):
+        stripped = source.lstrip()
+        if stripped.startswith(("!", "%")):
+            if index == line - 1 and operation != "diagnostics":
+                return {"items": []} if operation == "complete" else {
+                    "signature": "", "documentation": ""
+                }
+            lines[index] = source[:len(source) - len(stripped)] + "pass"
+    code = "\n".join(lines)
+
     from .python_envs import PythonEnvironments
     from shared.contracts.workspace import workspace
 
     manager = PythonEnvironments(workspace().config.root) if project else None
-    selected = manager.interpreter(project) if manager else None
-    if manager and selected is None and not manager.selected(project):
+    selected = None
+    # Syntax linting does not need a project environment and should never
+    # compete with its initial setup or with a package installation.
+    if operation != "diagnostics" and manager:
         from .embedded_runtime import embedded_tools
 
-        if embedded_tools():
-            # Tooling comes from verified bundled wheels; analyzing editor text
-            # never executes notebook code or needs an online install.
+        selected = manager.interpreter(project)
+        if selected is None and embedded_tools():
             selected = manager.prepare_kernel(project)
     if selected is not None or getattr(sys, "frozen", False) or sys.platform == "win32":
         from .local_runtime import external_python, run_external
         from .analysis_worker import SOURCE
 
         executable = selected or external_python()
-        result = run_external(
-            [str(executable), "-I", "-c", SOURCE],
-            input=json.dumps([code, line, column, operation]),
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
+        payload = json.dumps([code, line, column, operation])
+
+        def run_worker(python):
+            return run_external(
+                [str(python), "-I", "-c", SOURCE],
+                input=payload,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+
+        result = run_worker(executable)
+        missing_jedi = "No module named 'jedi'"
+        if result.returncode and selected is not None and missing_jedi in (result.stderr or ""):
+            result = run_worker(manager.prepare_kernel(project))
         if result.returncode:
-            details = (result.stderr or result.stdout or "")[-1200:]
-            if (
-                "No module named 'jedi'" in details
-                or 'No module named "jedi"' in details
-            ):
+            if missing_jedi in (result.stderr or ""):
                 raise ValueError(
-                    "Jedi não está instalado no Python deste projeto. Abra "
-                    "Bibliotecas do projeto e selecione 'Ativar autocomplete Python (Jedi)'."
+                    "Jedi não está disponível no ambiente Python do projeto."
                 )
             raise ValueError(
                 "Falha ao analisar o Python do projeto. Verifique o ambiente "

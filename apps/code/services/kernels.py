@@ -54,6 +54,7 @@ class Session:
     directory: object
     lock: object = field(default_factory=RLock)
     executions: int = 0
+    resource_sample: tuple | None = None
 
 
 class KernelSessions:
@@ -261,6 +262,32 @@ class KernelSessions:
         with self._lock:
             session = self._sessions.get(project)
             return session is not None and session.manager.is_alive()
+
+    def resources(self, project):
+        import psutil
+
+        with self._lock:
+            session = self._sessions.get(project)
+            if session is None:
+                return {}
+            provisioner = session.manager.provisioner
+            if provisioner is None or provisioner.pid is None:
+                return {}
+            try:
+                process = psutil.Process(provisioner.pid)
+                times = process.cpu_times()
+                memory = process.memory_info().rss
+            except psutil.Error:
+                return {}
+            now = time.monotonic()
+            cpu_time = times.user + times.system
+            previous = session.resource_sample
+            session.resource_sample = (now, cpu_time)
+            cpu = None
+            if previous and now > previous[0]:
+                # Express CPU usage as a percentage of one logical core.
+                cpu = round(100 * max(0, cpu_time - previous[1]) / (now - previous[0]), 1)
+            return {"memory_mib": round(memory / 1024**2, 1), "cpu_percent": cpu}
 
     def status(self):
         with self._lock:

@@ -272,44 +272,6 @@
 }
 
 
-/* Project-only Python packages: explicit consent and readable installation logs. */
-.open-doc .python-packages {margin:11px 0;border-top:1px solid var(--color-border);padding:12px 0}
-.open-doc .python-packages>[data-python-env-command=toggle] {
-  display:flex;align-items:center;gap:7px;border-radius:7px;min-height:36px;
-  font-size:12px;font-weight:700
-}
-.open-doc .python-packages>[data-python-env-command=toggle] svg {width:15px;height:15px}
-.open-doc .python-packages [data-python-env-body] {padding:10px 4px}
-.open-doc .python-packages [data-python-env-body][hidden] {display:none}
-.open-doc .python-packages p,.open-doc .python-packages small {
-  display:block;font-size:11px;color:var(--color-text-secondary);line-height:1.45
-}
-.open-doc .python-packages label {display:block;margin:10px 0;font-size:12px}
-.open-doc .python-packages input[data-python-env-names]{
-  box-sizing:border-box;display:block;width:100%;min-height:35px;margin-top:5px;
-  padding:6px 9px;border-radius:6px;border:1px solid var(--color-border);
-  background:var(--color-panel);color:var(--color-text-primary)
-}
-.open-doc .python-packages .python-packages-consent {
-  display:flex;gap:8px;align-items:flex-start
-}
-.open-doc .python-packages input[type=checkbox] {appearance:auto;flex:none;width:15px;height:15px;margin-top:2px}
-.open-doc .python-packages [data-python-env-command=install] {
-  background:var(--color-primary);color:white;border-color:var(--color-primary);
-  padding:9px 12px;border-radius:6px;min-height:38px
-}
-.open-doc .python-packages [data-python-env-status] {
-  display:block;margin:7px 0;font-size:12px;overflow-wrap:anywhere
-}
-.open-doc .python-packages pre {
-  max-height:160px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
-  font-family:monospace;font-size:11px
-}
-.open-doc .python-packages [data-python-env-installed] {
-  max-height:160px;overflow:auto;padding-left:18px;font-size:11px
-}
-.open-doc .python-packages details summary {font-size:12px;cursor:pointer}
-
 /* Shared ribbon and work area. Groups keep their controls when the window
    shrinks. The overflow affordance reveals the same controls in a wrapped tray. */
 .open-doc .workbook-ribbon-shell {
@@ -398,7 +360,6 @@
 }
 
 .open-doc .workbook [data-book-command=pivot-create]>svg,
-.open-doc .workbook [data-python-env-command=install]>svg {color:inherit}
 
 /* Code notebook, shared by the sheet and dataset panels. */
 .open-doc .code-notebook {margin:12px 0 20px;min-width:0}
@@ -509,10 +470,6 @@
 .open-doc .dataset-project-tabs [aria-current=true] {background:var(--color-primary-soft);border-bottom:2px solid var(--color-primary)}
 .open-doc .dataset[aria-busy=true] [data-dataset-status]::before {content:"";display:inline-block;width:1em;height:1em;border:2px solid var(--color-border);border-top-color:var(--color-primary);border-radius:50%;animation:code-spin .8s linear infinite;margin-right:8px}
 @keyframes code-spin {to{transform:rotate(360deg)}}
-.open-doc .code-package-dialog {color:var(--color-text-primary);background:var(--color-panel);border:1px solid var(--color-border);border-radius:12px;max-width:40rem;width:90vw;padding:24px;max-height:80vh;overflow:auto}
-.open-doc .code-package-dialog::backdrop {background:#0007}
-.open-doc .code-package-dialog progress {width:100%}
-.open-doc .code-package-dialog pre {max-height:12rem;overflow:auto}
 
 .open-doc .suite-launcher {grid-column:1/-1;display:flex;gap:12px;padding:16px;overflow:auto;background:var(--color-panel)}
 .open-doc .suite-launcher a {display:flex;flex-direction:column;gap:8px;min-width:9rem;padding:16px;border:1px solid var(--color-border);border-top:4px solid var(--app-accent);border-radius:10px;text-decoration:none;color:var(--color-text-primary)}
@@ -641,7 +598,6 @@
   flex:0 1 auto;margin:0;white-space:nowrap;font-size:11px;
   color:var(--color-text-secondary)
 }
-.open-doc .dataset .data-notebook-kind {font-size:11px;color:var(--color-text-muted)}
 .open-doc .dataset .data-notebook-actions {
   display:flex;gap:2px;margin-left:auto;opacity:0;pointer-events:none
 }
@@ -913,3 +869,37 @@
   box-shadow:0 5px 14px rgba(0,0,0,.15);font-size:12px;line-height:1.45
 }
 .open-doc .book-formula-example[hidden] {display:none}
+
+.open-doc .code-notebook-content {display:flex;align-items:flex-start;gap:8px}
+.open-doc .code-notebook-cells {flex:1;min-width:0}
+.open-doc .code-notebook-navigation {
+  flex:0 1 170px;min-width:0;padding:8px 6px;border:1px solid var(--color-border);
+  border-radius:8px;background:var(--color-panel)
+}
+.open-doc .code-notebook-navigation input,.open-doc .code-notebook-navigation button {width:100%;min-width:0}
+.open-doc .code-notebook-navigation nav {display:grid;gap:4px;margin-top:6px}
+.open-doc .code-notebook-navigation button {text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.open-doc .code-notebook-navigation svg {width:14px;height:14px;margin-right:4px;vertical-align:middle}
+.open-doc .code-notebook-insert {display:flex;justify-content:center;gap:5px;padding:3px 0}
+.open-doc .code-notebook-insert button {
+  display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+  border:1px solid var(--color-border);border-radius:6px;background:var(--color-panel);
+  color:var(--color-text-secondary);font-size:11px
+}
+.open-doc .code-notebook-insert button:is(:hover,:focus-visible) {color:var(--color-primary);border-color:currentColor}
+.open-doc .code-notebook-insert svg {width:13px;height:13px}
+.open-doc .code-notebook-resources {font-size:11px;color:var(--color-text-secondary)}
+.open-doc .code-notebook-cell .cm-content,.open-doc .code-notebook-cell textarea {user-select:text;-webkit-user-select:text}
+.open-doc .code-notebook-cell[data-running] {border-color:var(--color-primary)}
+.open-doc .code-notebook-cell[data-running] .data-notebook-run {display:none}
+.open-doc .code-cell-spinner:not([hidden]) {
+  display:inline-block;flex:none;width:16px;height:16px;margin:5px;border:2px solid var(--color-border);box-sizing:border-box;
+  border-top-color:var(--color-primary);border-radius:50%;animation:code-cell-spin .8s linear infinite
+}
+.open-doc .code-notebook [hidden] {display:none}
+@keyframes code-cell-spin {to {transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.open-doc .code-cell-spinner:not([hidden]) {animation:none}}
+@media(max-width:850px){
+  .open-doc .code-notebook-content {display:block}
+  .open-doc .code-notebook-navigation:not([hidden]) {max-height:12rem;overflow:auto}
+}
