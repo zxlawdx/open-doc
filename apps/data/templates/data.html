@@ -113,25 +113,6 @@
   </details>
 
   </details>
-    <section class="python-packages" data-python-packages aria-label="Bibliotecas Python do projeto">
-      <button type="button" data-python-env-command="toggle"
-        title="Gerenciar pacotes em ambiente virtual exclusivo desta planilha ou dataset">
-        <svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#code"></use></svg>Bibliotecas Python
-      </button>
-      <div data-python-env-body hidden>
-        <p>Instale bibliotecas neste projeto ou use <code>!pip install pacote</code> em uma célula.</p>
-        <label>Pacotes (separe por vírgulas, até 5)
-          <input data-python-env-names placeholder="pandas, numpy" maxlength="500">
-        </label>
-
-        <button type="button" data-python-env-command="install"><svg aria-hidden="true"><use href="{{ static('home/icons.svg') }}#download"></use></svg>Instalar no projeto</button>
-        <output data-python-env-status role="status" aria-live="polite"></output>
-        <details><summary>Pacotes instalados e log</summary>
-          <ul data-python-env-installed></ul><pre data-python-env-log></pre>
-        </details>
-
-      </div>
-    </section>
   </aside>
   </div>
   <p data-dataset-status role="status" aria-live="polite"></p>

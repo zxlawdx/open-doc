@@ -32,9 +32,7 @@ def notebook(context=None):
         if command == "execute-workbook":
             language = data.get("language", "python")
             code = data["code"]
-            # Explicit notebook pip magics must be handled before opening a
-            # kernel. On a fresh Linux Mint project, ipykernel may be absent;
-            # opening the workbook first would fail before pip could install it.
+            # Package cells can run before loading the workbook table.
             if language == "python" and isinstance(code, str) and code.strip().startswith(("!pip ", "%pip ")):
                 return ctx.notebooks.execute(data["id"], code, language)
             if data["id"] not in ctx.notebooks._bindings:
@@ -43,6 +41,7 @@ def notebook(context=None):
             return ctx.notebooks.execute(data["id"], code, language)
         if command == "execute": return ctx.notebooks.execute(data["id"], data["code"], data.get("language", "python"))
         if command == "publish": return ctx.notebooks.publish(data["id"])
+        if command == "resources": return ctx.kernels.resources(data["id"])
         if command == "sessions": return {"sessions": ctx.kernels.status()}
         if command == "stop": return ctx.notebooks.stop(data["id"])
         if command == "save-cells": return ctx.notebooks.save_cells(data["id"], data["cells"])

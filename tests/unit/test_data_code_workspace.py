@@ -80,5 +80,5 @@ def test_frozen_python_completion_reports_missing_jedi(monkeypatch):
     monkeypatch.setattr(local_runtime, 'run_external', lambda *args, **kwargs: SimpleNamespace(
         returncode=1, stdout='', stderr="ModuleNotFoundError: No module named 'jedi'"
     ))
-    with pytest.raises(ValueError, match='Ativar autocomplete Python'):
+    with pytest.raises(ValueError, match='Jedi não está disponível'):
         analyze('import pandas as pd\npd.Dat', 2, 6, 'complete')

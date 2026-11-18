@@ -7,10 +7,21 @@
     const shell=panel.parentElement;
     const workbooks=new Map();
     let restoration=Promise.resolve();
-    let key, cells=[], columns=[], busy=false, stop=false, saveTimer;
+    let key, cells=[], columns=[], busy=false, stop=false, activeCell;
+    const saveTimers=new Map();
     const sources=()=>cells.map(cell=>({language:cell.language,source:cell.editor?.value()??cell.field.value}));
-    function persist(){if(!key)return;const id=key,payload=sources();clearTimeout(saveTimer);saveTimer=setTimeout(()=>request("notebook",{operation:"save-cells",id,cells:payload}).catch(error=>{notice.textContent="Caderno não salvo: "+error.message;}),400);}
-    async function restore(id){try{const saved=await request("notebook",{operation:"load-cells",id});if(key!==id||cells.length)return;for(const cell of saved.cells||[])if(Object.prototype.hasOwnProperty.call(LABELS,cell.language))add(cell.language,cell.source);}catch(error){notice.textContent="Recuperação do caderno: "+error.message;}}
+    function persist(){
+      if(!key||signal.aborted)return;
+      const id=key,payload=sources();
+      clearTimeout(saveTimers.get(id));
+      saveTimers.set(id,setTimeout(()=>{
+        saveTimers.delete(id);
+        request("notebook",{operation:"save-cells",id,cells:payload}).catch(error=>{
+          if(key===id)notice.textContent="Caderno não salvo: "+error.message;
+        });
+      },400));
+    }
+    async function restore(id){try{const saved=await request("notebook",{operation:"load-cells",id});if(key!==id||cells.length)return;for(const cell of saved.cells||[])if(Object.prototype.hasOwnProperty.call(LABELS,cell.language))add(cell.language,cell.source,cells.length,false);}catch(error){notice.textContent="Recuperação do caderno: "+error.message;}}
     const icon=name=>window.OpenDocGridWorkspace.icon(panel,name);
     function element(tag,className,text) {
       const node=document.createElement(tag);
@@ -34,7 +45,6 @@
     kernelStatus.setAttribute("aria-live","polite");
     const list=element("div","code-notebook-cells");
     const notice=element("p","code-notebook-status");
-    const progress=element("progress");progress.setAttribute("aria-label","Executando célula");progress.hidden=true;
     notice.setAttribute("role","status");
     const addButtons=Object.entries(LABELS).map(([language,label])=>
       button(label, "file-plus",()=>add(language)));
@@ -51,9 +61,87 @@
     picker.addEventListener("change",importNotebook,{signal});
     if(datasetMode)toolbar.append(kernelStatus);
     toolbar.append(...addButtons,runAll,stopAll,openFile,saveFile,split,full,picker);
-    notebook.append(toolbar,progress,notice,list);
+    const browser=element("aside","code-notebook-navigation");
+    browser.hidden=true;
+    const filter=element("input");
+    filter.type="search";filter.placeholder="Buscar nas células";
+    filter.setAttribute("aria-label",filter.placeholder);
+    const matches=element("nav");
+    matches.setAttribute("aria-label","Células do caderno");
+    function updateNavigation(){
+      if(browser.hidden)return;
+      const query=filter.value.trim().toLocaleLowerCase();
+      matches.replaceChildren();
+      for(const [index,cell] of cells.entries()){
+        const source=cell.editor?.value()??cell.field.value;
+        if(!source.toLocaleLowerCase().includes(query))continue;
+        const name=source.split("\n").find(line=>line.trim())?.trim().slice(0,60);
+        matches.append(button((index+1)+" · "+(name||LABELS[cell.language]),cell.language==="text"?"file-text":"code",()=>{
+          cell.node.scrollIntoView?.({block:"nearest"});
+          (cell.editor||cell.field).focus();
+        }));
+      }
+      if(!matches.childElementCount)matches.textContent="Nenhuma célula encontrada.";
+    }
+    browser.append(filter,matches);
+    const showNavigation=button("Navegar no caderno","list",()=>{
+      browser.hidden=!browser.hidden;
+      showNavigation.setAttribute("aria-expanded",String(!browser.hidden));
+      updateNavigation();
+      if(!browser.hidden)filter.focus();
+    });
+    showNavigation.setAttribute("aria-expanded","false");
+    filter.addEventListener("input",updateNavigation,{signal});
+    const resources=element("output","code-notebook-resources");
+    resources.hidden=true;
+    let resourceTimer=0, resourcePending=false;
+    async function updateResources(){
+      if(resources.hidden||resourcePending)return;
+      const id=key;
+      if(!id){resources.textContent="Abra um projeto.";return;}
+      resourcePending=true;
+      try{
+        const value=await request("notebook",{operation:"resources",id});
+        if(id!==key||signal.aborted)return;
+        resources.textContent=value.memory_mib==null?"Kernel local sem métricas disponíveis":
+          "Kernel local · RAM "+value.memory_mib+" MiB"+(value.cpu_percent==null?"":" · CPU "+value.cpu_percent+"%");
+      }catch{
+        if(id===key)resources.textContent="Métricas indisponíveis";
+      }finally{resourcePending=false;}
+    }
+    const showResources=button("Recursos","chart-line",()=>{
+      resources.hidden=!resources.hidden;
+      showResources.setAttribute("aria-expanded",String(!resources.hidden));
+      clearInterval(resourceTimer);
+      if(!resources.hidden){
+        updateResources();
+        resourceTimer=setInterval(updateResources,2000);
+      }
+    });
+    showResources.setAttribute("aria-expanded","false");
+    toolbar.prepend(showNavigation);
+    toolbar.append(showResources,resources);
+    const content=element("div","code-notebook-content");
+    content.append(browser,list);
+    notebook.append(toolbar,notice,content);
+    function renderCells(){
+      const nodes=[];
+      for(let index=0;index<=cells.length;index++){
+        const gap=element("div","code-notebook-insert");
+        for(const [language,label] of [["python","Código"],["text","Texto"]]){
+          const insert=button(label,"add-circle",()=>add(language,"",index));
+          insert.setAttribute("aria-label","Adicionar "+label.toLowerCase()+" na posição "+(index+1));
+          gap.append(insert);
+        }
+        nodes.push(gap);
+        if(cells[index])nodes.push(cells[index].node);
+      }
+      list.replaceChildren(...nodes);
+      refresh();
+    }
     notebook.addEventListener("focusout",persist,{signal});
-    notebook.addEventListener("change",persist,{signal});
+    notebook.addEventListener("change",()=>{persist();updateNavigation();},{signal});
+    notebook.addEventListener("input",updateNavigation,{signal});
     panel.querySelector(".workbook-sidebar-title").after(notebook);
     function layout(expanded) {
       shell.classList.toggle("code-notebook-full",expanded);
@@ -68,7 +156,6 @@
       }
     },{signal});
     function refresh() {
-      progress.hidden=!busy;notebook.setAttribute("aria-busy",String(busy));
       runAll.disabled=busy||!cells.some(cell=>cell.language!=="text");
       stopAll.hidden=!busy;
       if(datasetMode){
@@ -77,18 +164,21 @@
       }
       openFile.disabled=busy||!key||cells.length>=LIMIT;
       saveFile.disabled=busy||!cells.length;
-      addButtons.forEach(button=>button.disabled=busy||!key||cells.length>=LIMIT);
+      for(const button of [...addButtons,...list.querySelectorAll(".code-notebook-insert button")])
+        button.disabled=busy||!key||cells.length>=LIMIT;
+      updateNavigation();
       for(const [index,cell] of cells.entries()){
         cell.title.textContent=(index+1)+" · "+LABELS[cell.language];
+        cell.node.toggleAttribute("data-running",cell===activeCell);
+        if(cell.spinner)cell.spinner.hidden=cell!==activeCell;
         if(cell.counter)cell.counter.textContent="["+(index+1)+"]";
         cell.controls.forEach(control=>control.disabled=busy);
         cell.up.disabled=busy||index===0;
         cell.down.disabled=busy||index===cells.length-1;
-        cell.editor?.lock(busy);
-        if(cell.language==="text")cell.field.readOnly=busy;
+        cell.editor?.lock(cell===activeCell);
       }
     }
-    function add(language,source="",at=cells.length) {
+    function add(language,source="",at=cells.length,interactive=true) {
       if(busy||!key||cells.length>=LIMIT)return;
       const controller=new AbortController();
       const node=element("article","code-notebook-cell");
@@ -109,16 +199,15 @@
         const target=cells[index+offset];
         if(!target||busy)return;
         cells.splice(index,1);cells.splice(index+offset,0,cell);
-        if(offset<0)target.node.before(node);else target.node.after(node);
-        refresh();
+        renderCells();(cell.editor||field).focus();persist();
       }
       const value=()=>cell.editor?.value()??field.value;
       const up=button("Subir","arrow-up",()=>move(-1));
       const down=button("Descer","arrow-down",()=>move(1));
-      const duplicate=button("Duplicar","file-plus",()=>add(language,value(),cells.indexOf(cell)+1));
-      const remove=button("Excluir","close",()=>{
+      const duplicate=button("Duplicar","duplicate",()=>add(language,value(),cells.indexOf(cell)+1));
+      const remove=button("Excluir","trash",()=>{
         if(busy)return;
-        cells.splice(cells.indexOf(cell),1);controller.abort();node.remove();refresh();
+        cells.splice(cells.indexOf(cell),1);controller.abort();renderCells();persist();
       });
       const clear=button("Limpar saída","close",()=>{output.replaceChildren();output.hidden=true;});
       cell.up=up;cell.down=down;
@@ -127,17 +216,21 @@
       if(datasetMode){
         const counter=element("span","data-notebook-count","[ ]");
         cell.counter=counter;gutter.append(counter);
-        const kind=element("span","data-notebook-kind",LABELS[language]);
-        heading.append(title,kind);
+        heading.append(title);
       }else heading.append(title);
       const actions=datasetMode?element("div","data-notebook-actions"):heading;
       if(language!=="text"){
         const play=button("Executar","play",()=>run([cell]));
+        const spinner=element("span","code-cell-spinner");
+        spinner.setAttribute("role","status");
+        spinner.setAttribute("aria-label","Executando célula");
+        spinner.hidden=true;cell.spinner=spinner;
         if(datasetMode){
+          play.setAttribute("aria-label","Executar");
           play.classList.add("data-notebook-run");
           play.replaceChildren(icon("play"));
-          gutter.prepend(play);
-        }else actions.append(play);
+          gutter.prepend(play,spinner);
+        }else actions.append(play,spinner);
         actions.append(clear);cell.controls.push(play,clear);
       }
       actions.append(up,down,duplicate,remove);
@@ -148,7 +241,6 @@
         main.append(heading,field,signature,output);
         node.append(main);
       }else node.append(heading,field,signature,output);
-      list.insertBefore(node,cells[at]?.node??null);
       cells.splice(at,0,cell);
       if(language!=="text"){
         cell.editor=window.OpenDocCodeEditor.create({field,language,request,signature,
@@ -160,7 +252,7 @@
             for(const previous of cells.slice(0,cells.indexOf(cell)).reverse()){
               if(previous.language!=="python")continue;
               const source=(previous.editor?.value()??previous.field.value)
-                .split("\n").map(line=>/^\s*[!%]/.test(line)?"pass":line).join("\n");
+                .split("\n").map(line=>line.replace(/^(\s*)[!%].*$/,"$1pass")).join("\n");
               if(!source.trim()||length+source.length+2>budget)continue;
               parts.unshift(source);length+=source.length+2;
             }
@@ -178,7 +270,8 @@
         const preview=()=>{output.hidden=false;const markdown=window.marked?.parse(field.value)||field.value;output.innerHTML=window.DOMPurify?.sanitize(markdown)||"";if(!window.DOMPurify)output.textContent=field.value;};
         field.addEventListener("input",preview,{signal:controller.signal});preview();
       }
-      refresh();(cell.editor||field).focus();
+      renderCells();
+      if(interactive){(cell.editor||field).focus();persist();}
     }
     async function exportNotebook() {
       const payload={nbformat:4,nbformat_minor:4,metadata:{kernelspec:{
@@ -250,16 +343,17 @@
     async function run(queue) {
       if(busy||!key||key!==project())return false;
       const active=key;
+      queue=[...queue];
       busy=true;stop=false;refresh();
       try{
         for(const cell of queue){
           if(stop||active!==project())return false;
           if(cell.language==="text"||!cell.editor.value().trim())continue;
+          activeCell=cell;refresh();
           cell.editor.remember();
           notice.textContent="Executando "+cell.title.textContent+"…";
           try{
             const result=await execute(cell.language,cell.editor.value());
-            if(cell.language==="python")window.dispatchEvent(new CustomEvent("open-doc:python-env-updated",{detail:{project:project()}}));
             if(result.error)throw Error(result.error);
             if(active!==project())return false;
             display(cell,result);
@@ -271,6 +365,8 @@
             display(cell,{message:error.message});
             notice.textContent="Falha em "+cell.title.textContent+".";
             return false;
+          }finally{
+            activeCell=null;refresh();
           }
         }
         notice.textContent="Execução concluída.";
@@ -284,7 +380,7 @@
         key=next;
         if(!workbooks.has(key))workbooks.set(key,[]);
         cells=workbooks.get(key);
-        list.replaceChildren(...cells.map(cell=>cell.node));
+        renderCells();updateResources();
         notice.textContent="Células Python e SQL compartilham o kernel deste projeto. df permanece isolado até publicar.";
         if(key)restoration=restore(key);
       }
@@ -292,11 +388,12 @@
       refresh();
     }
     signal.addEventListener("abort",()=>{
-      clearTimeout(saveTimer);
+      for(const timer of saveTimers.values())clearTimeout(timer);
+      clearInterval(resourceTimer);
       for(const cells of workbooks.values())for(const cell of cells)cell.controller.abort();
     },{once:true});
     layout(false);activate();
-    return {activate,add:(language,source)=>restoration.then(()=>add(language,source)),flush:async()=>{clearTimeout(saveTimer);await restoration;if(key)await request("notebook",{operation:"save-cells",id:key,cells:sources()});},collapse:()=>layout(false)};
+    return {activate,add:(language,source)=>restoration.then(()=>add(language,source)),flush:async()=>{await restoration;if(key){clearTimeout(saveTimers.get(key));saveTimers.delete(key);await request("notebook",{operation:"save-cells",id:key,cells:sources()});}},collapse:()=>layout(false)};
   }
   window.OpenDocCodeNotebook={create};
 })();

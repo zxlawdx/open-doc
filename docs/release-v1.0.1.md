@@ -2,8 +2,8 @@
 
 - Oito aplicações nativas do Vela, com abas e recuperação do workspace.
 - Dados e notebooks Python/SQL com ambientes por projeto, publicação explícita e Planilhas por referência.
-- Correção da mensagem ao remover bibliotecas e da identificação de falhas ao iniciar kernels.
-- Encerramento dos canais de kernels que falham durante a inicialização e proteção da interface ao alternar projetos durante instalações.
+- Autocomplete Python no ambiente do caderno e preparação automática do kernel. Instale pacotes extras diretamente em uma célula com `%pip install` ou `!pip install`.
+- Inserção de código e texto em qualquer posição, indicador na célula em execução, busca no caderno e painel de CPU e RAM do kernel local.
 - Menos trabalho de renderização e persistência de sessão durante a edição.
 - Leitura/exportação de CSV e consultas tipadas otimizadas, preservando histórico e valores originais.
 

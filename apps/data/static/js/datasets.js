@@ -15,7 +15,6 @@
     const workspace=window.OpenDocGridWorkspace;
     workspace.ribbon(host,signal);
     const icon=name=>workspace.icon(host,name);
-    const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>list.value,signal});
     const sqlField=$("[data-dataset-sql]");
     const sqlEditor=window.OpenDocCodeEditor.create({field:sqlField,language:"sql",request,signal,project:()=>list.value,
       run:()=>run(executeQuery)});

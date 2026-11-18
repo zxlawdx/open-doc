@@ -78,7 +78,7 @@ def test_project_install_refreshes_autocomplete_without_app_restart(
     assert "from_project_venv" in {item["label"] for item in next_result["items"]}
 
 
-def test_project_editor_reports_explicit_error_when_jedi_not_installed(
+def test_project_editor_repairs_missing_jedi_automatically(
     tmp_path, monkeypatch
 ):
     project = str(uuid4())
@@ -90,9 +90,19 @@ def test_project_editor_reports_explicit_error_when_jedi_not_installed(
         "workspace",
         lambda: SimpleNamespace(config=SimpleNamespace(root=tmp_path)),
     )
-    import pytest
+    manager = PythonEnvironments(tmp_path)
+    executable = manager.interpreter(project)
+    purelib = Path(subprocess.check_output(
+        [str(executable), "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+        text=True, timeout=15,
+    ).strip())
 
-    with pytest.raises(ValueError, match="Jedi não está instalado"):
-        analyze(
-            "import pandas as pd\npd.DataF", 2, len("pd.DataF"), "complete", project
-        )
+    def repair(self, identifier):
+        assert identifier == project
+        paths = {str(Path(package.__file__).parent.parent) for package in (jedi, parso)}
+        (purelib / "opendoc_test_jedi.pth").write_text("\n".join(paths), encoding="utf-8")
+        return executable
+
+    monkeypatch.setattr(PythonEnvironments, "prepare_kernel", repair)
+    result = analyze("from pathlib import Path\nPath().exi", 2, 10, "complete", project)
+    assert "exists" in {item["label"] for item in result["items"]}

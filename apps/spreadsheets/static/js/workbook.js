@@ -17,7 +17,6 @@
     let sqlEditor, pythonEditor, notebook, analysisLoading, analysisBusy=false, lastSchema,lastSqlQuery=null,analysisGeneration=0;
     const undo=[], redo=[], pivotExtents=new WeakMap();
     let book, lastClick, index=0, row=0, col=0, anchor=[0,0], calc, frame, dirty=false, pending, importing=false;
-    const pythonPackages=window.OpenDocPythonPackages.create({host:$("[data-python-packages]"),request,project:()=>book?.id,signal});
     const sheet=()=>book.sheets[index];
     const geometryCache=new WeakMap();let sizeDrag=null;
     function geometry(){
