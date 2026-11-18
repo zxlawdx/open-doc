@@ -51,7 +51,7 @@ def main(output):
                     '!pip install pandas\\nimport pandas as pd\\nprint("GUI_INSTALL_FROM_CELL_OK")'}});
                   cell.querySelector('button[title="Executar"]').click();
                 })()""")
-                wait(w,"document.querySelector('.code-notebook-output').textContent.includes('GUI_INSTALL_FROM_CELL_OK') && !document.querySelector('[data-running]:is(.code-notebook-cell)')",timeout=240)
+                wait(w,"document.querySelector('.code-notebook-output').textContent.includes('GUI_INSTALL_FROM_CELL_OK') && !document.querySelector('.code-notebook-cell[data-running]')",timeout=240)
                 from config.composition import get_context
                 context=get_context()
                 identifier=js("document.querySelector('[data-dataset-list]').value")
